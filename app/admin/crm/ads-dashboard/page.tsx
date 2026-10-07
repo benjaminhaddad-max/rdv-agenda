@@ -1,7 +1,14 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
-import { Facebook, Loader2, AlertCircle, RefreshCw, ExternalLink } from 'lucide-react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
+import { Facebook, RefreshCw, ExternalLink, Calendar, BarChart3, Users, TrendingUp, MousePointerClick, Building2 } from 'lucide-react'
+import {
+  CrmV2Body, CrmV2Button, CrmV2Card, CrmV2Empty, CrmV2Header, CrmV2KpiCard, CrmV2KpiGrid, CrmV2Page,
+  CrmV2Search, CrmV2Spinner, CrmV2Table, CrmV2TableCard, CrmV2Tabs, CrmV2Td, CrmV2Th, CrmV2Tr,
+} from '@/components/crm-v2/primitives'
+import { AdsBanner, AdsFaint, AdsIconTile, AdsMobileRow, AdsPillSelect, adsSpin } from '@/components/crm-v2/marketing2/ads/ui'
+import { crmV2 } from '@/lib/crm-v2-theme'
+import { useIsMobile } from '@/lib/useIsMobile'
 
 type AdAccount = {
   account_id: string
@@ -60,7 +67,10 @@ const DATE_PRESETS: Array<{ value: DatePreset; label: string }> = [
   { value: 'maximum', label: 'Tout' },
 ]
 
+const LEVEL_LABELS: Record<Level, string> = { campaign: 'Campagne', adset: 'Adset', ad: 'Ad' }
+
 export default function AdsDashboardPage() {
+  const isMobile = useIsMobile()
   const [accounts, setAccounts] = useState<AdAccount[]>([])
   const [selectedAccount, setSelectedAccount] = useState<string>('')
   const [level, setLevel] = useState<Level>('campaign')
@@ -69,6 +79,7 @@ export default function AdsDashboardPage() {
   const [loading, setLoading] = useState(false)
   const [loadingAccounts, setLoadingAccounts] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
 
   // Charge la liste des ad accounts au mount
   useEffect(() => {
@@ -110,226 +121,279 @@ export default function AdsDashboardPage() {
     if (selectedAccount) loadInsights(false)
   }, [selectedAccount, level, datePreset, loadInsights])
 
-  return (
-    <div style={{ minHeight: '100vh', background: '#fafbfc', color: '#1a2f4b' }}>
-      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '24px 24px 80px' }}>
-        <div style={{ marginBottom: 24 }}>
-          <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, marginBottom: 4 }}>Ads Dashboard</h1>
-          <p style={{ fontSize: 13, color: '#4a6070', margin: 0 }}>
-            Performances de tes campagnes Meta et Google Ads en temps réel.
-          </p>
-        </div>
+  // Recherche locale sur le nom / l'identifiant
+  const rows = useMemo(() => {
+    if (!data) return []
+    const q = search.trim().toLowerCase()
+    return data.insights.map(i => ({
+      i,
+      id: level === 'campaign' ? i.campaign_id : level === 'adset' ? i.adset_id : i.ad_id,
+      name: level === 'campaign' ? i.campaign_name : level === 'adset' ? i.adset_name : i.ad_name,
+    })).filter(r => !q || (r.name || '').toLowerCase().includes(q) || (r.id || '').includes(q))
+  }, [data, level, search])
 
-        {error && (
-          <div style={banner('error')}><AlertCircle size={16} /> {error}</div>
+  const periodLabel = DATE_PRESETS.find(p => p.value === datePreset)?.label || ''
+  const accountCount = `${accounts.length} compte${accounts.length > 1 ? 's' : ''} publicitaire${accounts.length > 1 ? 's' : ''} connecté${accounts.length > 1 ? 's' : ''}`
+  const hasAccounts = !loadingAccounts && accounts.length > 0
+
+  const actions = hasAccounts ? (
+    <>
+      <AdsPillSelect
+        icon={<Calendar size={14} />}
+        value={datePreset}
+        onChange={e => setDatePreset(e.target.value as DatePreset)}
+        aria-label="Période"
+      >
+        {DATE_PRESETS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+      </AdsPillSelect>
+      <CrmV2Button
+        variant="secondary"
+        onClick={() => loadInsights(true)}
+        disabled={loading}
+        icon={<RefreshCw size={14} style={loading ? adsSpin : undefined} />}
+      >
+        Actualiser
+      </CrmV2Button>
+    </>
+  ) : undefined
+
+  return (
+    <CrmV2Page>
+      <CrmV2Header
+        title="Ads Dashboard"
+        subtitle={`Performance des campagnes Meta · ${periodLabel}${!loadingAccounts ? ` · ${accountCount}` : ''}`}
+        actions={actions}
+      >
+        {hasAccounts && (
+          <CrmV2Tabs
+            bordered={false}
+            value={level}
+            onChange={id => setLevel(id as Level)}
+            items={[
+              { id: 'campaign', label: 'Campagnes' },
+              { id: 'adset', label: 'Adsets' },
+              { id: 'ad', label: 'Ads' },
+            ]}
+          />
+        )}
+      </CrmV2Header>
+
+      <CrmV2Body>
+        {error && <AdsBanner kind="error">{error}</AdsBanner>}
+
+        {loadingAccounts ? (
+          <CrmV2Card><CrmV2Spinner /></CrmV2Card>
+        ) : accounts.length === 0 ? (
+          <CrmV2Card>
+            <CrmV2Empty
+              icon={<Facebook size={22} />}
+              title="Aucun compte publicitaire connecté"
+              description="Reconnecte-toi à Facebook depuis la page Meta Lead Ads pour autoriser l'accès aux ad accounts."
+              action={
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+                  <CrmV2Button variant="secondary" onClick={() => { window.location.href = '/admin/crm/meta-ads' }}>
+                    Meta Lead Ads
+                  </CrmV2Button>
+                  <CrmV2Button
+                    variant="primary"
+                    icon={<Facebook size={14} />}
+                    onClick={() => { window.location.href = '/api/meta/oauth/start' }}
+                  >
+                    Reconnecter Facebook
+                  </CrmV2Button>
+                </div>
+              }
+            />
+          </CrmV2Card>
+        ) : (
+          <>
+            {/* Indicateurs */}
+            {data && (
+              <CrmV2KpiGrid>
+                <CrmV2KpiCard
+                  label="Dépensé"
+                  value={fmtCurrency(data.totals.spend, data.currency)}
+                  icon={<BarChart3 size={15} />}
+                  color={crmV2.text}
+                  detail={`CPC ${fmtCurrency(data.totals.cpc, data.currency)}`}
+                />
+                <CrmV2KpiCard
+                  label="Leads CRM"
+                  value={fmtNumber(data.totals.leads)}
+                  icon={<Users size={15} />}
+                  color={crmV2.success}
+                  detail={data.account_name || periodLabel}
+                />
+                <CrmV2KpiCard
+                  label="CPL"
+                  value={data.totals.leads > 0 ? fmtCurrency(data.totals.cpl, data.currency) : '—'}
+                  icon={<TrendingUp size={15} />}
+                  color={crmV2.link}
+                  detail="Coût par lead CRM"
+                />
+                <CrmV2KpiCard
+                  label="CTR"
+                  value={`${data.totals.ctr.toFixed(2).replace('.', ',')} %`}
+                  icon={<MousePointerClick size={15} />}
+                  color={crmV2.gold}
+                  detail={`${fmtNumber(data.totals.impressions)} impressions · ${fmtNumber(data.totals.clicks)} clics`}
+                />
+              </CrmV2KpiGrid>
+            )}
+
+            {loading && !data && <CrmV2Card><CrmV2Spinner /></CrmV2Card>}
+
+            {data && (
+              <CrmV2TableCard
+                toolbar={
+                  <>
+                    <CrmV2Search
+                      value={search}
+                      onChange={e => setSearch(e.target.value)}
+                      placeholder={`Rechercher (${LEVEL_LABELS[level].toLowerCase()})…`}
+                      style={{ flex: isMobile ? '1 1 100%' : '0 1 280px' }}
+                    />
+                    <AdsPillSelect
+                      icon={<Building2 size={14} />}
+                      value={selectedAccount}
+                      onChange={e => setSelectedAccount(e.target.value)}
+                      aria-label="Compte"
+                      style={isMobile ? { flex: '1 1 100%' } : undefined}
+                    >
+                      {accounts.map(a => (
+                        <option key={a.account_id} value={a.account_id}>
+                          {a.name} {a.currency ? `(${a.currency})` : ''}
+                        </option>
+                      ))}
+                    </AdsPillSelect>
+                    {loading && <RefreshCw size={14} color={crmV2.textFaint} style={adsSpin} />}
+                  </>
+                }
+                footer={
+                  <>
+                    <span>{rows.length} {LEVEL_LABELS[level].toLowerCase()}{rows.length > 1 ? 's' : ''}</span>
+                    {data.cached && (
+                      <span style={{ fontSize: 12, color: crmV2.textFaint }}>
+                        Données en cache · récupérées {data.fetched_at ? new Date(data.fetched_at).toLocaleString('fr-FR') : ''}
+                        {' · '}
+                        <button
+                          type="button"
+                          onClick={() => loadInsights(true)}
+                          style={{ background: 'none', border: 'none', color: crmV2.link, cursor: 'pointer', padding: 0, fontSize: 12, fontWeight: 600, fontFamily: 'inherit' }}
+                        >
+                          Forcer le refresh
+                        </button>
+                      </span>
+                    )}
+                  </>
+                }
+              >
+                {rows.length === 0 ? (
+                  <CrmV2Empty
+                    icon={<BarChart3 size={22} />}
+                    title={data.insights.length === 0 ? 'Aucune donnée pour cette période.' : 'Aucun résultat pour cette recherche.'}
+                  />
+                ) : isMobile ? (
+                  // Mobile : une ligne par objet, dépense et leads à droite
+                  <div>
+                    {rows.map(({ i, id, name }) => (
+                      <AdsMobileRow
+                        key={id}
+                        icon={<AdsIconTile icon={<Facebook size={15} />} color="#1877F2" />}
+                        title={name || '(sans nom)'}
+                        subtitle={`${fmtNumber(i.impressions)} imp. · CTR ${i.ctr.toFixed(2)}% · ${(i.leads || 0) > 0 ? `CPL ${fmtCurrency(i.cpl || 0, data.currency)}` : 'CPL —'}`}
+                        right={
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: crmV2.text }}>{fmtCurrency(i.spend, data.currency)}</div>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: (i.leads || 0) > 0 ? crmV2.success : crmV2.textFaint }}>
+                              {fmtNumber(i.leads || 0)} lead{(i.leads || 0) > 1 ? 's' : ''}
+                            </div>
+                          </div>
+                        }
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <CrmV2Table>
+                    <thead>
+                      <tr>
+                        <CrmV2Th>{LEVEL_LABELS[level]}</CrmV2Th>
+                        <CrmV2Th style={num}>Impressions</CrmV2Th>
+                        <CrmV2Th style={num}>Clics</CrmV2Th>
+                        <CrmV2Th style={num}>CTR</CrmV2Th>
+                        <CrmV2Th style={num}>Dépensé</CrmV2Th>
+                        <CrmV2Th style={num}>CPC</CrmV2Th>
+                        <CrmV2Th style={num}>Leads CRM</CrmV2Th>
+                        <CrmV2Th style={num}>CPL</CrmV2Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map(({ i, id, name }) => (
+                        <CrmV2Tr key={id}>
+                          <CrmV2Td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                              <AdsIconTile icon={<Facebook size={15} />} color="#1877F2" />
+                              <span style={{ fontWeight: 600, color: crmV2.link, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 360 }}>
+                                {name || '(sans nom)'}
+                              </span>
+                              <AdsFaint>{id}</AdsFaint>
+                            </div>
+                          </CrmV2Td>
+                          <CrmV2Td style={num}>{fmtNumber(i.impressions)}</CrmV2Td>
+                          <CrmV2Td style={num}>{fmtNumber(i.clicks)}</CrmV2Td>
+                          <CrmV2Td style={num}>{i.ctr.toFixed(2)}%</CrmV2Td>
+                          <CrmV2Td style={{ ...num, fontWeight: 700 }}>{fmtCurrency(i.spend, data.currency)}</CrmV2Td>
+                          <CrmV2Td style={num}>{fmtCurrency(i.cpc, data.currency)}</CrmV2Td>
+                          <CrmV2Td style={num}>
+                            <span style={{ fontWeight: 600, color: (i.leads || 0) > 0 ? crmV2.success : crmV2.textFaint }}>
+                              {fmtNumber(i.leads || 0)}
+                            </span>
+                          </CrmV2Td>
+                          <CrmV2Td style={num}>
+                            {(i.leads || 0) > 0 ? fmtCurrency(i.cpl || 0, data.currency) : '—'}
+                          </CrmV2Td>
+                        </CrmV2Tr>
+                      ))}
+                    </tbody>
+                  </CrmV2Table>
+                )}
+              </CrmV2TableCard>
+            )}
+          </>
         )}
 
-        {/* ─── META ───────────────────────────────────────────────────────── */}
-        <section style={{ marginBottom: 32 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-            <Facebook size={18} style={{ color: '#1877F2' }} />
-            <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Meta Ads</h2>
-            <span style={{ fontSize: 11, color: '#a89e8a' }}>
-              {accounts.length} compte{accounts.length > 1 ? 's' : ''} publicitaire{accounts.length > 1 ? 's' : ''} connecté{accounts.length > 1 ? 's' : ''}
-            </span>
-          </div>
-
-          {loadingAccounts ? (
-            <div style={card({ padding: 40, textAlign: 'center' })}>
-              <Loader2 size={24} className="animate-spin" />
-            </div>
-          ) : accounts.length === 0 ? (
-            <div style={card({ padding: 40, textAlign: 'center' })}>
-              <Facebook size={36} style={{ color: '#1877F2', margin: '0 auto 10px' }} />
-              <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>Aucun compte publicitaire connecté</div>
-              <div style={{ fontSize: 13, color: '#4a6070', marginBottom: 16 }}>
-                Reconnecte-toi à Facebook depuis la page <a href="/admin/crm/meta-ads" style={{ color: '#2ea3f2' }}>Meta Lead Ads</a> pour autoriser l&apos;accès aux ad accounts.
+        {/* Google Ads — bientôt */}
+        <CrmV2Card style={{ padding: isMobile ? 14 : 20 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+            <AdsIconTile icon={<GoogleAdsIcon size={18} />} size={40} />
+            <div style={{ flex: 1, minWidth: 220 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 15, fontWeight: 700, color: crmV2.text }}>Google Ads</span>
+                <span style={{
+                  fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 999,
+                  background: crmV2.goldSoft, color: crmV2.goldDark,
+                }}>Bientôt disponible</span>
               </div>
-              <a href="/api/meta/oauth/start" style={{
-                display: 'inline-flex', alignItems: 'center', gap: 8,
-                padding: '10px 18px', borderRadius: 8, background: '#1877F2', color: '#fff',
-                fontSize: 13, fontWeight: 600, textDecoration: 'none',
-              }}>
-                <Facebook size={16} /> Reconnecter Facebook
+              <div style={{ fontSize: 13, color: crmV2.textMuted, marginTop: 4, lineHeight: 1.5, maxWidth: 560 }}>
+                L&apos;intégration Google Ads nécessite un Developer Token approuvé par Google.
+                Cette section sera ajoutée dans un prochain chunk une fois le token obtenu.
+              </div>
+              <a
+                href="https://developers.google.com/google-ads/api/docs/get-started/dev-token"
+                target="_blank" rel="noopener noreferrer"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8, fontSize: 13, fontWeight: 600, color: crmV2.link, textDecoration: 'none' }}
+              >
+                Demander un Developer Token <ExternalLink size={14} />
               </a>
             </div>
-          ) : (
-            <>
-              {/* Filtres */}
-              <div style={card({ padding: 12, marginBottom: 12, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' })}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <label style={labelStyle}>Compte</label>
-                  <select value={selectedAccount} onChange={e => setSelectedAccount(e.target.value)} style={selectStyle}>
-                    {accounts.map(a => (
-                      <option key={a.account_id} value={a.account_id}>
-                        {a.name} {a.currency ? `(${a.currency})` : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <label style={labelStyle}>Niveau</label>
-                  <select value={level} onChange={e => setLevel(e.target.value as Level)} style={selectStyle}>
-                    <option value="campaign">Campagne</option>
-                    <option value="adset">Adset</option>
-                    <option value="ad">Ad</option>
-                  </select>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <label style={labelStyle}>Période</label>
-                  <select value={datePreset} onChange={e => setDatePreset(e.target.value as DatePreset)} style={selectStyle}>
-                    {DATE_PRESETS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
-                  </select>
-                </div>
-                <button onClick={() => loadInsights(true)} disabled={loading} style={{
-                  marginLeft: 'auto', padding: '8px 14px', borderRadius: 8, border: '1px solid #e5ddc8',
-                  background: '#fff', color: '#4a6070', fontSize: 12, fontWeight: 600, cursor: loading ? 'wait' : 'pointer',
-                  display: 'flex', alignItems: 'center', gap: 6,
-                }}>
-                  <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
-                  Rafraîchir
-                </button>
-              </div>
-
-              {/* Cards KPI */}
-              {data && (
-                <div style={{
-                  display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 12,
-                }}>
-                  <KpiCard label="Dépensé" value={fmtCurrency(data.totals.spend, data.currency)} highlight />
-                  <KpiCard label="Impressions" value={fmtNumber(data.totals.impressions)} />
-                  <KpiCard label="Clics" value={fmtNumber(data.totals.clicks)} sub={`CTR ${data.totals.ctr.toFixed(2)}%`} />
-                  <KpiCard label="Leads CRM" value={fmtNumber(data.totals.leads)} sub={data.totals.leads > 0 ? `CPL ${fmtCurrency(data.totals.cpl, data.currency)}` : ''} />
-                  <KpiCard label="CPC" value={fmtCurrency(data.totals.cpc, data.currency)} />
-                </div>
-              )}
-
-              {/* Table */}
-              {loading && !data && (
-                <div style={card({ padding: 40, textAlign: 'center' })}>
-                  <Loader2 size={24} className="animate-spin" />
-                </div>
-              )}
-              {data && (
-                <div style={card({ padding: 0, overflow: 'hidden' })}>
-                  <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
-                      <thead>
-                        <tr style={{ background: '#fafbfc', borderBottom: '1px solid #e5ddc8' }}>
-                          <th style={th}>{level === 'campaign' ? 'Campagne' : level === 'adset' ? 'Adset' : 'Ad'}</th>
-                          <th style={thNum}>Impressions</th>
-                          <th style={thNum}>Clics</th>
-                          <th style={thNum}>CTR</th>
-                          <th style={thNum}>Dépensé</th>
-                          <th style={thNum}>CPC</th>
-                          <th style={thNum}>Leads CRM</th>
-                          <th style={thNum}>CPL</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {data.insights.length === 0 ? (
-                          <tr>
-                            <td colSpan={8} style={{ padding: 40, textAlign: 'center', color: '#a89e8a', fontSize: 13 }}>
-                              Aucune donnée pour cette période.
-                            </td>
-                          </tr>
-                        ) : data.insights.map(i => {
-                          const id = level === 'campaign' ? i.campaign_id : level === 'adset' ? i.adset_id : i.ad_id
-                          const name = level === 'campaign' ? i.campaign_name : level === 'adset' ? i.adset_name : i.ad_name
-                          return (
-                            <tr key={id} style={{ borderBottom: '1px solid #f7f4ee' }}>
-                              <td style={td}>
-                                <div style={{ fontWeight: 600 }}>{name || '(sans nom)'}</div>
-                                <div style={{ fontSize: 10, color: '#a89e8a' }}>{id}</div>
-                              </td>
-                              <td style={tdNum}>{fmtNumber(i.impressions)}</td>
-                              <td style={tdNum}>{fmtNumber(i.clicks)}</td>
-                              <td style={tdNum}>{i.ctr.toFixed(2)}%</td>
-                              <td style={tdNum}><strong>{fmtCurrency(i.spend, data.currency)}</strong></td>
-                              <td style={tdNum}>{fmtCurrency(i.cpc, data.currency)}</td>
-                              <td style={tdNum}>
-                                <span style={{
-                                  fontWeight: 600,
-                                  color: (i.leads || 0) > 0 ? '#0038f0' : '#a89e8a',
-                                }}>
-                                  {fmtNumber(i.leads || 0)}
-                                </span>
-                              </td>
-                              <td style={tdNum}>
-                                {(i.leads || 0) > 0 ? fmtCurrency(i.cpl || 0, data.currency) : '—'}
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {data?.cached && (
-                <div style={{ fontSize: 10, color: '#a89e8a', marginTop: 6, textAlign: 'right' }}>
-                  Données en cache · récupérées {data.fetched_at ? new Date(data.fetched_at).toLocaleString('fr-FR') : ''}
-                  {' · '}
-                  <button onClick={() => loadInsights(true)} style={{ background: 'none', border: 'none', color: '#2ea3f2', cursor: 'pointer', padding: 0, fontSize: 10 }}>
-                    Forcer le refresh
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-        </section>
-
-        {/* ─── GOOGLE ─────────────────────────────────────────────────────── */}
-        <section>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-            <GoogleAdsIcon />
-            <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Google Ads</h2>
           </div>
-          <div style={card({ padding: 32, textAlign: 'center' })}>
-            <GoogleAdsIcon size={36} style={{ margin: '0 auto 10px' }} />
-            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>Bientôt disponible</div>
-            <div style={{ fontSize: 13, color: '#4a6070', maxWidth: 480, margin: '0 auto' }}>
-              L&apos;intégration Google Ads nécessite un Developer Token approuvé par Google.
-              Cette section sera ajoutée dans un prochain chunk une fois le token obtenu.
-            </div>
-            <a
-              href="https://developers.google.com/google-ads/api/docs/get-started/dev-token"
-              target="_blank" rel="noopener noreferrer"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 12, fontSize: 12, color: '#2ea3f2', textDecoration: 'none' }}
-            >
-              Demander un Developer Token <ExternalLink size={12} />
-            </a>
-          </div>
-        </section>
-      </div>
-
-      <style jsx>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .animate-spin { animation: spin 1s linear infinite; }
-      `}</style>
-    </div>
+        </CrmV2Card>
+      </CrmV2Body>
+    </CrmV2Page>
   )
 }
 
 // ─── Sub-components ────────────────────────────────────────────────────────
-
-function KpiCard({ label, value, sub, highlight }: { label: string; value: string; sub?: string; highlight?: boolean }) {
-  return (
-    <div style={{
-      background: highlight ? 'linear-gradient(135deg, #2ea3f2, #0038f0)' : '#fff',
-      color: highlight ? '#fff' : '#1a2f4b',
-      border: highlight ? 'none' : '1px solid #e5ddc8',
-      borderRadius: 12, padding: 14,
-    }}>
-      <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', opacity: highlight ? 0.85 : 0.65, marginBottom: 4 }}>
-        {label}
-      </div>
-      <div style={{ fontSize: 22, fontWeight: 700, lineHeight: 1.1 }}>{value}</div>
-      {sub && <div style={{ fontSize: 11, opacity: highlight ? 0.85 : 0.65, marginTop: 4 }}>{sub}</div>}
-    </div>
-  )
-}
 
 function GoogleAdsIcon({ size = 18, style }: { size?: number; style?: React.CSSProperties }) {
   // Icône SVG simple (pas dans lucide)
@@ -360,25 +424,4 @@ function fmtCurrency(n: number, currency: string): string {
 
 // ─── Styles ────────────────────────────────────────────────────────────────
 
-function card(extra: React.CSSProperties = {}): React.CSSProperties {
-  return { background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12, ...extra }
-}
-function banner(kind: 'error' | 'success'): React.CSSProperties {
-  return {
-    padding: '10px 14px',
-    background: kind === 'error' ? '#fef2f2' : '#f0fdf4',
-    border: `1px solid ${kind === 'error' ? '#fecaca' : '#bbf7d0'}`,
-    borderRadius: 8,
-    color: kind === 'error' ? '#dc2626' : '#166534',
-    fontSize: 13, marginBottom: 16,
-    display: 'flex', alignItems: 'center', gap: 8,
-  }
-}
-const labelStyle: React.CSSProperties = { fontSize: 10, fontWeight: 600, color: '#4a6070', textTransform: 'uppercase' }
-const selectStyle: React.CSSProperties = {
-  padding: '6px 10px', border: '1px solid #e5ddc8', borderRadius: 8, fontSize: 12, background: '#fff', minWidth: 160,
-}
-const th: React.CSSProperties = { textAlign: 'left', padding: '10px 12px', fontSize: 10, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase' }
-const thNum: React.CSSProperties = { ...th, textAlign: 'right' }
-const td: React.CSSProperties = { padding: '10px 12px', verticalAlign: 'top' }
-const tdNum: React.CSSProperties = { ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }
+const num: React.CSSProperties = { textAlign: 'right', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }

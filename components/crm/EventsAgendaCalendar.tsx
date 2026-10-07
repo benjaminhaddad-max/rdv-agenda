@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type CSSProperties } from 'react'
 import Link from 'next/link'
 import {
   addDays,
@@ -20,8 +20,9 @@ import {
 } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { CrmV2Button, CrmV2Card } from '@/components/crm-v2/primitives'
-import { crmV2 } from '@/lib/crm-v2-theme'
+import { CrmV2Button, CrmV2Card, CrmV2Segmented, CrmV2StatusPill, hexA } from '@/components/crm-v2/primitives'
+import { crmV2, crmV2AgendaCards } from '@/lib/crm-v2-theme'
+import { useIsMobile } from '@/lib/useIsMobile'
 import { BRAND_CONFIG, eventTypeOf, type EventBrand } from '@/lib/events-studio/config'
 
 export const EVENT_BRAND_COLORS: Record<
@@ -159,6 +160,7 @@ type Props = {
 }
 
 export default function EventsAgendaCalendar({ events, loading }: Props) {
+  const isMobile = useIsMobile()
   const [view, setView] = useState<ViewMode>('month')
   const [cursor, setCursor] = useState(() => new Date())
 
@@ -218,206 +220,200 @@ export default function EventsAgendaCalendar({ events, loading }: Props) {
 
   const hours = Array.from({ length: HOUR_END - HOUR_START }, (_, i) => HOUR_START + i)
 
+  const todayBg = crmV2AgendaCards.todayColumn
+  const gridLine = '#e4e9f0'
+  const roundBtn: CSSProperties = {
+    width: isMobile ? 40 : 36,
+    height: isMobile ? 40 : 36,
+    flexShrink: 0,
+    borderRadius: 999,
+    border: `1px solid ${crmV2.borderStrong}`,
+    background: crmV2.bg,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: crmV2.text,
+    cursor: 'pointer',
+    padding: 0,
+  }
+
   return (
     <CrmV2Card style={{ padding: 0, overflow: 'hidden' }}>
-      {/* Toolbar Google-like */}
+      {/* Barre d'outils du gabarit D : navigation en pilules, légende, choix de vue */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: 12,
+          gap: isMobile ? 10 : 12,
           flexWrap: 'wrap',
-          padding: '12px 16px',
+          padding: isMobile ? '10px 12px' : '12px 14px',
           borderBottom: `1px solid ${crmV2.border}`,
           background: crmV2.bg,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <CrmV2Button variant="secondary" onClick={() => setCursor(new Date())}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          <button type="button" onClick={goPrev} aria-label="Précédent" title="Précédent" style={roundBtn}>
+            <ChevronLeft size={15} />
+          </button>
+          <CrmV2Button variant="secondary" onClick={() => setCursor(new Date())} style={isMobile ? { height: 40 } : undefined}>
             Aujourd’hui
           </CrmV2Button>
-          <CrmV2Button variant="secondary" onClick={goPrev}>
-            <ChevronLeft size={14} />
-          </CrmV2Button>
-          <CrmV2Button variant="secondary" onClick={goNext}>
-            <ChevronRight size={14} />
-          </CrmV2Button>
+          <button type="button" onClick={goNext} aria-label="Suivant" title="Suivant" style={roundBtn}>
+            <ChevronRight size={15} />
+          </button>
           <span
             style={{
-              fontSize: 18,
-              fontWeight: 500,
+              fontSize: isMobile ? 14 : 15,
+              fontWeight: 700,
               color: crmV2.text,
               textTransform: 'capitalize',
               marginLeft: 4,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
             }}
           >
             {title}
           </span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', gap: 10, marginRight: 4 }}>
-            {CALENDAR_LEGEND_TYPES.map((typeId) => (
-              <div
-                key={typeId}
-                style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: crmV2.textMuted }}
-              >
-                <span
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: 2,
-                    background: EVENT_TYPE_COLORS[typeId].solid,
-                  }}
-                />
-                {EVENT_TYPE_COLORS[typeId].label}
-              </div>
-            ))}
-          </div>
-          <div
-            style={{
-              display: 'inline-flex',
-              border: `1px solid ${crmV2.border}`,
-              borderRadius: crmV2.radiusPill,
-              overflow: 'hidden',
-              background: crmV2.bgSoft,
-            }}
-          >
-            {(
-              [
-                ['month', 'Mois'],
-                ['week', 'Semaine'],
-                ['agenda', 'Agenda'],
-              ] as const
-            ).map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setView(id)}
-                style={{
-                  border: 'none',
-                  padding: '6px 12px',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  background: view === id ? crmV2.bg : 'transparent',
-                  color: view === id ? crmV2.text : crmV2.textMuted,
-                  boxShadow: view === id ? crmV2.shadow : 'none',
-                }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          {CALENDAR_LEGEND_TYPES.map((typeId) => (
+            <CrmV2StatusPill
+              key={typeId}
+              label={EVENT_TYPE_COLORS[typeId].label}
+              color={EVENT_TYPE_COLORS[typeId].text}
+              bg={EVENT_TYPE_COLORS[typeId].soft}
+            />
+          ))}
+          <CrmV2Segmented<ViewMode>
+            value={view}
+            onChange={setView}
+            items={[
+              { id: 'month', label: 'Mois' },
+              { id: 'week', label: 'Semaine' },
+              { id: 'agenda', label: 'Agenda' },
+            ]}
+          />
         </div>
       </div>
 
       {loading ? (
         <div style={{ padding: 28, color: crmV2.textMuted, fontSize: 13 }}>Chargement…</div>
       ) : view === 'month' ? (
-        <div style={{ padding: 8 }}>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(7, 1fr)',
-              borderBottom: `1px solid ${crmV2.border}`,
-            }}
-          >
-            {['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.'].map((d) => (
-              <div
-                key={d}
-                style={{
-                  textAlign: 'center',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: crmV2.textFaint,
-                  padding: '8px 0 6px',
-                  textTransform: 'uppercase',
-                }}
-              >
-                {d}
-              </div>
-            ))}
-          </div>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(7, 1fr)',
-              gridAutoRows: 'minmax(104px, auto)',
-            }}
-          >
-            {monthDays.map((day) => {
-              const key = format(day, 'yyyy-MM-dd')
-              const dayEvents = byDay.get(key) || []
-              const inMonth = isSameMonth(day, cursor)
-              const today = isToday(day)
-              return (
+        <div style={{ overflowX: 'auto' }}>
+          <div style={{ minWidth: isMobile ? 560 : 0 }}>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
+                borderBottom: `1px solid ${crmV2.border}`,
+                background: crmV2.thBg,
+              }}
+            >
+              {['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.'].map((d, i) => (
                 <div
-                  key={key}
+                  key={d}
                   style={{
-                    borderRight: `1px solid ${crmV2.border}`,
-                    borderBottom: `1px solid ${crmV2.border}`,
-                    padding: '6px 4px',
-                    background: inMonth ? crmV2.bg : '#f8fafc',
-                    minHeight: 104,
+                    padding: '9px 10px',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    letterSpacing: '0.04em',
+                    color: crmV2.textMuted,
+                    textTransform: 'uppercase',
+                    borderLeft: i === 0 ? 'none' : `1px solid ${crmV2.border}`,
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 4 }}>
-                    <span
-                      style={{
-                        width: 26,
-                        height: 26,
-                        borderRadius: 999,
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: 12,
-                        fontWeight: today ? 700 : 500,
-                        color: today ? '#fff' : inMonth ? crmV2.text : crmV2.textFaint,
-                        background: today ? '#1a73e8' : 'transparent',
-                      }}
-                    >
-                      {format(day, 'd')}
-                    </span>
-                  </div>
-                  <div style={{ display: 'grid', gap: 2 }}>
-                    {dayEvents.slice(0, 4).map((ev) => {
-                      const c = eventTypeColor(ev)
-                      const { time } = parisParts(ev.event_date)
-                      return (
-                        <Link
-                          key={ev.id}
-                          href={`/admin/crm/events/${ev.id}`}
-                          title={ev.name}
-                          style={{
-                            display: 'block',
-                            fontSize: 11,
-                            fontWeight: 600,
-                            lineHeight: 1.3,
-                            padding: '2px 6px',
-                            borderRadius: 4,
-                            background: c.solid,
-                            color: '#fff',
-                            textDecoration: 'none',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {time} {ev.name}
-                        </Link>
-                      )
-                    })}
-                    {dayEvents.length > 4 && (
-                      <div style={{ fontSize: 10, color: crmV2.textFaint, paddingLeft: 4 }}>
-                        +{dayEvents.length - 4} de plus
-                      </div>
-                    )}
-                  </div>
+                  {d}
                 </div>
-              )
-            })}
+              ))}
+            </div>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
+                gridAutoRows: 'minmax(104px, auto)',
+              }}
+            >
+              {monthDays.map((day, idx) => {
+                const key = format(day, 'yyyy-MM-dd')
+                const dayEvents = byDay.get(key) || []
+                const inMonth = isSameMonth(day, cursor)
+                const today = isToday(day)
+                return (
+                  <div
+                    key={key}
+                    style={{
+                      borderLeft: idx % 7 === 0 ? 'none' : `1px solid ${gridLine}`,
+                      borderBottom: `1px solid ${gridLine}`,
+                      padding: '6px 5px',
+                      background: today ? todayBg : inMonth ? crmV2.bg : '#fafbfd',
+                      minHeight: 104,
+                      minWidth: 0,
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: 4, paddingLeft: 2 }}>
+                      <span
+                        style={{
+                          minWidth: 24,
+                          height: 24,
+                          borderRadius: 999,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 12,
+                          fontWeight: 700,
+                          color: today ? '#fff' : inMonth ? crmV2.text : crmV2.textFaint,
+                          background: today ? crmV2.gold : 'transparent',
+                        }}
+                      >
+                        {format(day, 'd')}
+                      </span>
+                    </div>
+                    <div style={{ display: 'grid', gap: 3 }}>
+                      {dayEvents.slice(0, 4).map((ev) => {
+                        const c = eventTypeColor(ev)
+                        const { time } = parisParts(ev.event_date)
+                        return (
+                          <Link
+                            key={ev.id}
+                            href={`/admin/crm/events/${ev.id}`}
+                            title={ev.name}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 5,
+                              minWidth: 0,
+                              fontSize: 11,
+                              fontWeight: 700,
+                              lineHeight: 1.3,
+                              padding: '2px 6px',
+                              borderRadius: 6,
+                              background: c.soft,
+                              border: `1px solid ${hexA(c.solid, 0.3)}`,
+                              color: crmV2.text,
+                              textDecoration: 'none',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                            }}
+                          >
+                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: c.solid, flexShrink: 0 }} />
+                            <span style={{ color: c.text, flexShrink: 0 }}>{time}</span>
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{ev.name}</span>
+                          </Link>
+                        )
+                      })}
+                      {dayEvents.length > 4 && (
+                        <div style={{ fontSize: 11, fontWeight: 600, color: crmV2.textMuted, paddingLeft: 4 }}>
+                          +{dayEvents.length - 4} de plus
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         </div>
       ) : view === 'week' ? (
@@ -426,11 +422,11 @@ export default function EventsAgendaCalendar({ events, loading }: Props) {
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: `56px repeat(7, 1fr)`,
+                gridTemplateColumns: `52px repeat(7, minmax(0, 1fr))`,
                 borderBottom: `1px solid ${crmV2.border}`,
                 position: 'sticky',
                 top: 0,
-                background: crmV2.bg,
+                background: crmV2.thBg,
                 zIndex: 2,
               }}
             >
@@ -438,34 +434,43 @@ export default function EventsAgendaCalendar({ events, loading }: Props) {
               {weekDays.map((day) => {
                 const today = isToday(day)
                 return (
-                  <div key={day.toISOString()} style={{ textAlign: 'center', padding: '10px 4px' }}>
-                    <div
+                  <div
+                    key={day.toISOString()}
+                    style={{
+                      padding: '10px 12px',
+                      display: 'flex',
+                      alignItems: 'baseline',
+                      gap: 6,
+                      borderLeft: `1px solid ${crmV2.border}`,
+                    }}
+                  >
+                    <span
                       style={{
                         fontSize: 11,
-                        fontWeight: 600,
-                        color: today ? '#1a73e8' : crmV2.textFaint,
+                        fontWeight: 700,
+                        letterSpacing: '0.04em',
+                        color: crmV2.textMuted,
                         textTransform: 'uppercase',
                       }}
                     >
                       {format(day, 'EEE', { locale: fr })}
-                    </div>
-                    <div
+                    </span>
+                    <span
                       style={{
-                        margin: '4px auto 0',
-                        width: 32,
-                        height: 32,
+                        minWidth: 26,
+                        height: 26,
                         borderRadius: 999,
-                        display: 'flex',
+                        display: 'inline-flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        fontSize: 16,
-                        fontWeight: 500,
+                        fontSize: 15,
+                        fontWeight: 700,
                         color: today ? '#fff' : crmV2.text,
-                        background: today ? '#1a73e8' : 'transparent',
+                        background: today ? crmV2.gold : 'transparent',
                       }}
                     >
                       {format(day, 'd')}
-                    </div>
+                    </span>
                   </div>
                 )
               })}
@@ -474,21 +479,23 @@ export default function EventsAgendaCalendar({ events, loading }: Props) {
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: `56px repeat(7, 1fr)`,
+                gridTemplateColumns: `52px repeat(7, minmax(0, 1fr))`,
                 position: 'relative',
+                paddingTop: 8,
               }}
             >
-              {/* hours gutter */}
+              {/* Gouttière des heures */}
               <div style={{ position: 'relative', height: (HOUR_END - HOUR_START) * PX_PER_HOUR }}>
                 {hours.map((h) => (
                   <div
                     key={h}
                     style={{
                       position: 'absolute',
-                      top: (h - HOUR_START) * PX_PER_HOUR - 8,
+                      top: (h - HOUR_START) * PX_PER_HOUR - 7,
                       right: 8,
-                      fontSize: 10,
-                      color: crmV2.textFaint,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: crmV2.textMuted,
                     }}
                   >
                     {String(h).padStart(2, '0')}:00
@@ -499,6 +506,7 @@ export default function EventsAgendaCalendar({ events, loading }: Props) {
               {weekDays.map((day) => {
                 const key = format(day, 'yyyy-MM-dd')
                 const dayEvents = byDay.get(key) || []
+                const today = isToday(day)
                 return (
                   <div
                     key={key}
@@ -506,7 +514,10 @@ export default function EventsAgendaCalendar({ events, loading }: Props) {
                       position: 'relative',
                       height: (HOUR_END - HOUR_START) * PX_PER_HOUR,
                       borderLeft: `1px solid ${crmV2.border}`,
-                      backgroundImage: `repeating-linear-gradient(to bottom, transparent, transparent ${PX_PER_HOUR - 1}px, ${crmV2.border} ${PX_PER_HOUR - 1}px, ${crmV2.border} ${PX_PER_HOUR}px)`,
+                      borderTop: `1px solid ${gridLine}`,
+                      boxSizing: 'border-box',
+                      backgroundColor: today ? todayBg : crmV2.bg,
+                      backgroundImage: `repeating-linear-gradient(to bottom, transparent, transparent ${PX_PER_HOUR - 1}px, ${gridLine} ${PX_PER_HOUR - 1}px, ${gridLine} ${PX_PER_HOUR}px)`,
                     }}
                   >
                     {dayEvents.map((ev) => {
@@ -522,26 +533,51 @@ export default function EventsAgendaCalendar({ events, loading }: Props) {
                         <Link
                           key={ev.id}
                           href={`/admin/crm/events/${ev.id}`}
+                          title={ev.name}
                           style={{
                             position: 'absolute',
                             left: 3,
                             right: 3,
                             top: Math.max(top, 0),
                             height,
-                            background: c.solid,
-                            color: '#fff',
-                            borderRadius: 6,
-                            padding: '4px 6px',
-                            fontSize: 11,
-                            fontWeight: 600,
+                            border: `1px solid ${hexA(c.solid, 0.35)}`,
+                            borderRadius: 8,
+                            padding: '2px 7px',
+                            boxSizing: 'border-box',
                             textDecoration: 'none',
                             overflow: 'hidden',
-                            boxShadow: '0 1px 2px rgba(0,0,0,0.12)',
                             zIndex: 1,
+                            backgroundColor: crmV2.bg,
+                            backgroundImage: `linear-gradient(${c.soft}, ${c.soft})`,
                           }}
                         >
-                          <div style={{ lineHeight: 1.25 }}>{ev.name}</div>
-                          <div style={{ fontWeight: 500, opacity: 0.95, fontSize: 10 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0, lineHeight: '15px' }}>
+                            <span style={{ width: 7, height: 7, borderRadius: '50%', background: c.solid, flexShrink: 0 }} />
+                            <span
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 700,
+                                color: crmV2.text,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                minWidth: 0,
+                              }}
+                            >
+                              {ev.name}
+                            </span>
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 600,
+                              color: c.text,
+                              lineHeight: '13px',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                            }}
+                          >
                             {parisParts(ev.event_date).time}
                             {ev.event_time_end ? `–${ev.event_time_end}` : ''} · {type.short}
                           </div>
@@ -555,7 +591,7 @@ export default function EventsAgendaCalendar({ events, loading }: Props) {
           </div>
         </div>
       ) : (
-        <div style={{ padding: '8px 12px 16px' }}>
+        <div style={{ padding: isMobile ? '4px 12px 12px' : '4px 16px 16px' }}>
           {upcoming.length === 0 ? (
             <div style={{ padding: 24, color: crmV2.textMuted, fontSize: 13 }}>
               Aucun événement à venir.
@@ -585,63 +621,79 @@ export default function EventsAgendaCalendar({ events, loading }: Props) {
                     <div key={g.label}>
                       <div
                         style={{
-                          fontSize: 12,
+                          fontSize: 11,
                           fontWeight: 700,
+                          letterSpacing: '0.4px',
                           color: crmV2.textMuted,
-                          textTransform: 'capitalize',
-                          padding: '12px 8px 6px',
-                          borderBottom: `1px solid ${crmV2.border}`,
+                          textTransform: 'uppercase',
+                          padding: '14px 4px 6px',
                         }}
                       >
                         {g.label}
                       </div>
-                      {g.items.map((ev) => {
-                        const b = brandOf(ev)
-                        const c = eventTypeColor(ev)
-                        const type = eventTypeOf(ev)
-                        const { time } = parisParts(ev.event_date)
-                        return (
-                          <Link
-                            key={ev.id}
-                            href={`/admin/crm/events/${ev.id}`}
-                            style={{
-                              display: 'grid',
-                              gridTemplateColumns: '72px 10px 1fr',
-                              gap: 10,
-                              alignItems: 'start',
-                              padding: '10px 8px',
-                              textDecoration: 'none',
-                              color: 'inherit',
-                              borderBottom: `1px solid ${crmV2.border}`,
-                            }}
-                          >
-                            <div style={{ fontSize: 12, color: crmV2.textMuted, fontWeight: 600 }}>
-                              {time}
-                              {ev.event_time_end ? (
-                                <div style={{ fontWeight: 500 }}>{ev.event_time_end}</div>
-                              ) : null}
-                            </div>
-                            <div
+                      <div style={{ display: 'grid', gap: 6 }}>
+                        {g.items.map((ev) => {
+                          const b = brandOf(ev)
+                          const c = eventTypeColor(ev)
+                          const type = eventTypeOf(ev)
+                          const { time } = parisParts(ev.event_date)
+                          return (
+                            <Link
+                              key={ev.id}
+                              href={`/admin/crm/events/${ev.id}`}
                               style={{
-                                width: 10,
-                                height: 10,
-                                borderRadius: 2,
-                                background: c.solid,
-                                marginTop: 4,
+                                display: 'grid',
+                                gridTemplateColumns: isMobile ? '48px minmax(0, 1fr)' : '64px minmax(0, 1fr)',
+                                gap: 10,
+                                alignItems: 'center',
+                                padding: '8px 12px',
+                                minHeight: 44,
+                                boxSizing: 'border-box',
+                                textDecoration: 'none',
+                                color: 'inherit',
+                                background: crmV2.bg,
+                                border: `1px solid ${crmV2.border}`,
+                                borderLeft: `3px solid ${c.solid}`,
+                                borderRadius: 12,
                               }}
-                            />
-                            <div>
-                              <div style={{ fontWeight: 600, fontSize: 14, color: crmV2.text }}>
-                                {ev.name}
+                            >
+                              <div style={{ fontSize: 12, color: c.text, fontWeight: 700, lineHeight: 1.3 }}>
+                                {time}
+                                {ev.event_time_end ? (
+                                  <div style={{ fontWeight: 600, color: crmV2.textFaint }}>{ev.event_time_end}</div>
+                                ) : null}
                               </div>
-                              <div style={{ fontSize: 12, color: crmV2.textMuted, marginTop: 2 }}>
-                                {BRAND_CONFIG[b].name} · {type.short}
-                                {ev.location ? ` · ${ev.location}` : ''}
+                              <div style={{ minWidth: 0 }}>
+                                <div
+                                  style={{
+                                    fontWeight: 600,
+                                    fontSize: 14,
+                                    color: crmV2.text,
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                  }}
+                                >
+                                  {ev.name}
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: 12,
+                                    color: crmV2.textMuted,
+                                    marginTop: 2,
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                  }}
+                                >
+                                  {BRAND_CONFIG[b].name} · {type.short}
+                                  {ev.location ? ` · ${ev.location}` : ''}
+                                </div>
                               </div>
-                            </div>
-                          </Link>
-                        )
-                      })}
+                            </Link>
+                          )
+                        })}
+                      </div>
                     </div>
                   ))}
                 </div>

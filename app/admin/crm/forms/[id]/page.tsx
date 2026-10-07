@@ -2,15 +2,24 @@
 
 import { useEffect, useState, useCallback, use, useRef } from 'react'
 import {
-  FileText, ChevronLeft, Save, Eye, Code, Inbox, Settings, Plus,
+  FileText, Save, Code, Inbox, Settings, Plus,
   Type, Mail, Phone, AlignLeft, List, Check, CheckSquare, Calendar,
-  Hash, EyeOff, GripVertical, Trash2, Copy, X, ExternalLink, Globe,
-  Search, Upload,
+  Hash, EyeOff, Trash2, Copy, X, ExternalLink,
+  Search, Upload, ArrowUp, ArrowDown, Palette, MousePointerClick, Send, ShieldCheck,
+  Link2, Pencil,
 } from 'lucide-react'
-import LogoutButton from '@/components/LogoutButton'
 import { fileNameFromUrl, isFormStoragePath } from '@/lib/form-downloads'
 import { usePageTitle } from '@/components/DocumentTitle'
 import { useIsMobile } from '@/lib/useIsMobile'
+import {
+  CrmV2Body, CrmV2Button, CrmV2Empty, CrmV2Header, CrmV2Page, CrmV2Segmented, CrmV2Spinner, CrmV2StatusPill,
+  CrmV2Table, CrmV2Tabs, CrmV2Td, CrmV2Th, CrmV2Toggle, CrmV2Tr,
+} from '@/components/crm-v2/primitives'
+import { MKT_TONES, useCrmBase } from '@/components/crm-v2/marketing/ui'
+import {
+  FormsColorSwatch, FormsField, FormsGrid, FormsSection, formsCode, formsInput, formsRange,
+} from '@/components/crm-v2/marketing2/forms/ui'
+import { crmV2 } from '@/lib/crm-v2-theme'
 
 // ─── Types ────────────────────────────────────────────────────────────────
 interface FormData {
@@ -84,7 +93,7 @@ const FIELD_TYPES = [
 
 // Champs CRM standards auxquels on peut mapper.
 // Pour mapper sur une propriété HubSpot custom non listée ici, choisis
-// "✏️ Saisir un champ personnalisé…" et tape le nom technique HubSpot
+// « Saisir un champ personnalisé… » et tape le nom technique HubSpot
 // (ex: "diploma_sante___formation_demandee").
 const CRM_FIELDS = [
   { value: '',                     label: '— Ne pas mapper —' },
@@ -118,7 +127,7 @@ const CRM_FIELDS = [
   { value: 'jobtitle',             label: 'Poste' },
   { value: 'website',              label: 'Site web' },
   // Custom
-  { value: '__custom__',           label: '✏️ Saisir un champ personnalisé…' },
+  { value: '__custom__',           label: 'Saisir un champ personnalisé…' },
 ]
 
 const DEFAULT_TERMINALE_REDIRECT = 'https://diploma-sante.fr/remerciement-candidature-formulaire/'
@@ -212,6 +221,7 @@ function mapCrmFieldTypeToFormType(crmFieldType: string, crmType: string): strin
 export default function FormBuilderPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const isMobile = useIsMobile()
+  const base = useCrmBase()
   const [form, setForm] = useState<FormData | null>(null)
   const [loading, setLoading] = useState(true)
   usePageTitle(form?.title || form?.name)
@@ -439,81 +449,79 @@ export default function FormBuilderPage({ params }: { params: Promise<{ id: stri
     setDirty(false)
   }
 
-  if (loading || !form) {
-    return <div style={{ minHeight: '100vh', background: '#f7f4ee', color: '#4a6070', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Chargement…</div>
+  // Annule les modifications non enregistrées en rechargeant le formulaire
+  const cancelChanges = () => {
+    if (!dirty) return
+    if (!confirm('Annuler les modifications non enregistrées ?')) return
+    setDirty(false)
+    void load()
   }
 
+  if (loading || !form) {
+    return <CrmV2Page><CrmV2Spinner /></CrmV2Page>
+  }
+
+  const published = form.status === 'published'
+  const tabLabel = (Icon: typeof FileText, label: string) => (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon size={15} /> {label}</span>
+  )
+  const btnStyle = isMobile ? { minHeight: 40 } : undefined
+  const saveBtn = (
+    <CrmV2Button variant={published ? 'primary' : 'secondary'} icon={<Save size={14} />} onClick={save} disabled={!dirty || saving} style={btnStyle}>
+      {saving ? 'Sauvegarde…' : 'Sauvegarder'}
+    </CrmV2Button>
+  )
+  const publishBtn = (
+    <CrmV2Button variant={published ? 'secondary' : 'primary'} icon={published ? <EyeOff size={14} /> : <Send size={14} />} onClick={togglePublish} style={btnStyle}>
+      {published ? 'Dépublier' : 'Publier'}
+    </CrmV2Button>
+  )
+
   return (
-    <div style={{ minHeight: '100vh', background: '#f7f4ee', color: '#0e1e35', fontFamily: 'Inter, system-ui, sans-serif' }}>
-      {/* Topbar */}
-      {isMobile ? (
-        // Mobile : en-tête sur 2 lignes (retour + nom, puis actions)
-        <div style={{ padding: '8px 12px', background: '#ffffff', borderBottom: '1px solid #e5ddc8', display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-            <a href="/admin/crm/forms" title="Formulaires" style={{ color: '#4a6070', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, flexShrink: 0, borderRadius: 8, border: '1px solid #e5ddc8' }}>
-              <ChevronLeft size={16} />
-            </a>
+    <CrmV2Page>
+      <CrmV2Header
+        back={{ href: `${base}/forms`, label: 'Formulaires' }}
+        title={
+          <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flexWrap: 'wrap' }}>
             <input
               value={form.name}
               onChange={e => update({ name: e.target.value })}
-              style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', color: '#0e1e35', fontSize: 14, fontWeight: 600, outline: 'none', textOverflow: 'ellipsis', height: 36, padding: 0 }}
+              aria-label="Nom du formulaire"
+              title="Renommer le formulaire"
+              onFocus={e => { e.currentTarget.style.borderColor = crmV2.borderStrong; e.currentTarget.style.background = crmV2.bg }}
+              onBlur={e => { e.currentTarget.style.borderColor = 'transparent'; e.currentTarget.style.background = 'transparent' }}
+              style={{
+                fontFamily: 'inherit', fontSize: 'inherit', fontWeight: 'inherit', letterSpacing: 'inherit', color: crmV2.text,
+                background: 'transparent', border: '1px solid transparent', borderRadius: crmV2.radius,
+                padding: '2px 8px', margin: '0 -8px', outline: 'none', boxSizing: 'border-box', minWidth: 0,
+                width: isMobile ? 'calc(100% + 16px)' : `${Math.min(60, Math.max(14, form.name.length + 3))}ch`, maxWidth: 'calc(100% + 16px)',
+              }}
             />
-            <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 999, whiteSpace: 'nowrap', flexShrink: 0, color: form.status === 'published' ? '#22c55e' : '#4a6070', background: form.status === 'published' ? 'rgba(34,197,94,0.15)' : '#f7f4ee' }}>
-              {form.status === 'published' ? '● Publié' : 'Brouillon'}
-            </span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <button onClick={save} disabled={!dirty || saving} style={{ flex: '1 1 0', minWidth: 0, minHeight: 36, background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8, padding: '6px 10px', color: '#0e1e35', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, fontFamily: 'inherit', opacity: !dirty || saving ? 0.5 : 1, whiteSpace: 'nowrap' }}>
-              <Save size={12} /> {saving ? 'Sauvegarde…' : 'Sauvegarder'}
-              {dirty && <span style={{ color: '#f59e0b' }}>●</span>}
-            </button>
-            <button onClick={togglePublish} style={{ flex: '1 1 0', minWidth: 0, minHeight: 36, background: form.status === 'published' ? 'rgba(139,143,168,0.15)' : 'rgba(34,197,94,0.15)', border: `1px solid ${form.status === 'published' ? '#e5ddc8' : 'rgba(34,197,94,0.3)'}`, borderRadius: 8, padding: '6px 10px', color: form.status === 'published' ? '#4a6070' : '#22c55e', fontSize: 12, cursor: 'pointer', fontWeight: 600, fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
-              {form.status === 'published' ? 'Dépublier' : 'Publier'}
-            </button>
-            <LogoutButton />
-          </div>
-        </div>
-      ) : (
-      <div style={{ padding: '0 20px', height: 52, background: '#ffffff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
-          <a href="/admin/crm/forms" style={{ color: '#4a6070', textDecoration: 'none', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <ChevronLeft size={14} /> Formulaires
-          </a>
-          <div style={{ width: 1, height: 22, background: '#e5ddc8' }} />
-          <FileText size={16} style={{ color: '#22c55e' }} />
-          <input
-            value={form.name}
-            onChange={e => update({ name: e.target.value })}
-            style={{ background: 'transparent', border: 'none', color: '#0e1e35', fontSize: 14, fontWeight: 600, outline: 'none', minWidth: 260 }}
-          />
-          <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 999, color: form.status === 'published' ? '#22c55e' : '#4a6070', background: form.status === 'published' ? 'rgba(34,197,94,0.15)' : '#ffffff' }}>
-            {form.status === 'published' ? '● Publié' : 'Brouillon'}
+            <CrmV2StatusPill label={published ? 'Publié' : 'Brouillon'} {...(published ? MKT_TONES.green : MKT_TONES.grey)} />
           </span>
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          {dirty && <span style={{ fontSize: 11, color: '#f59e0b', alignSelf: 'center' }}>● Modifié</span>}
-          <button onClick={save} disabled={!dirty || saving} style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8, padding: '6px 14px', color: '#0e1e35', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'inherit', opacity: !dirty || saving ? 0.5 : 1 }}>
-            <Save size={12} /> {saving ? 'Sauvegarde…' : 'Sauvegarder'}
-          </button>
-          <button onClick={togglePublish} style={{ background: form.status === 'published' ? 'rgba(139,143,168,0.15)' : 'rgba(34,197,94,0.15)', border: `1px solid ${form.status === 'published' ? '#e5ddc8' : 'rgba(34,197,94,0.3)'}`, borderRadius: 8, padding: '6px 14px', color: form.status === 'published' ? '#4a6070' : '#22c55e', fontSize: 12, cursor: 'pointer', fontWeight: 600, fontFamily: 'inherit' }}>
-            {form.status === 'published' ? 'Dépublier' : 'Publier'}
-          </button>
-          <LogoutButton />
-        </div>
-      </div>
-      )}
+        }
+        subtitle={`/forms/${form.slug} · ${form.folder || 'Diploma Santé'}`}
+        actions={
+          <>
+            {dirty && <CrmV2StatusPill label="Modifié" {...MKT_TONES.gold} />}
+            {published ? <>{publishBtn}{saveBtn}</> : <>{saveBtn}{publishBtn}</>}
+          </>
+        }
+      >
+        <CrmV2Tabs
+          bordered={false}
+          value={tab}
+          onChange={v => setTab(v as typeof tab)}
+          items={[
+            { id: 'builder', label: tabLabel(FileText, 'Champs') },
+            { id: 'settings', label: tabLabel(Settings, 'Réglages') },
+            { id: 'embed', label: tabLabel(Code, 'Intégration') },
+            { id: 'submissions', label: tabLabel(Inbox, 'Soumissions'), count: submissionCount },
+          ]}
+        />
+      </CrmV2Header>
 
-      {/* Tabs */}
-      {/* Mobile : onglets en rangée scrollable horizontalement */}
-      <div style={{ padding: isMobile ? '0 8px' : '0 24px', background: '#ffffff', borderBottom: '1px solid #e5ddc8', display: 'flex', gap: 4, ...(isMobile ? { overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' } as const : {}) }}>
-        <Tab active={tab === 'builder'} onClick={() => setTab('builder')} icon={FileText} label="Champs" />
-        <Tab active={tab === 'settings'} onClick={() => setTab('settings')} icon={Settings} label="Réglages" />
-        <Tab active={tab === 'embed'} onClick={() => setTab('embed')} icon={Code} label="Intégration" />
-        <Tab active={tab === 'submissions'} onClick={() => setTab('submissions')} icon={Inbox} label={`Soumissions (${submissionCount})`} />
-      </div>
-
-      {/* Contenu */}
-      <div style={{ maxWidth: 1400, margin: '0 auto', padding: isMobile ? 12 : 24 }}>
+      <CrmV2Body>
         {tab === 'builder' && (
           <BuilderTab
             form={form}
@@ -530,11 +538,22 @@ export default function FormBuilderPage({ params }: { params: Promise<{ id: stri
             isMobile={isMobile}
           />
         )}
-        {tab === 'settings' && <SettingsTab form={form} formId={id} update={update} onSaveNotifyEmails={saveNotifyEmails} />}
+        {tab === 'settings' && (
+          <>
+            <SettingsTab form={form} formId={id} update={update} onSaveNotifyEmails={saveNotifyEmails} />
+            {/* Pied de page gabarit E : Annuler / Enregistrer alignés à droite */}
+            <div style={{ maxWidth: 880, width: '100%', display: 'flex', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
+              <CrmV2Button variant="secondary" onClick={cancelChanges} disabled={!dirty || saving} style={btnStyle}>Annuler</CrmV2Button>
+              <CrmV2Button variant="primary" icon={<Save size={14} />} onClick={save} disabled={!dirty || saving} style={btnStyle}>
+                {saving ? 'Sauvegarde…' : 'Enregistrer'}
+              </CrmV2Button>
+            </div>
+          </>
+        )}
         {tab === 'embed' && <EmbedTab form={form} />}
         {tab === 'submissions' && <SubmissionsTab formId={id} fields={form.fields} />}
-      </div>
-    </div>
+      </CrmV2Body>
+    </CrmV2Page>
   )
 }
 
@@ -554,8 +573,6 @@ function BuilderTab({ form, update, updateField, addField, addCrmField, removeFi
   isMobile?: boolean
 }) {
   const [crmSearch, setCrmSearch] = useState('')
-  // Mobile : palette "Ajouter un champ" repliable (fermée par défaut)
-  const [paletteOpen, setPaletteOpen] = useState(false)
   const usedCrmFields = new Set(form.fields.map(f => f.crm_field).filter(Boolean) as string[])
   const filteredCrmProps = (() => {
     const q = crmSearch.trim().toLowerCase()
@@ -572,45 +589,36 @@ function BuilderTab({ form, update, updateField, addField, addCrmField, removeFi
     // Mobile : zones empilées (aperçu d'abord, puis palette repliable) ; éditeur en plein écran
     <div style={isMobile
       ? { display: 'flex', flexDirection: 'column', gap: 12 }
-      : { display: 'grid', gridTemplateColumns: '240px 1fr 320px', gap: 20 }}>
-      {/* Palette des champs */}
-      <div style={isMobile
-        ? { order: 2, background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 12 }
-        : { background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 14, height: 'fit-content', position: 'sticky', top: 24, maxHeight: 'calc(100vh - 48px)', overflowY: 'auto' }}>
-        {isMobile ? (
-          <button
-            onClick={() => setPaletteOpen(o => !o)}
-            style={{ width: '100%', minHeight: 36, background: 'transparent', border: 'none', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, color: '#0e1e35', fontWeight: 700, textTransform: 'uppercase' }}
-          >
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Plus size={14} style={{ color: '#C9A84C' }} /> Ajouter un champ</span>
-            <span style={{ color: '#4a6070', fontSize: 14 }}>{paletteOpen ? '▲' : '▼'}</span>
-          </button>
-        ) : (
-          <div style={{ fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', marginBottom: 10 }}>Ajouter un champ</div>
-        )}
-        {(!isMobile || paletteOpen) && (<>
+      : { display: 'grid', gridTemplateColumns: '260px minmax(0, 1fr) 340px', gap: 16, alignItems: 'start' }}>
+      {/* Palette des champs (repliée par défaut sur mobile) */}
+      <FormsSection
+        key={isMobile ? 'palette-m' : 'palette-d'}
+        title="Ajouter un champ"
+        icon={<Plus size={15} />}
+        defaultOpen={!isMobile}
+        style={isMobile
+          ? { order: 2 }
+          : { position: 'sticky', top: 16, maxHeight: 'calc(100vh - 32px)', overflowY: 'auto' }}
+        bodyStyle={{ paddingTop: 0 }}
+      >
         <div style={isMobile
-          ? { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6, marginTop: 10 }
+          ? { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }
           : { display: 'flex', flexDirection: 'column', gap: 4 }}>
           {FIELD_TYPES.map(ft => {
             const Icon = ft.icon
             return (
-              <button
-                key={ft.type}
-                onClick={() => addField(ft.type)}
-                style={{ background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 8, padding: '8px 10px', color: '#0e1e35', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left', fontFamily: 'inherit', ...(isMobile ? { minHeight: 40, minWidth: 0 } : {}) }}
-              >
-                <Icon size={13} style={{ color: '#C9A84C', flexShrink: 0 }} />
-                {isMobile ? <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ft.label}</span> : ft.label}
-              </button>
+              <PaletteButton key={ft.type} onClick={() => addField(ft.type)} isMobile={isMobile}>
+                <Icon size={14} color={crmV2.gold} style={{ flexShrink: 0 }} />
+                <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ft.label}</span>
+              </PaletteButton>
             )
           })}
         </div>
 
         {/* ── Propriétés CRM existantes ───────────────────────────────────── */}
-        <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid #e5ddc8' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <span style={{ fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase' }}>
+        <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${crmV2.borderLight}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+            <span style={{ fontSize: 11, color: crmV2.textMuted, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
               Propriétés CRM ({crmProperties.length})
             </span>
             <a
@@ -618,24 +626,24 @@ function BuilderTab({ form, update, updateField, addField, addCrmField, removeFi
               target="_blank"
               rel="noreferrer"
               title="Créer une nouvelle propriété CRM"
-              style={{ color: '#C9A84C', fontSize: 11, textDecoration: 'none' }}
-            >+ Nouvelle</a>
+              style={{ color: crmV2.link, fontSize: 12, fontWeight: 700, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 2, minHeight: isMobile ? 40 : undefined }}
+            ><Plus size={13} /> Nouvelle</a>
           </div>
           <div style={{ position: 'relative', marginBottom: 8 }}>
-            <Search size={12} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: '#4a6070' }} />
+            <Search size={14} color={crmV2.textFaint} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
             <input
               value={crmSearch}
               onChange={e => setCrmSearch(e.target.value)}
               placeholder="Rechercher une propriété…"
-              style={{ width: '100%', background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 6, padding: '6px 8px 6px 26px', fontSize: 11, color: '#0e1e35', fontFamily: 'inherit', ...(isMobile ? { boxSizing: 'border-box' as const, minHeight: 36, fontSize: 13 } : {}) }}
+              style={{ ...formsInput, borderRadius: crmV2.radiusPill, paddingLeft: 32, height: isMobile ? 40 : 36, minHeight: 0 }}
             />
           </div>
           {crmProperties.length === 0 ? (
-            <div style={{ fontSize: 11, color: '#7d8c9e', padding: '8px 4px', lineHeight: 1.5 }}>
+            <div style={{ fontSize: 12, color: crmV2.textFaint, padding: '8px 4px', lineHeight: 1.5 }}>
               Chargement des propriétés du CRM…
             </div>
           ) : filteredCrmProps.length === 0 ? (
-            <div style={{ fontSize: 11, color: '#7d8c9e', padding: '8px 4px', lineHeight: 1.5 }}>
+            <div style={{ fontSize: 12, color: crmV2.textFaint, padding: '8px 4px', lineHeight: 1.5 }}>
               {crmSearch.trim()
                 ? 'Aucune propriété ne correspond.'
                 : 'Toutes les propriétés CRM sont déjà utilisées dans ce form.'}
@@ -645,35 +653,41 @@ function BuilderTab({ form, update, updateField, addField, addCrmField, removeFi
               {filteredCrmProps.slice(0, 200).map(p => (
                 <button
                   key={p.name}
+                  type="button"
                   onClick={() => addCrmField(p)}
                   title={`${p.name} — ${p.field_type}${p.options?.length ? ` (${p.options.length} options)` : ''}`}
-                  style={{ background: 'transparent', border: '1px solid transparent', borderRadius: 6, padding: '5px 8px', fontSize: 11, color: '#0e1e35', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', gap: 1, lineHeight: 1.3, ...(isMobile ? { minHeight: 36, minWidth: 0, wordBreak: 'break-word' as const } : {}) }}
-                  onMouseEnter={e => { e.currentTarget.style.background = '#f7f4ee'; e.currentTarget.style.borderColor = '#e5ddc8' }}
+                  style={{ background: 'transparent', border: '1px solid transparent', borderRadius: 8, padding: '6px 8px', fontSize: 12, color: crmV2.text, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', gap: 1, lineHeight: 1.3, minWidth: 0, ...(isMobile ? { minHeight: 40, wordBreak: 'break-word' as const } : {}) }}
+                  onMouseEnter={e => { e.currentTarget.style.background = crmV2.bgHover; e.currentTarget.style.borderColor = crmV2.border }}
                   onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'transparent' }}
                 >
-                  <span style={{ fontWeight: 500 }}>{p.label}</span>
-                  <span style={{ color: '#7d8c9e', fontSize: 10, fontFamily: 'ui-monospace, monospace' }}>{p.name}</span>
+                  <span style={{ fontWeight: 600 }}>{p.label}</span>
+                  <span style={{ color: crmV2.textFaint, fontSize: 11 }}>{p.name}</span>
                 </button>
               ))}
               {filteredCrmProps.length > 200 && (
-                <div style={{ fontSize: 10, color: '#7d8c9e', padding: '6px 4px', textAlign: 'center' }}>
+                <div style={{ fontSize: 11, color: crmV2.textFaint, padding: '6px 4px', textAlign: 'center' }}>
                   +{filteredCrmProps.length - 200} autres — affine ta recherche
                 </div>
               )}
             </div>
           )}
         </div>
-        </>)}
-      </div>
+      </FormsSection>
 
       {/* Canvas : le formulaire en édition */}
-      <div style={isMobile ? { order: 1, minWidth: 0 } : undefined}>
-        <div style={{ background: form.bg_color, border: '1px solid #e5ddc8', borderRadius: 12, padding: isMobile ? 14 : 32, minHeight: isMobile ? 200 : 400 }}>
+      <FormsSection
+        title="Aperçu du formulaire"
+        description={`${form.fields.length} champ${form.fields.length > 1 ? 's' : ''} · clique sur un champ pour l’éditer`}
+        icon={<FileText size={15} />}
+        style={isMobile ? { order: 1 } : undefined}
+        bodyStyle={{ paddingTop: 0 }}
+      >
+        <div style={{ background: form.bg_color, border: `1px solid ${crmV2.border}`, borderRadius: 12, padding: isMobile ? 14 : 28, minHeight: isMobile ? 200 : 400 }}>
           {form.title && <h2 style={{ color: form.text_color, margin: '0 0 8px', fontSize: 22 }}>{form.title}</h2>}
           {form.subtitle && <p style={{ color: form.text_color, opacity: 0.7, margin: '0 0 24px', fontSize: 14 }}>{form.subtitle}</p>}
 
           {form.fields.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 40, color: '#4a6070', border: '2px dashed #e5ddc8', borderRadius: 8 }}>
+            <div style={{ textAlign: 'center', padding: 40, color: crmV2.textMuted, fontSize: 13, border: `2px dashed ${crmV2.borderStrong}`, borderRadius: 12 }}>
               {isMobile ? 'Ajoute des champs via « Ajouter un champ » ci-dessous' : 'Ajoute des champs depuis le panneau de gauche'}
             </div>
           ) : (
@@ -708,7 +722,7 @@ function BuilderTab({ form, update, updateField, addField, addCrmField, removeFi
             const px = form.submit_padding_x ?? 40
             const fs = form.submit_font_size ?? 15
             return (
-              <button style={{
+              <button type="button" style={{
                 marginTop: 20,
                 background: form.submit_bg_color || form.primary_color,
                 color: form.submit_text_color || '#ffffff',
@@ -727,13 +741,13 @@ function BuilderTab({ form, update, updateField, addField, addCrmField, removeFi
             )
           })()}
         </div>
-      </div>
+      </FormsSection>
 
       {/* Panneau paramètres du champ sélectionné */}
       {isMobile ? (
         // Mobile : éditeur du champ en plein écran par-dessus la page
         selectedFieldIdx !== null && selectedField ? (
-          <div style={{ position: 'fixed', inset: 0, zIndex: 70, background: '#f7f4ee', overflowY: 'auto', padding: 12 }}>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 70, background: crmV2.bgSoft, overflowY: 'auto', padding: 12 }}>
             <FieldEditor
               field={selectedField}
               onUpdate={p => updateField(selectedFieldIdx, p)}
@@ -744,7 +758,7 @@ function BuilderTab({ form, update, updateField, addField, addCrmField, removeFi
           </div>
         ) : null
       ) : (
-      <div style={{ position: 'sticky', top: 24, height: 'fit-content' }}>
+      <div style={{ position: 'sticky', top: 16, height: 'fit-content', maxHeight: 'calc(100vh - 32px)', overflowY: 'auto', borderRadius: crmV2.radiusLg }}>
         {selectedFieldIdx !== null && form.fields[selectedFieldIdx] ? (
           <FieldEditor
             field={form.fields[selectedFieldIdx]}
@@ -753,13 +767,36 @@ function BuilderTab({ form, update, updateField, addField, addCrmField, removeFi
             crmProperties={crmProperties}
           />
         ) : (
-          <div style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 20, color: '#4a6070', fontSize: 12, textAlign: 'center' }}>
+          <div style={{ background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: crmV2.radiusLg, boxShadow: crmV2.shadow, padding: 24, color: crmV2.textMuted, fontSize: 13, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+            <span style={{ width: 40, height: 40, borderRadius: 12, background: crmV2.goldSoft, color: crmV2.goldDark, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Pencil size={17} />
+            </span>
             Sélectionne un champ dans le formulaire pour l&apos;éditer
           </div>
         )}
       </div>
       )}
     </div>
+  )
+}
+
+function PaletteButton({ children, onClick, isMobile }: { children: React.ReactNode; onClick: () => void; isMobile: boolean }) {
+  const [hover, setHover] = useState(false)
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        background: hover ? crmV2.bgHover : crmV2.bg, border: `1px solid ${hover ? crmV2.borderStrong : crmV2.border}`,
+        borderRadius: crmV2.radius, padding: '8px 10px', color: crmV2.text, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+        display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left', fontFamily: 'inherit', minWidth: 0,
+        minHeight: isMobile ? 40 : 36,
+      }}
+    >
+      {children}
+    </button>
   )
 }
 
@@ -784,8 +821,9 @@ function FieldCard({ field, selected, onSelect, onMoveUp, onMoveDown, onDuplicat
       onClick={onSelect}
       style={{
         background: '#fff',
-        border: `2px solid ${selected ? '#22c55e' : 'transparent'}`,
-        borderRadius: 8,
+        border: `2px solid ${selected ? crmV2.gold : 'transparent'}`,
+        boxShadow: selected ? '0 0 0 3px rgba(201,168,76,0.18)' : 'none',
+        borderRadius: 10,
         padding: 12,
         cursor: 'pointer',
         position: 'relative',
@@ -795,14 +833,14 @@ function FieldCard({ field, selected, onSelect, onMoveUp, onMoveDown, onDuplicat
       {/* Mobile : actions dans le flux (au-dessus du label) pour ne pas chevaucher le texte */}
       {isMobile && (
         <div onClick={e => e.stopPropagation()} style={{ display: 'flex', justifyContent: 'flex-end', gap: 4, marginBottom: 6 }}>
-          <MiniBtn onClick={onMoveUp} disabled={!canMoveUp} size={32}>↑</MiniBtn>
-          <MiniBtn onClick={onMoveDown} disabled={!canMoveDown} size={32}>↓</MiniBtn>
-          <MiniBtn onClick={onDuplicate} size={32}><Copy size={13} /></MiniBtn>
-          <MiniBtn onClick={onRemove} danger size={32}><Trash2 size={13} /></MiniBtn>
+          <MiniBtn onClick={onMoveUp} disabled={!canMoveUp} size={40} title="Monter"><ArrowUp size={15} /></MiniBtn>
+          <MiniBtn onClick={onMoveDown} disabled={!canMoveDown} size={40} title="Descendre"><ArrowDown size={15} /></MiniBtn>
+          <MiniBtn onClick={onDuplicate} size={40} title="Dupliquer"><Copy size={15} /></MiniBtn>
+          <MiniBtn onClick={onRemove} danger size={40} title="Supprimer"><Trash2 size={15} /></MiniBtn>
         </div>
       )}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, minWidth: 0 }}>
-        <TypeIcon size={12} style={{ color: '#888', flexShrink: 0 }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, minWidth: 0, paddingRight: isMobile ? 0 : 120 }}>
+        <TypeIcon size={13} style={{ color: '#888', flexShrink: 0 }} />
         <label style={{ fontSize: 13, fontWeight: 600, color: textColor, ...(isMobile ? { minWidth: 0, wordBreak: 'break-word' as const } : {}) }}>
           {field.label} {field.required && <span style={{ color: '#ef4444' }}>*</span>}
         </label>
@@ -814,12 +852,12 @@ function FieldCard({ field, selected, onSelect, onMoveUp, onMoveDown, onDuplicat
       {!isMobile && (
       <div
         onClick={e => e.stopPropagation()}
-        style={{ position: 'absolute', top: 6, right: 6, display: 'flex', gap: 2, background: '#f4f4f7', borderRadius: 6, padding: 2 }}
+        style={{ position: 'absolute', top: 6, right: 6, display: 'flex', gap: 2, background: crmV2.bgSoft, border: `1px solid ${crmV2.border}`, borderRadius: 999, padding: 2 }}
       >
-        <MiniBtn onClick={onMoveUp} disabled={!canMoveUp}>↑</MiniBtn>
-        <MiniBtn onClick={onMoveDown} disabled={!canMoveDown}>↓</MiniBtn>
-        <MiniBtn onClick={onDuplicate}><Copy size={11} /></MiniBtn>
-        <MiniBtn onClick={onRemove} danger><Trash2 size={11} /></MiniBtn>
+        <MiniBtn onClick={onMoveUp} disabled={!canMoveUp} title="Monter"><ArrowUp size={13} /></MiniBtn>
+        <MiniBtn onClick={onMoveDown} disabled={!canMoveDown} title="Descendre"><ArrowDown size={13} /></MiniBtn>
+        <MiniBtn onClick={onDuplicate} title="Dupliquer"><Copy size={13} /></MiniBtn>
+        <MiniBtn onClick={onRemove} danger title="Supprimer"><Trash2 size={13} /></MiniBtn>
       </div>
       )}
     </div>
@@ -874,12 +912,21 @@ function FieldPreview({ field, fieldStyle }: { field: FormField; fieldStyle?: { 
   }
 }
 
-function MiniBtn({ children, onClick, disabled, danger, size }: { children: React.ReactNode; onClick: () => void; disabled?: boolean; danger?: boolean; size?: number }) {
+
+function MiniBtn({ children, onClick, disabled, danger, size, title }: { children: React.ReactNode; onClick: () => void; disabled?: boolean; danger?: boolean; size?: number; title?: string }) {
+  const s = size ?? 26
   return (
     <button
+      type="button"
       onClick={onClick}
       disabled={disabled}
-      style={{ background: 'transparent', border: 'none', padding: 4, borderRadius: 4, cursor: disabled ? 'default' : 'pointer', color: danger ? '#ef4444' : '#555', fontSize: 12, opacity: disabled ? 0.3 : 1, ...(size ? { width: size, height: size, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f4f4f7', borderRadius: 6 } : {}) }}
+      title={title}
+      aria-label={title}
+      style={{
+        width: s, height: s, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, flexShrink: 0,
+        background: size ? crmV2.bgSoft : 'transparent', border: size ? `1px solid ${crmV2.border}` : 'none', borderRadius: 999,
+        cursor: disabled ? 'default' : 'pointer', color: danger ? '#d13a41' : crmV2.textMuted, opacity: disabled ? 0.3 : 1,
+      }}
     >{children}</button>
   )
 }
@@ -889,8 +936,8 @@ function FieldEditor({ field, onUpdate, onClose, crmProperties, isMobile = false
   const hasOptions = ['select', 'radio', 'checkbox'].includes(field.field_type)
 
   // Fusion : options statiques (CRM_FIELDS) + propriétés CRM dynamiques
-  // (créées dans /admin/crm/proprietes ou syncées depuis HubSpot).
-  // - On garde le pseudo "— Ne pas mapper —" et "✏️ Saisir un champ personnalisé" en tête/queue.
+  // (créées dans /admin/crm/proprietes ou synchronisées depuis le CRM externe).
+  // - On garde le pseudo "— Ne pas mapper —" et "Saisir un champ personnalisé" en tête/queue.
   // - On groupe les propriétés dynamiques par group_name pour la lisibilité.
   const mergedOptions = (() => {
     const noMap = CRM_FIELDS.find(c => c.value === '')!
@@ -914,146 +961,178 @@ function FieldEditor({ field, onUpdate, onClose, crmProperties, isMobile = false
     return { noMap, customOpt, groups: [...groups.values()] }
   })()
 
+  const TypeIcon = FIELD_TYPES.find(ft => ft.type === field.field_type)?.icon || Type
+  const typeLabel = FIELD_TYPES.find(ft => ft.type === field.field_type)?.label || field.field_type
+
   return (
-    <div style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 16 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: '#22c55e', textTransform: 'uppercase' }}>Éditer le champ</span>
+    <div style={{ background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: crmV2.radiusLg, boxShadow: crmV2.shadowRecord, padding: isMobile ? 14 : 18 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+          <span style={{ width: 28, height: 28, borderRadius: 8, background: crmV2.goldSoft, color: crmV2.goldDark, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <TypeIcon size={15} />
+          </span>
+          <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontSize: 15, fontWeight: 700, color: crmV2.text }}>Éditer le champ</span>
+            <span style={{ fontSize: 12, color: crmV2.textMuted }}>{typeLabel}</span>
+          </span>
+        </span>
         {isMobile ? (
-          <button onClick={onClose} style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 8, color: '#22c55e', cursor: 'pointer', minHeight: 36, padding: '6px 14px', fontSize: 12, fontWeight: 600, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4 }}>
-            <Check size={14} /> Terminé
-          </button>
+          <CrmV2Button variant="primary" icon={<Check size={14} />} onClick={onClose} style={{ minHeight: 40 }}>Terminé</CrmV2Button>
         ) : (
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#4a6070', cursor: 'pointer' }}><X size={16} /></button>
+          <button type="button" onClick={onClose} title="Fermer" aria-label="Fermer" style={{ width: 32, height: 32, borderRadius: 999, border: `1px solid ${crmV2.border}`, background: crmV2.bg, color: crmV2.textMuted, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><X size={15} /></button>
         )}
       </div>
 
-      <MiniField label="Label visible">
-        <input value={field.label} onChange={e => onUpdate({ label: e.target.value })} style={miniInput} />
-      </MiniField>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <FormsField label="Label visible">
+          <input value={field.label} onChange={e => onUpdate({ label: e.target.value })} style={formsInput} />
+        </FormsField>
 
-      <MiniField label="Clé technique">
-        <input value={field.field_key} onChange={e => onUpdate({ field_key: e.target.value.replace(/\s+/g, '_') })} style={miniInput} />
-      </MiniField>
+        <FormsField label="Clé technique">
+          <input value={field.field_key} onChange={e => onUpdate({ field_key: e.target.value.replace(/\s+/g, '_') })} style={formsInput} />
+        </FormsField>
 
-      {field.field_type !== 'hidden' && (
-        <>
-          <MiniField label="Placeholder">
-            <input value={field.placeholder || ''} onChange={e => onUpdate({ placeholder: e.target.value })} style={miniInput} />
-          </MiniField>
-          <MiniField label="Texte d'aide">
-            <input value={field.help_text || ''} onChange={e => onUpdate({ help_text: e.target.value })} style={miniInput} />
-          </MiniField>
-        </>
-      )}
+        {field.field_type !== 'hidden' && (
+          <>
+            <FormsField label="Placeholder">
+              <input value={field.placeholder || ''} onChange={e => onUpdate({ placeholder: e.target.value })} style={formsInput} />
+            </FormsField>
+            <FormsField label="Texte d'aide">
+              <input value={field.help_text || ''} onChange={e => onUpdate({ help_text: e.target.value })} style={formsInput} />
+            </FormsField>
+          </>
+        )}
 
-      <MiniField label="Valeur par défaut">
-        <input value={field.default_value || ''} onChange={e => onUpdate({ default_value: e.target.value })} style={miniInput} />
-      </MiniField>
+        <FormsField label="Valeur par défaut">
+          <input value={field.default_value || ''} onChange={e => onUpdate({ default_value: e.target.value })} style={formsInput} />
+        </FormsField>
 
-      <MiniField label="Mapping CRM">
-        {(() => {
-          const knownValues = new Set<string>([
-            ...mergedOptions.groups.flatMap(g => g.items.map(i => i.value)),
-          ])
-          const currentValue = field.crm_field || ''
-          const isCustom = currentValue !== '' && !knownValues.has(currentValue)
-          return (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <select
-                value={isCustom ? '__custom__' : currentValue}
-                onChange={e => {
-                  const v = e.target.value
-                  if (v === '__custom__') {
-                    if (!isCustom) onUpdate({ crm_field: ' ' })
-                  } else {
-                    onUpdate({ crm_field: v || null })
-                  }
-                }}
-                style={miniInput}
-              >
-                <option value="">{mergedOptions.noMap.label}</option>
-                {mergedOptions.groups.map(group => (
-                  <optgroup key={group.label} label={group.label}>
-                    {group.items.map(it => (
-                      <option key={it.value} value={it.value}>{it.label}</option>
-                    ))}
-                  </optgroup>
-                ))}
-                <option value="__custom__">{mergedOptions.customOpt.label}</option>
-              </select>
-              {isCustom && (
-                <input
-                  value={currentValue.trim()}
-                  onChange={e => onUpdate({ crm_field: e.target.value || ' ' })}
-                  placeholder="ex: spe1_name"
-                  style={{ ...miniInput, fontFamily: 'ui-monospace, monospace' }}
-                />
-              )}
-              <div style={{ fontSize: 10, color: '#7d8c9e', lineHeight: 1.4 }}>
-                {crmProperties.length > 0
-                  ? `${crmProperties.length} propriétés CRM disponibles. Crée-en de nouvelles dans `
-                  : 'Crée tes propriétés custom dans '}
-                <a href="/admin/crm/proprietes" target="_blank" rel="noreferrer" style={{ color: '#C9A84C', textDecoration: 'underline' }}>/admin/crm/proprietes</a>.
+        <FormsField label="Mapping CRM">
+          {(() => {
+            const knownValues = new Set<string>([
+              ...mergedOptions.groups.flatMap(g => g.items.map(i => i.value)),
+            ])
+            const currentValue = field.crm_field || ''
+            const isCustom = currentValue !== '' && !knownValues.has(currentValue)
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <select
+                  value={isCustom ? '__custom__' : currentValue}
+                  onChange={e => {
+                    const v = e.target.value
+                    if (v === '__custom__') {
+                      if (!isCustom) onUpdate({ crm_field: ' ' })
+                    } else {
+                      onUpdate({ crm_field: v || null })
+                    }
+                  }}
+                  style={{ ...formsInput, cursor: 'pointer' }}
+                >
+                  <option value="">{mergedOptions.noMap.label}</option>
+                  {mergedOptions.groups.map(group => (
+                    <optgroup key={group.label} label={group.label}>
+                      {group.items.map(it => (
+                        <option key={it.value} value={it.value}>{it.label}</option>
+                      ))}
+                    </optgroup>
+                  ))}
+                  <option value="__custom__">{mergedOptions.customOpt.label}</option>
+                </select>
+                {isCustom && (
+                  <input
+                    value={currentValue.trim()}
+                    onChange={e => onUpdate({ crm_field: e.target.value || ' ' })}
+                    placeholder="ex: spe1_name"
+                    style={formsInput}
+                  />
+                )}
+                <div style={{ fontSize: 11, color: crmV2.textFaint, lineHeight: 1.45 }}>
+                  {crmProperties.length > 0
+                    ? `${crmProperties.length} propriétés CRM disponibles. Crée-en de nouvelles dans `
+                    : 'Crée tes propriétés custom dans '}
+                  <a href="/admin/crm/proprietes" target="_blank" rel="noreferrer" style={{ color: crmV2.link, fontWeight: 600 }}>/admin/crm/proprietes</a>.
+                </div>
               </div>
-            </div>
-          )
-        })()}
-      </MiniField>
+            )
+          })()}
+        </FormsField>
 
-      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#0e1e35', marginTop: 10, cursor: 'pointer' }}>
-        <input type="checkbox" checked={field.required} onChange={e => onUpdate({ required: e.target.checked })} /> Champ obligatoire
-      </label>
+        <div style={{ minHeight: isMobile ? 40 : undefined, display: 'flex', alignItems: 'center' }}>
+          <CrmV2Toggle checked={field.required} onChange={v => onUpdate({ required: v })} label="Champ obligatoire" />
+        </div>
 
-      {hasOptions && (
-        <>
-          <div style={{ fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', marginTop: 16, marginBottom: 6 }}>Options</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, ...(isMobile ? { flexWrap: 'wrap' as const } : {}) }}>
-            <span style={{ fontSize: 11, color: '#7d8c9e' }}>Pré-remplir :</span>
-            <select
-              value=""
-              onChange={e => {
-                const preset = OPTION_PRESETS.find(p => p.id === e.target.value)
-                if (!preset) return
-                const merged = [
-                  ...field.options.filter(o =>
-                    !preset.options.some(po => po.value === o.value || po.label === o.label),
-                  ),
-                  ...preset.options,
-                ]
-                onUpdate({ options: merged })
-              }}
-              style={{ ...miniInput, flex: 1, minWidth: 0 }}
-            >
-              <option value="">— Choisir un preset —</option>
-              {OPTION_PRESETS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
-            </select>
-          </div>
-          {field.options.map((opt, idx) => (
-            <div key={idx} style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
-              <input
-                value={opt.label}
+        {hasOptions && (
+          <div style={{ borderTop: `1px solid ${crmV2.borderLight}`, paddingTop: 12 }}>
+            <div style={{ fontSize: 11, color: crmV2.textMuted, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>Options</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, ...(isMobile ? { flexWrap: 'wrap' as const } : {}) }}>
+              <span style={{ fontSize: 12, color: crmV2.textMuted, fontWeight: 600 }}>Pré-remplir :</span>
+              <select
+                value=""
                 onChange={e => {
-                  const newOpts = [...field.options]
-                  newOpts[idx] = { value: slugifyOpt(e.target.value), label: e.target.value }
-                  onUpdate({ options: newOpts })
+                  const preset = OPTION_PRESETS.find(p => p.id === e.target.value)
+                  if (!preset) return
+                  const merged = [
+                    ...field.options.filter(o =>
+                      !preset.options.some(po => po.value === o.value || po.label === o.label),
+                    ),
+                    ...preset.options,
+                  ]
+                  onUpdate({ options: merged })
                 }}
-                placeholder="Libellé"
-                style={{ ...miniInput, flex: 1, minWidth: 0 }}
-              />
-              <button
-                onClick={() => onUpdate({ options: field.options.filter((_, i) => i !== idx) })}
-                style={{ background: 'transparent', border: '1px solid #e5ddc8', borderRadius: 6, padding: '4px 6px', color: '#ef4444', cursor: 'pointer' }}
-              ><Trash2 size={12} /></button>
+                style={{ ...formsInput, flex: 1, minWidth: 0, cursor: 'pointer' }}
+              >
+                <option value="">— Choisir un preset —</option>
+                {OPTION_PRESETS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+              </select>
             </div>
-          ))}
-          <button
-            onClick={() => onUpdate({ options: [...field.options, { value: `option${field.options.length + 1}`, label: `Option ${field.options.length + 1}` }] })}
-            style={{ marginTop: 6, background: '#f7f4ee', border: '1px dashed #e5ddc8', borderRadius: 6, padding: '6px', width: '100%', color: '#4a6070', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontFamily: 'inherit' }}
-          >
-            <Plus size={12} /> Ajouter une option
-          </button>
-        </>
-      )}
+            {field.options.map((opt, idx) => (
+              <div key={idx} style={{ display: 'flex', gap: 6, marginBottom: 6, alignItems: 'center' }}>
+                <input
+                  value={opt.label}
+                  onChange={e => {
+                    const newOpts = [...field.options]
+                    newOpts[idx] = { value: slugifyOpt(e.target.value), label: e.target.value }
+                    onUpdate({ options: newOpts })
+                  }}
+                  placeholder="Libellé"
+                  style={{ ...formsInput, flex: 1 }}
+                />
+                <MiniBtn
+                  onClick={() => onUpdate({ options: field.options.filter((_, i) => i !== idx) })}
+                  danger
+                  size={isMobile ? 40 : 34}
+                  title="Supprimer l’option"
+                ><Trash2 size={14} /></MiniBtn>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() => onUpdate({ options: [...field.options, { value: `option${field.options.length + 1}`, label: `Option ${field.options.length + 1}` }] })}
+              style={{ marginTop: 4, background: crmV2.bg, border: `1px dashed ${crmV2.borderStrong}`, borderRadius: 999, padding: '8px', minHeight: isMobile ? 40 : 36, width: '100%', color: crmV2.link, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'inherit' }}
+            >
+              <Plus size={14} /> Ajouter une option
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/** Champ couleur : pastille + saisie hexadécimale. */
+function ColorRow({ swatch, onSwatch, value, onChange, placeholder, extra }: {
+  swatch: string
+  onSwatch: (v: string) => void
+  value: string
+  onChange: (v: string) => void
+  placeholder?: string
+  extra?: React.ReactNode
+}) {
+  return (
+    <div style={{ display: 'flex', gap: 8, alignItems: 'center', minWidth: 0 }}>
+      <FormsColorSwatch value={swatch} onChange={onSwatch} />
+      <input value={value} onChange={e => onChange(e.target.value)} style={inputStyle} placeholder={placeholder} />
+      {extra}
     </div>
   )
 }
@@ -1143,431 +1222,362 @@ function SettingsTab({ form, formId, update, onSaveNotifyEmails }: {
     }
   }
 
+  const sm = isMobile ? { minHeight: 40 } : undefined
+
   return (
-    // Mobile : une seule colonne
-    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 1fr', gap: isMobile ? 0 : 20, maxWidth: 1000 }}>
-      <Card title="Contenu">
-        <Field label="Nom interne"><input value={form.name} onChange={e => update({ name: e.target.value })} style={inputStyle} /></Field>
-        <Field label="Slug (URL publique)">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 8, padding: '0 12px' }}>
-            <span style={{ color: '#4a6070', fontSize: 12 }}>/forms/</span>
-            <input value={form.slug} onChange={e => update({ slug: e.target.value.replace(/[^a-z0-9-]/gi, '-').toLowerCase() })} style={{ ...inputStyle, border: 'none', padding: '8px 0' }} />
-          </div>
-        </Field>
-        <Field label="Titre affiché"><input value={form.title || ''} onChange={e => update({ title: e.target.value })} style={inputStyle} /></Field>
-        <Field label="Sous-titre"><input value={form.subtitle || ''} onChange={e => update({ subtitle: e.target.value })} style={inputStyle} /></Field>
-        <Field label="Texte du bouton"><input value={form.submit_label} onChange={e => update({ submit_label: e.target.value })} style={inputStyle} /></Field>
-      </Card>
+    // Gabarit E : sections empilées (880 px max), champs en 2 colonnes (1 sur mobile)
+    <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? 12 : 16, maxWidth: 880, width: '100%' }}>
+      <FormsSection title="Contenu" description="Nom, adresse publique et textes affichés" icon={<FileText size={15} />} storageKey="crm-v2-form-editor:contenu">
+        <FormsGrid>
+          <FormsField label="Nom interne"><input value={form.name} onChange={e => update({ name: e.target.value })} style={inputStyle} /></FormsField>
+          <FormsField label="Slug (URL publique)">
+            <div style={{ ...inputStyle, display: 'flex', alignItems: 'center', gap: 4, padding: '0 12px' }}>
+              <span style={{ color: crmV2.textMuted, fontSize: 13, flexShrink: 0 }}>/forms/</span>
+              <input value={form.slug} onChange={e => update({ slug: e.target.value.replace(/[^a-z0-9-]/gi, '-').toLowerCase() })} style={{ ...inputStyle, border: 'none', padding: '8px 0', minHeight: 36 }} />
+            </div>
+          </FormsField>
+          <FormsField label="Titre affiché"><input value={form.title || ''} onChange={e => update({ title: e.target.value })} style={inputStyle} /></FormsField>
+          <FormsField label="Sous-titre"><input value={form.subtitle || ''} onChange={e => update({ subtitle: e.target.value })} style={inputStyle} /></FormsField>
+          <FormsField label="Texte du bouton"><input value={form.submit_label} onChange={e => update({ submit_label: e.target.value })} style={inputStyle} /></FormsField>
+        </FormsGrid>
+      </FormsSection>
 
-      <Card title="Apparence">
-        <Field label="Couleur principale">
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input type="color" value={form.primary_color} onChange={e => update({ primary_color: e.target.value })} style={{ width: 40, height: 36, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }} />
-            <input value={form.primary_color} onChange={e => update({ primary_color: e.target.value })} style={inputStyle} />
-          </div>
-        </Field>
-        <Field label="Couleur du texte">
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input type="color" value={form.text_color} onChange={e => update({ text_color: e.target.value })} style={{ width: 40, height: 36, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }} />
-            <input value={form.text_color} onChange={e => update({ text_color: e.target.value })} style={inputStyle} />
-          </div>
-        </Field>
-        <Field label="Couleur de fond">
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <input type="color" value={form.bg_color === 'transparent' ? '#ffffff' : form.bg_color} onChange={e => update({ bg_color: e.target.value })} style={{ width: 40, height: 36, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }} />
-            <input value={form.bg_color} onChange={e => update({ bg_color: e.target.value })} style={inputStyle} placeholder="#ffffff ou transparent" />
-            <button
-              type="button"
-              onClick={() => update({ bg_color: 'transparent' })}
-              title="Fond transparent (laisse passer la page hôte)"
-              style={{
-                background: form.bg_color === 'transparent' ? '#12314d' : '#ffffff',
-                color: form.bg_color === 'transparent' ? '#ffffff' : '#0e1e35',
-                border: '1px solid #e5ddc8', borderRadius: 8,
-                padding: '6px 12px', fontSize: 12, fontWeight: 600,
-                cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit',
-              }}
-            >
-              Transparent
-            </button>
-          </div>
-        </Field>
-      </Card>
-
-      <Card title="Style des champs de réponse">
-        <Field label="Couleur de bordure">
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input
-              type="color"
-              value={form.field_border_color || '#dddddd'}
-              onChange={e => update({ field_border_color: e.target.value })}
-              style={{ width: 40, height: 36, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}
+      <FormsSection title="Apparence" description="Couleurs du formulaire" icon={<Palette size={15} />} storageKey="crm-v2-form-editor:apparence">
+        <FormsGrid>
+          <FormsField label="Couleur principale">
+            <ColorRow swatch={form.primary_color} onSwatch={v => update({ primary_color: v })} value={form.primary_color} onChange={v => update({ primary_color: v })} />
+          </FormsField>
+          <FormsField label="Couleur du texte">
+            <ColorRow swatch={form.text_color} onSwatch={v => update({ text_color: v })} value={form.text_color} onChange={v => update({ text_color: v })} />
+          </FormsField>
+          <FormsField label="Couleur de fond" span={2}>
+            <ColorRow
+              swatch={form.bg_color === 'transparent' ? '#ffffff' : form.bg_color}
+              onSwatch={v => update({ bg_color: v })}
+              value={form.bg_color}
+              onChange={v => update({ bg_color: v })}
+              placeholder="#ffffff ou transparent"
+              extra={
+                <CrmV2Button
+                  size="sm"
+                  variant={form.bg_color === 'transparent' ? 'primary' : 'secondary'}
+                  onClick={() => update({ bg_color: 'transparent' })}
+                  title="Fond transparent (laisse passer la page hôte)"
+                  style={sm}
+                >
+                  Transparent
+                </CrmV2Button>
+              }
             />
-            <input
+          </FormsField>
+        </FormsGrid>
+      </FormsSection>
+
+      <FormsSection title="Style des champs de réponse" description="Bordures, fond et arrondi des champs" icon={<Type size={15} />} storageKey="crm-v2-form-editor:champs">
+        <FormsGrid>
+          <FormsField label="Couleur de bordure">
+            <ColorRow
+              swatch={form.field_border_color || '#dddddd'}
+              onSwatch={v => update({ field_border_color: v })}
               value={form.field_border_color || '#dddddd'}
-              onChange={e => update({ field_border_color: e.target.value })}
-              style={inputStyle}
+              onChange={v => update({ field_border_color: v })}
               placeholder="#dddddd"
             />
-          </div>
-        </Field>
-        <Field label="Couleur de fond des champs">
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input
-              type="color"
+          </FormsField>
+          <FormsField label="Couleur de fond des champs">
+            <ColorRow
+              swatch={form.field_bg_color || '#ffffff'}
+              onSwatch={v => update({ field_bg_color: v })}
               value={form.field_bg_color || '#ffffff'}
-              onChange={e => update({ field_bg_color: e.target.value })}
-              style={{ width: 40, height: 36, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}
-            />
-            <input
-              value={form.field_bg_color || '#ffffff'}
-              onChange={e => update({ field_bg_color: e.target.value })}
-              style={inputStyle}
+              onChange={v => update({ field_bg_color: v })}
               placeholder="#ffffff"
             />
-          </div>
-        </Field>
-        <Field label={`Épaisseur de bordure : ${form.field_border_width ?? 1} px`}>
-          <input
-            type="range"
-            min={0}
-            max={4}
-            step={1}
-            value={form.field_border_width ?? 1}
-            onChange={e => update({ field_border_width: parseInt(e.target.value) })}
-            style={{ width: '100%' }}
-          />
-        </Field>
-        <Field label={`Arrondi des coins : ${form.field_border_radius ?? 8} px`}>
-          <input
-            type="range"
-            min={0}
-            max={32}
-            step={1}
-            value={form.field_border_radius ?? 8}
-            onChange={e => update({ field_border_radius: parseInt(e.target.value) })}
-            style={{ width: '100%' }}
-          />
-          <div style={{ display: 'flex', gap: 6, marginTop: 6, ...(isMobile ? { flexWrap: 'wrap' as const } : {}) }}>
-            {[0, 4, 8, 12, 16, 24].map(r => (
-              <button
-                key={r}
-                type="button"
-                onClick={() => update({ field_border_radius: r })}
-                style={{
-                  flex: 1, fontSize: 11, padding: '4px 0',
-                  background: (form.field_border_radius ?? 8) === r ? '#12314d' : '#ffffff',
-                  color: (form.field_border_radius ?? 8) === r ? '#ffffff' : '#4a6070',
-                  border: '1px solid #e5ddc8', borderRadius: 6,
-                  cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600,
-                }}
-              >
-                {r === 0 ? 'Carré' : `${r}px`}
-              </button>
-            ))}
-          </div>
-        </Field>
-      </Card>
-
-      <Card title="Style du bouton (CTA)">
-        <Field label="Couleur de fond du bouton">
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          </FormsField>
+          <FormsField label={`Épaisseur de bordure : ${form.field_border_width ?? 1} px`}>
             <input
-              type="color"
-              value={form.submit_bg_color || form.primary_color}
-              onChange={e => update({ submit_bg_color: e.target.value })}
-              style={{ width: 40, height: 36, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}
+              type="range"
+              min={0}
+              max={4}
+              step={1}
+              value={form.field_border_width ?? 1}
+              onChange={e => update({ field_border_width: parseInt(e.target.value) })}
+              style={formsRange}
             />
+          </FormsField>
+          <FormsField label={`Arrondi des coins : ${form.field_border_radius ?? 8} px`}>
             <input
+              type="range"
+              min={0}
+              max={32}
+              step={1}
+              value={form.field_border_radius ?? 8}
+              onChange={e => update({ field_border_radius: parseInt(e.target.value) })}
+              style={formsRange}
+            />
+            <CrmV2Segmented
+              stretch
+              size="sm"
+              value={String(form.field_border_radius ?? 8)}
+              onChange={v => update({ field_border_radius: Number(v) })}
+              items={[0, 4, 8, 12, 16, 24].map(r => ({ id: String(r), label: r === 0 ? 'Carré' : `${r}px` }))}
+            />
+          </FormsField>
+        </FormsGrid>
+      </FormsSection>
+
+      <FormsSection title="Style du bouton (CTA)" description="Couleurs, arrondi, taille et largeur du bouton d’envoi" icon={<MousePointerClick size={15} />} storageKey="crm-v2-form-editor:cta">
+        <FormsGrid>
+          <FormsField label="Couleur de fond du bouton">
+            <ColorRow
+              swatch={form.submit_bg_color || form.primary_color}
+              onSwatch={v => update({ submit_bg_color: v })}
               value={form.submit_bg_color || ''}
-              onChange={e => update({ submit_bg_color: e.target.value || null })}
-              style={inputStyle}
+              onChange={v => update({ submit_bg_color: v || null })}
               placeholder="par défaut : couleur principale"
+              extra={
+                <CrmV2Button
+                  size="sm"
+                  variant={!form.submit_bg_color ? 'primary' : 'secondary'}
+                  onClick={() => update({ submit_bg_color: null })}
+                  title="Utiliser la couleur principale"
+                  style={sm}
+                >
+                  Auto
+                </CrmV2Button>
+              }
             />
-            <button
-              type="button"
-              onClick={() => update({ submit_bg_color: null })}
-              title="Utiliser la couleur principale"
-              style={{
-                background: !form.submit_bg_color ? '#12314d' : '#ffffff',
-                color: !form.submit_bg_color ? '#ffffff' : '#0e1e35',
-                border: '1px solid #e5ddc8', borderRadius: 8,
-                padding: '6px 12px', fontSize: 12, fontWeight: 600,
-                cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit',
-              }}
-            >
-              Auto
-            </button>
-          </div>
-        </Field>
-        <Field label="Couleur du texte du bouton">
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input
-              type="color"
+          </FormsField>
+          <FormsField label="Couleur du texte du bouton">
+            <ColorRow
+              swatch={form.submit_text_color || '#ffffff'}
+              onSwatch={v => update({ submit_text_color: v })}
               value={form.submit_text_color || '#ffffff'}
-              onChange={e => update({ submit_text_color: e.target.value })}
-              style={{ width: 40, height: 36, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}
-            />
-            <input
-              value={form.submit_text_color || '#ffffff'}
-              onChange={e => update({ submit_text_color: e.target.value })}
-              style={inputStyle}
+              onChange={v => update({ submit_text_color: v })}
               placeholder="#ffffff"
             />
+          </FormsField>
+          <FormsField label={`Arrondi du bouton : ${form.submit_border_radius ?? 999} px`} span={2}>
+            <input
+              type="range"
+              min={0}
+              max={999}
+              step={1}
+              value={form.submit_border_radius ?? 999}
+              onChange={e => update({ submit_border_radius: parseInt(e.target.value) })}
+              style={formsRange}
+            />
+            <CrmV2Segmented
+              stretch
+              size="sm"
+              value={String(form.submit_border_radius ?? 999)}
+              onChange={v => update({ submit_border_radius: Number(v) })}
+              items={[
+                { v: 0, label: 'Carré' },
+                { v: 4, label: '4px' },
+                { v: 8, label: '8px' },
+                { v: 12, label: '12px' },
+                { v: 24, label: '24px' },
+                { v: 999, label: 'Pill' },
+              ].map(p => ({ id: String(p.v), label: p.label }))}
+            />
+          </FormsField>
+          <FormsField label={`Hauteur du bouton (padding vertical) : ${form.submit_padding_y ?? 14} px`}>
+            <input
+              type="range"
+              min={6}
+              max={32}
+              step={1}
+              value={form.submit_padding_y ?? 14}
+              onChange={e => update({ submit_padding_y: parseInt(e.target.value) })}
+              style={formsRange}
+            />
+          </FormsField>
+          <FormsField label={`Largeur intérieure (padding horizontal) : ${form.submit_padding_x ?? 40} px`}>
+            <input
+              type="range"
+              min={8}
+              max={80}
+              step={1}
+              value={form.submit_padding_x ?? 40}
+              onChange={e => update({ submit_padding_x: parseInt(e.target.value) })}
+              style={formsRange}
+            />
+          </FormsField>
+          <FormsField label={`Taille de la police : ${form.submit_font_size ?? 15} px`} span={2}>
+            <input
+              type="range"
+              min={11}
+              max={24}
+              step={1}
+              value={form.submit_font_size ?? 15}
+              onChange={e => update({ submit_font_size: parseInt(e.target.value) })}
+              style={formsRange}
+            />
+            <CrmV2Segmented
+              stretch
+              size="sm"
+              value={String(form.submit_font_size ?? 15)}
+              onChange={v => update({ submit_font_size: Number(v) })}
+              items={[
+                { v: 12, label: 'XS' },
+                { v: 13, label: 'S' },
+                { v: 15, label: 'M' },
+                { v: 17, label: 'L' },
+                { v: 20, label: 'XL' },
+              ].map(p => ({ id: String(p.v), label: `${p.label} (${p.v}px)` }))}
+            />
+          </FormsField>
+          <div style={{ gridColumn: '1 / -1', minHeight: isMobile ? 40 : undefined, display: 'flex', alignItems: 'center' }}>
+            <CrmV2Toggle
+              checked={!!form.submit_full_width}
+              onChange={v => update({ submit_full_width: v })}
+              label="Bouton sur toute la largeur"
+            />
           </div>
-        </Field>
-        <Field label={`Arrondi du bouton : ${form.submit_border_radius ?? 999} px`}>
-          <input
-            type="range"
-            min={0}
-            max={999}
-            step={1}
-            value={form.submit_border_radius ?? 999}
-            onChange={e => update({ submit_border_radius: parseInt(e.target.value) })}
-            style={{ width: '100%' }}
-          />
-          <div style={{ display: 'flex', gap: 6, marginTop: 6, ...(isMobile ? { flexWrap: 'wrap' as const } : {}) }}>
-            {[
-              { v: 0, label: 'Carré' },
-              { v: 4, label: '4px' },
-              { v: 8, label: '8px' },
-              { v: 12, label: '12px' },
-              { v: 24, label: '24px' },
-              { v: 999, label: 'Pill' },
-            ].map(p => (
-              <button
-                key={p.v}
-                type="button"
-                onClick={() => update({ submit_border_radius: p.v })}
-                style={{
-                  flex: 1, fontSize: 11, padding: '4px 0',
-                  background: (form.submit_border_radius ?? 999) === p.v ? '#12314d' : '#ffffff',
-                  color: (form.submit_border_radius ?? 999) === p.v ? '#ffffff' : '#4a6070',
-                  border: '1px solid #e5ddc8', borderRadius: 6,
-                  cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600,
-                }}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-        </Field>
-        <Field label={`Hauteur du bouton (padding vertical) : ${form.submit_padding_y ?? 14} px`}>
-          <input
-            type="range"
-            min={6}
-            max={32}
-            step={1}
-            value={form.submit_padding_y ?? 14}
-            onChange={e => update({ submit_padding_y: parseInt(e.target.value) })}
-            style={{ width: '100%' }}
-          />
-        </Field>
-        <Field label={`Largeur intérieure (padding horizontal) : ${form.submit_padding_x ?? 40} px`}>
-          <input
-            type="range"
-            min={8}
-            max={80}
-            step={1}
-            value={form.submit_padding_x ?? 40}
-            onChange={e => update({ submit_padding_x: parseInt(e.target.value) })}
-            style={{ width: '100%' }}
-          />
-        </Field>
-        <Field label={`Taille de la police : ${form.submit_font_size ?? 15} px`}>
-          <input
-            type="range"
-            min={11}
-            max={24}
-            step={1}
-            value={form.submit_font_size ?? 15}
-            onChange={e => update({ submit_font_size: parseInt(e.target.value) })}
-            style={{ width: '100%' }}
-          />
-          <div style={{ display: 'flex', gap: 6, marginTop: 6, ...(isMobile ? { flexWrap: 'wrap' as const } : {}) }}>
-            {[
-              { v: 12, label: 'XS' },
-              { v: 13, label: 'S' },
-              { v: 15, label: 'M' },
-              { v: 17, label: 'L' },
-              { v: 20, label: 'XL' },
-            ].map(p => (
-              <button
-                key={p.v}
-                type="button"
-                onClick={() => update({ submit_font_size: p.v })}
-                style={{
-                  flex: 1, fontSize: 11, padding: '4px 0',
-                  background: (form.submit_font_size ?? 15) === p.v ? '#12314d' : '#ffffff',
-                  color: (form.submit_font_size ?? 15) === p.v ? '#ffffff' : '#4a6070',
-                  border: '1px solid #e5ddc8', borderRadius: 6,
-                  cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600,
-                }}
-              >
-                {p.label} ({p.v}px)
-              </button>
-            ))}
-          </div>
-        </Field>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#0e1e35', marginTop: 10, cursor: 'pointer' }}>
-          <input
-            type="checkbox"
-            checked={!!form.submit_full_width}
-            onChange={e => update({ submit_full_width: e.target.checked })}
-          /> Bouton sur toute la largeur
-        </label>
-      </Card>
+        </FormsGrid>
+      </FormsSection>
 
-      <div style={{ gridColumn: '1 / -1' }}>
-      <Card title="Après soumission">
-        <Field label="Message de succès">
-          <textarea value={form.success_message || ''} onChange={e => update({ success_message: e.target.value })} rows={3} style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }} placeholder="Merci, nous vous recontactons rapidement !" />
-        </Field>
-        <Field label="Objectif : téléchargement d’un PDF">
-          <input
-            ref={pdfInputRef}
-            type="file"
-            accept="application/pdf,.pdf"
-            hidden
-            onChange={e => {
-              const file = e.target.files?.[0]
-              if (file) void uploadPdf(file)
-            }}
-          />
-          {pdfName ? (
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 10,
-              background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 8,
-              padding: '10px 12px',
-            }}>
-              <FileText size={16} style={{ color: '#C9A84C', flexShrink: 0 }} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#0e1e35', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pdfName}</div>
-                <div style={{ fontSize: 11, color: '#516f90' }}>Téléchargé automatiquement après envoi</div>
+      <FormsSection title="Après soumission" description="Message, PDF à télécharger et redirections" icon={<Link2 size={15} />} storageKey="crm-v2-form-editor:apres">
+        <FormsGrid>
+          <FormsField label="Message de succès" span={2}>
+            <textarea value={form.success_message || ''} onChange={e => update({ success_message: e.target.value })} rows={3} style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5 }} placeholder="Merci, nous vous recontactons rapidement !" />
+          </FormsField>
+          <FormsField
+            label="Objectif : téléchargement d’un PDF"
+            span={2}
+            hint="PDF jusqu’à 10 Mo. Après soumission, le fichier se télécharge et le message de succès s’affiche."
+          >
+            <input
+              ref={pdfInputRef}
+              type="file"
+              accept="application/pdf,.pdf"
+              hidden
+              onChange={e => {
+                const file = e.target.files?.[0]
+                if (file) void uploadPdf(file)
+              }}
+            />
+            {pdfName ? (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 10, flexWrap: isMobile ? 'wrap' : 'nowrap',
+                background: crmV2.bgSoft, border: `1px solid ${crmV2.border}`, borderRadius: 12,
+                padding: '10px 12px',
+              }}>
+                <span style={{ width: 32, height: 32, borderRadius: 8, background: crmV2.goldSoft, color: crmV2.goldDark, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <FileText size={16} />
+                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: crmV2.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pdfName}</div>
+                  <div style={{ fontSize: 12, color: crmV2.textMuted }}>Téléchargé automatiquement après envoi</div>
+                </div>
+                <CrmV2Button size="sm" variant="secondary" onClick={() => pdfInputRef.current?.click()} disabled={pdfUploading} style={sm}>
+                  Remplacer
+                </CrmV2Button>
+                <MiniBtn onClick={() => void removePdf()} disabled={pdfUploading} danger size={isMobile ? 40 : 32} title="Retirer le PDF">
+                  <Trash2 size={14} />
+                </MiniBtn>
               </div>
+            ) : (
               <button
                 type="button"
                 onClick={() => pdfInputRef.current?.click()}
                 disabled={pdfUploading}
-                style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 6, padding: '6px 10px', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', color: '#0e1e35' }}
+                style={{
+                  width: '100%', background: crmV2.bgSoft, border: `1px dashed ${crmV2.borderStrong}`,
+                  borderRadius: 12, padding: '14px 12px', color: crmV2.text, fontSize: 13,
+                  cursor: pdfUploading ? 'default' : 'pointer', display: 'flex', alignItems: 'center',
+                  justifyContent: 'center', gap: 8, fontFamily: 'inherit', fontWeight: 600,
+                }}
               >
-                Remplacer
+                {pdfUploading ? 'Envoi du PDF…' : <><Upload size={15} color={crmV2.gold} /> Ajouter un PDF</>}
               </button>
-              <button
-                type="button"
-                onClick={() => void removePdf()}
-                disabled={pdfUploading}
-                title="Retirer le PDF"
-                style={{ background: 'transparent', border: '1px solid #e5ddc8', borderRadius: 6, padding: '6px 8px', color: '#ef4444', cursor: 'pointer' }}
-              >
-                <Trash2 size={12} />
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => pdfInputRef.current?.click()}
-              disabled={pdfUploading}
-              style={{
-                width: '100%', background: '#f7f4ee', border: '1px dashed #c9b896',
-                borderRadius: 8, padding: '14px 12px', color: '#0e1e35', fontSize: 13,
-                cursor: pdfUploading ? 'default' : 'pointer', display: 'flex', alignItems: 'center',
-                justifyContent: 'center', gap: 8, fontFamily: 'inherit', fontWeight: 600,
-              }}
-            >
-              {pdfUploading ? 'Envoi du PDF…' : <><Upload size={14} /> Ajouter un PDF</>}
-            </button>
+            )}
+            {pdfError && <div style={{ fontSize: 12, color: '#dc2626' }}>{pdfError}</div>}
+          </FormsField>
+          {isFormStoragePath(form.redirect_file_url) ? null : (
+            <FormsField label="Ou coller l’URL d’un PDF déjà en ligne" span={2}>
+              <input
+                value={form.redirect_file_url || ''}
+                onChange={e => {
+                  const v = e.target.value.trim()
+                  update({ redirect_file_url: v || null })
+                }}
+                placeholder="https://diploma-sante.fr/brochure.pdf"
+                style={inputStyle}
+              />
+            </FormsField>
           )}
-          {pdfError && <div style={{ marginTop: 6, fontSize: 12, color: '#dc2626' }}>{pdfError}</div>}
-          <div style={{ marginTop: 8, fontSize: 11, color: '#516f90' }}>
-            PDF jusqu’à 10 Mo. Après soumission, le fichier se télécharge et le message de succès s’affiche.
-          </div>
-        </Field>
-        {isFormStoragePath(form.redirect_file_url) ? null : (
-          <Field label="Ou coller l’URL d’un PDF déjà en ligne">
+          {!!form.redirect_file_url && (
+            <div style={{ gridColumn: '1 / -1', fontSize: 12, color: '#166534', background: 'rgba(22,163,74,0.08)', border: '1px solid rgba(22,163,74,0.25)', borderRadius: 12, padding: '10px 12px' }}>
+              Un PDF est défini : il se téléchargera après envoi. La redirection vers une page de remerciement est ignorée.
+            </div>
+          )}
+          <FormsField label="URL de redirection (optionnel)" span={2} hint="Ignorée si un PDF est renseigné.">
             <input
-              value={form.redirect_file_url || ''}
-              onChange={e => {
-                const v = e.target.value.trim()
-                update({ redirect_file_url: v || null })
-              }}
-              placeholder="https://diploma-sante.fr/brochure.pdf"
+              value={form.redirect_url || ''}
+              onChange={e => update({ redirect_url: e.target.value })}
+              placeholder="https://diploma-sante.fr/merci"
               style={inputStyle}
             />
-          </Field>
-        )}
-        {!!form.redirect_file_url && (
-          <div style={{ marginBottom: 12, fontSize: 12, color: '#166534', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '8px 10px' }}>
-            Un PDF est défini : il se téléchargera après envoi. La redirection vers une page de remerciement est ignorée.
+          </FormsField>
+          <div style={{ gridColumn: '1 / -1', borderTop: `1px solid ${crmV2.borderLight}`, paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ minHeight: isMobile ? 40 : undefined, display: 'flex', alignItems: 'center' }}>
+              <CrmV2Toggle
+                checked={conditionalEnabled}
+                onChange={v => update({ conditional_redirect_enabled: v })}
+                label="Redirection conditionnelle selon la classe actuelle"
+              />
+            </div>
+            <div style={{ fontSize: 12, color: crmV2.textMuted }}>
+              Valeur dropdown &quot;classe actuelle&quot; = TERMINALE → page formulaire. Sinon → page candidature.
+            </div>
           </div>
-        )}
-        <Field label="URL de redirection (optionnel)">
-          <input
-            value={form.redirect_url || ''}
-            onChange={e => update({ redirect_url: e.target.value })}
-            placeholder="https://diploma-sante.fr/merci"
-            style={inputStyle}
-          />
-          <div style={{ marginTop: 4, fontSize: 11, color: '#516f90' }}>
-            Ignorée si un PDF est renseigné.
-          </div>
-        </Field>
-        <div style={{ borderTop: '1px solid #e5edf5', margin: '12px 0' }} />
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#33475b', marginBottom: 10, cursor: 'pointer' }}>
-          <input
-            type="checkbox"
-            checked={conditionalEnabled}
-            onChange={e => update({ conditional_redirect_enabled: e.target.checked })}
-          />
-          Redirection conditionnelle selon la classe actuelle
-        </label>
-        <div style={{ fontSize: 11, color: '#516f90', marginBottom: 10 }}>
-          Valeur dropdown &quot;classe actuelle&quot; = TERMINALE → page formulaire. Sinon → page candidature.
-        </div>
-        <Field label="URL si classe actuelle = TERMINALE">
-          <input
-            value={form.conditional_redirect_terminale_url || DEFAULT_TERMINALE_REDIRECT}
-            onChange={e => update({ conditional_redirect_terminale_url: e.target.value })}
-            placeholder={DEFAULT_TERMINALE_REDIRECT}
-            style={inputStyle}
-            disabled={!conditionalEnabled}
-          />
-        </Field>
-        <Field label="URL si classe actuelle != TERMINALE">
-          <input
-            value={form.conditional_redirect_non_terminale_url || DEFAULT_NON_TERMINALE_REDIRECT}
-            onChange={e => update({ conditional_redirect_non_terminale_url: e.target.value })}
-            placeholder={DEFAULT_NON_TERMINALE_REDIRECT}
-            style={inputStyle}
-            disabled={!conditionalEnabled}
-          />
-        </Field>
-      </Card>
-      </div>
+          <FormsField label="URL si classe actuelle = TERMINALE">
+            <input
+              value={form.conditional_redirect_terminale_url || DEFAULT_TERMINALE_REDIRECT}
+              onChange={e => update({ conditional_redirect_terminale_url: e.target.value })}
+              placeholder={DEFAULT_TERMINALE_REDIRECT}
+              style={{ ...inputStyle, ...(conditionalEnabled ? {} : { background: crmV2.bgSoft, color: crmV2.textFaint }) }}
+              disabled={!conditionalEnabled}
+            />
+          </FormsField>
+          <FormsField label="URL si classe actuelle != TERMINALE">
+            <input
+              value={form.conditional_redirect_non_terminale_url || DEFAULT_NON_TERMINALE_REDIRECT}
+              onChange={e => update({ conditional_redirect_non_terminale_url: e.target.value })}
+              placeholder={DEFAULT_NON_TERMINALE_REDIRECT}
+              style={{ ...inputStyle, ...(conditionalEnabled ? {} : { background: crmV2.bgSoft, color: crmV2.textFaint }) }}
+              disabled={!conditionalEnabled}
+            />
+          </FormsField>
+        </FormsGrid>
+      </FormsSection>
 
-      <Card title="Traitement des soumissions">
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#0e1e35', marginBottom: 10, cursor: 'pointer' }}>
-          <input type="checkbox" checked={form.auto_create_contact} onChange={e => update({ auto_create_contact: e.target.checked })} /> Créer automatiquement un contact CRM
-        </label>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#0e1e35', marginBottom: 10, cursor: 'pointer' }}>
-          <input type="checkbox" checked={form.honeypot_enabled} onChange={e => update({ honeypot_enabled: e.target.checked })} /> Protection anti-spam (honeypot)
-        </label>
-        <Field label="Emails à notifier à chaque soumission (séparés par virgule)">
-          <input
-            value={form.notify_emails.join(', ')}
-            onChange={e => update({ notify_emails: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
-            onBlur={() => { void persistNotifyEmails() }}
-            placeholder="commercial@diploma-sante.fr"
-            style={inputStyle}
-          />
-          <div style={{ fontSize: 11, marginTop: 6, minHeight: 16, color: notifySaveStatus === 'error' ? '#dc2626' : notifySaveStatus === 'saved' ? '#16a34a' : '#64748b' }}>
-            {notifySaveStatus === 'saving' && 'Enregistrement…'}
-            {notifySaveStatus === 'saved' && '✓ Emails enregistrés'}
-            {notifySaveStatus === 'error' && 'Erreur — réessaie ou clique Enregistrer en haut'}
-            {notifySaveStatus === 'idle' && form.notify_emails.length > 0 && 'Enregistré automatiquement à la sortie du champ'}
+      <FormsSection title="Traitement des soumissions" description="Création de contact, anti-spam et notifications" icon={<ShieldCheck size={15} />} storageKey="crm-v2-form-editor:traitement">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ minHeight: isMobile ? 40 : undefined, display: 'flex', alignItems: 'center' }}>
+            <CrmV2Toggle checked={form.auto_create_contact} onChange={v => update({ auto_create_contact: v })} label="Créer automatiquement un contact CRM" />
           </div>
-        </Field>
-      </Card>
+          <div style={{ minHeight: isMobile ? 40 : undefined, display: 'flex', alignItems: 'center' }}>
+            <CrmV2Toggle checked={form.honeypot_enabled} onChange={v => update({ honeypot_enabled: v })} label="Protection anti-spam (honeypot)" />
+          </div>
+          <FormsField label="Emails à notifier à chaque soumission (séparés par virgule)">
+            <input
+              value={form.notify_emails.join(', ')}
+              onChange={e => update({ notify_emails: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+              onBlur={() => { void persistNotifyEmails() }}
+              placeholder="commercial@diploma-sante.fr"
+              style={inputStyle}
+            />
+            <div style={{ fontSize: 12, minHeight: 16, display: 'flex', alignItems: 'center', gap: 4, color: notifySaveStatus === 'error' ? '#dc2626' : notifySaveStatus === 'saved' ? '#16a34a' : crmV2.textFaint }}>
+              {notifySaveStatus === 'saving' && 'Enregistrement…'}
+              {notifySaveStatus === 'saved' && <><Check size={13} /> Emails enregistrés</>}
+              {notifySaveStatus === 'error' && 'Erreur — réessaie ou clique Enregistrer en haut'}
+              {notifySaveStatus === 'idle' && form.notify_emails.length > 0 && 'Enregistré automatiquement à la sortie du champ'}
+            </div>
+          </FormsField>
+        </div>
+      </FormsSection>
     </div>
   )
 }
@@ -1589,49 +1599,67 @@ function EmbedTab({ form }: { form: FormData }) {
     setTimeout(() => setCopied(null), 2000)
   }
 
+  const sm = isMobile ? { minHeight: 40 } : undefined
+  const copyButton = (text: string, name: string, label: string) => (
+    <CrmV2Button
+      variant={copied === name ? 'gold' : 'secondary'}
+      icon={copied === name ? <Check size={14} /> : <Copy size={14} />}
+      onClick={() => copy(text, name)}
+      style={sm}
+    >
+      {copied === name ? 'Copié' : label}
+    </CrmV2Button>
+  )
+
   if (form.status !== 'published') {
     return (
-      <Card title="Intégration">
-        <div style={{ textAlign: 'center', padding: 40, color: '#4a6070' }}>
-          <Code size={40} style={{ color: '#a89e8a', margin: '0 auto 16px' }} />
-          <div style={{ fontSize: 14, marginBottom: 8, color: '#0e1e35', fontWeight: 600 }}>
-            Publie le formulaire pour obtenir le code d&apos;intégration
-          </div>
-          <div style={{ fontSize: 12 }}>Clique sur le bouton &quot;Publier&quot; en haut à droite.</div>
-        </div>
-      </Card>
+      <FormsSection title="Intégration" icon={<Code size={15} />} style={{ maxWidth: 880 }}>
+        <CrmV2Empty
+          icon={<Code size={26} />}
+          title="Publie le formulaire pour obtenir le code d'intégration"
+          description={'Clique sur le bouton "Publier" en haut à droite.'}
+        />
+      </FormsSection>
     )
   }
 
   return (
-    <div style={{ maxWidth: 900 }}>
-      <Card title="Lien public">
+    <div style={{ maxWidth: 880, width: '100%', display: 'flex', flexDirection: 'column', gap: isMobile ? 12 : 16 }}>
+      <FormsSection title="Lien public" description="Adresse directe du formulaire hébergé" icon={<Link2 size={15} />}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', ...(isMobile ? { flexWrap: 'wrap' as const } : {}) }}>
-          <input value={publicUrl} readOnly style={{ ...inputStyle, fontFamily: 'ui-monospace, monospace', fontSize: 12, ...(isMobile ? { flex: '1 1 100%', minWidth: 0 } : {}) }} />
-          <button onClick={() => copy(publicUrl, 'url')} style={copyBtn}>{copied === 'url' ? '✓ Copié' : 'Copier'}</button>
-          <a href={publicUrl} target="_blank" rel="noreferrer" style={{ ...copyBtn, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
-            <ExternalLink size={12} /> Ouvrir
+          <input value={publicUrl} readOnly style={{ ...inputStyle, fontSize: 12, ...(isMobile ? { flex: '1 1 100%' } : { flex: 1 }) }} />
+          {copyButton(publicUrl, 'url', 'Copier')}
+          <a
+            href={publicUrl}
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6, borderRadius: 999, padding: '8px 16px', fontSize: 13, fontWeight: 600,
+              whiteSpace: 'nowrap', border: `1px solid ${crmV2.borderStrong}`, background: crmV2.bg, color: crmV2.text, textDecoration: 'none',
+              boxSizing: 'border-box', ...(sm || {}),
+            }}
+          >
+            <ExternalLink size={14} /> Ouvrir
           </a>
         </div>
-      </Card>
+      </FormsSection>
 
-      <Card title="Option 1 — iFrame (le plus simple)" icon={Code}>
-        <div style={{ fontSize: 12, color: '#4a6070', marginBottom: 10 }}>Intègre le formulaire sans aucun code, compatible avec tous les sites.</div>
-        <pre style={codeBlock}>{iframeCode}</pre>
-        <button onClick={() => copy(iframeCode, 'iframe')} style={{ ...copyBtn, marginTop: 10 }}>{copied === 'iframe' ? '✓ Copié' : 'Copier le code iFrame'}</button>
-      </Card>
+      <FormsSection title="Option 1 — iFrame (le plus simple)" description="Intègre le formulaire sans aucun code, compatible avec tous les sites." icon={<Code size={15} />}>
+        <pre style={formsCode}>{iframeCode}</pre>
+        <div style={{ marginTop: 10 }}>{copyButton(iframeCode, 'iframe', 'Copier le code iFrame')}</div>
+      </FormsSection>
 
-      <Card title="Option 2 — Script JS (auto-resize, intégration fine)" icon={Code}>
-        <div style={{ fontSize: 12, color: '#4a6070', marginBottom: 10 }}>Recommandé : le formulaire s&apos;intègre parfaitement et s&apos;adapte à la hauteur automatiquement.</div>
-        <pre style={codeBlock}>{jsCode}</pre>
-        <button onClick={() => copy(jsCode, 'js')} style={{ ...copyBtn, marginTop: 10 }}>{copied === 'js' ? '✓ Copié' : 'Copier le script JS'}</button>
-      </Card>
+      <FormsSection title="Option 2 — Script JS (auto-resize, intégration fine)" description="Recommandé : le formulaire s'intègre parfaitement et s'adapte à la hauteur automatiquement." icon={<Code size={15} />}>
+        <pre style={formsCode}>{jsCode}</pre>
+        <div style={{ marginTop: 10 }}>{copyButton(jsCode, 'js', 'Copier le script JS')}</div>
+      </FormsSection>
 
-      <Card title="Option 3 — API directe (usage avancé)" icon={Code}>
-        <div style={{ fontSize: 12, color: '#4a6070', marginBottom: 10 }}>
-          POST JSON vers <code style={{ color: '#C9A84C' }}>{host}/api/forms/{form.slug}/submit</code>
-        </div>
-        <pre style={codeBlock}>{`POST ${host}/api/forms/${form.slug}/submit
+      <FormsSection
+        title="Option 3 — API directe (usage avancé)"
+        description={<>POST JSON vers <strong style={{ color: crmV2.goldDark, wordBreak: 'break-all' }}>{host}/api/forms/{form.slug}/submit</strong></>}
+        icon={<Code size={15} />}
+      >
+        <pre style={formsCode}>{`POST ${host}/api/forms/${form.slug}/submit
 Content-Type: application/json
 
 {
@@ -1644,7 +1672,7 @@ Content-Type: application/json
   "source_url": "https://diploma-sante.fr/inscription",
   "utm_source": "facebook"
 }`}</pre>
-      </Card>
+      </FormsSection>
     </div>
   )
 }
@@ -1662,96 +1690,65 @@ function SubmissionsTab({ formId, fields }: { formId: string; fields: FormField[
       .finally(() => setLoading(false))
   }, [formId])
 
-  if (loading) return <Card title="Soumissions"><div style={{ color: '#4a6070', textAlign: 'center', padding: 20 }}>Chargement…</div></Card>
+  if (loading) return <FormsSection title="Soumissions" icon={<Inbox size={15} />}><CrmV2Spinner /></FormsSection>
 
   if (subs.length === 0) {
     return (
-      <Card title="Soumissions">
-        <div style={{ textAlign: 'center', padding: 40, color: '#4a6070' }}>
-          <Inbox size={40} style={{ color: '#a89e8a', margin: '0 auto 16px' }} />
-          <div style={{ fontSize: 14, color: '#0e1e35', marginBottom: 4 }}>Aucune soumission pour le moment</div>
-          <div style={{ fontSize: 12 }}>Les réponses apparaîtront ici au fur et à mesure.</div>
-        </div>
-      </Card>
+      <FormsSection title="Soumissions" icon={<Inbox size={15} />}>
+        <CrmV2Empty
+          icon={<Inbox size={26} />}
+          title="Aucune soumission pour le moment"
+          description="Les réponses apparaîtront ici au fur et à mesure."
+        />
+      </FormsSection>
     )
   }
 
   return (
-    <Card title={`Soumissions (${total})`}>
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-          <thead>
-            <tr style={{ background: '#f7f4ee' }}>
-              <th style={thStyle}>Date</th>
-              {fields.slice(0, 5).map(f => <th key={f.field_key} style={thStyle}>{f.label}</th>)}
-              <th style={thStyle}>UTM</th>
-              <th style={thStyle}>Statut</th>
-            </tr>
-          </thead>
-          <tbody>
-            {subs.map((s) => {
-              const data = (s.data as Record<string, unknown>) || {}
-              return (
-                <tr key={s.id as string} style={{ borderBottom: '1px solid #e5ddc8' }}>
-                  <td style={tdStyle}>{new Date(s.submitted_at as string).toLocaleString('fr-FR')}</td>
-                  {fields.slice(0, 5).map(f => (
-                    <td key={f.field_key} style={tdStyle}>{String(data[f.field_key] || '—')}</td>
-                  ))}
-                  <td style={tdStyle}>{s.utm_source ? String(s.utm_source) : '—'}</td>
-                  <td style={tdStyle}>
-                    <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: s.status === 'spam' ? 'rgba(239,68,68,0.2)' : 'rgba(34,197,94,0.2)', color: s.status === 'spam' ? '#ef4444' : '#22c55e' }}>
-                      {s.status as string}
-                    </span>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+    <div style={{
+      background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: crmV2.radiusLg,
+      boxShadow: crmV2.shadow, overflow: 'hidden', minWidth: 0,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', borderBottom: `1px solid ${crmV2.border}` }}>
+        <span style={{ width: 28, height: 28, borderRadius: 8, background: crmV2.goldSoft, color: crmV2.goldDark, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Inbox size={15} />
+        </span>
+        <span style={{ fontSize: 15, fontWeight: 700, color: crmV2.text }}>Soumissions</span>
+        <span style={{ fontSize: 13, color: crmV2.textFaint }}>({total.toLocaleString('fr-FR')})</span>
       </div>
-    </Card>
+      <CrmV2Table>
+        <thead>
+          <tr>
+            <CrmV2Th>Date</CrmV2Th>
+            {fields.slice(0, 5).map(f => <CrmV2Th key={f.field_key}>{f.label}</CrmV2Th>)}
+            <CrmV2Th>UTM</CrmV2Th>
+            <CrmV2Th>Statut</CrmV2Th>
+          </tr>
+        </thead>
+        <tbody>
+          {subs.map((s) => {
+            const data = (s.data as Record<string, unknown>) || {}
+            const spam = s.status === 'spam'
+            return (
+              <CrmV2Tr key={s.id as string}>
+                <CrmV2Td style={{ whiteSpace: 'nowrap', color: crmV2.textMuted }}>{new Date(s.submitted_at as string).toLocaleString('fr-FR')}</CrmV2Td>
+                {fields.slice(0, 5).map(f => (
+                  <CrmV2Td key={f.field_key}>{String(data[f.field_key] || '—')}</CrmV2Td>
+                ))}
+                <CrmV2Td style={{ color: crmV2.textMuted }}>{s.utm_source ? String(s.utm_source) : '—'}</CrmV2Td>
+                <CrmV2Td>
+                  <CrmV2StatusPill label={s.status as string} {...(spam ? MKT_TONES.red : MKT_TONES.green)} />
+                </CrmV2Td>
+              </CrmV2Tr>
+            )
+          })}
+        </tbody>
+      </CrmV2Table>
+    </div>
   )
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
-function Tab({ active, onClick, icon: Icon, label }: { active: boolean; onClick: () => void; icon: typeof FileText; label: string }) {
-  return (
-    <button onClick={onClick} style={{ background: 'transparent', border: 'none', borderBottom: `2px solid ${active ? '#22c55e' : 'transparent'}`, padding: '12px 16px', color: active ? '#22c55e' : '#4a6070', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0 }}>
-      <Icon size={14} /> {label}
-    </button>
-  )
-}
-
-function Card({ title, icon: Icon, children }: { title: string; icon?: typeof FileText; children: React.ReactNode }) {
-  return (
-    <div style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 18, marginBottom: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14 }}>
-        {Icon && <Icon size={14} style={{ color: '#C9A84C' }} />}
-        <h3 style={{ margin: 0, fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#0e1e35' }}>{title}</h3>
-      </div>
-      {children}
-    </div>
-  )
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div style={{ marginBottom: 12 }}>
-      <div style={{ fontSize: 11, color: '#4a6070', fontWeight: 600, marginBottom: 4 }}>{label}</div>
-      {children}
-    </div>
-  )
-}
-
-function MiniField({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div style={{ marginBottom: 10 }}>
-      <div style={{ fontSize: 10, color: '#4a6070', fontWeight: 600, marginBottom: 3, textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
-      {children}
-    </div>
-  )
-}
-
 function labelForType(type: string): string {
   const map: Record<string, string> = {
     text: 'Nouveau champ texte',
@@ -1769,27 +1766,7 @@ function labelForType(type: string): string {
 }
 
 function slugifyOpt(s: string): string {
-  return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
+  return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
 }
 
-const inputStyle: React.CSSProperties = {
-  width: '100%', background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 8,
-  padding: '8px 12px', color: '#0e1e35', fontSize: 13, outline: 'none',
-  fontFamily: 'inherit', boxSizing: 'border-box', minWidth: 0,
-}
-
-const miniInput: React.CSSProperties = { ...inputStyle, fontSize: 12, padding: '6px 10px' }
-
-const copyBtn: React.CSSProperties = {
-  background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 6, padding: '8px 12px',
-  color: '#0e1e35', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
-}
-
-const codeBlock: React.CSSProperties = {
-  background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 8, padding: 12,
-  color: '#0e1e35', fontSize: 12, fontFamily: 'ui-monospace, monospace',
-  overflow: 'auto', margin: 0,
-}
-
-const thStyle: React.CSSProperties = { textAlign: 'left', padding: '10px 8px', fontSize: 11, color: '#4a6070', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }
-const tdStyle: React.CSSProperties = { padding: '10px 8px', color: '#0e1e35' }
+const inputStyle: React.CSSProperties = formsInput

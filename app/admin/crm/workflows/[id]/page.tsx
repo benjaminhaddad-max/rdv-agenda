@@ -1,15 +1,20 @@
 'use client'
 
 import { useEffect, useState, useCallback, use } from 'react'
-import Link from 'next/link'
 import {
-  Workflow, Save, ChevronLeft, Mail, CheckSquare, Clock, Edit3, Webhook, Plus,
+  Workflow, Save, Mail, CheckSquare, Clock, Edit3, Webhook, Plus,
   Trash2, ChevronUp, ChevronDown, Play, Pause, Activity, AlertCircle, MessageSquare,
-  CalendarClock, Target, FlaskConical, Copy,
+  CalendarClock, Target, FlaskConical, Copy, Info, CheckCircle2, XCircle, Circle, Flag,
 } from 'lucide-react'
 import { SMS_SENDERS } from '@/lib/smsfactor'
 import { usePageTitle } from '@/components/DocumentTitle'
 import { useIsMobile } from '@/lib/useIsMobile'
+import { crmV2 } from '@/lib/crm-v2-theme'
+import {
+  CrmV2Body, CrmV2Button, CrmV2Card, CrmV2Field, CrmV2Header, CrmV2Input, CrmV2Page, CrmV2Section,
+  CrmV2SectionLabel, CrmV2Select, CrmV2Spinner, CrmV2Textarea, CrmV2Toggle, hexA,
+} from '@/components/crm-v2/primitives'
+import { WfIconButton, WfModal, WfNotice, WfStatusPill } from '@/components/crm-v2/marketing2/workflows/ui'
 
 interface Wf {
   id: string
@@ -45,13 +50,20 @@ interface FormItem { id: string; name: string; slug: string }
 interface Template { id: string; name: string; subject: string }
 
 const STEP_DEFS: Record<string, { label: string; icon: typeof Mail; color: string }> = {
-  send_email:      { label: 'Envoyer un email',         icon: Mail,         color: '#2ea3f2' },
-  send_sms:        { label: 'Envoyer un SMS',           icon: MessageSquare,color: '#0ea5e9' },
-  create_task:     { label: 'Créer une tâche',          icon: CheckSquare,  color: '#22c55e' },
+  send_email:      { label: 'Envoyer un email',         icon: Mail,         color: '#0091ae' },
+  send_sms:        { label: 'Envoyer un SMS',           icon: MessageSquare,color: '#4cabdb' },
+  create_task:     { label: 'Créer une tâche',          icon: CheckSquare,  color: '#16a34a' },
   wait:            { label: 'Attendre (durée)',         icon: Clock,        color: '#C9A84C' },
-  wait_until:      { label: 'Attendre (heure du jour)', icon: CalendarClock,color: '#f59e0b' },
+  wait_until:      { label: 'Attendre (heure du jour)', icon: CalendarClock,color: '#b8963e' },
   update_property: { label: 'Modifier une propriété',   icon: Edit3,        color: '#a855f7' },
-  webhook:         { label: 'Appeler un webhook',       icon: Webhook,      color: '#ef4444' },
+  webhook:         { label: 'Appeler un webhook',       icon: Webhook,      color: '#f2545b' },
+}
+
+const TRIGGER_SHORT: Record<string, string> = {
+  form_submitted:    'Formulaire soumis',
+  property_changed:  'Propriété modifiée',
+  contact_created:   'Contact créé',
+  manual:            'Manuel',
 }
 
 export default function WorkflowEditorPage({ params }: { params: Promise<{ id: string }> }) {
@@ -134,167 +146,249 @@ export default function WorkflowEditorPage({ params }: { params: Promise<{ id: s
     setDirty(false)
   }
 
+  // Annuler : recharge la version enregistrée (abandonne les modifications locales)
+  const discard = async () => {
+    await load()
+    setDirty(false)
+  }
+
   if (loading || !wf) {
-    return <div style={{ padding: 40, color: '#4a6070' }}>Chargement…</div>
+    return (
+      <CrmV2Page>
+        <CrmV2Header back={{ href: '/admin/crm/workflows', label: 'Workflows' }} title="Chargement…" />
+        <CrmV2Spinner />
+      </CrmV2Page>
+    )
   }
 
   return (
-    <div style={{ minHeight: isMobile ? '100%' : '100vh', background: '#f7f4ee', fontFamily: 'Inter, system-ui, sans-serif', color: '#0e1e35' }}>
-      {/* Topbar — mobile : nom sur la 1re ligne (champ flexible), boutons en dessous */}
-      <div style={{ padding: isMobile ? '8px 12px' : '0 24px', height: isMobile ? 'auto' : 52, background: '#fff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: isMobile ? 'wrap' : 'nowrap', gap: isMobile ? 8 : undefined }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 14, minWidth: 0, flex: isMobile ? '1 1 100%' : undefined }}>
-          <Link href="/admin/crm/workflows" style={{ color: '#4a6070', textDecoration: 'none', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-            <ChevronLeft size={14} /> Workflows
-          </Link>
-          <div style={{ width: 1, height: 22, background: '#e5ddc8', flexShrink: 0 }} />
-          {!isMobile && <Workflow size={16} style={{ color: '#0038f0' }} />}
+    <CrmV2Page>
+      <CrmV2Header
+        back={{ href: '/admin/crm/workflows', label: 'Workflows' }}
+        title={
           <input
             value={wf.name}
             onChange={e => update({ name: e.target.value })}
-            style={{ fontSize: 14, fontWeight: 600, border: 'none', outline: 'none', background: 'transparent', minWidth: isMobile ? 0 : 200, flex: isMobile ? 1 : undefined, width: isMobile ? '100%' : undefined, fontFamily: 'inherit', color: '#0e1e35', textOverflow: 'ellipsis' }}
+            aria-label="Nom du workflow"
+            title="Renommer le workflow"
+            style={{
+              font: 'inherit', fontSize: 'inherit', fontWeight: 'inherit', letterSpacing: 'inherit', color: 'inherit',
+              border: '1px solid transparent', borderRadius: crmV2.radius, background: 'transparent', outline: 'none',
+              padding: '2px 8px', margin: '-3px -9px', width: isMobile ? 'calc(100vw - 40px)' : 'min(560px, 52vw)',
+              maxWidth: '100%', textOverflow: 'ellipsis', boxSizing: 'content-box',
+            }}
+            onFocus={e => { e.currentTarget.style.borderColor = crmV2.gold; e.currentTarget.style.background = crmV2.bg }}
+            onBlur={e => { e.currentTarget.style.borderColor = 'transparent'; e.currentTarget.style.background = 'transparent' }}
           />
-          <span style={{ fontSize: 11, color: wf.status === 'active' ? '#22c55e' : '#4a6070', background: wf.status === 'active' ? 'rgba(34,197,94,0.12)' : '#f7f4ee', padding: '3px 8px', borderRadius: 999, fontWeight: 600, flexShrink: 0 }}>
-            {wf.status}
+        }
+        subtitle={
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <WfStatusPill status={wf.status} />
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              <Play size={12} color={crmV2.textFaint} /> {TRIGGER_SHORT[wf.trigger_type] || wf.trigger_type}
+            </span>
+            <span style={{ color: crmV2.textFaint }}>·</span>
+            <span>{wf.steps.length} étape{wf.steps.length > 1 ? 's' : ''}</span>
+            {dirty && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: crmV2.goldDark, fontWeight: 600 }}>
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: crmV2.gold }} /> Modifié
+              </span>
+            )}
           </span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
-          {dirty && <span style={{ fontSize: 11, color: '#f59e0b' }}>● Modifié</span>}
-          <button onClick={save} disabled={!dirty || saving} style={{ background: '#fff', border: '1px solid #e5ddc8', padding: '6px 12px', borderRadius: 6, cursor: !dirty || saving ? 'not-allowed' : 'pointer', fontSize: 12, opacity: !dirty || saving ? 0.5 : 1, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5 }}>
-            <Save size={12} /> {saving ? 'Sauvegarde…' : 'Sauvegarder'}
-          </button>
-          <button
-            onClick={() => setShowTestModal(true)}
-            style={{ background: '#fff', border: '1px solid #e5ddc8', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5, color: '#a855f7' }}
-            title="Tester le workflow sur un contact"
-          >
-            <FlaskConical size={12} /> Tester
-          </button>
-          <button
-            onClick={toggleActive}
-            style={{ background: wf.status === 'active' ? '#C9A84C' : 'linear-gradient(135deg, #2ea3f2, #0038f0)', color: wf.status === 'active' ? '#0e1e35' : '#fff', border: 'none', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'inherit' }}
-          >
-            {wf.status === 'active' ? <><Pause size={12} /> Mettre en pause</> : <><Play size={12} /> Activer</>}
-          </button>
-        </div>
-      </div>
+        }
+        actions={
+          <>
+            <CrmV2Button
+              variant="secondary"
+              icon={<FlaskConical size={14} color="#a855f7" />}
+              onClick={() => setShowTestModal(true)}
+              title="Tester le workflow sur un contact"
+            >
+              Tester
+            </CrmV2Button>
+            <CrmV2Button variant="secondary" icon={<Save size={14} />} onClick={save} disabled={!dirty || saving}>
+              {saving ? 'Sauvegarde…' : 'Sauvegarder'}
+            </CrmV2Button>
+            {wf.status === 'active' ? (
+              <CrmV2Button variant="gold" icon={<Pause size={14} />} onClick={toggleActive}>Mettre en pause</CrmV2Button>
+            ) : (
+              <CrmV2Button variant="primary" icon={<Play size={14} />} onClick={toggleActive}>Activer</CrmV2Button>
+            )}
+          </>
+        }
+      />
 
-      {/* Mobile : canvas puis panneau latéral empilés sur une seule colonne */}
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 320px', maxWidth: 1400, margin: '0 auto', gap: isMobile ? 12 : 20, padding: isMobile ? 12 : 24 }}>
-        {/* Builder — flowchart vertical */}
-        <div style={{ background: '#fafbfd', backgroundImage: 'radial-gradient(circle, #e5ddc8 1px, transparent 1px)', backgroundSize: '20px 20px', borderRadius: 12, border: '1px solid #e5ddc8', padding: isMobile ? '16px 8px' : '24px 0', minWidth: 0 }}>
-          <div style={{ maxWidth: 540, margin: '0 auto', position: 'relative' }}>
-            {/* Trigger */}
-            <FlowTrigger wf={wf} update={update} forms={forms} />
+      <CrmV2Body style={{ paddingBottom: dirty ? 88 : undefined }}>
+        {/* Mobile : canvas puis panneau latéral empilés sur une seule colonne */}
+        <div style={{
+          display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) 320px',
+          gap: isMobile ? 12 : 16, alignItems: 'start',
+        }}>
+          {/* Builder — flowchart vertical */}
+          <CrmV2Card style={{ minWidth: 0, overflow: 'visible' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: isMobile ? '12px 14px' : '14px 18px', borderBottom: `1px solid ${crmV2.border}` }}>
+              <CrmV2SectionLabel icon={<Workflow size={14} color={crmV2.gold} />} style={{ color: crmV2.text }}>Parcours</CrmV2SectionLabel>
+              <span style={{ fontSize: 12, color: crmV2.textMuted }}>· clique sur une étape pour la modifier</span>
+            </div>
+            <div style={{
+              backgroundColor: '#fafbfd',
+              backgroundImage: `radial-gradient(circle, ${crmV2.borderStrong} 1px, transparent 1px)`,
+              backgroundSize: '20px 20px',
+              borderRadius: `0 0 ${crmV2.radiusLg}px ${crmV2.radiusLg}px`,
+              padding: isMobile ? '16px 8px' : '28px 16px',
+            }}>
+              <div style={{ maxWidth: 560, margin: '0 auto', position: 'relative' }}>
+                {/* Trigger */}
+                <FlowTrigger wf={wf} update={update} forms={forms} />
 
-            {/* Connector + first add */}
-            <FlowConnector />
-            <FlowInsertButton onAdd={(type) => {
-              const next = [{ step_type: type, config: defaultConfig(type) }, ...wf.steps]
-              updateSteps(next)
-            }} />
+                {/* Connector + first add */}
+                <FlowConnector />
+                <FlowInsertButton onAdd={(type) => {
+                  const next = [{ step_type: type, config: defaultConfig(type) }, ...wf.steps]
+                  updateSteps(next)
+                }} />
 
-            {wf.steps.map((step, i) => {
-              const insertAfter = (type: string) => {
-                const next = [...wf.steps]
-                next.splice(i + 1, 0, { step_type: type, config: defaultConfig(type) })
-                updateSteps(next)
-              }
-              return (
-                <div key={i}>
-                  <FlowConnector />
-                  <FlowStepCard
-                    step={step}
-                    index={i}
-                    total={wf.steps.length}
-                    templates={templates}
-                    onChange={(patch) => {
-                      const next = [...wf.steps]
-                      next[i] = { ...next[i], ...patch }
-                      updateSteps(next)
-                    }}
-                    onRemove={() => updateSteps(wf.steps.filter((_, j) => j !== i))}
-                    onDuplicate={() => {
-                      const cloned: Step = {
-                        step_type: step.step_type,
-                        config:    JSON.parse(JSON.stringify(step.config ?? {})),
-                        label:     step.label ? `${step.label} (copie)` : null,
-                      }
-                      const next = [...wf.steps]
-                      next.splice(i + 1, 0, cloned)
-                      updateSteps(next)
-                    }}
-                    onMoveUp={() => {
-                      if (i === 0) return
-                      const next = [...wf.steps]
-                      ;[next[i - 1], next[i]] = [next[i], next[i - 1]]
-                      updateSteps(next)
-                    }}
-                    onMoveDown={() => {
-                      if (i === wf.steps.length - 1) return
-                      const next = [...wf.steps]
-                      ;[next[i], next[i + 1]] = [next[i + 1], next[i]]
-                      updateSteps(next)
-                    }}
+                {wf.steps.map((step, i) => {
+                  const insertAfter = (type: string) => {
+                    const next = [...wf.steps]
+                    next.splice(i + 1, 0, { step_type: type, config: defaultConfig(type) })
+                    updateSteps(next)
+                  }
+                  return (
+                    <div key={i}>
+                      <FlowConnector />
+                      <FlowStepCard
+                        step={step}
+                        index={i}
+                        total={wf.steps.length}
+                        templates={templates}
+                        onChange={(patch) => {
+                          const next = [...wf.steps]
+                          next[i] = { ...next[i], ...patch }
+                          updateSteps(next)
+                        }}
+                        onRemove={() => updateSteps(wf.steps.filter((_, j) => j !== i))}
+                        onDuplicate={() => {
+                          const cloned: Step = {
+                            step_type: step.step_type,
+                            config:    JSON.parse(JSON.stringify(step.config ?? {})),
+                            label:     step.label ? `${step.label} (copie)` : null,
+                          }
+                          const next = [...wf.steps]
+                          next.splice(i + 1, 0, cloned)
+                          updateSteps(next)
+                        }}
+                        onMoveUp={() => {
+                          if (i === 0) return
+                          const next = [...wf.steps]
+                          ;[next[i - 1], next[i]] = [next[i], next[i - 1]]
+                          updateSteps(next)
+                        }}
+                        onMoveDown={() => {
+                          if (i === wf.steps.length - 1) return
+                          const next = [...wf.steps]
+                          ;[next[i], next[i + 1]] = [next[i + 1], next[i]]
+                          updateSteps(next)
+                        }}
+                      />
+                      <FlowConnector />
+                      <FlowInsertButton onAdd={insertAfter} />
+                    </div>
+                  )
+                })}
+
+                {/* End marker */}
+                <FlowConnector />
+                <FlowEndMarker />
+              </div>
+            </div>
+          </CrmV2Card>
+
+          {/* Colonne droite : sections repliables */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0 }}>
+            <CrmV2Section title="Statistiques" icon={<Activity size={14} />} storageKey="crm-v2-wf-editor-stats">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+                <Stat label="Entrés" value={wf.total_enrolled} color={crmV2.link} />
+                <Stat label="En cours" value={wf.running_executions} color={crmV2.goldDark} />
+                <Stat label="Complétés" value={wf.total_completed} color={crmV2.successStrong} />
+                <Stat label="Échecs" value={wf.total_failed} color="#d13a41" />
+              </div>
+            </CrmV2Section>
+
+            <CrmV2Section title="Options" icon={<AlertCircle size={14} />} storageKey="crm-v2-wf-editor-options">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <ToggleRow
+                  checked={wf.re_enroll}
+                  onChange={v => update({ re_enroll: v })}
+                  title="Re-inscription possible"
+                  description="Un même contact peut entrer plusieurs fois dans le workflow"
+                />
+                <CrmV2Field label="Description (interne)">
+                  <CrmV2Textarea
+                    value={wf.description || ''}
+                    onChange={e => update({ description: e.target.value })}
+                    placeholder="Description (interne)"
+                    rows={3}
                   />
-                  <FlowConnector />
-                  <FlowInsertButton onAdd={insertAfter} />
-                </div>
-              )
-            })}
+                </CrmV2Field>
+              </div>
+            </CrmV2Section>
 
-            {/* End marker */}
-            <FlowConnector />
-            <FlowEndMarker />
+            <CrmV2Section title="Heures actives" icon={<CalendarClock size={14} />} storageKey="crm-v2-wf-editor-hours">
+              <ActiveHoursEditor
+                hours={wf.active_hours || {}}
+                onChange={h => update({ active_hours: h })}
+              />
+            </CrmV2Section>
+
+            <CrmV2Section title="Objectif (sortie auto)" icon={<Target size={14} />} storageKey="crm-v2-wf-editor-goal">
+              <GoalEditor
+                filters={wf.goal_filters || {}}
+                onChange={g => update({ goal_filters: g })}
+              />
+            </CrmV2Section>
           </div>
         </div>
+      </CrmV2Body>
 
-        {/* Sidebar */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <Card title="Stats" icon={Activity}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, fontSize: 12 }}>
-              <Stat label="Entrés" value={wf.total_enrolled} color="#0038f0" />
-              <Stat label="En cours" value={wf.running_executions} color="#C9A84C" />
-              <Stat label="Complétés" value={wf.total_completed} color="#22c55e" />
-              <Stat label="Échecs" value={wf.total_failed} color="#ef4444" />
-            </div>
-          </Card>
-
-          <Card title="Options" icon={AlertCircle}>
-            <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12, cursor: 'pointer' }}>
-              <input type="checkbox" checked={wf.re_enroll} onChange={e => update({ re_enroll: e.target.checked })} />
-              <div>
-                <div style={{ fontWeight: 600 }}>Re-inscription possible</div>
-                <div style={{ color: '#4a6070' }}>Un même contact peut entrer plusieurs fois dans le workflow</div>
-              </div>
-            </label>
-            <textarea
-              value={wf.description || ''}
-              onChange={e => update({ description: e.target.value })}
-              placeholder="Description (interne)"
-              rows={3}
-              style={{ width: '100%', marginTop: 12, padding: 8, border: '1px solid #e5ddc8', borderRadius: 6, fontSize: 12, fontFamily: 'inherit', resize: 'vertical' }}
-            />
-          </Card>
-
-          <Card title="Heures actives" icon={CalendarClock}>
-            <ActiveHoursEditor
-              hours={wf.active_hours || {}}
-              onChange={h => update({ active_hours: h })}
-            />
-          </Card>
-
-          <Card title="Objectif (sortie auto)" icon={Target}>
-            <GoalEditor
-              filters={wf.goal_filters || {}}
-              onChange={g => update({ goal_filters: g })}
-            />
-          </Card>
+      {/* Pied de page « Annuler / Enregistrer », visible dès qu'il y a des modifications */}
+      {dirty && (
+        <div style={{
+          position: 'sticky', bottom: 0, zIndex: 20, background: crmV2.bg, borderTop: `1px solid ${crmV2.border}`,
+          boxShadow: '0 -4px 16px rgba(15,31,61,0.06)', padding: isMobile ? '10px 12px' : '12px 28px',
+          display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap',
+        }}>
+          <span style={{ marginRight: 'auto', fontSize: 13, color: crmV2.textMuted, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: crmV2.gold }} /> Modifications non enregistrées
+          </span>
+          <CrmV2Button variant="secondary" onClick={discard} disabled={saving}>Annuler</CrmV2Button>
+          <CrmV2Button variant="primary" icon={<Save size={14} />} onClick={save} disabled={saving}>
+            {saving ? 'Sauvegarde…' : 'Enregistrer'}
+          </CrmV2Button>
         </div>
-      </div>
+      )}
 
       {showTestModal && (
         <TestRunModal workflowId={wf.id} onClose={() => setShowTestModal(false)} />
       )}
+    </CrmV2Page>
+  )
+}
+
+/** Interrupteur + titre + description (remplace les cases à cocher). */
+function ToggleRow({ checked, onChange, title, description }: {
+  checked: boolean
+  onChange: (v: boolean) => void
+  title: string
+  description?: string
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+      <div style={{ paddingTop: 1 }}><CrmV2Toggle checked={checked} onChange={onChange} /></div>
+      <div style={{ minWidth: 0, cursor: 'pointer' }} onClick={() => onChange(!checked)}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: crmV2.text }}>{title}</div>
+        {description && <div style={{ fontSize: 12, color: crmV2.textMuted, marginTop: 2, lineHeight: 1.45 }}>{description}</div>}
+      </div>
     </div>
   )
 }
@@ -314,64 +408,61 @@ function ActiveHoursEditor({ hours, onChange }: { hours: Record<string, unknown>
   }
 
   return (
-    <div>
-      <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12, cursor: 'pointer', marginBottom: 10 }}>
-        <input
-          type="checkbox"
-          checked={enabled}
-          onChange={e => {
-            if (e.target.checked) {
-              onChange({ days: [1,2,3,4,5], start_hour: 9, end_hour: 19, timezone: 'Europe/Paris' })
-            } else {
-              onChange({})
-            }
-          }}
-        />
-        <div>
-          <div style={{ fontWeight: 600 }}>Restreindre les envois</div>
-          <div style={{ color: '#4a6070' }}>Pas de mail/SMS hors plage</div>
-        </div>
-      </label>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <ToggleRow
+        checked={enabled}
+        onChange={checked => {
+          if (checked) {
+            onChange({ days: [1,2,3,4,5], start_hour: 9, end_hour: 19, timezone: 'Europe/Paris' })
+          } else {
+            onChange({})
+          }
+        }}
+        title="Restreindre les envois"
+        description="Pas de mail/SMS hors plage"
+      />
 
       {enabled && (
         <>
-          <div style={{ fontSize: 10, color: '#4a6070', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Jours</div>
-          <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
-            {dayLabels.map((label, i) => (
-              <button
-                key={i}
-                type="button"
-                onClick={() => toggleDay(i)}
-                style={{
-                  flex: 1, padding: '6px 0', border: '1px solid #e5ddc8',
-                  background: days.includes(i) ? '#0038f0' : '#fff',
-                  color: days.includes(i) ? '#fff' : '#0e1e35',
-                  borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-                }}
-              >{label}</button>
-            ))}
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: crmV2.textMuted, marginBottom: 6 }}>Jours</div>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {dayLabels.map((label, i) => {
+                const on = days.includes(i)
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => toggleDay(i)}
+                    style={{
+                      flex: 1, height: 34, minWidth: 0, padding: 0, borderRadius: 999,
+                      border: `1px solid ${on ? crmV2.primary : crmV2.borderStrong}`,
+                      background: on ? crmV2.primary : crmV2.bg,
+                      color: on ? '#fff' : crmV2.text,
+                      fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                    }}
+                  >{label}</button>
+                )
+              })}
+            </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            <div>
-              <label style={labelStyle}>Début</label>
-              <input
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <CrmV2Field label="Début">
+              <CrmV2Input
                 type="number"
                 min={0} max={23}
                 value={startH ?? 9}
                 onChange={e => onChange({ ...hours, start_hour: parseInt(e.target.value || '0', 10) })}
-                style={inputStyle}
               />
-            </div>
-            <div>
-              <label style={labelStyle}>Fin (excl.)</label>
-              <input
+            </CrmV2Field>
+            <CrmV2Field label="Fin (excl.)">
+              <CrmV2Input
                 type="number"
                 min={1} max={24}
                 value={endH ?? 19}
                 onChange={e => onChange({ ...hours, end_hour: parseInt(e.target.value || '0', 10) })}
-                style={inputStyle}
               />
-            </div>
+            </CrmV2Field>
           </div>
         </>
       )}
@@ -384,28 +475,22 @@ function GoalEditor({ filters, onChange }: { filters: Record<string, unknown>; o
   const enabled = filters && Object.keys(filters).length > 0
   const lead = filters?.lead_status as string | undefined
   return (
-    <div>
-      <div style={{ fontSize: 11, color: '#4a6070', marginBottom: 8, lineHeight: 1.5 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ fontSize: 12, color: crmV2.textMuted, lineHeight: 1.5 }}>
         Quand le contact atteint cet objectif, il sort automatiquement du workflow.
       </div>
-      <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12, cursor: 'pointer', marginBottom: 8 }}>
-        <input
-          type="checkbox"
-          checked={!!enabled}
-          onChange={e => {
-            if (e.target.checked) onChange({ lead_status: 'Pré-inscrit 2025/2026' })
-            else onChange({})
-          }}
-        />
-        <div>
-          <div style={{ fontWeight: 600 }}>Activer un objectif</div>
-        </div>
-      </label>
+      <ToggleRow
+        checked={!!enabled}
+        onChange={checked => {
+          if (checked) onChange({ lead_status: 'Pré-inscrit 2025/2026' })
+          else onChange({})
+        }}
+        title="Activer un objectif"
+      />
       {enabled && (
-        <div>
-          <label style={labelStyle}>Sortir si statut du lead =</label>
-          <input value={lead || ''} onChange={e => onChange({ lead_status: e.target.value })} placeholder="ex: Pré-inscrit" style={inputStyle} />
-        </div>
+        <CrmV2Field label="Sortir si statut du lead =">
+          <CrmV2Input value={lead || ''} onChange={e => onChange({ lead_status: e.target.value })} placeholder="ex: Pré-inscrit" />
+        </CrmV2Field>
       )}
     </div>
   )
@@ -435,62 +520,55 @@ function TestRunModal({ workflowId, onClose }: { workflowId: string; onClose: ()
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 20 }} onClick={onClose}>
-      <div style={{ background: '#fff', borderRadius: 12, maxWidth: 520, width: '100%', overflow: 'hidden', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
-        <div style={{ padding: '14px 20px', borderBottom: '1px solid #e5ddc8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, color: '#a855f7' }}>
-            <FlaskConical size={14} /> Tester le workflow
-          </div>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#4a6070' }}>✕</button>
-        </div>
-        <div style={{ padding: 20, overflowY: 'auto' }}>
-          <label style={labelStyle}>ID contact</label>
-          <input value={contactId} onChange={e => setContactId(e.target.value)} placeholder="ex: 10000" style={inputStyle} autoFocus />
-          <div style={{ fontSize: 11, color: '#4a6070', marginTop: 6, marginBottom: 12, lineHeight: 1.5 }}>
-            Le workflow sera exécuté immédiatement pour ce contact (max 20 étapes inline). Les vraies actions s&apos;exécutent (email, SMS, tâche…) — utilise un de tes propres comptes pour tester.
-          </div>
-          <button
-            onClick={run}
-            disabled={!contactId.trim() || running}
-            style={{ width: '100%', padding: 10, border: 'none', background: 'linear-gradient(135deg,#a855f7,#7c3aed)', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: running ? 'wait' : 'pointer', fontFamily: 'inherit', opacity: !contactId.trim() ? 0.5 : 1 }}
-          >
-            {running ? 'Exécution…' : 'Lancer le test'}
-          </button>
+    <WfModal title="Tester le workflow" icon={<FlaskConical size={16} />} onClose={onClose} width={520}>
+      <CrmV2Field label="ID contact">
+        <CrmV2Input value={contactId} onChange={e => setContactId(e.target.value)} placeholder="ex: 10000" autoFocus />
+      </CrmV2Field>
+      <div style={{ fontSize: 12, color: crmV2.textMuted, marginTop: 8, marginBottom: 14, lineHeight: 1.5 }}>
+        Le workflow sera exécuté immédiatement pour ce contact (max 20 étapes inline). Les vraies actions s&apos;exécutent (email, SMS, tâche…) — utilise un de tes propres comptes pour tester.
+      </div>
+      <CrmV2Button
+        variant="primary"
+        onClick={run}
+        disabled={!contactId.trim() || running}
+        icon={<FlaskConical size={14} />}
+        style={{ width: '100%', minHeight: 40, cursor: running ? 'wait' : undefined }}
+      >
+        {running ? 'Exécution…' : 'Lancer le test'}
+      </CrmV2Button>
 
-          {result && (
-            <div style={{ marginTop: 16, padding: 12, background: '#f7f4ee', borderRadius: 8, fontSize: 11 }}>
-              <div style={{ fontWeight: 600, marginBottom: 6 }}>
-                {result.ok ? '✓ Test exécuté' : '✗ Erreur'}
-              </div>
-              {result.error && <div style={{ color: '#ef4444', marginBottom: 6 }}>{result.error}</div>}
-              {result.execution && (
-                <div style={{ color: '#4a6070', marginBottom: 8 }}>
-                  Status : <strong>{result.execution.status}</strong>
-                  {result.execution.next_run_at && <> · Prochain run : {new Date(result.execution.next_run_at).toLocaleString('fr-FR')}</>}
-                </div>
-              )}
-              {result.logs && result.logs.length > 0 && (
-                <div>
-                  <div style={{ fontWeight: 600, marginTop: 8, marginBottom: 4 }}>Logs ({result.logs.length})</div>
-                  <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                    {result.logs.map((log: any, i: number) => (
-                      <li key={i} style={{ padding: '6px 8px', background: '#fff', border: '1px solid #e5ddc8', borderRadius: 4 }}>
-                        <span style={{ fontWeight: 600, color: log.status === 'success' ? '#22c55e' : log.status === 'failed' ? '#ef4444' : '#C9A84C' }}>
-                          {log.status === 'success' ? '✓' : log.status === 'failed' ? '✗' : '○'}
-                        </span>{' '}
-                        <span>{log.step_type}</span>
-                        {log.error_message && <span style={{ color: '#ef4444' }}> — {log.error_message}</span>}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+      {result && (
+        <div style={{ marginTop: 16, padding: 14, background: crmV2.bgHover, border: `1px solid ${crmV2.border}`, borderRadius: 12, fontSize: 12 }}>
+          <div style={{ fontWeight: 700, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6, color: result.ok ? crmV2.successStrong : '#d13a41' }}>
+            {result.ok ? <><CheckCircle2 size={15} /> Test exécuté</> : <><XCircle size={15} /> Erreur</>}
+          </div>
+          {result.error && <div style={{ color: '#d13a41', marginBottom: 6 }}>{result.error}</div>}
+          {result.execution && (
+            <div style={{ color: crmV2.textMuted, marginBottom: 8 }}>
+              Status : <strong style={{ color: crmV2.text }}>{result.execution.status}</strong>
+              {result.execution.next_run_at && <> · Prochain run : {new Date(result.execution.next_run_at).toLocaleString('fr-FR')}</>}
+            </div>
+          )}
+          {result.logs && result.logs.length > 0 && (
+            <div>
+              <div style={{ fontWeight: 700, marginTop: 8, marginBottom: 6 }}>Logs ({result.logs.length})</div>
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                {result.logs.map((log: any, i: number) => (
+                  <li key={i} style={{ padding: '7px 10px', background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: 8, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <span style={{ display: 'inline-flex', color: log.status === 'success' ? crmV2.successStrong : log.status === 'failed' ? '#d13a41' : crmV2.gold }}>
+                      {log.status === 'success' ? <CheckCircle2 size={14} /> : log.status === 'failed' ? <XCircle size={14} /> : <Circle size={14} />}
+                    </span>
+                    <span>{log.step_type}</span>
+                    {log.error_message && <span style={{ color: '#d13a41' }}> — {log.error_message}</span>}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
         </div>
-      </div>
-    </div>
+      )}
+    </WfModal>
   )
 }
 
@@ -498,39 +576,34 @@ function TestRunModal({ workflowId, onClose }: { workflowId: string; onClose: ()
 function TriggerEditor({ wf, update, forms }: { wf: Wf; update: (patch: Partial<Wf>) => void; forms: FormItem[] }) {
   const setCfg = (patch: Record<string, unknown>) => update({ trigger_config: { ...wf.trigger_config, ...patch } })
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div>
-        <label style={{ fontSize: 11, color: '#4a6070', fontWeight: 600 }}>Type</label>
-        <select
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <CrmV2Field label="Type">
+        <CrmV2Select
           value={wf.trigger_type}
           onChange={e => update({ trigger_type: e.target.value, trigger_config: {} })}
-          style={selectStyle}
         >
           <option value="form_submitted">Quand un formulaire est soumis</option>
           <option value="property_changed">Quand une propriété change</option>
           <option value="contact_created">Quand un contact est créé</option>
           <option value="manual">Manuel</option>
-        </select>
-      </div>
+        </CrmV2Select>
+      </CrmV2Field>
       {wf.trigger_type === 'form_submitted' && (
-        <div>
-          <label style={{ fontSize: 11, color: '#4a6070', fontWeight: 600 }}>Formulaire</label>
-          <select value={wf.trigger_config?.form_id || ''} onChange={e => setCfg({ form_id: e.target.value || undefined, form_slug: undefined })} style={selectStyle}>
+        <CrmV2Field label="Formulaire">
+          <CrmV2Select value={wf.trigger_config?.form_id || ''} onChange={e => setCfg({ form_id: e.target.value || undefined, form_slug: undefined })}>
             <option value="">— N&apos;importe quel formulaire —</option>
             {forms.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-          </select>
-        </div>
+          </CrmV2Select>
+        </CrmV2Field>
       )}
       {wf.trigger_type === 'property_changed' && (
         <>
-          <div>
-            <label style={{ fontSize: 11, color: '#4a6070', fontWeight: 600 }}>Propriété (nom interne)</label>
-            <input value={wf.trigger_config?.property || ''} onChange={e => setCfg({ property: e.target.value })} placeholder="ex: hs_lead_status" style={inputStyle} />
-          </div>
-          <div>
-            <label style={{ fontSize: 11, color: '#4a6070', fontWeight: 600 }}>Nouvelle valeur attendue (optionnel)</label>
-            <input value={wf.trigger_config?.to || ''} onChange={e => setCfg({ to: e.target.value || undefined })} placeholder="ex: Pré-inscrit" style={inputStyle} />
-          </div>
+          <CrmV2Field label="Propriété (nom interne)">
+            <CrmV2Input value={wf.trigger_config?.property || ''} onChange={e => setCfg({ property: e.target.value })} placeholder="ex: hs_lead_status" />
+          </CrmV2Field>
+          <CrmV2Field label="Nouvelle valeur attendue (optionnel)">
+            <CrmV2Input value={wf.trigger_config?.to || ''} onChange={e => setCfg({ to: e.target.value || undefined })} placeholder="ex: Pré-inscrit" />
+          </CrmV2Field>
         </>
       )}
     </div>
@@ -540,7 +613,7 @@ function TriggerEditor({ wf, update, forms }: { wf: Wf; update: (patch: Partial<
 // ─── FlowConnector ──────────────────────────────────────────────────────
 // Trait vertical qui relie deux noeuds du flowchart
 function FlowConnector() {
-  return <div style={{ width: 2, height: 24, background: '#e5ddc8', margin: '0 auto' }} />
+  return <div style={{ width: 2, height: 24, background: crmV2.borderStrong, margin: '0 auto' }} />
 }
 
 // ─── FlowEndMarker ──────────────────────────────────────────────────────
@@ -548,12 +621,12 @@ function FlowEndMarker() {
   return (
     <div style={{ display: 'flex', justifyContent: 'center' }}>
       <div style={{
-        background: '#fff', border: '1px solid #e5ddc8', borderRadius: 999,
-        padding: '6px 16px', fontSize: 11, fontWeight: 600, color: '#4a6070',
-        textTransform: 'uppercase', letterSpacing: 0.5,
+        background: crmV2.bg, border: `1px solid ${crmV2.borderStrong}`, borderRadius: 999,
+        padding: '6px 16px', fontSize: 11, fontWeight: 700, color: crmV2.textMuted,
+        textTransform: 'uppercase', letterSpacing: '0.4px',
         display: 'flex', alignItems: 'center', gap: 6,
       }}>
-        <CheckSquare size={11} /> Fin du workflow
+        <Flag size={13} /> Fin du workflow
       </div>
     </div>
   )
@@ -563,46 +636,51 @@ function FlowEndMarker() {
 // Petit bouton "+" entre deux étapes pour insérer une nouvelle action
 function FlowInsertButton({ onAdd }: { onAdd: (type: string) => void }) {
   const [open, setOpen] = useState(false)
+  const isMobile = useIsMobile()
+  const size = isMobile ? 36 : 28
   return (
     <div style={{ display: 'flex', justifyContent: 'center', position: 'relative' }}>
       <button
+        type="button"
         onClick={() => setOpen(!open)}
         style={{
-          width: 28, height: 28, borderRadius: 999,
-          background: open ? 'linear-gradient(135deg,#2ea3f2,#0038f0)' : '#fff',
-          border: open ? 'none' : '1px solid #e5ddc8',
-          color: open ? '#fff' : '#0038f0',
+          width: size, height: size, borderRadius: 999,
+          background: open ? crmV2.primary : crmV2.bg,
+          border: `1px solid ${open ? crmV2.primary : crmV2.borderStrong}`,
+          color: open ? '#fff' : crmV2.text,
           cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: open ? '0 4px 12px rgba(0,56,240,0.3)' : '0 1px 3px rgba(0,0,0,0.05)',
-          transition: 'all 0.15s', fontFamily: 'inherit',
+          boxShadow: open ? '0 4px 12px rgba(45,62,80,0.25)' : crmV2.shadow,
+          transition: 'all 0.15s', fontFamily: 'inherit', padding: 0,
         }}
         title="Ajouter une étape ici"
-      ><Plus size={14} /></button>
+        aria-label="Ajouter une étape ici"
+      ><Plus size={14} style={{ transform: open ? 'rotate(45deg)' : 'none', transition: 'transform .15s' }} /></button>
       {open && (
         <div style={{
           position: 'absolute', top: '120%', left: '50%', transform: 'translateX(-50%)',
-          background: '#fff', border: '1px solid #e5ddc8', borderRadius: 10, padding: 6,
-          display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 4,
-          minWidth: 'min(360px, calc(100vw - 32px))', zIndex: 30, boxShadow: '0 10px 30px rgba(0,0,0,0.12)',
+          background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: crmV2.radiusLg, padding: 6,
+          display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: 4,
+          minWidth: 'min(380px, calc(100vw - 32px))', zIndex: 30, boxShadow: crmV2.shadowPanel,
         }}>
           {Object.entries(STEP_DEFS).map(([type, def]) => {
             const Ic = def.icon
             return (
               <button
                 key={type}
+                type="button"
                 onClick={() => { onAdd(type); setOpen(false) }}
                 style={{
-                  background: '#fff', border: '1px solid #f0f0f5', borderRadius: 6,
-                  padding: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
-                  fontSize: 12, fontFamily: 'inherit', color: '#0e1e35', textAlign: 'left',
+                  background: crmV2.bg, border: '1px solid transparent', borderRadius: 10,
+                  padding: '8px 10px', minHeight: 44, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10,
+                  fontSize: 13, fontFamily: 'inherit', color: crmV2.text, textAlign: 'left',
                 }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = '#f7f4ee')}
-                onMouseLeave={(e) => (e.currentTarget.style.background = '#fff')}
+                onMouseEnter={(e) => (e.currentTarget.style.background = crmV2.bgHover)}
+                onMouseLeave={(e) => (e.currentTarget.style.background = crmV2.bg)}
               >
-                <div style={{ width: 28, height: 28, borderRadius: 6, background: def.color + '22', color: def.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <div style={{ width: 28, height: 28, borderRadius: 10, background: hexA(def.color, 0.12), color: def.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <Ic size={14} />
                 </div>
-                <span style={{ fontWeight: 500 }}>{def.label}</span>
+                <span style={{ fontWeight: 600 }}>{def.label}</span>
               </button>
             )
           })}
@@ -624,26 +702,24 @@ function FlowTrigger({ wf, update, forms }: { wf: Wf; update: (patch: Partial<Wf
   const triggerLabel = triggerLabels[wf.trigger_type] || wf.trigger_type
   return (
     <div style={{
-      background: 'linear-gradient(135deg, #2ea3f2, #0038f0)',
-      borderRadius: 12, padding: 2, boxShadow: '0 6px 20px rgba(0,56,240,0.18)',
+      background: crmV2.bg, border: `1px solid ${crmV2.goldBorder}`, borderRadius: crmV2.radiusLg,
+      boxShadow: '0 4px 16px rgba(201,168,76,0.16)', padding: 14,
     }}>
-      <div style={{ background: '#fff', borderRadius: 10, padding: 14 }}>
-        <div onClick={() => setOpen(!open)} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-          <div style={{ width: 36, height: 36, borderRadius: 8, background: 'linear-gradient(135deg, #2ea3f2, #0038f0)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <Play size={16} />
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 10, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Déclencheur</div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: '#0e1e35' }}>{triggerLabel}</div>
-          </div>
-          <div style={{ color: '#4a6070' }}>{open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</div>
+      <div onClick={() => setOpen(!open)} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', minHeight: 40 }}>
+        <div style={{ width: 36, height: 36, borderRadius: 12, background: crmV2.goldGradient, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Play size={16} />
         </div>
-        {open && (
-          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #f0f0f5' }}>
-            <TriggerEditor wf={wf} update={update} forms={forms} />
-          </div>
-        )}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 11, color: crmV2.goldDark, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Déclencheur</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: crmV2.text }}>{triggerLabel}</div>
+        </div>
+        <div style={{ color: crmV2.textFaint, display: 'inline-flex' }}>{open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</div>
       </div>
+      {open && (
+        <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${crmV2.borderLight}` }}>
+          <TriggerEditor wf={wf} update={update} forms={forms} />
+        </div>
+      )}
     </div>
   )
 }
@@ -663,7 +739,8 @@ function FlowStepCard({
   onDuplicate: () => void
 }) {
   const [open, setOpen] = useState(false)
-  const def = STEP_DEFS[step.step_type] || { label: step.step_type, icon: AlertCircle, color: '#4a6070' }
+  const isMobile = useIsMobile()
+  const def = STEP_DEFS[step.step_type] || { label: step.step_type, icon: AlertCircle, color: crmV2.textMuted }
   const Icon = def.icon
 
   const setCfg = (patch: Record<string, unknown>) => onChange({ config: { ...step.config, ...patch } })
@@ -681,68 +758,73 @@ function FlowStepCard({
     return ''
   })()
 
+  const grid = (cols: number): React.CSSProperties => ({
+    display: 'grid', gridTemplateColumns: isMobile ? '1fr' : `repeat(${cols}, minmax(0, 1fr))`, gap: 12,
+  })
+  const stop = (fn: () => void) => (e: React.MouseEvent) => { e.stopPropagation(); fn() }
+
   return (
     <div style={{
-      background: '#fff', border: `1px solid ${open ? def.color : '#e5ddc8'}`,
-      borderRadius: 12, overflow: 'hidden', position: 'relative',
-      boxShadow: open ? `0 4px 16px ${def.color}22` : '0 1px 3px rgba(0,0,0,0.04)',
+      background: crmV2.bg, border: `1px solid ${open ? hexA(def.color, 0.55) : crmV2.border}`,
+      borderRadius: crmV2.radiusLg, overflow: 'hidden', position: 'relative',
+      boxShadow: open ? `0 6px 18px ${hexA(def.color, 0.14)}` : crmV2.shadow,
       transition: 'all 0.15s',
     }}>
       {/* Bandeau coloré à gauche */}
       <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: def.color }} />
 
       {/* Header cliquable */}
-      <div onClick={() => setOpen(!open)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', paddingLeft: 17, cursor: 'pointer' }}>
-        <div style={{ width: 32, height: 32, borderRadius: 8, background: def.color + '18', color: def.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+      <div onClick={() => setOpen(!open)} style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 10, padding: isMobile ? '10px 8px 10px 13px' : '12px 12px 12px 17px', cursor: 'pointer', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
+        <div style={{ width: 32, height: 32, borderRadius: 10, background: hexA(def.color, 0.12), color: def.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
           <Icon size={15} />
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ background: '#f7f4ee', color: '#4a6070', fontSize: 10, fontWeight: 600, padding: '2px 6px', borderRadius: 4 }}>#{index + 1}</span>
-            <span style={{ fontSize: 13, fontWeight: 600, color: '#0e1e35' }}>{def.label}</span>
+            <span style={{ background: crmV2.chipBg, border: `1px solid ${crmV2.chipBorder}`, color: crmV2.textMuted, fontSize: 11, fontWeight: 700, padding: '0 7px', borderRadius: 999 }}>#{index + 1}</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: crmV2.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{def.label}</span>
           </div>
           {summary && (
-            <div style={{ fontSize: 11, color: '#4a6070', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <div style={{ fontSize: 12, color: crmV2.textMuted, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {summary}
             </div>
           )}
         </div>
-        <button onClick={(e) => { e.stopPropagation(); onMoveUp() }} disabled={index === 0} style={iconBtnStyle(index === 0)} title="Monter"><ChevronUp size={13} /></button>
-        <button onClick={(e) => { e.stopPropagation(); onMoveDown() }} disabled={index === total - 1} style={iconBtnStyle(index === total - 1)} title="Descendre"><ChevronDown size={13} /></button>
-        <button onClick={(e) => { e.stopPropagation(); onDuplicate() }} style={iconBtnStyle(false)} title="Dupliquer"><Copy size={13} /></button>
-        <button onClick={(e) => { e.stopPropagation(); onRemove() }} style={{ ...iconBtnStyle(false), color: '#ef4444' }} title="Supprimer"><Trash2 size={13} /></button>
-        <div style={{ color: '#4a6070' }}>{open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginLeft: isMobile ? 'auto' : undefined }}>
+          <WfIconButton title="Monter" onClick={stop(onMoveUp)} disabled={index === 0} size={isMobile ? 40 : 28}><ChevronUp size={14} /></WfIconButton>
+          <WfIconButton title="Descendre" onClick={stop(onMoveDown)} disabled={index === total - 1} size={isMobile ? 40 : 28}><ChevronDown size={14} /></WfIconButton>
+          <WfIconButton title="Dupliquer" onClick={stop(onDuplicate)} size={isMobile ? 40 : 28}><Copy size={14} /></WfIconButton>
+          <WfIconButton title="Supprimer" danger onClick={stop(onRemove)} size={isMobile ? 40 : 28}><Trash2 size={14} /></WfIconButton>
+          <span style={{ color: crmV2.textFaint, display: 'inline-flex', marginLeft: 4 }}>
+            <ChevronDown size={16} style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }} />
+          </span>
+        </div>
       </div>
 
       {/* Body éditable (replié par défaut) */}
-      {open && <div style={{ padding: '0 14px 14px 17px', borderTop: '1px solid #f0f0f5' }}><div style={{ paddingTop: 12 }}>
+      {open && <div style={{ padding: isMobile ? '0 12px 14px 13px' : '0 16px 16px 17px', borderTop: `1px solid ${crmV2.borderLight}` }}><div style={{ paddingTop: 14 }}>
 
       {step.step_type === 'send_email' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div>
-            <label style={labelStyle}>Modèle d&apos;email (optionnel)</label>
-            <select value={step.config.template_id || ''} onChange={e => setCfg({ template_id: e.target.value || undefined })} style={selectStyle}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <CrmV2Field label="Modèle d'email (optionnel)">
+            <CrmV2Select value={step.config.template_id || ''} onChange={e => setCfg({ template_id: e.target.value || undefined })}>
               <option value="">— Pas de modèle (saisie libre ci-dessous) —</option>
               {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select>
-          </div>
+            </CrmV2Select>
+          </CrmV2Field>
           {!step.config.template_id && (
             <>
-              <div>
-                <label style={labelStyle}>Sujet</label>
-                <input value={step.config.subject || ''} onChange={e => setCfg({ subject: e.target.value })} placeholder="Bonjour {{prenom}}, …" style={inputStyle} />
-              </div>
-              <div>
-                <label style={labelStyle}>Contenu HTML</label>
-                <textarea value={step.config.html || ''} onChange={e => setCfg({ html: e.target.value })} rows={5} placeholder="<p>Bonjour {{prenom}}…</p>" style={{ ...inputStyle, fontFamily: 'monospace' }} />
-              </div>
+              <CrmV2Field label="Sujet">
+                <CrmV2Input value={step.config.subject || ''} onChange={e => setCfg({ subject: e.target.value })} placeholder="Bonjour {{prenom}}, …" />
+              </CrmV2Field>
+              <CrmV2Field label="Contenu HTML">
+                <CrmV2Textarea value={step.config.html || ''} onChange={e => setCfg({ html: e.target.value })} rows={5} placeholder="<p>Bonjour {{prenom}}…</p>" />
+              </CrmV2Field>
             </>
           )}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            <div>
-              <label style={labelStyle}>Reply-to</label>
-              <input value={step.config.reply_to || ''} onChange={e => setCfg({ reply_to: e.target.value || undefined })} placeholder="contact@diploma-sante.fr" style={inputStyle} />
-            </div>
+          <div style={grid(2)}>
+            <CrmV2Field label="Reply-to">
+              <CrmV2Input value={step.config.reply_to || ''} onChange={e => setCfg({ reply_to: e.target.value || undefined })} placeholder="contact@diploma-sante.fr" />
+            </CrmV2Field>
           </div>
         </div>
       )}
@@ -755,134 +837,125 @@ function FlowStepCard({
         const sender = String(step.config.sender || 'DiploSante')
         const isCustom = !SMS_SENDERS.find(s => s.value === sender)
         return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div>
-              <label style={labelStyle}>Sender (max 11 caractères alphanumériques)</label>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <select
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <CrmV2Field
+              label="Sender (max 11 caractères alphanumériques)"
+              hint="Le sender doit être préalablement validé sur le dashboard SMS Factor."
+            >
+              <div style={{ display: 'flex', gap: 8, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
+                <CrmV2Select
                   value={isCustom ? '__custom__' : sender}
                   onChange={e => {
                     if (e.target.value === '__custom__') setCfg({ sender: '' })
                     else setCfg({ sender: e.target.value })
                   }}
-                  style={{ ...selectStyle, flex: 1 }}
+                  style={{ flex: 1, minWidth: 0 }}
                 >
                   {SMS_SENDERS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                   <option value="__custom__">— Personnalisé —</option>
-                </select>
+                </CrmV2Select>
                 {isCustom && (
-                  <input
+                  <CrmV2Input
                     value={sender}
                     onChange={e => setCfg({ sender: e.target.value.replace(/[^a-zA-Z0-9]/g, '').slice(0, 11) })}
                     placeholder="Ex: MaMarque"
                     maxLength={11}
-                    style={{ ...inputStyle, flex: 1 }}
+                    style={{ flex: 1, minWidth: 0 }}
                   />
                 )}
               </div>
-              <div style={{ fontSize: 10, color: '#4a6070', marginTop: 4 }}>
-                Le sender doit être préalablement validé sur le dashboard SMS Factor.
-              </div>
-            </div>
-            <div>
-              <label style={labelStyle}>Texte du SMS</label>
-              <textarea
+            </CrmV2Field>
+            <CrmV2Field
+              label="Texte du SMS"
+              hint={
+                <span style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', color: text.length > limit * 2 ? '#d13a41' : crmV2.textFaint }}>
+                  <span>Variables : <code style={{ color: crmV2.goldDark }}>{'{{prenom}}'}</code> <code style={{ color: crmV2.goldDark }}>{'{{nom}}'}</code> <code style={{ color: crmV2.goldDark }}>{'{{classe}}'}</code></span>
+                  <span>{text.length} car. · {segments} SMS{segments > 1 ? 's' : ''}{hasUnicode ? ' (accents)' : ''}</span>
+                </span>
+              }
+            >
+              <CrmV2Textarea
                 value={text}
                 onChange={e => setCfg({ text: e.target.value })}
                 rows={4}
                 placeholder="Bonjour {{prenom}}, ..."
-                style={{ ...inputStyle, fontFamily: 'inherit', resize: 'vertical' }}
               />
-              <div style={{ fontSize: 10, color: text.length > limit * 2 ? '#ef4444' : '#4a6070', marginTop: 4, display: 'flex', justifyContent: 'space-between' }}>
-                <span>Variables : <code style={{ color: '#C9A84C' }}>{'{{prenom}}'}</code> <code style={{ color: '#C9A84C' }}>{'{{nom}}'}</code> <code style={{ color: '#C9A84C' }}>{'{{classe}}'}</code></span>
-                <span>{text.length} car. · {segments} SMS{segments > 1 ? 's' : ''}{hasUnicode ? ' (accents)' : ''}</span>
-              </div>
-            </div>
-            <div style={{ background: 'rgba(14,165,233,0.08)', border: '1px solid rgba(14,165,233,0.2)', borderRadius: 4, padding: 8, fontSize: 10, color: '#0369a1' }}>
-              💡 Le SMS n&apos;est envoyé que si le contact a un numéro de téléphone valide (FR).
-            </div>
+            </CrmV2Field>
+            <WfNotice icon={<Info size={14} />}>
+              Le SMS n&apos;est envoyé que si le contact a un numéro de téléphone valide (FR).
+            </WfNotice>
           </div>
         )
       })()}
 
       {step.step_type === 'create_task' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div>
-            <label style={labelStyle}>Titre</label>
-            <input value={step.config.title || ''} onChange={e => setCfg({ title: e.target.value })} placeholder="Ex: Rappeler {{prenom}}" style={inputStyle} />
-          </div>
-          <div>
-            <label style={labelStyle}>Description (optionnel)</label>
-            <textarea value={step.config.description || ''} onChange={e => setCfg({ description: e.target.value })} rows={2} style={inputStyle} />
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-            <div>
-              <label style={labelStyle}>Échéance (minutes)</label>
-              <input type="number" value={step.config.due_in_minutes || 0} onChange={e => setCfg({ due_in_minutes: parseInt(e.target.value || '0', 10) })} style={inputStyle} />
-            </div>
-            <div>
-              <label style={labelStyle}>Priorité</label>
-              <select value={step.config.priority || 'normal'} onChange={e => setCfg({ priority: e.target.value })} style={selectStyle}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <CrmV2Field label="Titre">
+            <CrmV2Input value={step.config.title || ''} onChange={e => setCfg({ title: e.target.value })} placeholder="Ex: Rappeler {{prenom}}" />
+          </CrmV2Field>
+          <CrmV2Field label="Description (optionnel)">
+            <CrmV2Textarea value={step.config.description || ''} onChange={e => setCfg({ description: e.target.value })} rows={2} />
+          </CrmV2Field>
+          <div style={grid(3)}>
+            <CrmV2Field label="Échéance (minutes)">
+              <CrmV2Input type="number" value={step.config.due_in_minutes || 0} onChange={e => setCfg({ due_in_minutes: parseInt(e.target.value || '0', 10) })} />
+            </CrmV2Field>
+            <CrmV2Field label="Priorité">
+              <CrmV2Select value={step.config.priority || 'normal'} onChange={e => setCfg({ priority: e.target.value })}>
                 <option value="low">Basse</option>
                 <option value="normal">Normale</option>
                 <option value="high">Haute</option>
                 <option value="urgent">Urgente</option>
-              </select>
-            </div>
-            <div>
-              <label style={labelStyle}>Type</label>
-              <select value={step.config.task_type || 'follow_up'} onChange={e => setCfg({ task_type: e.target.value })} style={selectStyle}>
+              </CrmV2Select>
+            </CrmV2Field>
+            <CrmV2Field label="Type">
+              <CrmV2Select value={step.config.task_type || 'follow_up'} onChange={e => setCfg({ task_type: e.target.value })}>
                 <option value="call_back">À rappeler</option>
                 <option value="follow_up">Relance</option>
                 <option value="email">Email</option>
                 <option value="meeting">RDV</option>
                 <option value="other">Autre</option>
-              </select>
-            </div>
+              </CrmV2Select>
+            </CrmV2Field>
           </div>
         </div>
       )}
 
       {step.step_type === 'wait_until' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-          <div>
-            <label style={labelStyle}>Heure (0-23)</label>
-            <input
-              type="number" min={0} max={23}
-              value={step.config.until_hour ?? 9}
-              onChange={e => setCfg({ until_hour: parseInt(e.target.value || '0', 10) })}
-              style={inputStyle}
-            />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={grid(3)}>
+            <CrmV2Field label="Heure (0-23)">
+              <CrmV2Input
+                type="number" min={0} max={23}
+                value={step.config.until_hour ?? 9}
+                onChange={e => setCfg({ until_hour: parseInt(e.target.value || '0', 10) })}
+              />
+            </CrmV2Field>
+            <CrmV2Field label="Minutes (0-59)">
+              <CrmV2Input
+                type="number" min={0} max={59}
+                value={step.config.until_minute ?? 0}
+                onChange={e => setCfg({ until_minute: parseInt(e.target.value || '0', 10) })}
+              />
+            </CrmV2Field>
+            <CrmV2Field label="Décalage en jours">
+              <CrmV2Input
+                type="number" min={0} max={30}
+                value={step.config.day_offset ?? 0}
+                onChange={e => setCfg({ day_offset: parseInt(e.target.value || '0', 10) })}
+              />
+            </CrmV2Field>
           </div>
-          <div>
-            <label style={labelStyle}>Minutes (0-59)</label>
-            <input
-              type="number" min={0} max={59}
-              value={step.config.until_minute ?? 0}
-              onChange={e => setCfg({ until_minute: parseInt(e.target.value || '0', 10) })}
-              style={inputStyle}
-            />
-          </div>
-          <div>
-            <label style={labelStyle}>Décalage en jours</label>
-            <input
-              type="number" min={0} max={30}
-              value={step.config.day_offset ?? 0}
-              onChange={e => setCfg({ day_offset: parseInt(e.target.value || '0', 10) })}
-              style={inputStyle}
-            />
-          </div>
-          <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#4a6070' }}>
+          <div style={{ fontSize: 11, color: crmV2.textFaint }}>
             Ex : 9h, décalage 1 = demain 9h. 0 = aujourd&apos;hui (ou demain si l&apos;heure est passée).
           </div>
         </div>
       )}
 
       {step.step_type === 'wait' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          <div>
-            <label style={labelStyle}>Durée</label>
-            <input
+        <div style={grid(2)}>
+          <CrmV2Field label="Durée">
+            <CrmV2Input
               type="number"
               value={Math.floor((step.config.duration_minutes ?? 0) / divisorOf(step.config.unit || 'minute'))}
               onChange={e => {
@@ -890,12 +963,10 @@ function FlowStepCard({
                 const n = parseInt(e.target.value || '0', 10)
                 setCfg({ duration_minutes: n * divisorOf(unit) })
               }}
-              style={inputStyle}
             />
-          </div>
-          <div>
-            <label style={labelStyle}>Unité</label>
-            <select
+          </CrmV2Field>
+          <CrmV2Field label="Unité">
+            <CrmV2Select
               value={step.config.unit || 'minute'}
               onChange={e => {
                 const oldDur = step.config.duration_minutes ?? 0
@@ -903,44 +974,39 @@ function FlowStepCard({
                 const oldVal = oldDur / divisorOf(oldUnit)
                 setCfg({ unit: e.target.value, duration_minutes: oldVal * divisorOf(e.target.value) })
               }}
-              style={selectStyle}
             >
               <option value="minute">minutes</option>
               <option value="hour">heures</option>
               <option value="day">jours</option>
-            </select>
-          </div>
+            </CrmV2Select>
+          </CrmV2Field>
         </div>
       )}
 
       {step.step_type === 'update_property' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div>
-            <label style={labelStyle}>Nom interne de la propriété</label>
-            <input value={step.config.property || ''} onChange={e => setCfg({ property: e.target.value })} placeholder="ex: hs_lead_status" style={inputStyle} />
-          </div>
-          <div>
-            <label style={labelStyle}>Nouvelle valeur</label>
-            <input value={step.config.value || ''} onChange={e => setCfg({ value: e.target.value })} style={inputStyle} />
-          </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <CrmV2Field label="Nom interne de la propriété">
+            <CrmV2Input value={step.config.property || ''} onChange={e => setCfg({ property: e.target.value })} placeholder="ex: hs_lead_status" />
+          </CrmV2Field>
+          <CrmV2Field label="Nouvelle valeur">
+            <CrmV2Input value={step.config.value || ''} onChange={e => setCfg({ value: e.target.value })} />
+          </CrmV2Field>
         </div>
       )}
 
       {step.step_type === 'webhook' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div>
-            <label style={labelStyle}>URL</label>
-            <input value={step.config.url || ''} onChange={e => setCfg({ url: e.target.value })} placeholder="https://…" style={inputStyle} />
-          </div>
-          <div>
-            <label style={labelStyle}>Méthode</label>
-            <select value={step.config.method || 'POST'} onChange={e => setCfg({ method: e.target.value })} style={selectStyle}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <CrmV2Field label="URL">
+            <CrmV2Input value={step.config.url || ''} onChange={e => setCfg({ url: e.target.value })} placeholder="https://…" />
+          </CrmV2Field>
+          <CrmV2Field label="Méthode">
+            <CrmV2Select value={step.config.method || 'POST'} onChange={e => setCfg({ method: e.target.value })}>
               <option value="POST">POST</option>
               <option value="GET">GET</option>
               <option value="PUT">PUT</option>
               <option value="PATCH">PATCH</option>
-            </select>
-          </div>
+            </CrmV2Select>
+          </CrmV2Field>
         </div>
       )}
       </div></div>}
@@ -954,23 +1020,25 @@ function AddStepButton({ onAdd }: { onAdd: (type: string) => void }) {
   return (
     <div style={{ position: 'relative', marginTop: 8 }}>
       <button
+        type="button"
         onClick={() => setOpen(!open)}
-        style={{ width: '100%', padding: 12, background: '#fff', border: '2px dashed #e5ddc8', borderRadius: 10, color: '#0038f0', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'inherit' }}
+        style={{ width: '100%', padding: 12, background: crmV2.bg, border: `2px dashed ${crmV2.borderStrong}`, borderRadius: crmV2.radiusLg, color: crmV2.link, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'inherit' }}
       >
         <Plus size={14} /> Ajouter une étape
       </button>
       {open && (
-        <div style={{ marginTop: 8, background: '#fff', border: '1px solid #e5ddc8', borderRadius: 10, padding: 8, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
+        <div style={{ marginTop: 8, background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: crmV2.radiusLg, padding: 8, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
           {Object.entries(STEP_DEFS).map(([type, def]) => {
             const Icon = def.icon
             return (
               <button
                 key={type}
+                type="button"
                 onClick={() => { onAdd(type); setOpen(false) }}
-                style={{ background: 'transparent', border: '1px solid #f0f0f5', borderRadius: 6, padding: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontFamily: 'inherit', color: '#0e1e35', textAlign: 'left' }}
+                style={{ background: 'transparent', border: `1px solid ${crmV2.borderLight}`, borderRadius: 10, padding: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontFamily: 'inherit', color: crmV2.text, textAlign: 'left' }}
               >
-                <div style={{ width: 24, height: 24, borderRadius: 4, background: def.color + '22', color: def.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Icon size={12} />
+                <div style={{ width: 24, height: 24, borderRadius: 8, background: hexA(def.color, 0.12), color: def.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon size={14} />
                 </div>
                 {def.label}
               </button>
@@ -1002,37 +1070,11 @@ function divisorOf(unit: string): number {
   return 1
 }
 
-function Card({ title, icon: Icon, children }: { title: string; icon?: typeof Mail; children: React.ReactNode }) {
-  return (
-    <div style={{ background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, fontSize: 11, fontWeight: 600, color: '#0e1e35', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-        {Icon && <Icon size={12} style={{ color: '#C9A84C' }} />}
-        {title}
-      </div>
-      {children}
-    </div>
-  )
-}
-
 function Stat({ label, value, color }: { label: string; value: number; color: string }) {
   return (
-    <div style={{ background: '#f7f4ee', borderRadius: 6, padding: 10 }}>
-      <div style={{ fontSize: 10, color: '#4a6070', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
-      <div style={{ fontSize: 18, fontWeight: 700, color }}>{value.toLocaleString('fr-FR')}</div>
+    <div style={{ background: crmV2.bgSoft, borderRadius: 12, padding: '10px 12px', minWidth: 0 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase', letterSpacing: '0.4px' }}>{label}</div>
+      <div style={{ fontSize: 22, fontWeight: 700, color, letterSpacing: '-0.02em', marginTop: 2 }}>{(value ?? 0).toLocaleString('fr-FR')}</div>
     </div>
   )
 }
-
-const inputStyle: React.CSSProperties = {
-  width: '100%', padding: '6px 8px', border: '1px solid #e5ddc8', borderRadius: 4, fontSize: 12, fontFamily: 'inherit',
-}
-const selectStyle: React.CSSProperties = {
-  width: '100%', padding: '6px 8px', border: '1px solid #e5ddc8', borderRadius: 4, fontSize: 12, fontFamily: 'inherit', background: '#fff',
-}
-const labelStyle: React.CSSProperties = {
-  display: 'block', fontSize: 10, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3,
-}
-const iconBtnStyle = (disabled: boolean): React.CSSProperties => ({
-  background: 'transparent', border: 'none', color: '#4a6070', cursor: disabled ? 'not-allowed' : 'pointer',
-  padding: 4, opacity: disabled ? 0.3 : 1,
-})

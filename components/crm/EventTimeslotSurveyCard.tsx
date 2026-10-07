@@ -1,9 +1,37 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
-import { CheckCircle2, Copy, ExternalLink, Save, Send, Users, Zap } from 'lucide-react'
-import { CrmV2Button } from '@/components/crm-v2/primitives'
+import {
+  AlertTriangle,
+  CalendarClock,
+  CheckCircle2,
+  Copy,
+  ExternalLink,
+  Mail,
+  MessageSquare,
+  Save,
+  Send,
+  Users,
+  XCircle,
+  Zap,
+} from 'lucide-react'
+import {
+  CrmV2Button,
+  CrmV2StatusPill,
+  CrmV2Table,
+  CrmV2Td,
+  CrmV2Th,
+  CrmV2Tr,
+} from '@/components/crm-v2/primitives'
+import {
+  EvCard,
+  EvLabel,
+  EvNotice,
+  EvStat,
+  EvSubBlock,
+} from '@/components/crm-v2/marketing2/event-detail/EventDetailUi'
 import { crmV2 } from '@/lib/crm-v2-theme'
+import { useIsMobile } from '@/lib/useIsMobile'
 import {
   DEFAULT_TIMESLOT_COPY,
   TIMESLOT_DRIP_SMS_AUJOURDHUI,
@@ -159,6 +187,7 @@ export default function EventTimeslotSurveyCard({
   const [dirty, setDirty] = useState(false)
   const [drip, setDrip] = useState<DripState>(DEFAULT_DRIP)
   const [jourJ, setJourJ] = useState<JourJState>(DEFAULT_JOUR_J)
+  const isMobile = useIsMobile()
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/events-studio/events/${eventId}/timeslot-survey`, { credentials: 'include' })
@@ -322,216 +351,272 @@ export default function EventTimeslotSurveyCard({
   }
 
   const field = { ...inputStyle, marginTop: 0 }
+  const twoCols = isMobile ? '1fr' : 'minmax(0, 1fr) minmax(0, 1fr)'
+  const codeStyle: CSSProperties = {
+    fontSize: 11.5,
+    background: crmV2.chipBg,
+    border: `1px solid ${crmV2.chipBorder}`,
+    borderRadius: 6,
+    padding: '0 4px',
+  }
 
   return (
-    <div>
-      <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>Créneaux & SMS</div>
-      <p style={{ margin: '0 0 14px', fontSize: 13, color: crmV2.textMuted, lineHeight: 1.5, maxWidth: 720 }}>
-        Chaque SMS part avec un lien personnel. La personne n’a rien à ressaisir, et sa réponse est collée à sa fiche.
-        Les places par créneau sont suivies ici uniquement — elles n’apparaissent pas sur la page publique.
-      </p>
-
-      {toast && <div style={{ fontSize: 12, color: crmV2.success, marginBottom: 10 }}>{toast}</div>}
-      {error && <div style={{ fontSize: 13, color: crmV2.danger, marginBottom: 10 }}>{error}</div>}
-
-      <div style={{ overflowX: 'auto', marginBottom: 16 }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <thead>
-            <tr style={{ textAlign: 'left', color: crmV2.textMuted, fontSize: 12 }}>
-              <th style={{ padding: '8px 10px', borderBottom: `1px solid ${crmV2.border}`, fontWeight: 700 }}>Créneau</th>
-              <th style={{ padding: '8px 10px', borderBottom: `1px solid ${crmV2.border}`, fontWeight: 700 }}>Réponses</th>
-              <th style={{ padding: '8px 10px', borderBottom: `1px solid ${crmV2.border}`, fontWeight: 700 }}>Places</th>
-              <th style={{ padding: '8px 10px', borderBottom: `1px solid ${crmV2.border}`, fontWeight: 700 }}>Restantes</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => {
-              const over = row.remaining != null && row.remaining < 0
-              return (
-                <tr key={row.value}>
-                  <td style={{ padding: '8px 10px', borderBottom: `1px solid ${crmV2.border}`, fontWeight: 600 }}>{row.label}</td>
-                  <td style={{ padding: '8px 10px', borderBottom: `1px solid ${crmV2.border}` }}>{row.count}</td>
-                  <td style={{ padding: '8px 10px', borderBottom: `1px solid ${crmV2.border}` }}>
-                    <input
-                      type="number"
-                      min={1}
-                      placeholder="—"
-                      value={places[row.value] || ''}
-                      onChange={(e) => {
-                        setPlaces((prev) => ({ ...prev, [row.value]: e.target.value }))
-                        setDirty(true)
-                      }}
-                      style={{ ...field, width: 88, padding: '6px 8px' }}
-                    />
-                  </td>
-                  <td
-                    style={{
-                      padding: '8px 10px',
-                      borderBottom: `1px solid ${crmV2.border}`,
-                      color: over ? crmV2.danger : crmV2.text,
-                      fontWeight: 600,
-                    }}
-                  >
-                    {row.remaining == null ? '—' : row.remaining}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-          <tfoot>
-            <tr>
-              <td style={{ padding: '8px 10px', fontWeight: 700 }}>Total</td>
-              <td style={{ padding: '8px 10px', fontWeight: 700 }}>{uniqueContacts}</td>
-              <td colSpan={2} style={{ padding: '8px 10px', fontSize: 12, color: crmV2.textFaint }}>
-                Compteurs invisibles sur la page de choix
-              </td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'minmax(0, 1.15fr) minmax(240px, 0.85fr)',
-          gap: 16,
-          marginBottom: 14,
-        }}
-        className="event-timeslot-sms-grid"
-      >
-        <div>
-          <label style={{ display: 'block', fontSize: 12, color: crmV2.textMuted, marginBottom: 4 }}>
-            Texte du SMS — vous avez la main complète
-          </label>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
-            {TIMESLOT_SURVEY_SMS_VARIANTS.map((v) => (
-              <button
-                key={v.id}
-                type="button"
-                onClick={() => editCopy({ sms: v.text })}
-                style={{
-                  padding: '5px 11px',
-                  borderRadius: crmV2.radiusPill,
-                  border: `1px solid ${copy.sms === v.text ? crmV2.gold : crmV2.border}`,
-                  background: copy.sms === v.text ? crmV2.goldSoft : crmV2.bg,
-                  color: crmV2.text,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                {v.label}
-              </button>
-            ))}
-          </div>
-          <textarea
-            rows={5}
-            value={copy.sms}
-            onChange={(e) => editCopy({ sms: e.target.value })}
-            style={{ ...field, minHeight: 120, resize: 'vertical', fontFamily: 'inherit' }}
-          />
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 6, fontSize: 12, color: crmV2.textMuted }}>
-            <span>
-              Variables : {'{prenom}'} et {'{lien1}'} (obligatoire)
-            </span>
-            <span style={{ whiteSpace: 'nowrap' }}>
-              {[...rendered].length} car. lien inclus · {segments} SMS
-            </span>
-          </div>
-          <div style={{ marginTop: 10, fontSize: 12, color: crmV2.textMuted }}>Aperçu pour Aaron</div>
-          <div
-            style={{
-              marginTop: 6,
-              padding: 10,
-              borderRadius: crmV2.radius,
-              background: crmV2.bg,
-              border: `1px solid ${crmV2.border}`,
-              fontSize: 13,
-              lineHeight: 1.45,
-              whiteSpace: 'pre-wrap',
-            }}
-          >
-            {rendered}
-          </div>
-          {segments > 1 && (
-            <p style={{ margin: '8px 0 0', fontSize: 12, color: crmV2.textMuted, lineHeight: 1.45 }}>
-              {segments} segments facturés par personne. Avec accents la limite est de 70 caractères par segment (160
-              sans accents).
-            </p>
-          )}
-        </div>
-
+    <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? 12 : 16, minWidth: 0 }}>
+      {toast && (
         <div
+          role="status"
           style={{
-            padding: 14,
-            borderRadius: crmV2.radius,
-            border: `1px solid ${crmV2.goldBorder}`,
-            background: crmV2.goldSoft,
+            position: 'fixed',
+            right: isMobile ? 12 : 24,
+            left: isMobile ? 12 : undefined,
+            bottom: isMobile ? 84 : 24,
+            zIndex: 1100,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '10px 16px',
+            borderRadius: crmV2.radiusPill,
+            background: crmV2.primary,
+            color: '#fff',
+            fontSize: 13,
+            fontWeight: 600,
+            boxShadow: crmV2.shadowPanel,
           }}
         >
-          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10 }}>À l’envoi, chaque personne reçoit</div>
-          {[
-            { ok: hasPrenom, label: 'Son prénom via {prenom}' },
-            { ok: hasLien, label: 'Un lien unique via {lien1}' },
-            { ok: true, label: 'La page déjà rattachée à sa fiche' },
-            { ok: true, label: 'Pas de nom / email à ressaisir' },
-            { ok: true, label: 'Sa réponse tracée dans le tableau' },
-          ].map((item) => (
-            <div key={item.label} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 8, fontSize: 12.5, color: crmV2.text }}>
-              <CheckCircle2 size={15} color={item.ok ? crmV2.success : crmV2.danger} style={{ flex: 'none', marginTop: 1 }} />
-              {item.label}
-            </div>
-          ))}
-          <p style={{ margin: '10px 0 0', fontSize: 12, color: crmV2.textMuted, lineHeight: 1.45 }}>
-            Le lien <code>{'{lien1}'}</code> est signé automatiquement pour chaque contact au moment de l’envoi. Rien à
-            préparer dans SMS Factor.
-          </p>
+          <CheckCircle2 size={16} color={crmV2.success} /> {toast}
         </div>
-      </div>
+      )}
+      {error && <EvNotice tone="danger">{error}</EvNotice>}
 
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
-        {data?.public_url && (
-          <>
-            <CrmV2Button variant="secondary" onClick={() => copyText(data.public_url!, 'URL copiée')}>
-              <Copy size={14} /> Copier l’URL publique
-            </CrmV2Button>
-            <a href={data.public_url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
-              <CrmV2Button variant="secondary">
-                <ExternalLink size={14} /> Voir la page
-              </CrmV2Button>
-            </a>
-          </>
-        )}
-        <CrmV2Button variant="secondary" onClick={() => copyText(copy.sms, 'SMS copié')}>
-          <Copy size={14} /> Copier le SMS
-        </CrmV2Button>
-      </div>
-
-      <div>
-        <label style={{ display: 'block', fontSize: 12, color: crmV2.textMuted, marginBottom: 4 }}>Titre de la page</label>
-        <input style={{ ...field, marginBottom: 10 }} value={copy.title} onChange={(e) => editCopy({ title: e.target.value })} />
-        <label style={{ display: 'block', fontSize: 12, color: crmV2.textMuted, marginBottom: 4 }}>Texte d’intro</label>
-        <textarea
-          rows={2}
-          style={{ ...field, minHeight: 64, resize: 'vertical', marginBottom: 10 }}
-          value={copy.intro}
-          onChange={(e) => editCopy({ intro: e.target.value })}
-        />
-        <label style={{ display: 'block', fontSize: 12, color: crmV2.textMuted, marginBottom: 4 }}>Note (sans chiffres de places)</label>
-        <input style={field} value={copy.note} onChange={(e) => editCopy({ note: e.target.value })} />
-      </div>
-
-      <div
-        style={{
-          marginTop: 16,
-          padding: 14,
-          borderRadius: crmV2.radius,
-          border: `1px solid ${crmV2.border}`,
-          background: crmV2.bg,
-        }}
+      {/* ——— Créneaux : réponses et places ——— */}
+      <EvCard
+        title="Créneaux & SMS"
+        icon={<CalendarClock size={16} />}
+        subtitle={
+          <span style={{ display: 'block', lineHeight: 1.5, maxWidth: 720 }}>
+            Chaque SMS part avec un lien personnel. La personne n’a rien à ressaisir, et sa réponse est collée à sa fiche.
+            Les places par créneau sont suivies ici uniquement — elles n’apparaissent pas sur la page publique.
+          </span>
+        }
+        style={{ padding: 0, overflow: 'hidden' }}
       >
-        <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10 }}>Envoi de la campagne SMS</div>
+        <div style={{ borderTop: `1px solid ${crmV2.border}` }}>
+          <CrmV2Table>
+            <thead>
+              <tr>
+                <CrmV2Th>Créneau</CrmV2Th>
+                <CrmV2Th>Réponses</CrmV2Th>
+                <CrmV2Th>Places</CrmV2Th>
+                <CrmV2Th>Restantes</CrmV2Th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => {
+                const over = row.remaining != null && row.remaining < 0
+                return (
+                  <CrmV2Tr key={row.value}>
+                    <CrmV2Td style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{row.label}</CrmV2Td>
+                    <CrmV2Td>{row.count}</CrmV2Td>
+                    <CrmV2Td>
+                      <input
+                        type="number"
+                        min={1}
+                        placeholder="—"
+                        value={places[row.value] || ''}
+                        onChange={(e) => {
+                          setPlaces((prev) => ({ ...prev, [row.value]: e.target.value }))
+                          setDirty(true)
+                        }}
+                        style={{ ...field, width: 88, padding: '6px 10px' }}
+                      />
+                    </CrmV2Td>
+                    <CrmV2Td
+                      style={{
+                        color: over ? '#d13a41' : crmV2.text,
+                        fontWeight: 600,
+                      }}
+                    >
+                      {row.remaining == null ? '—' : row.remaining}
+                    </CrmV2Td>
+                  </CrmV2Tr>
+                )
+              })}
+            </tbody>
+            <tfoot>
+              <tr style={{ background: crmV2.thBg }}>
+                <td style={{ padding: '10px 14px', fontWeight: 700 }}>Total</td>
+                <td style={{ padding: '10px 14px', fontWeight: 700 }}>{uniqueContacts}</td>
+                <td colSpan={2} style={{ padding: '10px 14px', fontSize: 12, color: crmV2.textFaint }}>
+                  Compteurs invisibles sur la page de choix
+                </td>
+              </tr>
+            </tfoot>
+          </CrmV2Table>
+        </div>
+      </EvCard>
 
+      {/* ——— Texte du SMS + page publique ——— */}
+      <EvCard title="SMS de choix du créneau" icon={<MessageSquare size={16} />}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: isMobile ? '1fr' : 'minmax(0, 1.15fr) minmax(240px, 0.85fr)',
+            gap: 16,
+            marginBottom: 16,
+          }}
+          className="event-timeslot-sms-grid"
+        >
+          <div style={{ minWidth: 0 }}>
+            <EvLabel>Texte du SMS — vous avez la main complète</EvLabel>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+              {TIMESLOT_SURVEY_SMS_VARIANTS.map((v) => {
+                const active = copy.sms === v.text
+                return (
+                  <button
+                    key={v.id}
+                    type="button"
+                    onClick={() => editCopy({ sms: v.text })}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: crmV2.radiusPill,
+                      border: `1px solid ${active ? crmV2.goldBorder : crmV2.borderStrong}`,
+                      background: active ? crmV2.goldSoft : crmV2.bg,
+                      color: active ? crmV2.goldDark : crmV2.text,
+                      fontSize: 12,
+                      fontWeight: active ? 700 : 600,
+                      fontFamily: 'inherit',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {v.label}
+                  </button>
+                )
+              })}
+            </div>
+            <textarea
+              rows={5}
+              value={copy.sms}
+              onChange={(e) => editCopy({ sms: e.target.value })}
+              style={{ ...field, minHeight: 120, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
+            />
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                gap: '4px 8px',
+                flexWrap: 'wrap',
+                marginTop: 6,
+                fontSize: 12,
+                color: crmV2.textMuted,
+              }}
+            >
+              <span>
+                Variables : {'{prenom}'} et {'{lien1}'} (obligatoire)
+              </span>
+              <span style={{ whiteSpace: 'nowrap' }}>
+                {[...rendered].length} car. lien inclus · {segments} SMS
+              </span>
+            </div>
+            <div style={{ marginTop: 12, fontSize: 12, fontWeight: 700, color: crmV2.textMuted }}>Aperçu pour Aaron</div>
+            <div
+              style={{
+                marginTop: 6,
+                padding: '10px 12px',
+                borderRadius: 12,
+                background: crmV2.bgSoft,
+                border: `1px solid ${crmV2.border}`,
+                fontSize: 13,
+                lineHeight: 1.45,
+                whiteSpace: 'pre-wrap',
+                overflowWrap: 'anywhere',
+              }}
+            >
+              {rendered}
+            </div>
+            {segments > 1 && (
+              <p style={{ margin: '8px 0 0', fontSize: 12, color: crmV2.textMuted, lineHeight: 1.45 }}>
+                {segments} segments facturés par personne. Avec accents la limite est de 70 caractères par segment (160
+                sans accents).
+              </p>
+            )}
+          </div>
+
+          <div
+            style={{
+              padding: 14,
+              borderRadius: 12,
+              border: `1px solid ${crmV2.goldBorder}`,
+              background: crmV2.goldSoft,
+              alignSelf: 'start',
+            }}
+          >
+            <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10 }}>À l’envoi, chaque personne reçoit</div>
+            {[
+              { ok: hasPrenom, label: 'Son prénom via {prenom}' },
+              { ok: hasLien, label: 'Un lien unique via {lien1}' },
+              { ok: true, label: 'La page déjà rattachée à sa fiche' },
+              { ok: true, label: 'Pas de nom / email à ressaisir' },
+              { ok: true, label: 'Sa réponse tracée dans le tableau' },
+            ].map((item) => (
+              <div key={item.label} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 8, fontSize: 12.5, color: crmV2.text }}>
+                {item.ok ? (
+                  <CheckCircle2 size={15} color={crmV2.success} style={{ flex: 'none', marginTop: 1 }} />
+                ) : (
+                  <XCircle size={15} color={crmV2.danger} style={{ flex: 'none', marginTop: 1 }} />
+                )}
+                {item.label}
+              </div>
+            ))}
+            <p style={{ margin: '10px 0 0', fontSize: 12, color: crmV2.textMuted, lineHeight: 1.45 }}>
+              Le lien <code style={codeStyle}>{'{lien1}'}</code> est signé automatiquement pour chaque contact au moment de
+              l’envoi. Rien à préparer dans SMS Factor.
+            </p>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+          {data?.public_url && (
+            <>
+              <CrmV2Button variant="secondary" onClick={() => copyText(data.public_url!, 'URL copiée')} icon={<Copy size={14} />}>
+                Copier l’URL publique
+              </CrmV2Button>
+              <a href={data.public_url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
+                <CrmV2Button variant="secondary" icon={<ExternalLink size={14} />}>
+                  Voir la page
+                </CrmV2Button>
+              </a>
+            </>
+          )}
+          <CrmV2Button variant="secondary" onClick={() => copyText(copy.sms, 'SMS copié')} icon={<Copy size={14} />}>
+            Copier le SMS
+          </CrmV2Button>
+        </div>
+
+        <EvSubBlock title="Page publique de choix">
+          <div style={{ display: 'grid', gridTemplateColumns: twoCols, gap: '12px 16px' }}>
+            <div>
+              <EvLabel>Titre de la page</EvLabel>
+              <input style={field} value={copy.title} onChange={(e) => editCopy({ title: e.target.value })} />
+            </div>
+            <div>
+              <EvLabel>Note (sans chiffres de places)</EvLabel>
+              <input style={field} value={copy.note} onChange={(e) => editCopy({ note: e.target.value })} />
+            </div>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <EvLabel>Texte d’intro</EvLabel>
+              <textarea
+                rows={2}
+                style={{ ...field, minHeight: 64, resize: 'vertical' }}
+                value={copy.intro}
+                onChange={(e) => editCopy({ intro: e.target.value })}
+              />
+            </div>
+          </div>
+        </EvSubBlock>
+      </EvCard>
+
+      {/* ——— Envoi de la campagne ——— */}
+      <EvCard title="Envoi de la campagne SMS" icon={<Send size={16} />}>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
           {STEP_LABELS.map((label, i) => {
             const done = currentStep > i
@@ -543,16 +628,35 @@ export default function EventTimeslotSurveyCard({
                   display: 'flex',
                   alignItems: 'center',
                   gap: 6,
-                  padding: '5px 11px',
+                  padding: '5px 12px 5px 6px',
                   borderRadius: crmV2.radiusPill,
-                  border: `1px solid ${done ? crmV2.success : active ? crmV2.gold : crmV2.border}`,
-                  background: done || active ? crmV2.goldSoft : 'transparent',
+                  border: `1px solid ${done ? 'rgba(0,189,165,0.35)' : active ? crmV2.goldBorder : crmV2.border}`,
+                  background: done ? 'rgba(0,189,165,0.08)' : active ? crmV2.goldSoft : crmV2.bg,
                   fontSize: 12,
                   fontWeight: 600,
-                  color: done ? crmV2.success : crmV2.text,
+                  color: done ? '#00866f' : active ? crmV2.goldDark : crmV2.textMuted,
                 }}
               >
-                {done ? <CheckCircle2 size={13} /> : <span style={{ opacity: 0.6 }}>{i + 1}.</span>}
+                {done ? (
+                  <CheckCircle2 size={16} />
+                ) : (
+                  <span
+                    style={{
+                      width: 18,
+                      height: 18,
+                      borderRadius: '50%',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      background: active ? crmV2.gold : crmV2.bgSoft,
+                      color: active ? '#fff' : crmV2.textMuted,
+                    }}
+                  >
+                    {i + 1}
+                  </span>
+                )}
                 {label}
               </div>
             )
@@ -562,8 +666,8 @@ export default function EventTimeslotSurveyCard({
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-            gap: 10,
+            gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(auto-fit, minmax(140px, 1fr))',
+            gap: 8,
             marginBottom: 14,
           }}
         >
@@ -573,24 +677,11 @@ export default function EventTimeslotSurveyCard({
             { label: 'Sans fiche CRM', value: audience ? audience.unmatched : '…' },
             { label: 'Sans numéro valide', value: audience ? audience.no_phone : '…' },
           ].map((cell) => (
-            <div
-              key={cell.label}
-              style={{
-                padding: '10px 12px',
-                borderRadius: crmV2.radius,
-                border: `1px solid ${crmV2.border}`,
-                background: crmV2.bg,
-              }}
-            >
-              <div style={{ fontSize: 11, color: crmV2.textMuted, marginBottom: 2 }}>{cell.label}</div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: cell.strong ? crmV2.gold : crmV2.text }}>
-                {cell.value}
-              </div>
-            </div>
+            <EvStat key={cell.label} label={cell.label} value={cell.value} color={cell.strong ? crmV2.goldDark : crmV2.text} />
           ))}
         </div>
 
-        <p style={{ margin: '0 0 12px', fontSize: 12.5, color: crmV2.textMuted, lineHeight: 1.5 }}>
+        <p style={{ margin: '0 0 14px', fontSize: 12.5, color: crmV2.textMuted, lineHeight: 1.5 }}>
           Les destinataires sont les préinscrits du salon rattachés à une fiche CRM avec un numéro valide. Chacun reçoit
           son prénom et son propre lien signé : rien à ressaisir, et la réponse retombe sur sa fiche.
           {audience && segments > 1
@@ -599,59 +690,57 @@ export default function EventTimeslotSurveyCard({
         </p>
 
         {alreadySent ? (
-          <div
-            style={{
-              padding: 12,
-              borderRadius: crmV2.radius,
-              border: `1px solid ${crmV2.success}`,
-              background: crmV2.goldSoft,
-              fontSize: 13,
-            }}
-          >
+          <EvNotice tone="success">
             <strong>Campagne {campaign?.status}.</strong>{' '}
             {sendResult
               ? `${sendResult.sent}/${sendResult.valid} envoyés, ${sendResult.failed} échecs, ${sendResult.skipped} ignorés, ${sendResult.segments_used} segments facturés.`
               : 'Détail des envois dans SMS Factor.'}{' '}
-            <a href="/admin/crm/sms-factor" target="_blank" rel="noreferrer" style={{ color: crmV2.gold }}>
+            <a href="/admin/crm/sms-factor" target="_blank" rel="noreferrer" style={{ color: crmV2.link, fontWeight: 600 }}>
               Voir le suivi
             </a>
-          </div>
+          </EvNotice>
         ) : confirmSend ? (
           <div
             style={{
-              padding: 12,
-              borderRadius: crmV2.radius,
-              border: `1px solid ${crmV2.danger}`,
+              padding: 14,
+              borderRadius: 12,
+              border: '1px solid rgba(242,84,91,0.35)',
               background: crmV2.dangerSoft,
             }}
           >
-            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, marginBottom: 6 }}>
+              <AlertTriangle size={16} color="#d13a41" />
               Envoyer maintenant à {campaign?.recipients} personnes ?
             </div>
-            <p style={{ margin: '0 0 10px', fontSize: 12.5, color: crmV2.textMuted, lineHeight: 1.5 }}>
+            <p style={{ margin: '0 0 12px', fontSize: 12.5, color: crmV2.textMuted, lineHeight: 1.5 }}>
               Action irréversible. Les SMS partent immédiatement, {segments} segment{segments > 1 ? 's' : ''} par
               personne.
             </p>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <CrmV2Button variant="primary" disabled={busy} onClick={sendCampaign}>
-                <Send size={14} /> {busy ? 'Envoi en cours…' : 'Oui, envoyer maintenant'}
-              </CrmV2Button>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
               <CrmV2Button variant="secondary" disabled={busy} onClick={() => setConfirmSend(false)}>
                 Annuler
+              </CrmV2Button>
+              <CrmV2Button variant="primary" disabled={busy} onClick={sendCampaign} icon={<Send size={14} />}>
+                {busy ? 'Envoi en cours…' : 'Oui, envoyer maintenant'}
               </CrmV2Button>
             </div>
           </div>
         ) : (
           <>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <CrmV2Button variant="gold" disabled={busy} onClick={() => void save()}>
-                <Save size={14} /> Enregistrer le texte
+              <CrmV2Button variant="gold" disabled={busy} onClick={() => void save()} icon={<Save size={14} />}>
+                Enregistrer le texte
               </CrmV2Button>
-              <CrmV2Button variant="secondary" disabled={busy || !hasLien} onClick={prepareCampaign}>
-                <Users size={14} /> {campaign ? 'Mettre à jour les destinataires' : 'Préparer les destinataires'}
+              <CrmV2Button variant="secondary" disabled={busy || !hasLien} onClick={prepareCampaign} icon={<Users size={14} />}>
+                {campaign ? 'Mettre à jour les destinataires' : 'Préparer les destinataires'}
               </CrmV2Button>
-              <CrmV2Button variant="primary" disabled={!readyToSend || busy} onClick={() => setConfirmSend(true)}>
-                <Send size={14} /> Envoyer la campagne{campaign?.recipients ? ` (${campaign.recipients})` : ''}
+              <CrmV2Button
+                variant="primary"
+                disabled={!readyToSend || busy}
+                onClick={() => setConfirmSend(true)}
+                icon={<Send size={14} />}
+              >
+                Envoyer la campagne{campaign?.recipients ? ` (${campaign.recipients})` : ''}
               </CrmV2Button>
             </div>
             <p style={{ margin: '10px 0 0', fontSize: 12, color: crmV2.textMuted, lineHeight: 1.45 }}>
@@ -665,35 +754,21 @@ export default function EventTimeslotSurveyCard({
             </p>
           </>
         )}
-      </div>
+      </EvCard>
 
-      <div
-        style={{
-          marginTop: 16,
-          padding: 14,
-          borderRadius: crmV2.radius,
-          border: `1px solid ${crmV2.border}`,
-          background: crmV2.bg,
-        }}
+      {/* ——— Envoi automatique aux nouveaux inscrits ——— */}
+      <EvCard
+        title="Nouveaux inscrits — envoi automatique"
+        icon={<Zap size={16} />}
+        actions={
+          <CrmV2StatusPill
+            label={drip.enabled ? 'Actif' : 'En pause'}
+            color={drip.enabled ? '#00866f' : crmV2.textFaint}
+            bg={drip.enabled ? 'rgba(0,189,165,0.12)' : crmV2.chipBg}
+          />
+        }
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-          <Zap size={15} color={crmV2.gold} />
-          <div style={{ fontWeight: 700, fontSize: 13 }}>Nouveaux inscrits — envoi automatique</div>
-          <span
-            style={{
-              padding: '2px 9px',
-              borderRadius: crmV2.radiusPill,
-              fontSize: 11,
-              fontWeight: 700,
-              border: `1px solid ${drip.enabled ? crmV2.success : crmV2.border}`,
-              color: drip.enabled ? crmV2.success : crmV2.textMuted,
-            }}
-          >
-            {drip.enabled ? 'Actif' : 'En pause'}
-          </span>
-        </div>
-
-        <p style={{ margin: '0 0 12px', fontSize: 12.5, color: crmV2.textMuted, lineHeight: 1.5, maxWidth: 720 }}>
+        <p style={{ margin: '0 0 14px', fontSize: 12.5, color: crmV2.textMuted, lineHeight: 1.5, maxWidth: 720 }}>
           Toute personne qui s’inscrit désormais au salon reçoit le SMS {drip.delayMinutes} minutes après son
           inscription, avec son lien personnel. Le texte bascule tout seul sur la version « aujourd’hui » le jour du
           salon.{' '}
@@ -702,53 +777,42 @@ export default function EventTimeslotSurveyCard({
             : 'Aucun envoi automatique pour l’instant.'}
         </p>
 
-        <label
-          style={{
-            display: 'block',
-            fontSize: 12,
-            color: crmV2.textMuted,
-            marginBottom: 4,
-            fontWeight: data?.drip_variant === 'demain' ? 700 : 400,
-          }}
-        >
-          Texte la veille {data?.drip_variant === 'demain' ? '— utilisé actuellement' : ''}
-        </label>
-        <textarea
-          rows={3}
-          style={{ ...field, minHeight: 74, resize: 'vertical', marginBottom: 4 }}
-          value={drip.smsDemain}
-          onChange={(e) => setDrip((p) => ({ ...p, smsDemain: e.target.value }))}
-        />
-        <div style={{ fontSize: 11, color: crmV2.textMuted, marginBottom: 10 }}>
-          {smsSegments(previewSms(drip.smsDemain))} segment
-          {smsSegments(previewSms(drip.smsDemain)) > 1 ? 's' : ''} par personne
+        <div style={{ display: 'grid', gridTemplateColumns: twoCols, gap: '12px 16px' }}>
+          <div style={{ minWidth: 0 }}>
+            <EvLabel style={{ color: data?.drip_variant === 'demain' ? crmV2.goldDark : crmV2.textMuted }}>
+              Texte la veille {data?.drip_variant === 'demain' ? '— utilisé actuellement' : ''}
+            </EvLabel>
+            <textarea
+              rows={3}
+              style={{ ...field, minHeight: 74, resize: 'vertical', marginBottom: 4, lineHeight: 1.5 }}
+              value={drip.smsDemain}
+              onChange={(e) => setDrip((p) => ({ ...p, smsDemain: e.target.value }))}
+            />
+            <div style={{ fontSize: 11, color: crmV2.textMuted }}>
+              {smsSegments(previewSms(drip.smsDemain))} segment
+              {smsSegments(previewSms(drip.smsDemain)) > 1 ? 's' : ''} par personne
+            </div>
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <EvLabel style={{ color: data?.drip_variant === 'aujourdhui' ? crmV2.goldDark : crmV2.textMuted }}>
+              Texte le jour du salon {data?.drip_variant === 'aujourdhui' ? '— utilisé actuellement' : ''}
+            </EvLabel>
+            <textarea
+              rows={3}
+              style={{ ...field, minHeight: 74, resize: 'vertical', marginBottom: 4, lineHeight: 1.5 }}
+              value={drip.smsAujourdhui}
+              onChange={(e) => setDrip((p) => ({ ...p, smsAujourdhui: e.target.value }))}
+            />
+            <div style={{ fontSize: 11, color: crmV2.textMuted }}>
+              {smsSegments(previewSms(drip.smsAujourdhui))} segment
+              {smsSegments(previewSms(drip.smsAujourdhui)) > 1 ? 's' : ''} par personne
+            </div>
+          </div>
         </div>
 
-        <label
-          style={{
-            display: 'block',
-            fontSize: 12,
-            color: crmV2.textMuted,
-            marginBottom: 4,
-            fontWeight: data?.drip_variant === 'aujourdhui' ? 700 : 400,
-          }}
-        >
-          Texte le jour du salon {data?.drip_variant === 'aujourdhui' ? '— utilisé actuellement' : ''}
-        </label>
-        <textarea
-          rows={3}
-          style={{ ...field, minHeight: 74, resize: 'vertical', marginBottom: 4 }}
-          value={drip.smsAujourdhui}
-          onChange={(e) => setDrip((p) => ({ ...p, smsAujourdhui: e.target.value }))}
-        />
-        <div style={{ fontSize: 11, color: crmV2.textMuted, marginBottom: 12 }}>
-          {smsSegments(previewSms(drip.smsAujourdhui))} segment
-          {smsSegments(previewSms(drip.smsAujourdhui)) > 1 ? 's' : ''} par personne
-        </div>
-
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <CrmV2Button variant="gold" disabled={busy} onClick={() => void save()}>
-            <Save size={14} /> Enregistrer les textes automatiques
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14 }}>
+          <CrmV2Button variant="gold" disabled={busy} onClick={() => void save()} icon={<Save size={14} />}>
+            Enregistrer les textes automatiques
           </CrmV2Button>
           <CrmV2Button
             variant="secondary"
@@ -762,94 +826,83 @@ export default function EventTimeslotSurveyCard({
             {drip.enabled ? 'Mettre en pause' : 'Réactiver l’envoi auto'}
           </CrmV2Button>
         </div>
-      </div>
+      </EvCard>
 
-      <div
-        style={{
-          marginTop: 16,
-          padding: 14,
-          borderRadius: crmV2.radius,
-          border: `1px solid ${crmV2.border}`,
-          background: crmV2.bg,
-        }}
-      >
-        <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>Rappel du jour J (8h) — personnalisé par créneau</div>
-        <p style={{ margin: '0 0 12px', fontSize: 12.5, color: crmV2.textMuted, lineHeight: 1.5, maxWidth: 720 }}>
-          Le SMS et l’email de 8h partent à tous les inscrits. La phrase <code>{'{creneau_phrase}'}</code> change selon que
-          la personne a choisi son créneau ou non.{' '}
+      {/* ——— Rappel du jour J ——— */}
+      <EvCard title="Rappel du jour J (8h) — personnalisé par créneau" icon={<CalendarClock size={16} />}>
+        <p style={{ margin: '0 0 14px', fontSize: 12.5, color: crmV2.textMuted, lineHeight: 1.5, maxWidth: 720 }}>
+          Le SMS et l’email de 8h partent à tous les inscrits. La phrase <code style={codeStyle}>{'{creneau_phrase}'}</code> change
+          selon que la personne a choisi son créneau ou non.{' '}
           {data?.stats && audience
             ? `Aujourd’hui : ${uniqueContacts} avec créneau, ${Math.max(0, audience.registrations - uniqueContacts)} sans.`
             : null}
         </p>
 
-        <div className="event-timeslot-sms-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>SMS</div>
-            <label style={{ display: 'block', fontSize: 12, color: crmV2.textMuted, marginBottom: 4 }}>
-              Si créneau choisi
-            </label>
+        <div className="event-timeslot-sms-grid" style={{ display: 'grid', gridTemplateColumns: twoCols, gap: 14 }}>
+          <EvSubBlock title={<span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><MessageSquare size={13} /> SMS</span>}>
+            <EvLabel>Si créneau choisi</EvLabel>
             <input
-              style={{ ...field, marginBottom: 8 }}
+              style={{ ...field, marginBottom: 10 }}
               value={jourJ.smsAvecCreneau}
               onChange={(e) => setJourJ((p) => ({ ...p, smsAvecCreneau: e.target.value }))}
             />
-            <label style={{ display: 'block', fontSize: 12, color: crmV2.textMuted, marginBottom: 4 }}>Sans créneau</label>
+            <EvLabel>Sans créneau</EvLabel>
             <input
-              style={{ ...field, marginBottom: 8 }}
+              style={{ ...field, marginBottom: 10 }}
               value={jourJ.smsSansCreneau}
               onChange={(e) => setJourJ((p) => ({ ...p, smsSansCreneau: e.target.value }))}
             />
             {data?.jour_j_sms_template ? (
               <div style={{ fontSize: 11.5, color: crmV2.textMuted, lineHeight: 1.45 }}>
                 <div style={{ marginBottom: 4 }}>
-                  <strong>Aperçu avec créneau :</strong> {previewJourJ(data.jour_j_sms_template, jourJ.smsAvecCreneau, true)}
+                  <strong style={{ color: crmV2.text }}>Aperçu avec créneau :</strong>{' '}
+                  {previewJourJ(data.jour_j_sms_template, jourJ.smsAvecCreneau, true)}
                 </div>
                 <div>
-                  <strong>Aperçu sans :</strong> {previewJourJ(data.jour_j_sms_template, jourJ.smsSansCreneau, false)}
+                  <strong style={{ color: crmV2.text }}>Aperçu sans :</strong>{' '}
+                  {previewJourJ(data.jour_j_sms_template, jourJ.smsSansCreneau, false)}
                 </div>
               </div>
             ) : null}
-          </div>
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Email</div>
-            <label style={{ display: 'block', fontSize: 12, color: crmV2.textMuted, marginBottom: 4 }}>
-              Si créneau choisi
-            </label>
+          </EvSubBlock>
+          <EvSubBlock title={<span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Mail size={13} /> Email</span>}>
+            <EvLabel>Si créneau choisi</EvLabel>
             <input
-              style={{ ...field, marginBottom: 8 }}
+              style={{ ...field, marginBottom: 10 }}
               value={jourJ.emailAvecCreneau}
               onChange={(e) => setJourJ((p) => ({ ...p, emailAvecCreneau: e.target.value }))}
             />
-            <label style={{ display: 'block', fontSize: 12, color: crmV2.textMuted, marginBottom: 4 }}>Sans créneau</label>
+            <EvLabel>Sans créneau</EvLabel>
             <input
-              style={{ ...field, marginBottom: 8 }}
+              style={{ ...field, marginBottom: 10 }}
               value={jourJ.emailSansCreneau}
               onChange={(e) => setJourJ((p) => ({ ...p, emailSansCreneau: e.target.value }))}
             />
             {data?.jour_j_email_body ? (
               <div style={{ fontSize: 11.5, color: crmV2.textMuted, lineHeight: 1.45 }}>
                 <div style={{ marginBottom: 4 }}>
-                  <strong>Objet :</strong> {data.jour_j_email_subject}
+                  <strong style={{ color: crmV2.text }}>Objet :</strong> {data.jour_j_email_subject}
                 </div>
                 <div>
-                  <strong>Aperçu avec créneau :</strong>{' '}
+                  <strong style={{ color: crmV2.text }}>Aperçu avec créneau :</strong>{' '}
                   {previewJourJ(data.jour_j_email_body, jourJ.emailAvecCreneau, true)}
                 </div>
               </div>
             ) : null}
-          </div>
+          </EvSubBlock>
         </div>
 
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
-          <CrmV2Button variant="gold" disabled={busy} onClick={() => void save()}>
-            <Save size={14} /> Enregistrer les phrases du jour J
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14, justifyContent: 'flex-end' }}>
+          <CrmV2Button variant="primary" disabled={busy} onClick={() => void save()} icon={<Save size={14} />}>
+            Enregistrer les phrases du jour J
           </CrmV2Button>
         </div>
-        <p style={{ margin: '8px 0 0', fontSize: 11.5, color: crmV2.textMuted }}>
+        <p style={{ margin: '10px 0 0', fontSize: 11.5, color: crmV2.textMuted, lineHeight: 1.5 }}>
           Le texte complet du SMS et de l’email se modifie dans les communications de l’événement (étape « Jour J »).
-          Variables : <code>{'{creneau_debut}'}</code>, <code>{'{creneau_fin}'}</code>, <code>{'{creneau}'}</code>.
+          Variables : <code style={codeStyle}>{'{creneau_debut}'}</code>, <code style={codeStyle}>{'{creneau_fin}'}</code>,{' '}
+          <code style={codeStyle}>{'{creneau}'}</code>.
         </p>
-      </div>
+      </EvCard>
       <style>{`
         @media (max-width: 860px) {
           .event-timeslot-sms-grid { grid-template-columns: 1fr !important; }

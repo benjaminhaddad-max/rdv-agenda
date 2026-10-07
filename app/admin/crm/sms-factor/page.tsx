@@ -1,14 +1,26 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, useCallback } from 'react'
+import Link from 'next/link'
 import {
-  Send, Loader2, Trash2, MessageSquare, Plus, AlertCircle, CheckCircle2,
-  Users, Upload, Link as LinkIcon, FileText, Filter, RefreshCw,
+  Send, Loader2, Trash2, MessageSquare, Plus, AlertTriangle, CheckCircle2,
+  Users, Upload, Link as LinkIcon, FileText, Filter, RefreshCw, ChevronRight,
+  Check, MousePointerClick, Coins, Calendar,
 } from 'lucide-react'
 import CRMFilterBuilder from '@/components/crm/CRMFilterBuilder'
 import { viewToParams } from '@/lib/crm-views'
 import type { CRMFilterGroup } from '@/lib/crm-constants'
 import { SMS_SENDERS } from '@/lib/smsfactor'
+import {
+  CrmV2Body, CrmV2Button, CrmV2Empty, CrmV2Field, CrmV2FormSection, CrmV2Header, CrmV2Input,
+  CrmV2KpiCard, CrmV2KpiGrid, CrmV2Page, CrmV2Pill, CrmV2Search, CrmV2Segmented, CrmV2Select,
+  CrmV2Spinner, CrmV2StatusPill, CrmV2Table, CrmV2TableCard, CrmV2Td, CrmV2Th, CrmV2Toggle, CrmV2Tr,
+} from '@/components/crm-v2/primitives'
+import {
+  V2Banner, V2FieldBlock, V2IconSquare, V2Modal, V2ProgressBar,
+} from '@/components/crm-v2/marketing2/sms-events-tools/ui'
+import { crmV2 } from '@/lib/crm-v2-theme'
+import { useIsMobile } from '@/lib/useIsMobile'
 
 type CampaignType = 'alert' | 'marketing'
 
@@ -54,15 +66,21 @@ type SavedView = {
   preset_flags: Record<string, unknown> | null
 }
 
+const fmtInt = (n: number) => n.toLocaleString('fr-FR')
+const fmtShortDate = (iso: string) =>
+  new Date(iso).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+
 // ─── Page racine ────────────────────────────────────────────────────────────
 
 export default function SMSFactorPage() {
+  const isMobile = useIsMobile()
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [segmentById, setSegmentById] = useState<Record<string, string>>({})
+  const [query, setQuery] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -92,31 +110,83 @@ export default function SMSFactorPage() {
       .catch(() => {})
   }, [])
 
-  return (
-    <div style={{ minHeight: '100vh', background: '#fafbfc', color: '#1a2f4b' }}>
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 24px 80px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
-          <div>
-            <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, marginBottom: 4 }}>SMS Factor</h1>
-            <p style={{ fontSize: 13, color: '#4a6070', margin: 0 }}>
-              Lance des campagnes SMS depuis le CRM. Senders pré-validés, variables dynamiques, tracking par destinataire.
-            </p>
-          </div>
-          <button
-            onClick={() => setCreating(true)}
-            style={{
-              padding: '10px 18px', borderRadius: 8,
-              background: 'linear-gradient(135deg, #2ea3f2, #0038f0)', color: '#fff',
-              fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 6,
-            }}
-          >
-            <Plus size={14} /> Nouvelle campagne SMS
-          </button>
-        </div>
+  // Indicateurs calculés sur les campagnes chargées (50 dernières)
+  const kpis = useMemo(() => {
+    const since = Date.now() - 30 * 24 * 3600 * 1000
+    let credits = 0, sent30 = 0, camp30 = 0, sentAll = 0, failedAll = 0, clicks = 0, tracked = 0
+    for (const c of campaigns) {
+      credits += c.segments_used || 0
+      if (c.sent_at && new Date(c.sent_at).getTime() >= since) {
+        sent30 += c.sent_count || 0
+        camp30++
+      }
+      if (c.status === 'sent' || c.status === 'failed') {
+        sentAll += c.sent_count || 0
+        failedAll += c.failed_count || 0
+      }
+      if (c.tracked_links && c.tracked_links.length > 0) {
+        clicks += c.clicks_total ?? 0
+        tracked += c.tracked_links.length
+      }
+    }
+    const denom = sentAll + failedAll
+    const rate = denom > 0 ? (sentAll / denom) * 100 : null
+    return { credits, sent30, camp30, rate, clicks, tracked }
+  }, [campaigns])
 
-        {error && <div style={banner('error')}><AlertCircle size={16} /> {error}</div>}
-        {success && <div style={banner('success')}><CheckCircle2 size={16} /> {success}</div>}
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return campaigns
+    return campaigns.filter(c =>
+      c.name.toLowerCase().includes(q) || c.sender.toLowerCase().includes(q) || c.message.toLowerCase().includes(q))
+  }, [campaigns, query])
+
+  return (
+    <CrmV2Page>
+      <CrmV2Header
+        title="SMS Factor"
+        subtitle="Campagnes SMS et liens trackés · expéditeurs pré-validés, variables dynamiques, suivi par destinataire"
+        actions={
+          <CrmV2Button variant="primary" icon={<Plus size={14} />} onClick={() => setCreating(true)}>
+            Nouvelle campagne SMS
+          </CrmV2Button>
+        }
+      />
+
+      <CrmV2Body>
+        {error && <V2Banner kind="error">{error}</V2Banner>}
+        {success && <V2Banner kind="success">{success}</V2Banner>}
+
+        <CrmV2KpiGrid>
+          <CrmV2KpiCard
+            label="Crédits consommés"
+            value={fmtInt(kpis.credits)}
+            icon={<Coins size={15} />}
+            color={crmV2.text}
+            detail="segments SMS facturés"
+          />
+          <CrmV2KpiCard
+            label="Envoyés (30 j)"
+            value={fmtInt(kpis.sent30)}
+            icon={<Send size={15} />}
+            color={crmV2.link}
+            detail={`${kpis.camp30} campagne${kpis.camp30 > 1 ? 's' : ''}`}
+          />
+          <CrmV2KpiCard
+            label="Délivrés"
+            value={kpis.rate === null ? '—' : `${kpis.rate.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %`}
+            icon={<Check size={15} />}
+            color={crmV2.success}
+            detail="taux de délivrance"
+          />
+          <CrmV2KpiCard
+            label="Clics"
+            value={fmtInt(kpis.clicks)}
+            icon={<MousePointerClick size={15} />}
+            color={crmV2.gold}
+            detail={`${kpis.tracked} lien${kpis.tracked > 1 ? 's' : ''} tracké${kpis.tracked > 1 ? 's' : ''}`}
+          />
+        </CrmV2KpiGrid>
 
         {creating && (
           <NewCampaignModal
@@ -130,32 +200,66 @@ export default function SMSFactorPage() {
         )}
 
         {/* Liste des campagnes */}
-        {loading ? (
-          <div style={card({ padding: 40, textAlign: 'center' })}>
-            <Loader2 size={24} className="animate-spin" />
-          </div>
-        ) : campaigns.length === 0 ? (
-          <div style={card({ padding: 40, textAlign: 'center' })}>
-            <MessageSquare size={36} style={{ color: '#a89e8a', margin: '0 auto 10px' }} />
-            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>Aucune campagne SMS</div>
-            <div style={{ fontSize: 13, color: '#4a6070' }}>
-              Clique sur « Nouvelle campagne SMS » pour démarrer.
+        <CrmV2TableCard
+          toolbar={
+            <CrmV2Search
+              placeholder="Rechercher une campagne…"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              style={{ flex: isMobile ? 1 : undefined }}
+            />
+          }
+          footer={!loading && campaigns.length > 0 ? (
+            <span>{filtered.length} campagne{filtered.length > 1 ? 's' : ''}{query ? ` sur ${campaigns.length}` : ''}</span>
+          ) : undefined}
+        >
+          {loading ? (
+            <CrmV2Spinner />
+          ) : campaigns.length === 0 ? (
+            <CrmV2Empty
+              icon={<MessageSquare size={26} />}
+              title="Aucune campagne SMS"
+              description="Clique sur « Nouvelle campagne SMS » pour démarrer."
+              action={
+                <CrmV2Button variant="primary" icon={<Plus size={14} />} onClick={() => setCreating(true)}>
+                  Nouvelle campagne SMS
+                </CrmV2Button>
+              }
+            />
+          ) : filtered.length === 0 ? (
+            <div style={{ padding: 28, textAlign: 'center', fontSize: 13, color: crmV2.textMuted }}>
+              Aucune campagne ne correspond à « {query} ».
             </div>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {campaigns.map(c => (
-              <CampaignRow key={c.id} campaign={c} segmentById={segmentById} onChange={load} />
-            ))}
-          </div>
-        )}
-      </div>
-
-      <style jsx>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .animate-spin { animation: spin 1s linear infinite; }
-      `}</style>
-    </div>
+          ) : isMobile ? (
+            <div>
+              {filtered.map(c => (
+                <CampaignRow key={c.id} campaign={c} segmentById={segmentById} onChange={load} mobile />
+              ))}
+            </div>
+          ) : (
+            <CrmV2Table>
+              <thead>
+                <tr>
+                  <CrmV2Th>Campagne SMS</CrmV2Th>
+                  <CrmV2Th>Expéditeur</CrmV2Th>
+                  <CrmV2Th style={{ textAlign: 'right' }}>Destinataires</CrmV2Th>
+                  <CrmV2Th>Délivrés</CrmV2Th>
+                  <CrmV2Th style={{ textAlign: 'right' }}>Clics</CrmV2Th>
+                  <CrmV2Th>Statut</CrmV2Th>
+                  <CrmV2Th>Envoi</CrmV2Th>
+                  <CrmV2Th style={{ width: 1 }}> </CrmV2Th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(c => (
+                  <CampaignRow key={c.id} campaign={c} segmentById={segmentById} onChange={load} />
+                ))}
+              </tbody>
+            </CrmV2Table>
+          )}
+        </CrmV2TableCard>
+      </CrmV2Body>
+    </CrmV2Page>
   )
 }
 
@@ -165,10 +269,12 @@ function CampaignRow({
   campaign,
   segmentById,
   onChange,
+  mobile = false,
 }: {
   campaign: Campaign
   segmentById: Record<string, string>
   onChange: () => void
+  mobile?: boolean
 }) {
   const [sending, setSending] = useState(false)
   const [retrying, setRetrying] = useState(false)
@@ -235,117 +341,217 @@ function CampaignRow({
     return 'Aucun ciblage défini'
   })()
 
-  return (
-    <div style={card({ padding: 14 })}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
-            <strong style={{ fontSize: 14 }}>{campaign.name}</strong>
-            <StatusBadge status={campaign.status} />
-            <TypeBadge type={campaign.campaign_type ?? 'alert'} />
-            {campaign.shorten_links && (
-              <span style={{ fontSize: 10, color: '#0ea5e9', display: 'inline-flex', alignItems: 'center', gap: 2 }}>
-                <LinkIcon size={10} /> liens courts
-              </span>
-            )}
-            {campaign.tracked_links && campaign.tracked_links.length > 0 && (
-              <span style={{ fontSize: 10, color: '#7c3aed', display: 'inline-flex', alignItems: 'center', gap: 2 }} title={`${campaign.tracked_links.length} lien(s) tracké(s)`}>
-                <LinkIcon size={10} /> {campaign.tracked_links.length} lien{campaign.tracked_links.length > 1 ? 's' : ''} tracké{campaign.tracked_links.length > 1 ? 's' : ''}
-              </span>
-            )}
-            <span style={{ fontSize: 10, color: '#a89e8a' }}>
-              {new Date(campaign.created_at).toLocaleString('fr-FR')}
+  const hasTracked = !!campaign.tracked_links && campaign.tracked_links.length > 0
+  const isSent = campaign.status === 'sent'
+  const deliveredPct = isSent && campaign.total_recipients > 0
+    ? (campaign.sent_count / campaign.total_recipients) * 100
+    : null
+  const sendLabel = campaign.sent_at
+    ? fmtShortDate(campaign.sent_at)
+    : campaign.scheduled_at ? fmtShortDate(campaign.scheduled_at) : '—'
+
+  // Actions (Envoyer / Renvoyer / Supprimer) : logique d'origine
+  const actions = (
+    <div onClick={e => e.stopPropagation()} style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', flexShrink: 0 }}>
+      {(campaign.status === 'draft' || campaign.status === 'scheduled') && (
+        <CrmV2Button
+          variant="primary" size="sm" onClick={handleSend} disabled={sending}
+          icon={sending ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+          style={mobile ? { minHeight: 40 } : undefined}
+        >
+          {sending ? 'Envoi…' : 'Envoyer'}
+        </CrmV2Button>
+      )}
+      {(campaign.status === 'sent' || campaign.status === 'failed') && (
+        <CrmV2Button
+          variant="secondary" size="sm" onClick={handleRetry} disabled={retrying} title="Reset + renvoi immediat"
+          icon={retrying ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+          style={mobile ? { minHeight: 40 } : undefined}
+        >
+          {retrying ? 'Renvoi…' : 'Renvoyer'}
+        </CrmV2Button>
+      )}
+      {campaign.status !== 'sending' && (
+        <CrmV2Button
+          variant="danger" size="sm" onClick={handleDelete} title="Supprimer" aria-label="Supprimer"
+          style={{ padding: mobile ? 0 : '6px 9px', ...(mobile ? { width: 40, height: 40 } : {}) }}
+        >
+          <Trash2 size={13} />
+        </CrmV2Button>
+      )}
+    </div>
+  )
+
+  // Détail déplié : message complet, ciblage, statistiques, liens
+  const detail = (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 13 }}>
+      <div style={{
+        background: crmV2.bgSoft, border: `1px solid ${crmV2.border}`, borderRadius: 12, padding: '10px 12px',
+        color: crmV2.text, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+      }}>
+        {campaign.message}
+      </div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', fontSize: 12, color: crmV2.textMuted }}>
+        <TypeBadge type={campaign.campaign_type ?? 'alert'} />
+        {campaign.shorten_links && (
+          <CrmV2StatusPill label={<><LinkIcon size={11} /> liens courts</>} color={crmV2.link} dot={false} />
+        )}
+        {hasTracked && (
+          <span title={`${campaign.tracked_links!.length} lien(s) tracké(s)`}>
+            <CrmV2StatusPill
+              label={<><LinkIcon size={11} /> {campaign.tracked_links!.length} lien{campaign.tracked_links!.length > 1 ? 's' : ''} tracké{campaign.tracked_links!.length > 1 ? 's' : ''}</>}
+              color="#7e22ce" dot={false}
+            />
+          </span>
+        )}
+        <span>Expéditeur : <strong style={{ color: crmV2.text }}>{campaign.sender}</strong></span>
+        <span>Créée le {new Date(campaign.created_at).toLocaleString('fr-FR')}</span>
+      </div>
+      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 12, color: crmV2.textMuted }}>
+        {isSent ? (
+          <>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <Users size={13} /> {campaign.sent_count}/{campaign.total_recipients} envoyés
             </span>
-          </div>
-          <div style={{ fontSize: 12, color: '#4a6070', marginBottom: 6, lineHeight: 1.5 }}>
-            {expanded ? campaign.message : (campaign.message.length > 140 ? campaign.message.slice(0, 140) + '…' : campaign.message)}
-            {campaign.message.length > 140 && (
-              <button onClick={() => setExpanded(e => !e)} style={{ marginLeft: 6, background: 'none', border: 'none', color: '#2ea3f2', cursor: 'pointer', fontSize: 11, padding: 0 }}>
-                {expanded ? 'Réduire' : 'Voir tout'}
-              </button>
-            )}
-          </div>
-          <div style={{ display: 'flex', gap: 12, fontSize: 11, color: '#4a6070', flexWrap: 'wrap' }}>
-            <span><strong>Sender:</strong> {campaign.sender}</span>
-            {campaign.status === 'sent' ? (
-              <>
-                <span><Users size={11} style={{ display: 'inline', verticalAlign: -1 }} /> {campaign.sent_count}/{campaign.total_recipients} envoyés</span>
-                {campaign.failed_count > 0 && <span style={{ color: '#dc2626' }}>{campaign.failed_count} échecs</span>}
-                <span>{campaign.segments_used} segments</span>
-                {campaign.tracked_links && campaign.tracked_links.length > 0 && (
-                  <span style={{ color: '#7c3aed', fontWeight: 600 }} title={`${campaign.clicked_recipients ?? 0} destinataire(s) ont cliqué`}>
-                    <LinkIcon size={11} style={{ display: 'inline', verticalAlign: -1 }} /> {campaign.clicks_total ?? 0} clic{(campaign.clicks_total ?? 0) > 1 ? 's' : ''}
-                    {campaign.clicked_recipients !== undefined && campaign.clicked_recipients > 0 && (
-                      <span style={{ color: '#a89e8a', fontWeight: 400 }}> ({campaign.clicked_recipients} destinataire{campaign.clicked_recipients > 1 ? 's' : ''})</span>
-                    )}
-                  </span>
+            {campaign.failed_count > 0 && <span style={{ color: '#d13a41', fontWeight: 600 }}>{campaign.failed_count} échecs</span>}
+            <span>{campaign.segments_used} segments</span>
+            {hasTracked && (
+              <span style={{ color: '#7e22ce', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }} title={`${campaign.clicked_recipients ?? 0} destinataire(s) ont cliqué`}>
+                <LinkIcon size={13} /> {campaign.clicks_total ?? 0} clic{(campaign.clicks_total ?? 0) > 1 ? 's' : ''}
+                {campaign.clicked_recipients !== undefined && campaign.clicked_recipients > 0 && (
+                  <span style={{ color: crmV2.textFaint, fontWeight: 400 }}> ({campaign.clicked_recipients} destinataire{campaign.clicked_recipients > 1 ? 's' : ''})</span>
                 )}
-              </>
-            ) : (
-              <>
-                <span>{targetingLabel}</span>
-                {campaign.status === 'scheduled' && campaign.scheduled_at && (
-                  <span style={{ color: '#f59e0b' }}>
-                    Programmée pour le {new Date(campaign.scheduled_at).toLocaleString('fr-FR')}
-                  </span>
-                )}
-              </>
+              </span>
             )}
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-          {(campaign.status === 'draft' || campaign.status === 'scheduled') && (
-            <button onClick={handleSend} disabled={sending} style={btn('primary')}>
-              {sending ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
-              {sending ? 'Envoi…' : 'Envoyer'}
-            </button>
-          )}
-          {(campaign.status === 'sent' || campaign.status === 'failed') && (
-            <button onClick={handleRetry} disabled={retrying} style={btn('secondary')} title="Reset + renvoi immediat">
-              {retrying ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-              {retrying ? 'Renvoi…' : 'Renvoyer'}
-            </button>
-          )}
-          {campaign.status !== 'sending' && (
-            <button onClick={handleDelete} style={btn('danger')}>
-              <Trash2 size={12} />
-            </button>
-          )}
-        </div>
+          </>
+        ) : (
+          <>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Filter size={13} /> {targetingLabel}</span>
+            {campaign.status === 'scheduled' && campaign.scheduled_at && (
+              <span style={{ color: crmV2.goldDark, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <Calendar size={13} /> Programmée pour le {new Date(campaign.scheduled_at).toLocaleString('fr-FR')}
+              </span>
+            )}
+          </>
+        )}
       </div>
     </div>
+  )
+
+  const toggle = () => setExpanded(e => !e)
+  const chevron = (
+    <ChevronRight
+      size={14} color={crmV2.textFaint}
+      style={{ transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform .15s', flexShrink: 0 }}
+    />
+  )
+
+  if (mobile) {
+    // Mobile : une ligne par campagne, le détail se déplie au toucher
+    return (
+      <div style={{ borderBottom: `1px solid ${crmV2.border}` }}>
+        <div
+          onClick={toggle}
+          style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', minHeight: 56, cursor: 'pointer' }}
+        >
+          <V2IconSquare><MessageSquare size={14} /></V2IconSquare>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: crmV2.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {campaign.name}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2, fontSize: 11, color: crmV2.textMuted, whiteSpace: 'nowrap', overflow: 'hidden' }}>
+              <StatusBadge status={campaign.status} />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {deliveredPct !== null ? `${Math.round(deliveredPct)} % délivrés` : sendLabel}
+              </span>
+            </div>
+          </div>
+          {chevron}
+        </div>
+        {expanded && (
+          <div style={{ padding: '0 12px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {detail}
+            {actions}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <Fragment>
+      <CrmV2Tr onClick={toggle}>
+        <CrmV2Td>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+            {chevron}
+            <V2IconSquare><MessageSquare size={14} /></V2IconSquare>
+            <div style={{ minWidth: 0 }}>
+              <div
+                title={campaign.message}
+                style={{ fontWeight: 700, color: crmV2.link, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 320 }}
+              >
+                {campaign.name}
+              </div>
+            </div>
+            <TypeBadge type={campaign.campaign_type ?? 'alert'} />
+          </div>
+        </CrmV2Td>
+        <CrmV2Td><CrmV2Pill>{campaign.sender}</CrmV2Pill></CrmV2Td>
+        <CrmV2Td style={{ textAlign: 'right', fontWeight: 600 }}>
+          {campaign.total_recipients ? fmtInt(campaign.total_recipients) : '—'}
+        </CrmV2Td>
+        <CrmV2Td>
+          {deliveredPct !== null ? (
+            <span title={`${campaign.sent_count}/${campaign.total_recipients} envoyés${campaign.failed_count > 0 ? ` · ${campaign.failed_count} échecs` : ''}`}>
+              <V2ProgressBar
+                pct={deliveredPct}
+                color={deliveredPct >= 90 ? crmV2.success : deliveredPct >= 70 ? crmV2.gold : crmV2.danger}
+              />
+            </span>
+          ) : <span style={{ color: crmV2.textFaint }}>—</span>}
+        </CrmV2Td>
+        <CrmV2Td style={{ textAlign: 'right', fontWeight: 600 }}>
+          {hasTracked ? fmtInt(campaign.clicks_total ?? 0) : <span style={{ color: crmV2.textFaint, fontWeight: 400 }}>—</span>}
+        </CrmV2Td>
+        <CrmV2Td><StatusBadge status={campaign.status} /></CrmV2Td>
+        <CrmV2Td style={{ color: crmV2.textMuted, whiteSpace: 'nowrap' }}>{sendLabel}</CrmV2Td>
+        <CrmV2Td>{actions}</CrmV2Td>
+      </CrmV2Tr>
+      {expanded && (
+        <tr>
+          <td colSpan={8} style={{ padding: '10px 14px 14px 52px', borderBottom: `1px solid ${crmV2.border}`, background: crmV2.bg }}>
+            {detail}
+          </td>
+        </tr>
+      )}
+    </Fragment>
   )
 }
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { color: string; label: string }> = {
-    draft:     { color: '#4a6070', label: 'Brouillon' },
-    scheduled: { color: '#f59e0b', label: 'Programmée' },
-    sending:   { color: '#2ea3f2', label: 'En cours…' },
-    sent:      { color: '#22c55e', label: 'Envoyée' },
-    failed:    { color: '#dc2626', label: 'Échec' },
-    paused:    { color: '#a89e8a', label: 'Pause' },
-    archived:  { color: '#a89e8a', label: 'Archivée' },
+    draft:     { color: crmV2.textMuted, label: 'Brouillon' },
+    scheduled: { color: crmV2.info, label: 'Programmée' },
+    sending:   { color: crmV2.link, label: 'En cours…' },
+    sent:      { color: crmV2.successStrong, label: 'Envoyée' },
+    failed:    { color: '#d13a41', label: 'Échec' },
+    paused:    { color: crmV2.textFaint, label: 'Pause' },
+    archived:  { color: crmV2.textFaint, label: 'Archivée' },
   }
-  const m = map[status] || { color: '#a89e8a', label: status }
-  return (
-    <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 999, background: m.color + '22', color: m.color, fontSize: 10, fontWeight: 600 }}>
-      {m.label}
-    </span>
-  )
+  const m = map[status] || { color: crmV2.textFaint, label: status }
+  return <CrmV2StatusPill label={m.label} color={m.color} />
 }
 
 function TypeBadge({ type }: { type: CampaignType }) {
   const isMkt = type === 'marketing'
   return (
-    <span style={{
-      display: 'inline-block', padding: '2px 8px', borderRadius: 999,
-      background: isMkt ? '#fef3c7' : '#dbeafe',
-      color: isMkt ? '#b45309' : '#1d4ed8',
-      fontSize: 10, fontWeight: 600,
-    }}>
-      {isMkt ? 'Marketing' : 'Transactionnel'}
-    </span>
+    <CrmV2StatusPill
+      label={isMkt ? 'Marketing' : 'Transactionnel'}
+      color={isMkt ? crmV2.goldDark : crmV2.link}
+      bg={isMkt ? crmV2.goldSoft : 'rgba(0,145,174,0.08)'}
+      dot={false}
+      style={{ fontSize: 11 }}
+    />
   )
 }
 
@@ -355,10 +561,18 @@ type TargetingMode = 'filters' | 'view' | 'segment' | 'phones'
 
 type AudienceSegment = { id: string; name: string; contact_count?: number | null }
 
+/** Champ multi-lignes V2 (le message a besoin d'une ref pour l'insertion au curseur). */
+const textareaStyle: React.CSSProperties = {
+  width: '100%', boxSizing: 'border-box', minHeight: 110, padding: '10px 12px', lineHeight: 1.5,
+  border: `1px solid ${crmV2.borderStrong}`, borderRadius: crmV2.radius, fontSize: 13, fontFamily: 'inherit',
+  color: crmV2.text, background: crmV2.bg, outline: 'none', resize: 'vertical',
+}
+
 function NewCampaignModal({ onClose, onCreated }: {
   onClose: () => void
   onCreated: () => void
 }) {
+  const isMobile = useIsMobile()
   const [name, setName] = useState('')
   const [message, setMessage] = useState('')
   const [sender, setSender] = useState('DiploSante')
@@ -632,514 +846,361 @@ function NewCampaignModal({ onClose, onCreated }: {
     }
   }
 
+  const modeLabel = (icon: React.ReactNode, text: string) => (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>{icon}{text}</span>
+  )
+
   return (
-    <div
-      onClick={onClose}
-      style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(15,23,42,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+    <V2Modal
+      title="Nouvelle campagne SMS"
+      subtitle={<>Variables disponibles : {'{firstname}'}, {'{prenom}'}</>}
+      onClose={onClose}
+      footer={
+        <>
+          {err && (
+            <span style={{ marginRight: 'auto', color: '#d13a41', fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <AlertTriangle size={14} /> {err}
+            </span>
+          )}
+          <CrmV2Button variant="secondary" onClick={onClose} disabled={submitting}>
+            Annuler
+          </CrmV2Button>
+          <CrmV2Button
+            variant="primary" onClick={handleSubmit} disabled={submitting}
+            icon={submitting ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+          >
+            Créer la campagne
+          </CrmV2Button>
+        </>
+      }
     >
-      <div
-        onClick={e => e.stopPropagation()}
-        style={{
-          background: '#fff', borderRadius: 12, width: '100%', maxWidth: 720,
-          maxHeight: '92vh', display: 'flex', flexDirection: 'column',
-          boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
-        }}
-      >
-        {/* Header */}
-        <div style={{
-          padding: '16px 20px', borderBottom: '1px solid #e5ddc8',
-          background: 'linear-gradient(135deg, #2ea3f2, #0038f0)',
-          color: '#fff', borderRadius: '12px 12px 0 0',
-        }}>
-          <div style={{ fontSize: 16, fontWeight: 700 }}>Nouvelle campagne SMS</div>
-          <div style={{ fontSize: 11, opacity: 0.9 }}>Variables disponibles : {'{firstname}'}, {'{prenom}'}</div>
+      {/* ─── Campagne ─────────────────────────────────────────────────── */}
+      <CrmV2FormSection title="Campagne" description="Nom interne, expéditeur et type d'envoi.">
+        <CrmV2Field label="Nom de la campagne (interne)" span={2}>
+          <CrmV2Input
+            type="text" value={name} onChange={e => setName(e.target.value)}
+            placeholder="Ex: Relance pré-inscrits PASS - mai 2025"
+          />
+        </CrmV2Field>
+
+        <CrmV2Field label="Expéditeur" hint="Pré-validés chez SMS Factor.">
+          <CrmV2Select value={sender} onChange={e => setSender(e.target.value)}>
+            {SMS_SENDERS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+          </CrmV2Select>
+        </CrmV2Field>
+
+        <V2FieldBlock
+          label="Type de SMS"
+          hint={campaignType === 'marketing'
+            ? 'Envoi 8h–20h L–S uniquement. Mention STOP ajoutée auto par SMS Factor.'
+            : 'Pas de fenêtre horaire ni mention STOP.'}
+        >
+          <CrmV2Segmented<CampaignType>
+            stretch
+            items={[{ id: 'alert', label: 'Transactionnel' }, { id: 'marketing', label: 'Marketing' }]}
+            value={campaignType}
+            onChange={setCampaignType}
+          />
+        </V2FieldBlock>
+      </CrmV2FormSection>
+
+      {/* ─── Message ──────────────────────────────────────────────────── */}
+      <CrmV2FormSection title="Message" columns={1}>
+        <V2FieldBlock label="Texte du SMS">
+          <textarea
+            ref={messageRef}
+            value={message} onChange={e => setMessage(e.target.value)}
+            placeholder="Bonjour {firstname}, je vous recontacte au sujet de votre inscription chez Diploma Santé…"
+            rows={5}
+            style={textareaStyle}
+          />
+          <div style={{ display: 'flex', gap: 12, fontSize: 12, color: crmV2.textMuted, flexWrap: 'wrap' }}>
+            <span>{charCount} caractères</span>
+            <span>{segments} segment{segments > 1 ? 's' : ''} facturé{segments > 1 ? 's' : ''}</span>
+            {segments > 3 && <span style={{ color: '#b45309', fontWeight: 600 }}>Coût élevé</span>}
+            {detectedUrls.length > 0 && (
+              <span style={{ color: crmV2.link, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <LinkIcon size={12} /> {detectedUrls.length} URL détectée{detectedUrls.length > 1 ? 's' : ''}
+              </span>
+            )}
+            {trackedLinks.length > 0 && (
+              <span style={{ color: '#7e22ce' }}>
+                {trackedLinks.length} lien{trackedLinks.length > 1 ? 's' : ''} tracké{trackedLinks.length > 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+        </V2FieldBlock>
+
+        {/* ─── Bouton + formulaire d'insertion de lien tracké ──────── */}
+        <div>
+          <CrmV2Button
+            variant={linkFormOpen ? 'gold' : 'secondary'} size="sm"
+            icon={<LinkIcon size={13} />}
+            onClick={() => setLinkFormOpen(o => !o)}
+          >
+            Insérer un lien
+          </CrmV2Button>
         </div>
 
-        {/* Body */}
-        <div style={{ padding: 20, overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 14 }}>
-
-          <Field label="Nom de la campagne (interne)">
-            <input
-              type="text" value={name} onChange={e => setName(e.target.value)}
-              placeholder="Ex: Relance pré-inscrits PASS - mai 2025"
-              style={input}
-            />
-          </Field>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <Field label="Sender">
-              <select value={sender} onChange={e => setSender(e.target.value)} style={input}>
-                {SMS_SENDERS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-              </select>
-              <div style={{ fontSize: 10, color: '#a89e8a', marginTop: 4 }}>
-                Pré-validés chez SMS Factor.
-              </div>
-            </Field>
-
-            <Field label="Type de SMS">
+        {linkFormOpen && (
+          <div style={{
+            padding: 14, border: `1px dashed ${crmV2.borderStrong}`, borderRadius: 12, background: crmV2.bgHover,
+            display: 'flex', flexDirection: 'column', gap: 12,
+          }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr', gap: 12 }}>
+              <CrmV2Field label="URL de destination">
+                <CrmV2Input
+                  type="text"
+                  value={linkFormUrl}
+                  onChange={e => setLinkFormUrl(e.target.value)}
+                  placeholder="https://www.diploma-sante.fr/inscription"
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddLink() } }}
+                />
+              </CrmV2Field>
+              <CrmV2Field label="Libellé (optionnel)">
+                <CrmV2Input
+                  type="text"
+                  value={linkFormLabel}
+                  onChange={e => setLinkFormLabel(e.target.value)}
+                  placeholder="Page inscription"
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddLink() } }}
+                />
+              </CrmV2Field>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <CrmV2Toggle
+                checked={linkFormTracked}
+                onChange={setLinkFormTracked}
+                label="Tracker les clics par contact"
+              />
               <div style={{ display: 'flex', gap: 6 }}>
-                <TypePill
-                  active={campaignType === 'alert'}
-                  onClick={() => setCampaignType('alert')}
-                  label="Transactionnel"
-                />
-                <TypePill
-                  active={campaignType === 'marketing'}
-                  onClick={() => setCampaignType('marketing')}
-                  label="Marketing"
-                />
+                <CrmV2Button
+                  variant="secondary" size="sm"
+                  onClick={() => { setLinkFormOpen(false); setLinkFormUrl(''); setLinkFormLabel('') }}
+                >
+                  Annuler
+                </CrmV2Button>
+                <CrmV2Button variant="primary" size="sm" onClick={handleAddLink} disabled={!linkFormUrl.trim()}>
+                  Insérer
+                </CrmV2Button>
               </div>
-              <div style={{ fontSize: 10, color: '#a89e8a', marginTop: 4 }}>
-                {campaignType === 'marketing'
-                  ? 'Envoi 8h–20h L–S uniquement. Mention STOP ajoutée auto par SMS Factor.'
-                  : 'Pas de fenêtre horaire ni mention STOP.'}
-              </div>
-            </Field>
+            </div>
+            <div style={{ fontSize: 12, color: crmV2.textMuted, lineHeight: 1.5 }}>
+              Le lien sera inséré dans le message sous forme de tag (ex: <code style={{ background: crmV2.bg, padding: '1px 5px', borderRadius: 4, border: `1px solid ${crmV2.border}` }}>{'{lien1}'}</code>).
+              Au moment de l&apos;envoi, chaque destinataire reçoit une URL courte unique
+              qui redirige vers ta destination. {linkFormTracked
+                ? 'Tu pourras voir qui a cliqué dans le détail de la campagne.'
+                : 'Les clics ne seront pas tracés (URL d\'origine envoyée telle quelle).'}
+            </div>
           </div>
+        )}
 
-          <Field label="Message">
-            <textarea
-              ref={messageRef}
-              value={message} onChange={e => setMessage(e.target.value)}
-              placeholder="Bonjour {firstname}, je vous recontacte au sujet de votre inscription chez Diploma Santé…"
-              rows={5}
-              style={{ ...input, fontFamily: 'inherit', resize: 'vertical' }}
-            />
-            <div style={{ display: 'flex', gap: 12, fontSize: 11, color: '#4a6070', marginTop: 4, flexWrap: 'wrap' }}>
-              <span>{charCount} caractères</span>
-              <span>{segments} segment{segments > 1 ? 's' : ''} facturé{segments > 1 ? 's' : ''}</span>
-              {segments > 3 && <span style={{ color: '#f59e0b' }}>Coût élevé</span>}
-              {detectedUrls.length > 0 && (
-                <span style={{ color: '#0ea5e9' }}>
-                  <LinkIcon size={11} style={{ display: 'inline', verticalAlign: -1 }} /> {detectedUrls.length} URL détectée{detectedUrls.length > 1 ? 's' : ''}
-                </span>
-              )}
-              {trackedLinks.length > 0 && (
-                <span style={{ color: '#7c3aed' }}>
-                  {trackedLinks.length} lien{trackedLinks.length > 1 ? 's' : ''} tracké{trackedLinks.length > 1 ? 's' : ''}
-                </span>
-              )}
-            </div>
-
-            {/* ─── Bouton + formulaire d'insertion de lien tracké ──────── */}
-            <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                onClick={() => setLinkFormOpen(o => !o)}
-                style={{
-                  background: linkFormOpen ? '#f0e9da' : '#f7f4ee',
-                  border: `1px solid ${linkFormOpen ? '#2ea3f2' : '#e5ddc8'}`,
-                  borderRadius: 6,
-                  padding: '6px 10px',
-                  fontSize: 12,
-                  fontWeight: 500,
-                  color: '#0e1e35',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 5,
-                }}
-              >
-                <LinkIcon size={12} /> Insérer un lien
-              </button>
-            </div>
-
-            {linkFormOpen && (
-              <div style={{
-                marginTop: 8,
-                padding: 12,
-                border: '1px dashed #cbd5e1',
-                borderRadius: 8,
-                background: '#f7f4ee',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 8,
-              }}>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <div style={{ flex: '2 1 240px', minWidth: 200 }}>
-                    <label style={{ fontSize: 11, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 3 }}>
-                      URL de destination
-                    </label>
-                    <input
-                      type="text"
-                      value={linkFormUrl}
-                      onChange={e => setLinkFormUrl(e.target.value)}
-                      placeholder="https://www.diploma-sante.fr/inscription"
-                      style={input}
-                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddLink() } }}
-                    />
-                  </div>
-                  <div style={{ flex: '1 1 160px', minWidth: 140 }}>
-                    <label style={{ fontSize: 11, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 3 }}>
-                      Libellé (optionnel)
-                    </label>
-                    <input
-                      type="text"
-                      value={linkFormLabel}
-                      onChange={e => setLinkFormLabel(e.target.value)}
-                      placeholder="Page inscription"
-                      style={input}
-                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddLink() } }}
-                    />
-                  </div>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#0e1e35', cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={linkFormTracked}
-                      onChange={e => setLinkFormTracked(e.target.checked)}
-                    />
-                    Tracker les clics par contact
-                  </label>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button
-                      type="button"
-                      onClick={() => { setLinkFormOpen(false); setLinkFormUrl(''); setLinkFormLabel('') }}
-                      style={{ background: 'transparent', border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 10px', fontSize: 12, color: '#475569', cursor: 'pointer' }}
-                    >
-                      Annuler
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleAddLink}
-                      disabled={!linkFormUrl.trim()}
-                      style={{
-                        background: linkFormUrl.trim() ? 'linear-gradient(135deg, #2ea3f2, #0038f0)' : '#cbd5e1',
-                        color: '#fff',
-                        border: 'none',
-                        borderRadius: 6,
-                        padding: '6px 12px',
-                        fontSize: 12,
-                        fontWeight: 600,
-                        cursor: linkFormUrl.trim() ? 'pointer' : 'not-allowed',
-                      }}
-                    >
-                      Insérer
-                    </button>
-                  </div>
-                </div>
-                <div style={{ fontSize: 11, color: '#4a6070', lineHeight: 1.5 }}>
-                  Le lien sera inséré dans le message sous forme de tag (ex: <code style={{ background: '#fff', padding: '1px 4px', borderRadius: 3 }}>{'{lien1}'}</code>).
-                  Au moment de l'envoi, chaque destinataire reçoit une URL courte unique
-                  qui redirige vers ta destination. {linkFormTracked
-                    ? 'Tu pourras voir qui a cliqué dans le détail de la campagne.'
-                    : 'Les clics ne seront pas tracés (URL d\'origine envoyée telle quelle).'}
-                </div>
-              </div>
-            )}
-
-            {/* ─── Liste des liens trackés déjà insérés ─────────────────── */}
-            {trackedLinks.length > 0 && (
-              <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {trackedLinks.map(l => {
-                  const isInMessage = message.includes(l.placeholder)
-                  return (
-                    <div
-                      key={l.placeholder}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        padding: '6px 10px',
-                        border: `1px solid ${isInMessage ? '#e5ddc8' : '#fde68a'}`,
-                        background: isInMessage ? '#fff' : '#fffbeb',
-                        borderRadius: 6,
-                        fontSize: 12,
-                      }}
-                    >
-                      <code style={{ background: '#f7f4ee', padding: '1px 6px', borderRadius: 4, color: '#7c3aed', fontWeight: 600 }}>
-                        {l.placeholder}
-                      </code>
-                      <span style={{ color: '#4a6070', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={l.url}>
-                        {l.url}
-                      </span>
-                      {l.label && <span style={{ color: '#a89e8a', fontStyle: 'italic' }}>({l.label})</span>}
-                      <span style={{
-                        fontSize: 10,
-                        fontWeight: 600,
-                        padding: '2px 6px',
-                        borderRadius: 999,
-                        background: l.tracked ? '#dbeafe' : '#f7f4ee',
-                        color: l.tracked ? '#1d4ed8' : '#4a6070',
-                      }}>
-                        {l.tracked ? 'tracké' : 'brut'}
-                      </span>
-                      {!isInMessage && (
-                        <span style={{ fontSize: 10, color: '#b45309', fontWeight: 600 }} title="Le tag a été supprimé du message — il ne sera pas envoyé">
-                          ⚠ retiré du message
-                        </span>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveLink(l.placeholder)}
-                        style={{ background: 'transparent', border: 'none', color: '#dc2626', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}
-                        title="Supprimer ce lien"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-
-            {detectedUrls.length > 0 && (
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 12, color: '#0e1e35', cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={shortenLinks}
-                  onChange={e => setShortenLinks(e.target.checked)}
-                />
-                Raccourcir automatiquement les liens (SMS Factor URL Shortener)
-              </label>
-            )}
-          </Field>
-
-          {/* Planification */}
-          <div style={{ borderTop: '1px solid #e5ddc8', paddingTop: 14 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#4a6070', textTransform: 'uppercase', marginBottom: 8 }}>
-              Planification
-            </div>
-            <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
-              <TypePill
-                active={scheduleMode === 'now'}
-                onClick={() => setScheduleMode('now')}
-                label="Envoi immédiat"
-              />
-              <TypePill
-                active={scheduleMode === 'later'}
-                onClick={() => setScheduleMode('later')}
-                label="Programmer"
-              />
-            </div>
-            {scheduleMode === 'later' && (
-              <Field label="Date et heure d'envoi (Europe/Paris)">
-                <input
-                  type="datetime-local"
-                  value={scheduledAt}
-                  onChange={e => setScheduledAt(e.target.value)}
-                  min={new Date(Date.now() + 5 * 60 * 1000).toISOString().slice(0, 16)}
-                  style={input}
-                />
-                <div style={{ fontSize: 10, color: '#a89e8a', marginTop: 4 }}>
-                  La campagne sera envoyée automatiquement par le cron (vérifie toutes les minutes).
-                  {campaignType === 'marketing' && <> Marketing : envoi limité à 8h–20h L–S.</>}
-                </div>
-              </Field>
-            )}
-            {scheduleMode === 'now' && (
-              <div style={{ fontSize: 11, color: '#4a6070' }}>
-                La campagne sera créée en brouillon. Clique « Envoyer » dans la liste pour déclencher l&apos;envoi.
-              </div>
-            )}
-          </div>
-
-          {/* Ciblage */}
-          <div style={{ borderTop: '1px solid #e5ddc8', paddingTop: 14 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#4a6070', textTransform: 'uppercase', marginBottom: 8 }}>
-              Ciblage
-            </div>
-
-            <div style={{ display: 'flex', gap: 4, marginBottom: 12, background: '#f7f4ee', padding: 4, borderRadius: 8 }}>
-              <ModeTab icon={<Filter size={12} />} active={mode === 'filters'} onClick={() => setMode('filters')}>Filtres CRM</ModeTab>
-              <ModeTab icon={<Users size={12} />} active={mode === 'segment'} onClick={() => setMode('segment')}>Segment</ModeTab>
-              <ModeTab icon={<FileText size={12} />} active={mode === 'view'} onClick={() => setMode('view')}>Vue sauvegardée</ModeTab>
-              <ModeTab icon={<Upload size={12} />} active={mode === 'phones'} onClick={() => setMode('phones')}>Numéros</ModeTab>
-            </div>
-
-            {mode === 'segment' && (
-              <div style={{ marginBottom: 12 }}>
-                <Field label="Segments / listes">
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
-                    {audienceSegments.length === 0 ? (
-                      <div style={{ fontSize: 12, color: '#4a6070' }}>
-                        Aucun segment. <a href="/admin/crm/campaigns/segments" style={{ color: '#0038f0' }}>Créer un segment</a>
-                      </div>
-                    ) : audienceSegments.map(s => {
-                      const sel = selectedSegmentIds.includes(s.id)
-                      return (
-                        <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer', padding: '6px 8px', borderRadius: 6, border: `1px solid ${sel ? '#0038f0' : '#e5ddc8'}`, background: sel ? 'rgba(46,163,242,0.06)' : '#fff' }}>
-                          <input
-                            type="checkbox"
-                            checked={sel}
-                            onChange={() => setSelectedSegmentIds(prev => sel ? prev.filter(x => x !== s.id) : [...prev, s.id])}
-                          />
-                          <span style={{ flex: 1 }}>{s.name}</span>
-                          {typeof s.contact_count === 'number' && <span style={{ color: '#4a6070' }}>~{s.contact_count}</span>}
-                        </label>
-                      )
-                    })}
-                  </div>
-                </Field>
-              </div>
-            )}
-
-            {mode === 'view' && (
-              <div style={{ marginBottom: 12 }}>
-                <Field label="Choisir une vue">
-                  <select value={selectedViewId} onChange={e => setSelectedViewId(e.target.value)} style={input}>
-                    <option value="">— Sélectionner —</option>
-                    {views.map(v => (
-                      <option key={v.id} value={v.id}>{v.name}</option>
-                    ))}
-                  </select>
-                </Field>
-                <div style={{ fontSize: 10, color: '#a89e8a', marginTop: 4 }}>
-                  Les filtres sont préchargés et éditables ci-dessous.
-                </div>
-              </div>
-            )}
-
-            {(mode === 'filters' || mode === 'view') && (
-              <CRMFilterBuilder groups={filterGroups} onChange={setFilterGroups} />
-            )}
-
-            {mode === 'phones' && (
-              <div>
-                <Field label="Coller des numéros (un par ligne ou séparés par , ; espace)">
-                  <textarea
-                    value={phonesText}
-                    onChange={e => setPhonesText(e.target.value)}
-                    placeholder="0612345678&#10;+33623456789&#10;0033634567890"
-                    rows={6}
-                    style={{ ...input, fontFamily: 'monospace', fontSize: 11, resize: 'vertical' }}
+        {/* ─── Liste des liens trackés déjà insérés ─────────────────── */}
+        {trackedLinks.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {trackedLinks.map(l => {
+              const isInMessage = message.includes(l.placeholder)
+              return (
+                <div
+                  key={l.placeholder}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', minHeight: 40, boxSizing: 'border-box',
+                    border: `1px solid ${isInMessage ? crmV2.border : 'rgba(180,83,9,0.35)'}`,
+                    background: isInMessage ? crmV2.bg : 'rgba(180,83,9,0.05)',
+                    borderRadius: crmV2.radius, fontSize: 12,
+                  }}
+                >
+                  <code style={{ background: 'rgba(126,34,206,0.08)', padding: '1px 6px', borderRadius: 6, color: '#7e22ce', fontWeight: 700 }}>
+                    {l.placeholder}
+                  </code>
+                  <span style={{ color: crmV2.textMuted, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={l.url}>
+                    {l.url}
+                  </span>
+                  {l.label && !isMobile && <span style={{ color: crmV2.textFaint, fontStyle: 'italic' }}>({l.label})</span>}
+                  <CrmV2StatusPill
+                    label={l.tracked ? 'tracké' : 'brut'}
+                    color={l.tracked ? crmV2.link : crmV2.textMuted}
+                    dot={false}
+                    style={{ fontSize: 11 }}
                   />
-                </Field>
-
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".csv,.txt,text/csv,text/plain"
-                    onChange={handleFileUpload}
-                    style={{ display: 'none' }}
-                  />
+                  {!isInMessage && (
+                    <span style={{ fontSize: 11, color: '#b45309', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 3, whiteSpace: 'nowrap' }} title="Le tag a été supprimé du message — il ne sera pas envoyé">
+                      <AlertTriangle size={12} /> retiré du message
+                    </span>
+                  )}
                   <button
                     type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    style={{ ...btn('secondary'), gap: 6 }}
+                    onClick={() => handleRemoveLink(l.placeholder)}
+                    style={{ background: 'transparent', border: 'none', color: '#d13a41', cursor: 'pointer', padding: 6, display: 'flex', alignItems: 'center', borderRadius: 999 }}
+                    title="Supprimer ce lien"
+                    aria-label="Supprimer ce lien"
                   >
-                    <Upload size={12} /> Charger un fichier CSV/TXT
+                    <Trash2 size={14} />
                   </button>
-                  {phonesText && (
-                    <button type="button" onClick={() => setPhonesText('')} style={btn('secondary')}>
-                      Effacer
-                    </button>
-                  )}
                 </div>
+              )
+            })}
+          </div>
+        )}
 
-                <div style={{ fontSize: 11, color: '#4a6070', marginTop: 8 }}>
-                  <strong style={{ color: '#22c55e' }}>{phonesParsed.valid.length}</strong> numéros valides
-                  {phonesParsed.invalid > 0 && <> · <strong style={{ color: '#dc2626' }}>{phonesParsed.invalid}</strong> invalides ignorés</>}
-                  {phonesParsed.duplicates > 0 && <> · <strong style={{ color: '#a89e8a' }}>{phonesParsed.duplicates}</strong> doublons</>}
+        {detectedUrls.length > 0 && (
+          <CrmV2Toggle
+            checked={shortenLinks}
+            onChange={setShortenLinks}
+            label="Raccourcir automatiquement les liens (SMS Factor URL Shortener)"
+          />
+        )}
+      </CrmV2FormSection>
+
+      {/* ─── Planification ────────────────────────────────────────────── */}
+      <CrmV2FormSection title="Planification" columns={1}>
+        <div>
+          <CrmV2Segmented<'now' | 'later'>
+            items={[{ id: 'now', label: 'Envoi immédiat' }, { id: 'later', label: 'Programmer' }]}
+            value={scheduleMode}
+            onChange={setScheduleMode}
+          />
+        </div>
+        {scheduleMode === 'later' && (
+          <CrmV2Field
+            label="Date et heure d'envoi (Europe/Paris)"
+            hint={<>
+              La campagne sera envoyée automatiquement par le cron (vérifie toutes les minutes).
+              {campaignType === 'marketing' && <> Marketing : envoi limité à 8h–20h L–S.</>}
+            </>}
+          >
+            <CrmV2Input
+              type="datetime-local"
+              value={scheduledAt}
+              onChange={e => setScheduledAt(e.target.value)}
+              min={new Date(Date.now() + 5 * 60 * 1000).toISOString().slice(0, 16)}
+              style={{ maxWidth: 280 }}
+            />
+          </CrmV2Field>
+        )}
+        {scheduleMode === 'now' && (
+          <div style={{ fontSize: 12, color: crmV2.textMuted }}>
+            La campagne sera créée en brouillon. Clique « Envoyer » dans la liste pour déclencher l&apos;envoi.
+          </div>
+        )}
+      </CrmV2FormSection>
+
+      {/* ─── Ciblage ──────────────────────────────────────────────────── */}
+      <CrmV2FormSection title="Ciblage" columns={1}>
+        <CrmV2Segmented<TargetingMode>
+          stretch
+          size={isMobile ? 'sm' : 'md'}
+          items={[
+            { id: 'filters', label: modeLabel(<Filter size={13} />, 'Filtres CRM') },
+            { id: 'segment', label: modeLabel(<Users size={13} />, 'Segment') },
+            { id: 'view', label: modeLabel(<FileText size={13} />, 'Vue sauvegardée') },
+            { id: 'phones', label: modeLabel(<Upload size={13} />, 'Numéros') },
+          ]}
+          value={mode}
+          onChange={setMode}
+        />
+
+        {mode === 'segment' && (
+          <V2FieldBlock label="Segments / listes">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 220, overflowY: 'auto' }}>
+              {audienceSegments.length === 0 ? (
+                <div style={{ fontSize: 13, color: crmV2.textMuted }}>
+                  Aucun segment. <Link href="/admin/crm/campaigns/segments" style={{ color: crmV2.link, fontWeight: 600 }}>Créer un segment</Link>
                 </div>
-              </div>
-            )}
+              ) : audienceSegments.map(s => {
+                const sel = selectedSegmentIds.includes(s.id)
+                return (
+                  <label key={s.id} style={{
+                    display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, cursor: 'pointer', padding: '8px 12px', minHeight: 40,
+                    boxSizing: 'border-box', borderRadius: crmV2.radius,
+                    border: `1px solid ${sel ? 'rgba(0,145,174,0.45)' : crmV2.border}`,
+                    background: sel ? 'rgba(0,145,174,0.06)' : crmV2.bg,
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={sel}
+                      onChange={() => setSelectedSegmentIds(prev => sel ? prev.filter(x => x !== s.id) : [...prev, s.id])}
+                      style={{ accentColor: crmV2.link }}
+                    />
+                    <span style={{ flex: 1, fontWeight: sel ? 600 : 500 }}>{s.name}</span>
+                    {typeof s.contact_count === 'number' && <span style={{ color: crmV2.textMuted }}>~{s.contact_count}</span>}
+                  </label>
+                )
+              })}
+            </div>
+          </V2FieldBlock>
+        )}
 
-            <div style={{
-              padding: 10, borderRadius: 8, background: '#eff6ff', border: '1px solid #bfdbfe',
-              fontSize: 12, color: '#1e40af', display: 'flex', alignItems: 'center', gap: 6, marginTop: 12,
-            }}>
-              <Users size={13} />
-              {estimateLoading ? (
-                <>Calcul des destinataires…</>
-              ) : estimate !== null ? (
-                <>
-                  <strong>{estimate.toLocaleString('fr-FR')}</strong> destinataire{estimate > 1 ? 's' : ''} estimé{estimate > 1 ? 's' : ''}
-                  {' · '}<strong>{(estimate * segments * 0.05).toFixed(2)} €</strong> coût estimé (à 0.05 €/segment)
-                </>
-              ) : (
-                <>Définissez un ciblage pour estimer</>
+        {mode === 'view' && (
+          <CrmV2Field label="Choisir une vue" hint="Les filtres sont préchargés et éditables ci-dessous.">
+            <CrmV2Select value={selectedViewId} onChange={e => setSelectedViewId(e.target.value)}>
+              <option value="">— Sélectionner —</option>
+              {views.map(v => (
+                <option key={v.id} value={v.id}>{v.name}</option>
+              ))}
+            </CrmV2Select>
+          </CrmV2Field>
+        )}
+
+        {(mode === 'filters' || mode === 'view') && (
+          <CRMFilterBuilder groups={filterGroups} onChange={setFilterGroups} />
+        )}
+
+        {mode === 'phones' && (
+          <>
+            <V2FieldBlock label="Coller des numéros (un par ligne ou séparés par , ; espace)">
+              <textarea
+                value={phonesText}
+                onChange={e => setPhonesText(e.target.value)}
+                placeholder="0612345678&#10;+33623456789&#10;0033634567890"
+                rows={6}
+                style={{ ...textareaStyle, fontSize: 12, fontVariantNumeric: 'tabular-nums' }}
+              />
+            </V2FieldBlock>
+
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,.txt,text/csv,text/plain"
+                onChange={handleFileUpload}
+                style={{ display: 'none' }}
+              />
+              <CrmV2Button variant="secondary" size="sm" icon={<Upload size={13} />} onClick={() => fileInputRef.current?.click()}>
+                Charger un fichier CSV/TXT
+              </CrmV2Button>
+              {phonesText && (
+                <CrmV2Button variant="ghost" size="sm" onClick={() => setPhonesText('')}>
+                  Effacer
+                </CrmV2Button>
               )}
             </div>
-          </div>
 
-          {err && <div style={{ color: '#dc2626', fontSize: 12 }}>{err}</div>}
-        </div>
+            <div style={{ fontSize: 12, color: crmV2.textMuted }}>
+              <strong style={{ color: crmV2.successStrong }}>{phonesParsed.valid.length}</strong> numéros valides
+              {phonesParsed.invalid > 0 && <> · <strong style={{ color: '#d13a41' }}>{phonesParsed.invalid}</strong> invalides ignorés</>}
+              {phonesParsed.duplicates > 0 && <> · <strong style={{ color: crmV2.textFaint }}>{phonesParsed.duplicates}</strong> doublons</>}
+            </div>
+          </>
+        )}
 
-        {/* Footer */}
-        <div style={{
-          padding: '12px 20px', borderTop: '1px solid #e5ddc8',
-          display: 'flex', justifyContent: 'flex-end', gap: 8,
-        }}>
-          <button onClick={onClose} style={btn('secondary')} disabled={submitting}>
-            Annuler
-          </button>
-          <button onClick={handleSubmit} style={btn('primary')} disabled={submitting}>
-            {submitting ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
-            Créer la campagne
-          </button>
-        </div>
-      </div>
-
-      <style jsx>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .animate-spin { animation: spin 1s linear infinite; }
-      `}</style>
-    </div>
-  )
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#4a6070', textTransform: 'uppercase', marginBottom: 4 }}>
-        {label}
-      </label>
-      {children}
-    </div>
-  )
-}
-
-function ModeTab({ active, onClick, icon, children }: {
-  active: boolean
-  onClick: () => void
-  icon: React.ReactNode
-  children: React.ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        flex: 1,
-        padding: '8px 10px',
-        background: active ? '#fff' : 'transparent',
-        border: 'none',
-        borderRadius: 6,
-        color: active ? '#0038f0' : '#4a6070',
-        fontWeight: active ? 600 : 500,
-        fontSize: 12,
-        cursor: 'pointer',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-        boxShadow: active ? '0 1px 2px rgba(0,0,0,0.05)' : 'none',
-      }}
-    >
-      {icon} {children}
-    </button>
-  )
-}
-
-function TypePill({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        flex: 1,
-        padding: '8px 10px',
-        borderRadius: 8,
-        border: `1px solid ${active ? '#0038f0' : '#e5ddc8'}`,
-        background: active ? '#eff6ff' : '#fff',
-        color: active ? '#0038f0' : '#4a6070',
-        fontSize: 12,
-        fontWeight: active ? 600 : 500,
-        cursor: 'pointer',
-      }}
-    >
-      {label}
-    </button>
+        <V2Banner kind="info">
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <Users size={14} />
+            {estimateLoading ? (
+              <>Calcul des destinataires…</>
+            ) : estimate !== null ? (
+              <>
+                <strong>{estimate.toLocaleString('fr-FR')}</strong> destinataire{estimate > 1 ? 's' : ''} estimé{estimate > 1 ? 's' : ''}
+                {' · '}<strong>{(estimate * segments * 0.05).toFixed(2)} €</strong> coût estimé (à 0.05 €/segment)
+              </>
+            ) : (
+              <>Définissez un ciblage pour estimer</>
+            )}
+          </span>
+        </V2Banner>
+      </CrmV2FormSection>
+    </V2Modal>
   )
 }
 
@@ -1158,34 +1219,4 @@ function formatPhoneClient(phone: string): string | null {
   if (cleaned.startsWith('33') && cleaned.length === 11) return cleaned
   if (cleaned.startsWith('0') && cleaned.length === 10) return '33' + cleaned.slice(1)
   return null
-}
-
-// ─── Styles ─────────────────────────────────────────────────────────────────
-
-function card(extra: React.CSSProperties = {}): React.CSSProperties {
-  return { background: '#fff', border: '1px solid #e5ddc8', borderRadius: 10, ...extra }
-}
-function banner(kind: 'error' | 'success'): React.CSSProperties {
-  return {
-    padding: '10px 14px',
-    background: kind === 'error' ? '#fef2f2' : '#f0fdf4',
-    border: `1px solid ${kind === 'error' ? '#fecaca' : '#bbf7d0'}`,
-    borderRadius: 8,
-    color: kind === 'error' ? '#dc2626' : '#166534',
-    fontSize: 13, marginBottom: 16,
-    display: 'flex', alignItems: 'center', gap: 8,
-  }
-}
-function btn(variant: 'primary' | 'secondary' | 'danger'): React.CSSProperties {
-  const base: React.CSSProperties = {
-    padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-    display: 'flex', alignItems: 'center', gap: 4, border: 'none',
-  }
-  if (variant === 'primary') return { ...base, background: 'linear-gradient(135deg, #2ea3f2, #0038f0)', color: '#fff' }
-  if (variant === 'danger') return { ...base, background: '#fee2e2', color: '#dc2626' }
-  return { ...base, background: '#f7f4ee', color: '#4a6070', border: '1px solid #e5ddc8' }
-}
-const input: React.CSSProperties = {
-  padding: '8px 10px', border: '1px solid #e5ddc8', borderRadius: 8, fontSize: 13,
-  width: '100%', boxSizing: 'border-box', background: '#fff',
 }

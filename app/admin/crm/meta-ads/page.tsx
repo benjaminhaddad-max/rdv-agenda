@@ -1,17 +1,29 @@
 'use client'
 
-import { useEffect, useState, useCallback, Suspense, Fragment } from 'react'
+import { useEffect, useState, useCallback, useMemo, Suspense, Fragment, type CSSProperties } from 'react'
+import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useIsMobile } from '@/lib/useIsMobile'
-import { Facebook, RefreshCw, AlertCircle, CheckCircle2, Power, Trash2, ExternalLink, Loader2, ChevronDown, ChevronRight, Search, Link2, X } from 'lucide-react'
+import {
+  Facebook, RefreshCw, CheckCircle2, Power, Trash2, ExternalLink, Loader2, ChevronDown, ChevronRight, Link2,
+  Settings, Plus, FileText, Inbox, Layers,
+} from 'lucide-react'
+import {
+  CrmV2Body, CrmV2Button, CrmV2Card, CrmV2CloseButton, CrmV2Drawer, CrmV2Empty, CrmV2Header, CrmV2Input,
+  CrmV2Page, CrmV2Search, CrmV2SectionLabel, CrmV2Select, CrmV2Spinner, CrmV2StatusPill, CrmV2Table,
+  CrmV2TableCard, CrmV2Tabs, CrmV2Td, CrmV2Th, CrmV2Tr,
+} from '@/components/crm-v2/primitives'
+import { AdsBanner, AdsFaint, AdsIconTile, AdsMobileRow, AdsPillSelect, adsSpin } from '@/components/crm-v2/marketing2/ads/ui'
+import { crmV2 } from '@/lib/crm-v2-theme'
 
 export default function MetaAdsPageWrapper() {
   return (
-    <Suspense fallback={<div style={{ padding: 60, textAlign: 'center', color: '#a89e8a' }}>Chargement…</div>}>
+    <Suspense fallback={<CrmV2Page><CrmV2Spinner /></CrmV2Page>}>
       <MetaAdsPage />
     </Suspense>
   )
 }
+
 
 type Page = {
   page_id: string
@@ -60,6 +72,38 @@ type LeadEvent = {
 }
 type Owner = { hubspot_owner_id: string; firstname?: string; lastname?: string; email?: string }
 
+type View = 'forms' | 'leads' | 'mapping' | 'pages'
+
+const FB_BLUE = '#1877F2'
+const GREEN = '#16a34a'
+const GREY = '#7c98b6'
+const ORANGE = '#b45309'
+const RED = '#d13a41'
+
+/** Statut Meta d'un formulaire → libellé + couleur. */
+function formStatus(status: string | null): { label: string; color: string } {
+  switch (status) {
+    case 'ACTIVE': return { label: 'Actif', color: GREEN }
+    case 'PAUSED': return { label: 'En pause', color: GREY }
+    case 'ARCHIVED': return { label: 'Archivé', color: GREY }
+    case 'DELETED': return { label: 'Supprimé', color: GREY }
+    case 'DRAFT': return { label: 'Brouillon', color: GREY }
+    default: return { label: status || '?', color: GREY }
+  }
+}
+
+/** État du mappage d'un formulaire (questions Meta → propriétés CRM). */
+function mappingState(f: Form): { count: number; total: number; label: string; color: string | null } {
+  const count = f.field_mappings ? Object.keys(f.field_mappings).length : 0
+  const total = (f.questions || []).length
+  if (count === 0) return { count, total, label: 'Mapper', color: null }
+  if (total > 0 && count < total) {
+    const missing = total - count
+    return { count, total, label: `${missing} champ${missing > 1 ? 's' : ''} non mappé${missing > 1 ? 's' : ''}`, color: crmV2.gold }
+  }
+  return { count, total, label: `${count} mappé${count > 1 ? 's' : ''}`, color: GREEN }
+}
+
 function MetaAdsPage() {
   const params = useSearchParams()
   const [pages, setPages] = useState<Page[]>([])
@@ -72,22 +116,12 @@ function MetaAdsPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
-  const [expandedPages, setExpandedPages] = useState<Set<string>>(new Set())
-  const [formSearch, setFormSearch] = useState<Record<string, string>>({})
+  // Présentation : vue active, recherche, filtre par page, ligne ouverte (mobile)
+  const [view, setView] = useState<View>('forms')
+  const [formSearch, setFormSearch] = useState('')
+  const [pageFilter, setPageFilter] = useState('')
+  const [openFormId, setOpenFormId] = useState<string | null>(null)
   const isMobile = useIsMobile()
-
-  function toggleExpanded(pageId: string) {
-    setExpandedPages(prev => {
-      const next = new Set(prev)
-      if (next.has(pageId)) next.delete(pageId)
-      else next.add(pageId)
-      return next
-    })
-  }
-  function toggleAllExpanded() {
-    if (expandedPages.size === pages.length) setExpandedPages(new Set())
-    else setExpandedPages(new Set(pages.map(p => p.page_id)))
-  }
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -179,345 +213,578 @@ function MetaAdsPage() {
     await load()
   }
 
-  return (
-    <div style={{ minHeight: '100vh', background: '#fafbfc', color: '#1a2f4b' }}>
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: isMobile ? '16px 12px 60px' : '24px 24px 80px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: isMobile ? 12 : 16, marginBottom: isMobile ? 14 : 20, flexWrap: 'wrap' }}>
-          <div style={{ minWidth: 0 }}>
-            <h1 style={{ fontSize: isMobile ? 20 : 24, fontWeight: 700, margin: 0, marginBottom: 4 }}>Meta Lead Ads</h1>
-            <p style={{ fontSize: 13, color: '#4a6070', margin: 0 }}>
-              Connecte tes pages Facebook / Instagram pour recevoir les leads de tes pubs en temps réel.
-            </p>
-          </div>
-          <a
-            href="/api/meta/oauth/start"
-            style={{
-              padding: '10px 18px', borderRadius: 8, background: '#1877F2', color: '#fff',
-              fontSize: 13, fontWeight: 600, textDecoration: 'none',
-              display: 'flex', alignItems: 'center', gap: 8,
-            }}
-          >
-            <Facebook size={16} /> Connecter une page Facebook
-          </a>
-        </div>
+  function connect() {
+    window.location.href = '/api/meta/oauth/start'
+  }
 
-        {error && (
-          <div style={banner('error')}><AlertCircle size={16} /> {error}</div>
-        )}
-        {success && (
-          <div style={banner('success')}><CheckCircle2 size={16} /> {success}</div>
-        )}
+  function showPageForms(pageId: string) {
+    setPageFilter(pageId)
+    setView('forms')
+  }
 
-        {loading && (
-          <div style={{ padding: 60, textAlign: 'center', color: '#a89e8a' }}>
-            <Loader2 size={28} className="animate-spin" />
-            <div style={{ marginTop: 8, fontSize: 13 }}>Chargement…</div>
-          </div>
-        )}
+  // ── Données dérivées ──────────────────────────────────────────────────
+  const pageName = useMemo(() => {
+    const m: Record<string, string> = {}
+    for (const p of pages) m[p.page_id] = p.page_name
+    return m
+  }, [pages])
 
-        {!loading && pages.length === 0 && (
-          <div style={card({ padding: 40, textAlign: 'center' })}>
-            <Facebook size={36} style={{ color: '#1877F2', margin: '0 auto 10px' }} />
-            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>Aucune page connectée</div>
-            <div style={{ fontSize: 13, color: '#4a6070', marginBottom: 16 }}>
-              Clique sur « Connecter une page Facebook » pour démarrer.
-            </div>
-          </div>
-        )}
+  const filteredForms = useMemo(() => {
+    const search = formSearch.toLowerCase().trim()
+    return forms.filter(f => {
+      if (pageFilter && f.page_id !== pageFilter) return false
+      if (!search) return true
+      return (f.name || '').toLowerCase().includes(search) ||
+        f.form_id.includes(search) ||
+        (f.origine_label || '').toLowerCase().includes(search)
+    })
+  }, [forms, formSearch, pageFilter])
 
-        {/* Pages */}
-        {!loading && pages.length > 0 && (
-          <section style={{ marginBottom: 30 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-              <h2 style={{ ...sectionTitle, marginBottom: 0 }}>Pages connectées ({pages.length})</h2>
-              <button onClick={toggleAllExpanded} style={btn('secondary')}>
-                {expandedPages.size === pages.length ? 'Tout replier' : 'Tout déplier'}
-              </button>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {pages.map(p => {
-                const isExpanded = expandedPages.has(p.page_id)
-                const pageFormCount = forms.filter(f => f.page_id === p.page_id).length
-                return (
-                <div key={p.page_id} style={card({ padding: isMobile ? 12 : 16, minWidth: 0 })}>
-                  {/* Mobile : les actions passent sous le nom de la page */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: isMobile ? 10 : 12, ...(isMobile ? { flexDirection: 'column' as const, alignItems: 'stretch' } : {}) }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div
-                        onClick={() => toggleExpanded(p.page_id)}
-                        style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, cursor: 'pointer', userSelect: 'none', ...(isMobile ? { flexWrap: 'wrap' as const, rowGap: 2 } : {}) }}
-                      >
-                        {isExpanded ? <ChevronDown size={14} style={{ color: '#4a6070' }} /> : <ChevronRight size={14} style={{ color: '#4a6070' }} />}
-                        <Facebook size={14} style={{ color: '#1877F2' }} />
-                        <strong style={isMobile ? { minWidth: 0, wordBreak: 'break-word' } : undefined}>{p.page_name}</strong>
-                        <span style={{ fontSize: 10, color: '#a89e8a' }}>· {p.page_id}</span>
-                        {pageFormCount > 0 && (
-                          <span style={{ fontSize: 10, color: '#4a6070', background: '#f7f4ee', padding: '2px 6px', borderRadius: 999 }}>
-                            {pageFormCount} form{pageFormCount > 1 ? 's' : ''}
-                          </span>
-                        )}
-                      </div>
-                      <div style={{ fontSize: 11, color: '#4a6070', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                        <span>Connectée par {p.user_name || '?'}</span>
-                        <span>{p.total_leads} lead{p.total_leads > 1 ? 's' : ''} reçus</span>
-                        {p.last_lead_at && <span>Dernier : {new Date(p.last_lead_at).toLocaleString('fr-FR')}</span>}
-                      </div>
-                      <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-                        {p.subscribed
-                          ? <span style={badge('#22c55e')}>Webhook actif</span>
-                          : <span style={badge('#f59e0b')}>Webhook non abonné</span>}
-                        {!p.active && <span style={badge('#dc2626')}>Désactivée</span>}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', ...(isMobile ? { alignItems: 'center' } : {}) }}>
-                      {!p.subscribed && (
-                        <button onClick={() => subscribe(p.page_id)} disabled={busy === p.page_id} style={btn('primary')}>
-                          <Power size={12} /> Abonner webhook
-                        </button>
-                      )}
-                      <button onClick={() => refreshForms(p.page_id)} disabled={busy === p.page_id} style={btn('secondary')}>
-                        <RefreshCw size={12} className={busy === p.page_id ? 'animate-spin' : ''} /> Refresh forms
-                      </button>
-                      <button onClick={() => toggleActive(p)} disabled={busy === p.page_id} style={btn('secondary')}>
-                        {p.active ? 'Désactiver' : 'Activer'}
-                      </button>
-                      <button onClick={() => disconnect(p.page_id)} disabled={busy === p.page_id} style={btn('danger')}>
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                  </div>
+  // Onglet Mapping : recherche seule (le filtre par page n'y est pas affiché)
+  const mappingForms = useMemo(() => {
+    const search = formSearch.toLowerCase().trim()
+    if (!search) return forms
+    return forms.filter(f =>
+      (f.name || '').toLowerCase().includes(search) ||
+      f.form_id.includes(search) ||
+      (f.origine_label || '').toLowerCase().includes(search))
+  }, [forms, formSearch])
 
-                  {/* Forms de cette page */}
-                  {isExpanded && (() => {
-                    const pageForms = forms.filter(f => f.page_id === p.page_id)
-                    if (pageForms.length === 0) return (
-                      <div style={{ marginTop: 12, padding: 10, background: '#f7f4ee', borderRadius: 8, fontSize: 12, color: '#a89e8a', textAlign: 'center' }}>
-                        Aucun formulaire trouvé. Clique sur « Refresh forms » pour les charger.
-                      </div>
-                    )
-                    const search = (formSearch[p.page_id] || '').toLowerCase().trim()
-                    const filteredForms = search
-                      ? pageForms.filter(f =>
-                          (f.name || '').toLowerCase().includes(search) ||
-                          f.form_id.includes(search) ||
-                          (f.origine_label || '').toLowerCase().includes(search)
-                        )
-                      : pageForms
-                    return (
-                      <div style={{ marginTop: 12, borderTop: '1px solid #e5ddc8', paddingTop: 12 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
-                          <div style={{ fontSize: 11, fontWeight: 600, color: '#4a6070', textTransform: 'uppercase' }}>
-                            Formulaires ({filteredForms.length}{search && filteredForms.length !== pageForms.length ? ` / ${pageForms.length}` : ''})
-                          </div>
-                          <div style={{ position: 'relative', flex: isMobile ? '1 1 100%' : '0 1 280px' }}>
-                            <Search size={12} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: '#a89e8a' }} />
-                            <input
-                              type="text"
-                              placeholder="Rechercher un formulaire…"
-                              value={formSearch[p.page_id] || ''}
-                              onChange={e => setFormSearch(prev => ({ ...prev, [p.page_id]: e.target.value }))}
-                              style={{ ...input, paddingLeft: 26, maxWidth: 'none', width: '100%' }}
-                            />
-                          </div>
-                        </div>
-                        {filteredForms.length === 0 ? (
-                          <div style={{ padding: 10, background: '#f7f4ee', borderRadius: 8, fontSize: 12, color: '#a89e8a', textAlign: 'center' }}>
-                            Aucun formulaire ne correspond à « {search} »
-                          </div>
-                        ) : (
-                        // Mobile : tableau des formulaires scrollable horizontalement
-                        <div style={isMobile ? { overflowX: 'auto', margin: '0 -12px', padding: '0 12px' } : undefined}>
-                        <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse', ...(isMobile ? { minWidth: 720 } : {}) }}>
-                          <thead>
-                            <tr style={{ background: '#fafbfc' }}>
-                              <th style={th}>Nom</th>
-                              <th style={th}>Statut</th>
-                              <th style={th}>Origine (CRM)</th>
-                              <th style={th}>Owner par défaut</th>
-                              <th style={th}>Mapping</th>
-                              <th style={th}>Leads</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {filteredForms.map(f => (
-                              <tr key={f.form_id} style={{ borderBottom: '1px solid #f7f4ee' }}>
-                                <td style={td}>
-                                  <div style={{ fontWeight: 600 }}>{f.name || '(sans nom)'}</div>
-                                  <div style={{ fontSize: 10, color: '#a89e8a' }}>{f.form_id}</div>
-                                </td>
-                                <td style={td}>
-                                  <span style={badge(f.status === 'ACTIVE' ? '#22c55e' : '#a89e8a')}>{f.status || '?'}</span>
-                                </td>
-                                <td style={td}>
-                                  <input
-                                    type="text"
-                                    defaultValue={f.origine_label || ''}
-                                    placeholder={f.name || 'Meta Lead Ads'}
-                                    onBlur={e => {
-                                      if (e.target.value !== (f.origine_label || '')) {
-                                        updateForm(f.form_id, { origine_label: e.target.value })
-                                      }
-                                    }}
-                                    style={input}
-                                  />
-                                </td>
-                                <td style={td}>
-                                  <select
-                                    defaultValue={f.default_owner_id || ''}
-                                    onChange={e => updateForm(f.form_id, { default_owner_id: e.target.value })}
-                                    style={input}
-                                  >
-                                    <option value="">— Aucun —</option>
-                                    {owners.map(o => {
-                                      const name = [o.firstname, o.lastname].filter(Boolean).join(' ') || o.email || o.hubspot_owner_id
-                                      return <option key={o.hubspot_owner_id} value={o.hubspot_owner_id}>{name}</option>
-                                    })}
-                                  </select>
-                                </td>
-                                <td style={td}>
-                                  {(() => {
-                                    const count = f.field_mappings ? Object.keys(f.field_mappings).length : 0
-                                    return (
-                                      <button onClick={() => setMappingForm(f)} style={btn('secondary')}>
-                                        <Link2 size={11} />
-                                        {count > 0 ? `${count} mappé${count > 1 ? 's' : ''}` : 'Mapper'}
-                                      </button>
-                                    )
-                                  })()}
-                                </td>
-                                <td style={td}>{f.leads_count}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                        </div>
-                        )}
-                      </div>
-                    )
-                  })()}
-                </div>
-              )})}
-            </div>
-          </section>
-        )}
+  const ownerOptions = owners.map(o => {
+    const name = [o.firstname, o.lastname].filter(Boolean).join(' ') || o.email || o.hubspot_owner_id
+    return <option key={o.hubspot_owner_id} value={o.hubspot_owner_id}>{name}</option>
+  })
 
-        {/* Derniers leads */}
-        {!loading && events.length > 0 && (
-          <section>
-            <h2 style={sectionTitle}>Derniers leads reçus ({events.length})</h2>
-            <div style={card({ padding: 0, overflow: 'hidden', ...(isMobile ? { overflowX: 'auto' as const } : {}) })}>
-              <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse', ...(isMobile ? { minWidth: 640 } : {}) }}>
-                <thead>
-                  <tr style={{ background: '#fafbfc', borderBottom: '1px solid #e5ddc8' }}>
-                    <th style={th}>Reçu</th>
-                    <th style={th}>Form</th>
-                    <th style={th}>Statut</th>
-                    <th style={th}>Contact</th>
-                    <th style={th}>Données</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {events.map(e => {
-                    const form = forms.find(f => f.form_id === e.form_id)
-                    return (
-                      <tr key={e.id} style={{ borderBottom: '1px solid #f7f4ee' }}>
-                        <td style={td}>{new Date(e.received_at).toLocaleString('fr-FR')}</td>
-                        <td style={td}>{form?.name || e.form_id || '?'}</td>
-                        <td style={td}>
-                          {e.status === 'processed' && <span style={badge('#22c55e')}>OK {e.contact_created ? '(créé)' : '(màj)'}</span>}
-                          {e.status === 'error' && <span style={badge('#dc2626')} title={e.error || ''}>Erreur</span>}
-                          {e.status === 'pending' && <span style={badge('#f59e0b')}>En attente</span>}
-                        </td>
-                        <td style={td}>
-                          {e.contact_id
-                            ? <a href={`/admin/crm/contacts/${e.contact_id}`} style={{ color: '#2ea3f2', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>Voir <ExternalLink size={10} /></a>
-                            : '—'}
-                        </td>
-                        <td style={td}>
-                          {(Array.isArray(e.field_data) ? e.field_data : []).slice(0, 4).map((f: { name: string; values: string[] }, i: number) => (
-                            <span key={`${f.name || 'f'}-${i}`} style={{ marginRight: 8 }}>
-                              <strong>{f.name}</strong>: {f.values?.[0] || ''}
-                            </span>
-                          ))}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        )}
+  const tabs = [
+    { id: 'forms', label: 'Formulaires', count: forms.length },
+    { id: 'leads', label: 'Leads reçus', count: events.length },
+    { id: 'mapping', label: 'Mapping' },
+    { id: 'pages', label: 'Pages connectées', count: pages.length },
+  ]
 
-        {/* Modal mapping */}
-        {mappingForm && (
-          <MappingModal
-            form={mappingForm}
-            crmProps={crmProps}
-            onClose={() => setMappingForm(null)}
-            onSave={async (mappings) => {
-              await updateForm(mappingForm.form_id, { field_mappings: mappings })
-              setMappingForm(null)
-              setSuccess('Mapping enregistré')
-            }}
+  // ── Rendus partiels ───────────────────────────────────────────────────
+  const fbTile = <AdsIconTile icon={<Facebook size={15} />} color={FB_BLUE} />
+
+  function renderMappingButton(f: Form) {
+    const m = mappingState(f)
+    if (!m.color) {
+      return (
+        <CrmV2Button size="sm" variant="secondary" icon={<Link2 size={13} />} onClick={() => setMappingForm(f)}>
+          Mapper
+        </CrmV2Button>
+      )
+    }
+    return (
+      <button
+        type="button"
+        onClick={() => setMappingForm(f)}
+        title="Modifier le mappage"
+        style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit' }}
+      >
+        <CrmV2StatusPill label={m.label} color={m.color} />
+      </button>
+    )
+  }
+
+  function renderOrigineInput(f: Form, style?: CSSProperties) {
+    return (
+      <CrmV2Input
+        type="text"
+        defaultValue={f.origine_label || ''}
+        placeholder={f.name || 'Meta Lead Ads'}
+        onBlur={e => {
+          if (e.target.value !== (f.origine_label || '')) {
+            updateForm(f.form_id, { origine_label: e.target.value })
+          }
+        }}
+        style={{ height: 32, ...style }}
+      />
+    )
+  }
+
+  function renderOwnerSelect(f: Form, style?: CSSProperties) {
+    return (
+      <CrmV2Select
+        defaultValue={f.default_owner_id || ''}
+        onChange={e => updateForm(f.form_id, { default_owner_id: e.target.value })}
+        style={{ height: 32, ...style }}
+      >
+        <option value="">— Aucun —</option>
+        {ownerOptions}
+      </CrmV2Select>
+    )
+  }
+
+  function renderForms() {
+    const pageSelect = pages.length > 1 && (
+      <AdsPillSelect
+        icon={<Facebook size={14} />}
+        value={pageFilter}
+        onChange={e => setPageFilter(e.target.value)}
+        aria-label="Page"
+        style={isMobile ? { flex: '1 1 100%' } : undefined}
+      >
+        <option value="">Toutes les pages</option>
+        {pages.map(p => <option key={p.page_id} value={p.page_id}>{p.page_name}</option>)}
+      </AdsPillSelect>
+    )
+    return (
+      <CrmV2TableCard
+        toolbar={
+          <>
+            <CrmV2Search
+              placeholder="Rechercher un formulaire…"
+              value={formSearch}
+              onChange={e => setFormSearch(e.target.value)}
+              style={{ flex: isMobile ? '1 1 100%' : '0 1 280px' }}
+            />
+            {pageSelect}
+          </>
+        }
+        footer={
+          <span>
+            {filteredForms.length} formulaire{filteredForms.length > 1 ? 's' : ''}
+            {filteredForms.length !== forms.length ? ` sur ${forms.length}` : ''}
+          </span>
+        }
+      >
+        {forms.length === 0 ? (
+          <CrmV2Empty
+            icon={<FileText size={22} />}
+            title="Aucun formulaire trouvé"
+            description={pages.length === 0
+              ? 'Clique sur « Connecter un formulaire » pour autoriser tes pages Facebook.'
+              : 'Clique sur « Actualiser les formulaires » dans l’onglet Pages connectées pour les charger.'}
           />
+        ) : filteredForms.length === 0 ? (
+          <CrmV2Empty icon={<FileText size={22} />} title={formSearch ? `Aucun formulaire ne correspond à « ${formSearch} »` : 'Aucun formulaire pour cette page'} />
+        ) : isMobile ? (
+          <div>
+            {filteredForms.map(f => {
+              const st = formStatus(f.status)
+              const open = openFormId === f.form_id
+              return (
+                <AdsMobileRow
+                  key={f.form_id}
+                  icon={fbTile}
+                  title={f.name || '(sans nom)'}
+                  subtitle={`${pageName[f.page_id] || f.page_id} · ${f.leads_count} lead${f.leads_count > 1 ? 's' : ''}`}
+                  right={
+                    <>
+                      <CrmV2StatusPill label={st.label} color={st.color} />
+                      {open ? <ChevronDown size={16} color={crmV2.textMuted} /> : <ChevronRight size={16} color={crmV2.textMuted} />}
+                    </>
+                  }
+                  onClick={() => setOpenFormId(open ? null : f.form_id)}
+                >
+                  {open && (
+                    <div style={{ display: 'grid', gap: 8, padding: '6px 0 6px 38px' }}>
+                      <AdsFaint>{f.form_id}</AdsFaint>
+                      <label style={mobileLabel}>Origine (CRM){renderOrigineInput(f, { height: 40 })}</label>
+                      <label style={mobileLabel}>Owner par défaut{renderOwnerSelect(f, { height: 40 })}</label>
+                      <div>{renderMappingButton(f)}</div>
+                    </div>
+                  )}
+                </AdsMobileRow>
+              )
+            })}
+          </div>
+        ) : (
+          <CrmV2Table>
+            <thead>
+              <tr>
+                <CrmV2Th>Nom</CrmV2Th>
+                <CrmV2Th>Statut</CrmV2Th>
+                <CrmV2Th>Origine (CRM)</CrmV2Th>
+                <CrmV2Th>Owner par défaut</CrmV2Th>
+                <CrmV2Th>Mapping</CrmV2Th>
+                <CrmV2Th style={{ textAlign: 'right' }}>Leads</CrmV2Th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredForms.map(f => {
+                const st = formStatus(f.status)
+                return (
+                  <CrmV2Tr key={f.form_id}>
+                    <CrmV2Td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                        {fbTile}
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontWeight: 600, color: crmV2.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 320 }}>
+                            {f.name || '(sans nom)'}
+                          </div>
+                          <AdsFaint>{pages.length > 1 ? `${pageName[f.page_id] || f.page_id} · ` : ''}{f.form_id}</AdsFaint>
+                        </div>
+                      </div>
+                    </CrmV2Td>
+                    <CrmV2Td><CrmV2StatusPill label={st.label} color={st.color} /></CrmV2Td>
+                    <CrmV2Td style={{ minWidth: 180 }}>{renderOrigineInput(f, { maxWidth: 240 })}</CrmV2Td>
+                    <CrmV2Td style={{ minWidth: 170 }}>{renderOwnerSelect(f, { maxWidth: 220 })}</CrmV2Td>
+                    <CrmV2Td>{renderMappingButton(f)}</CrmV2Td>
+                    <CrmV2Td style={{ textAlign: 'right', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{f.leads_count}</CrmV2Td>
+                  </CrmV2Tr>
+                )
+              })}
+            </tbody>
+          </CrmV2Table>
+        )}
+      </CrmV2TableCard>
+    )
+  }
+
+  function renderLeadStatus(e: LeadEvent) {
+    return (
+      <>
+        {e.status === 'processed' && <CrmV2StatusPill label={`OK ${e.contact_created ? '(créé)' : '(màj)'}`} color={GREEN} />}
+        {e.status === 'error' && <span title={e.error || ''}><CrmV2StatusPill label="Erreur" color={RED} /></span>}
+        {e.status === 'pending' && <CrmV2StatusPill label="En attente" color={ORANGE} />}
+      </>
+    )
+  }
+
+  function renderLeads() {
+    return (
+      <CrmV2TableCard footer={<span>{events.length} derniers leads reçus</span>}>
+        {events.length === 0 ? (
+          <CrmV2Empty icon={<Inbox size={22} />} title="Aucun lead reçu pour l’instant" />
+        ) : isMobile ? (
+          <div>
+            {events.map(e => {
+              const form = forms.find(f => f.form_id === e.form_id)
+              const fd = (Array.isArray(e.field_data) ? e.field_data : []) as { name: string; values: string[] }[]
+              return (
+                <AdsMobileRow
+                  key={e.id}
+                  icon={<AdsIconTile icon={<Inbox size={15} />} color={crmV2.link} />}
+                  title={fd.slice(0, 2).map(f => f.values?.[0] || '').filter(Boolean).join(' · ') || form?.name || e.form_id || '?'}
+                  subtitle={`${new Date(e.received_at).toLocaleString('fr-FR')} · ${form?.name || e.form_id || '?'}`}
+                  right={
+                    <>
+                      {renderLeadStatus(e)}
+                      {e.contact_id && (
+                        <Link href={`/admin/crm/contacts/${e.contact_id}`} aria-label="Voir le contact" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, color: crmV2.link }}>
+                          <ExternalLink size={16} />
+                        </Link>
+                      )}
+                    </>
+                  }
+                />
+              )
+            })}
+          </div>
+        ) : (
+          <CrmV2Table>
+            <thead>
+              <tr>
+                <CrmV2Th>Reçu</CrmV2Th>
+                <CrmV2Th>Formulaire</CrmV2Th>
+                <CrmV2Th>Statut</CrmV2Th>
+                <CrmV2Th>Contact</CrmV2Th>
+                <CrmV2Th>Données</CrmV2Th>
+              </tr>
+            </thead>
+            <tbody>
+              {events.map(e => {
+                const form = forms.find(f => f.form_id === e.form_id)
+                return (
+                  <CrmV2Tr key={e.id}>
+                    <CrmV2Td style={{ whiteSpace: 'nowrap', color: crmV2.textMuted }}>{new Date(e.received_at).toLocaleString('fr-FR')}</CrmV2Td>
+                    <CrmV2Td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        {fbTile}
+                        <span style={{ fontWeight: 600 }}>{form?.name || e.form_id || '?'}</span>
+                      </div>
+                    </CrmV2Td>
+                    <CrmV2Td>{renderLeadStatus(e)}</CrmV2Td>
+                    <CrmV2Td>
+                      {e.contact_id
+                        ? <Link href={`/admin/crm/contacts/${e.contact_id}`} style={{ color: crmV2.link, fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}>Voir <ExternalLink size={14} /></Link>
+                        : '—'}
+                    </CrmV2Td>
+                    <CrmV2Td style={{ color: crmV2.textMuted }}>
+                      {(Array.isArray(e.field_data) ? e.field_data : []).slice(0, 4).map((f: { name: string; values: string[] }, i: number) => (
+                        <span key={`${f.name || 'f'}-${i}`} style={{ marginRight: 10 }}>
+                          <strong style={{ color: crmV2.text }}>{f.name}</strong>: {f.values?.[0] || ''}
+                        </span>
+                      ))}
+                    </CrmV2Td>
+                  </CrmV2Tr>
+                )
+              })}
+            </tbody>
+          </CrmV2Table>
+        )}
+      </CrmV2TableCard>
+    )
+  }
+
+  function renderMapping() {
+    return (
+      <CrmV2TableCard
+        toolbar={
+          <CrmV2Search
+            placeholder="Rechercher un formulaire…"
+            value={formSearch}
+            onChange={e => setFormSearch(e.target.value)}
+            style={{ flex: isMobile ? '1 1 100%' : '0 1 280px' }}
+          />
+        }
+        footer={<span>Associe chaque question du formulaire Facebook à une propriété du CRM.</span>}
+      >
+        {mappingForms.length === 0 ? (
+          <CrmV2Empty icon={<Layers size={22} />} title="Aucun formulaire à mapper" />
+        ) : isMobile ? (
+          <div>
+            {mappingForms.map(f => {
+              const m = mappingState(f)
+              return (
+                <AdsMobileRow
+                  key={f.form_id}
+                  icon={fbTile}
+                  title={f.name || '(sans nom)'}
+                  subtitle={`${m.count} / ${m.total} question${m.total > 1 ? 's' : ''} mappée${m.count > 1 ? 's' : ''}`}
+                  right={<ChevronRight size={16} color={crmV2.textMuted} />}
+                  onClick={() => setMappingForm(f)}
+                />
+              )
+            })}
+          </div>
+        ) : (
+          <CrmV2Table>
+            <thead>
+              <tr>
+                <CrmV2Th>Formulaire</CrmV2Th>
+                <CrmV2Th>Page</CrmV2Th>
+                <CrmV2Th style={{ textAlign: 'right' }}>Questions</CrmV2Th>
+                <CrmV2Th style={{ textAlign: 'right' }}>Champs mappés</CrmV2Th>
+                <CrmV2Th>État</CrmV2Th>
+                <CrmV2Th style={{ textAlign: 'right' }}>{''}</CrmV2Th>
+              </tr>
+            </thead>
+            <tbody>
+              {mappingForms.map(f => {
+                const m = mappingState(f)
+                return (
+                  <CrmV2Tr key={f.form_id} onClick={() => setMappingForm(f)}>
+                    <CrmV2Td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        {fbTile}
+                        <span style={{ fontWeight: 600, color: crmV2.link }}>{f.name || '(sans nom)'}</span>
+                      </div>
+                    </CrmV2Td>
+                    <CrmV2Td style={{ color: crmV2.textMuted }}>{pageName[f.page_id] || f.page_id}</CrmV2Td>
+                    <CrmV2Td style={{ textAlign: 'right' }}>{m.total}</CrmV2Td>
+                    <CrmV2Td style={{ textAlign: 'right' }}>{m.count}</CrmV2Td>
+                    <CrmV2Td>
+                      {m.color
+                        ? <CrmV2StatusPill label={m.count >= m.total && m.total > 0 ? 'Complet' : m.label} color={m.color} />
+                        : <CrmV2StatusPill label="Non mappé" color={GREY} />}
+                    </CrmV2Td>
+                    <CrmV2Td style={{ textAlign: 'right' }}>
+                      <CrmV2Button size="sm" variant="secondary" icon={<Link2 size={13} />}>Configurer</CrmV2Button>
+                    </CrmV2Td>
+                  </CrmV2Tr>
+                )
+              })}
+            </tbody>
+          </CrmV2Table>
+        )}
+      </CrmV2TableCard>
+    )
+  }
+
+  function renderPageActions(p: Page) {
+    const isBusy = busy === p.page_id
+    return (
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: isMobile ? 'flex-start' : 'flex-end' }}>
+        {!p.subscribed && (
+          <CrmV2Button size="sm" variant="primary" icon={<Power size={13} />} onClick={() => subscribe(p.page_id)} disabled={isBusy}>
+            Abonner webhook
+          </CrmV2Button>
+        )}
+        <CrmV2Button
+          size="sm"
+          variant="secondary"
+          icon={<RefreshCw size={13} style={isBusy ? adsSpin : undefined} />}
+          onClick={() => refreshForms(p.page_id)}
+          disabled={isBusy}
+        >
+          Actualiser les formulaires
+        </CrmV2Button>
+        <CrmV2Button size="sm" variant="secondary" onClick={() => toggleActive(p)} disabled={isBusy}>
+          {p.active ? 'Désactiver' : 'Activer'}
+        </CrmV2Button>
+        <CrmV2Button size="sm" variant="danger" onClick={() => disconnect(p.page_id)} disabled={isBusy} title="Déconnecter" aria-label="Déconnecter la page">
+          <Trash2 size={13} />
+        </CrmV2Button>
+      </div>
+    )
+  }
+
+  function renderPageStatus(p: Page) {
+    return (
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        {p.subscribed
+          ? <CrmV2StatusPill label="Webhook actif" color={GREEN} />
+          : <CrmV2StatusPill label="Webhook non abonné" color={ORANGE} />}
+        {!p.active && <CrmV2StatusPill label="Désactivée" color={RED} />}
+      </div>
+    )
+  }
+
+  function renderPages() {
+    return (
+      <CrmV2TableCard footer={<span>{pages.length} page{pages.length > 1 ? 's' : ''} connectée{pages.length > 1 ? 's' : ''}</span>}>
+        {pages.length === 0 ? (
+          <CrmV2Empty
+            icon={<Facebook size={22} />}
+            title="Aucune page connectée"
+            description="Clique sur « Connecter un formulaire » pour démarrer."
+            action={<CrmV2Button variant="primary" icon={<Plus size={14} />} onClick={connect}>Connecter un formulaire</CrmV2Button>}
+          />
+        ) : isMobile ? (
+          <div>
+            {pages.map(p => {
+              const count = forms.filter(f => f.page_id === p.page_id).length
+              return (
+                <AdsMobileRow
+                  key={p.page_id}
+                  icon={fbTile}
+                  title={p.page_name}
+                  subtitle={`${p.total_leads} lead${p.total_leads > 1 ? 's' : ''} reçus · ${count} formulaire${count > 1 ? 's' : ''} · par ${p.user_name || '?'}`}
+                  right={p.subscribed ? <CrmV2StatusPill label="Actif" color={GREEN} /> : <CrmV2StatusPill label="Non abonné" color={ORANGE} />}
+                  onClick={() => showPageForms(p.page_id)}
+                >
+                  <div style={{ display: 'grid', gap: 6, padding: '4px 0 6px 38px' }}>
+                    {(!p.active || p.last_lead_at) && (
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                        {!p.active && <CrmV2StatusPill label="Désactivée" color={RED} />}
+                        {p.last_lead_at && <AdsFaint>Dernier : {new Date(p.last_lead_at).toLocaleString('fr-FR')}</AdsFaint>}
+                      </div>
+                    )}
+                    {renderPageActions(p)}
+                  </div>
+                </AdsMobileRow>
+              )
+            })}
+          </div>
+        ) : (
+          <CrmV2Table>
+            <thead>
+              <tr>
+                <CrmV2Th>Page</CrmV2Th>
+                <CrmV2Th>Statut</CrmV2Th>
+                <CrmV2Th>Connectée par</CrmV2Th>
+                <CrmV2Th style={{ textAlign: 'right' }}>Formulaires</CrmV2Th>
+                <CrmV2Th style={{ textAlign: 'right' }}>Leads reçus</CrmV2Th>
+                <CrmV2Th>Dernier lead</CrmV2Th>
+                <CrmV2Th style={{ textAlign: 'right' }}>Actions</CrmV2Th>
+              </tr>
+            </thead>
+            <tbody>
+              {pages.map(p => {
+                const count = forms.filter(f => f.page_id === p.page_id).length
+                return (
+                  <CrmV2Tr key={p.page_id}>
+                    <CrmV2Td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                        {fbTile}
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontWeight: 600, color: crmV2.text, whiteSpace: 'nowrap' }}>{p.page_name}</div>
+                          <AdsFaint>{p.page_id}</AdsFaint>
+                        </div>
+                      </div>
+                    </CrmV2Td>
+                    <CrmV2Td>{renderPageStatus(p)}</CrmV2Td>
+                    <CrmV2Td style={{ color: crmV2.textMuted }}>{p.user_name || '?'}</CrmV2Td>
+                    <CrmV2Td style={{ textAlign: 'right' }}>
+                      <button
+                        type="button"
+                        onClick={() => showPageForms(p.page_id)}
+                        style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: crmV2.link, fontWeight: 600, fontSize: 13, fontFamily: 'inherit' }}
+                      >
+                        {count}
+                      </button>
+                    </CrmV2Td>
+                    <CrmV2Td style={{ textAlign: 'right', fontWeight: 600 }}>{p.total_leads}</CrmV2Td>
+                    <CrmV2Td style={{ color: crmV2.textMuted, whiteSpace: 'nowrap' }}>
+                      {p.last_lead_at ? new Date(p.last_lead_at).toLocaleString('fr-FR') : '—'}
+                    </CrmV2Td>
+                    <CrmV2Td>{renderPageActions(p)}</CrmV2Td>
+                  </CrmV2Tr>
+                )
+              })}
+            </tbody>
+          </CrmV2Table>
+        )}
+      </CrmV2TableCard>
+    )
+  }
+
+  return (
+    <CrmV2Page>
+      <CrmV2Header
+        title="Meta Lead Ads"
+        subtitle="Formulaires Facebook / Instagram connectés au CRM"
+        actions={
+          <>
+            <CrmV2Button variant="secondary" icon={<Settings size={14} />} onClick={() => setView('pages')}>
+              Comptes publicitaires
+            </CrmV2Button>
+            <CrmV2Button variant="primary" icon={<Plus size={14} />} onClick={connect} title="Connecter une page Facebook">
+              Connecter un formulaire
+            </CrmV2Button>
+          </>
+        }
+      >
+        <CrmV2Tabs bordered={false} items={tabs} value={view} onChange={id => setView(id as View)} />
+      </CrmV2Header>
+
+      <CrmV2Body>
+        {error && <AdsBanner kind="error">{error}</AdsBanner>}
+        {success && <AdsBanner kind="success">{success}</AdsBanner>}
+
+        {loading ? (
+          <CrmV2Card><CrmV2Spinner /></CrmV2Card>
+        ) : (
+          <>
+            {view === 'forms' && renderForms()}
+            {view === 'leads' && renderLeads()}
+            {view === 'mapping' && renderMapping()}
+            {view === 'pages' && renderPages()}
+          </>
         )}
 
-        {/* Help box */}
-        <div style={card({ padding: 16, marginTop: 24, background: '#eff6ff', borderColor: '#bfdbfe' })}>
-          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, color: '#1e40af' }}>Comment ça marche</div>
-          <ol style={{ fontSize: 12, color: '#1e40af', margin: 0, paddingLeft: 20, lineHeight: 1.7 }}>
-            <li>Clique « Connecter une page Facebook » → tu autorises l&apos;app sur Facebook</li>
-            <li>Clique « Refresh forms » sur la page → on récupère tes formulaires Lead Ads</li>
+        {/* Aide */}
+        <CrmV2Card style={{ padding: isMobile ? 14 : 18 }}>
+          <CrmV2SectionLabel icon={<CheckCircle2 size={14} color={crmV2.gold} />}>Comment ça marche</CrmV2SectionLabel>
+          <ol style={{ fontSize: 13, color: crmV2.textMuted, margin: '10px 0 0', paddingLeft: 20, lineHeight: 1.7 }}>
+            <li>Clique « Connecter un formulaire » → tu autorises l&apos;app sur Facebook</li>
+            <li>Clique « Actualiser les formulaires » sur la page (onglet Pages connectées) → on récupère tes formulaires Lead Ads</li>
             <li>Clique « Abonner webhook » → tu recevras les leads en temps réel</li>
-            <li>Configure pour chaque form : un libellé d&apos;origine + un owner par défaut</li>
+            <li>Configure pour chaque formulaire : un libellé d&apos;origine + un owner par défaut</li>
           </ol>
-        </div>
-      </div>
+        </CrmV2Card>
+      </CrmV2Body>
 
-      <style jsx>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .animate-spin { animation: spin 1s linear infinite; }
-      `}</style>
-    </div>
+      {/* Modal mapping */}
+      {mappingForm && (
+        <MappingModal
+          form={mappingForm}
+          crmProps={crmProps}
+          onClose={() => setMappingForm(null)}
+          onSave={async (mappings) => {
+            await updateForm(mappingForm.form_id, { field_mappings: mappings })
+            setMappingForm(null)
+            setSuccess('Mapping enregistré')
+          }}
+        />
+      )}
+    </CrmV2Page>
   )
 }
 
-const sectionTitle: React.CSSProperties = {
-  fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: '#4a6070', marginTop: 0, marginBottom: 10,
-}
-function card(extra: React.CSSProperties = {}): React.CSSProperties {
-  return { background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12, ...extra }
-}
-function banner(kind: 'error' | 'success'): React.CSSProperties {
-  return {
-    padding: '10px 14px',
-    background: kind === 'error' ? '#fef2f2' : '#f0fdf4',
-    border: `1px solid ${kind === 'error' ? '#fecaca' : '#bbf7d0'}`,
-    borderRadius: 8,
-    color: kind === 'error' ? '#dc2626' : '#166534',
-    fontSize: 13, marginBottom: 16,
-    display: 'flex', alignItems: 'center', gap: 8,
-  }
-}
-function badge(color: string): React.CSSProperties {
-  return {
-    display: 'inline-block', padding: '2px 8px', borderRadius: 999,
-    background: color + '22', color, fontSize: 10, fontWeight: 600,
-  }
-}
-function btn(variant: 'primary' | 'secondary' | 'danger'): React.CSSProperties {
-  const base: React.CSSProperties = {
-    padding: '6px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer',
-    display: 'flex', alignItems: 'center', gap: 4, border: 'none',
-  }
-  if (variant === 'primary') return { ...base, background: 'linear-gradient(135deg, #2ea3f2, #0038f0)', color: '#fff' }
-  if (variant === 'danger') return { ...base, background: '#fee2e2', color: '#dc2626' }
-  return { ...base, background: '#f7f4ee', color: '#4a6070', border: '1px solid #e5ddc8' }
-}
-const th: React.CSSProperties = { textAlign: 'left', padding: '6px 10px', fontSize: 10, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase' }
-const td: React.CSSProperties = { padding: '8px 10px', verticalAlign: 'top' }
-const input: React.CSSProperties = { padding: '4px 8px', border: '1px solid #e5ddc8', borderRadius: 6, fontSize: 12, width: '100%', maxWidth: 200 }
+const mobileLabel: CSSProperties = { display: 'grid', gap: 4, fontSize: 12, fontWeight: 700, color: crmV2.textMuted }
 
 // ─── Helpers de mapping ─────────────────────────────────────────────────────
 
@@ -680,154 +947,135 @@ function MappingModal({
       })
     : crmProps
 
+  const pad = isMobile ? 12 : 18
+
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.5)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        zIndex: 1000, padding: isMobile ? 10 : 20,
-      }}
-    >
-      <div
-        onClick={e => e.stopPropagation()}
-        style={{
-          background: '#fff', borderRadius: 12, width: '100%', maxWidth: 800,
-          maxHeight: '90vh', display: 'flex', flexDirection: 'column',
-          boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
-        }}
-      >
-        {/* Header */}
-        <div style={{
-          padding: '16px 20px', borderBottom: '1px solid #e5ddc8',
-          background: 'linear-gradient(135deg, #2ea3f2, #0038f0)',
-          color: '#fff', borderRadius: '12px 12px 0 0',
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        }}>
+    <CrmV2Drawer
+      open
+      onClose={onClose}
+      width={760}
+      header={
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 16, fontWeight: 700 }}>Mappage de champs</div>
-            <div style={{ fontSize: 11, opacity: 0.9, wordBreak: 'break-word' }}>{form.name || form.form_id}</div>
+            <div style={{ fontSize: 17, fontWeight: 600, color: crmV2.text }}>Mappage de champs</div>
+            <div style={{ fontSize: 13, color: crmV2.textMuted, marginTop: 2, wordBreak: 'break-word' }}>{form.name || form.form_id}</div>
           </div>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', padding: 4 }}>
-            <X size={18} />
-          </button>
+          <CrmV2CloseButton onClick={onClose} />
         </div>
-
-        {/* Search */}
-        <div style={{ padding: isMobile ? '10px 12px' : '10px 20px', borderBottom: '1px solid #e5ddc8' }}>
-          <div style={{ position: 'relative' }}>
-            <Search size={12} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: '#a89e8a' }} />
-            <input
-              type="text"
-              placeholder="Rechercher une propriété CRM…"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              style={{ ...input, paddingLeft: 26, maxWidth: 'none', width: '100%' }}
-            />
-          </div>
+      }
+      footer={
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, width: '100%' }}>
+          <CrmV2Button variant="secondary" onClick={onClose} disabled={saving}>
+            Annuler
+          </CrmV2Button>
+          <CrmV2Button
+            variant="primary"
+            onClick={handleSave}
+            disabled={saving}
+            icon={saving ? <Loader2 size={14} style={adsSpin} /> : <CheckCircle2 size={14} />}
+          >
+            Enregistrer
+          </CrmV2Button>
         </div>
+      }
+    >
+      {/* Recherche */}
+      <div style={{ padding: `12px ${pad}px`, borderBottom: `1px solid ${crmV2.border}` }}>
+        <CrmV2Search
+          placeholder="Rechercher une propriété CRM…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ width: '100%', boxSizing: 'border-box' }}
+        />
+      </div>
 
-        {/* Body — table de mapping */}
-        <div style={{ overflowY: 'auto', padding: isMobile ? '10px 12px' : '12px 20px', flex: 1 }}>
-          {questions.length === 0 ? (
-            <div style={{ padding: 20, textAlign: 'center', color: '#a89e8a', fontSize: 13 }}>
-              Aucune question trouvée pour ce form. Refresh forms d&apos;abord.
-            </div>
-          ) : (
-            // Mobile : largeur fixe des colonnes pour que les selects ne poussent pas la modale
-            <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse', ...(isMobile ? { tableLayout: 'fixed' as const } : {}) }}>
-              <thead>
-                <tr>
-                  <th style={th}>Champ Facebook</th>
-                  <th style={th}>Propriété CRM</th>
-                </tr>
-              </thead>
-              <tbody>
-                {questions.map(q => {
-                  const mapping = mappings[q.key]
-                  const crmProp = mapping ? crmProps.find(p => p.name === mapping.crm_field) : null
-                  const isEnum = crmProp?.options && crmProp.options.length > 0 && q.options && q.options.length > 0
-                  return (
-                    <Fragment key={q.key}>
-                      <tr style={{ borderBottom: isEnum ? 'none' : '1px solid #f7f4ee' }}>
-                        <td style={{ ...td, width: '50%' }}>
-                          <div style={{ fontWeight: 600, wordBreak: 'break-word' }}>{q.label || q.key}</div>
-                          <div style={{ fontSize: 10, color: '#a89e8a' }}>{q.key}{q.type ? ` · ${q.type}` : ''}</div>
-                        </td>
-                        <td style={td}>
-                          <select
-                            value={mapping?.crm_field || ''}
-                            onChange={e => setField(q.key, e.target.value)}
-                            style={{ ...input, maxWidth: 'none', width: '100%' }}
-                          >
-                            <option value="">— Ne pas mapper —</option>
-                            {filteredProps.map(p => (
-                              <option key={p.name} value={p.name}>
-                                {p.label} ({p.name})
-                              </option>
-                            ))}
-                          </select>
-                          {crmProp && (
-                            <div style={{ fontSize: 10, color: '#4a6070', marginTop: 4 }}>
-                              {crmProp.label} · {crmProp.field_type || crmProp.type}
-                            </div>
-                          )}
+      {/* Corps — table de mapping */}
+      <div style={{ padding: `4px ${pad}px 12px` }}>
+        {questions.length === 0 ? (
+          <CrmV2Empty
+            icon={<Layers size={22} />}
+            title="Aucune question trouvée pour ce formulaire"
+            description="Actualise les formulaires de la page d’abord."
+          />
+        ) : (
+          // Mobile : largeur fixe des colonnes pour que les selects ne poussent pas le panneau
+          <table style={{ width: '100%', fontSize: 13, borderCollapse: 'separate', borderSpacing: 0, ...(isMobile ? { tableLayout: 'fixed' as const } : {}) }}>
+            <thead>
+              <tr>
+                <CrmV2Th style={{ width: '50%' }}>Champ Facebook</CrmV2Th>
+                <CrmV2Th>Propriété CRM</CrmV2Th>
+              </tr>
+            </thead>
+            <tbody>
+              {questions.map(q => {
+                const mapping = mappings[q.key]
+                const crmProp = mapping ? crmProps.find(p => p.name === mapping.crm_field) : null
+                const isEnum = crmProp?.options && crmProp.options.length > 0 && q.options && q.options.length > 0
+                return (
+                  <Fragment key={q.key}>
+                    <tr>
+                      <td style={{ ...mapTd, borderBottom: isEnum ? 'none' : mapTd.borderBottom }}>
+                        <div style={{ fontWeight: 600, color: crmV2.text, wordBreak: 'break-word' }}>{q.label || q.key}</div>
+                        <AdsFaint>{q.key}{q.type ? ` · ${q.type}` : ''}</AdsFaint>
+                      </td>
+                      <td style={{ ...mapTd, borderBottom: isEnum ? 'none' : mapTd.borderBottom }}>
+                        <CrmV2Select
+                          value={mapping?.crm_field || ''}
+                          onChange={e => setField(q.key, e.target.value)}
+                        >
+                          <option value="">— Ne pas mapper —</option>
+                          {filteredProps.map(p => (
+                            <option key={p.name} value={p.name}>
+                              {p.label} ({p.name})
+                            </option>
+                          ))}
+                        </CrmV2Select>
+                        {crmProp && (
+                          <div style={{ fontSize: 11, color: crmV2.textMuted, marginTop: 4 }}>
+                            {crmProp.label} · {crmProp.field_type || crmProp.type}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                    {isEnum && (
+                      <tr>
+                        <td colSpan={2} style={{ padding: '8px 12px 14px', background: crmV2.bgSoft, borderRadius: crmV2.radius, borderBottom: `1px solid ${crmV2.borderLight}` }}>
+                          <CrmV2SectionLabel style={{ marginBottom: 6 }}>Mappage des valeurs</CrmV2SectionLabel>
+                          <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse', ...(isMobile ? { tableLayout: 'fixed' as const } : {}) }}>
+                            <tbody>
+                              {q.options!.map(opt => (
+                                <tr key={opt.value}>
+                                  <td style={{ padding: '4px 6px', width: '50%' }}>
+                                    <span style={{ fontWeight: 600, color: crmV2.text }}>{opt.value}</span>
+                                  </td>
+                                  <td style={{ padding: '4px 6px' }}>
+                                    <CrmV2Select
+                                      value={mapping?.value_map?.[opt.value] || ''}
+                                      onChange={e => setValueMap(q.key, opt.value, e.target.value)}
+                                      style={{ height: 34 }}
+                                    >
+                                      <option value="">— Aucune —</option>
+                                      {crmProp!.options!.map(o => (
+                                        <option key={o.value} value={o.value}>{o.label}</option>
+                                      ))}
+                                    </CrmV2Select>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
                         </td>
                       </tr>
-                      {isEnum && (
-                        <tr style={{ borderBottom: '1px solid #f7f4ee' }}>
-                          <td colSpan={2} style={{ padding: '8px 10px 14px', background: '#fafbfc' }}>
-                            <div style={{ fontSize: 10, fontWeight: 600, color: '#4a6070', textTransform: 'uppercase', marginBottom: 6 }}>
-                              Mappage des valeurs
-                            </div>
-                            <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse', ...(isMobile ? { tableLayout: 'fixed' as const } : {}) }}>
-                              <tbody>
-                                {q.options!.map(opt => (
-                                  <tr key={opt.value}>
-                                    <td style={{ padding: '4px 6px', width: '50%' }}>
-                                      <span style={{ fontWeight: 500 }}>{opt.value}</span>
-                                    </td>
-                                    <td style={{ padding: '4px 6px' }}>
-                                      <select
-                                        value={mapping?.value_map?.[opt.value] || ''}
-                                        onChange={e => setValueMap(q.key, opt.value, e.target.value)}
-                                        style={{ ...input, maxWidth: 'none', width: '100%' }}
-                                      >
-                                        <option value="">— Aucune —</option>
-                                        {crmProp!.options!.map(o => (
-                                          <option key={o.value} value={o.value}>{o.label}</option>
-                                        ))}
-                                      </select>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
-                  )
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div style={{
-          padding: isMobile ? '10px 12px' : '12px 20px', borderTop: '1px solid #e5ddc8',
-          display: 'flex', justifyContent: 'flex-end', gap: 8,
-        }}>
-          <button onClick={onClose} style={btn('secondary')} disabled={saving}>
-            Annuler
-          </button>
-          <button onClick={handleSave} style={btn('primary')} disabled={saving}>
-            {saving ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
-            Enregistrer
-          </button>
-        </div>
+                    )}
+                  </Fragment>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
       </div>
-    </div>
+    </CrmV2Drawer>
   )
 }
+
+const mapTd: CSSProperties = { padding: '10px 12px', verticalAlign: 'top', borderBottom: `1px solid ${crmV2.borderLight}` }

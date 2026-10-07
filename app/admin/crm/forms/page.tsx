@@ -1,11 +1,23 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { formatDistanceToNow } from 'date-fns'
+import { fr } from 'date-fns/locale'
 import {
-  FileText, Plus, Search, ExternalLink, Copy, Trash2, Code,
-  CheckCircle2, FileEdit, Archive, X, Eye, Send, Inbox, Download, Loader2,
+  FileText, Plus, ExternalLink, Copy, Trash2,
+  CheckCircle2, Eye, Send, Download, Loader2, FolderInput,
+  AlertTriangle, Check, RefreshCw, XCircle, Lightbulb, ChevronLeft,
 } from 'lucide-react'
-import LogoutButton from '@/components/LogoutButton'
+import {
+  CrmV2Body, CrmV2Button, CrmV2Empty, CrmV2Field, CrmV2Header, CrmV2Input, CrmV2KpiCard, CrmV2KpiGrid,
+  CrmV2Page, CrmV2Search, CrmV2Select, CrmV2Spinner, CrmV2StatusPill, CrmV2Table, CrmV2TableCard,
+  CrmV2Tabs, CrmV2Td, CrmV2Th, CrmV2Tr,
+} from '@/components/crm-v2/primitives'
+import {
+  MKT_TONES, MktIconBox, MktIconButton, MktMenu, MktMobileRow, MktModal, MktNameCell, MktNotice, MktSelectPill,
+  mutedCell, numCell, useCrmBase,
+} from '@/components/crm-v2/marketing/ui'
+import { crmV2 } from '@/lib/crm-v2-theme'
 import { useIsMobile } from '@/lib/useIsMobile'
 
 interface Form {
@@ -22,10 +34,10 @@ interface Form {
   folder?: string | null
 }
 
-const STATUS_META: Record<Form['status'], { label: string; color: string; bg: string; icon: typeof FileText }> = {
-  draft:     { label: 'Brouillon',  color: '#4a6070', bg: '#ffffff', icon: FileEdit },
-  published: { label: 'Publié',     color: '#22c55e', bg: 'rgba(34,197,94,0.15)', icon: CheckCircle2 },
-  archived:  { label: 'Archivé',    color: '#4a6070', bg: 'rgba(139,143,168,0.15)', icon: Archive },
+const STATUS_META: Record<Form['status'], { label: string; color: string; bg: string }> = {
+  draft:     { label: 'Brouillon', ...MKT_TONES.gold },
+  published: { label: 'Publié',    ...MKT_TONES.green },
+  archived:  { label: 'Archivé',   ...MKT_TONES.grey },
 }
 
 // Dossiers de classement des formulaires (7 marques du groupe)
@@ -49,8 +61,16 @@ function getFolder(f: Form): Folder {
   return (FOLDERS as readonly string[]).includes(x) ? (x as Folder) : DEFAULT_FOLDER
 }
 
+function ago(iso: string | null | undefined): string {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return '—'
+  return formatDistanceToNow(d, { addSuffix: true, locale: fr })
+}
+
 export default function FormsPage() {
   const isMobile = useIsMobile()
+  const base = useCrmBase()
   const [forms, setForms] = useState<Form[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -58,6 +78,8 @@ export default function FormsPage() {
   const [folderFilter, setFolderFilter] = useState<Folder>(DEFAULT_FOLDER)
   const [showNewModal, setShowNewModal] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
+  // Mobile : choix du dossier dans une fenêtre dédiée
+  const [moveForm, setMoveForm] = useState<Form | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -82,7 +104,7 @@ export default function FormsPage() {
     return true
   })
 
-  // Compteurs par dossier (pour les tabs)
+  // Compteurs par dossier (pour les onglets)
   const folderCounts: Record<Folder, number> = {
     'Diploma Santé': 0, 'Medibox': 0, 'Edumove': 0, 'Linova Education': 0, 'AFEM': 0, 'Prépa Médecine.fr': 0, 'Hermione': 0,
   }
@@ -127,152 +149,204 @@ export default function FormsPage() {
     totalSubmissions: forms.reduce((s, f) => s + (f.submission_count || 0), 0),
   }
 
+  const openForm = (f: Form) => { window.location.href = `${base}/forms/${f.id}` }
+  const openPublic = (f: Form) => { window.open(`/forms/${f.slug}`, '_blank') }
+
+  const folderSelect = (f: Form) => {
+    const current = getFolder(f)
+    return (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }} onClick={e => e.stopPropagation()}>
+        <span style={{ width: 8, height: 8, borderRadius: '50%', background: FOLDER_COLOR[current], flexShrink: 0 }} />
+        <MktSelectPill
+          value={current}
+          title="Déplacer dans un autre dossier"
+          onChange={e => {
+            const v = e.target.value as Folder
+            if (v !== current) moveToFolder(f, v)
+          }}
+          style={{ height: 32 }}
+        >
+          {FOLDERS.map(x => <option key={x} value={x}>{x}</option>)}
+        </MktSelectPill>
+      </span>
+    )
+  }
+
   return (
-    <div style={{ minHeight: '100vh', background: '#f7f4ee', color: '#0e1e35', fontFamily: 'Inter, system-ui, sans-serif' }}>
-      {/* Topbar */}
-      <div style={{ padding: isMobile ? '0 12px' : '0 20px', height: 52, background: '#ffffff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <a href="/admin/crm" style={{ color: '#4a6070', textDecoration: 'none', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-            ← Retour CRM
-          </a>
-          <div style={{ width: 1, height: 22, background: '#e5ddc8' }} />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <FileText size={16} style={{ color: '#22c55e' }} />
-            <span style={{ fontSize: 14, fontWeight: 600 }}>Formulaires</span>
-          </div>
-        </div>
-        <LogoutButton />
-      </div>
+    <CrmV2Page>
+      <CrmV2Header
+        title="Formulaires"
+        subtitle={loading ? 'Formulaires web et intégrations' : `${stats.total.toLocaleString('fr-FR')} formulaire${stats.total > 1 ? 's' : ''} · formulaires web et intégrations`}
+        actions={
+          <>
+            <CrmV2Button variant="secondary" icon={<Download size={14} />} onClick={() => setShowImportModal(true)}>
+              {isMobile ? 'Importer' : 'Importer des formulaires'}
+            </CrmV2Button>
+            <CrmV2Button variant="primary" icon={<Plus size={14} />} onClick={() => setShowNewModal(true)}>
+              Créer un formulaire
+            </CrmV2Button>
+          </>
+        }
+      >
+        <CrmV2Tabs
+          bordered={false}
+          items={FOLDERS.map(f => ({ id: f, label: f, count: folderCounts[f] }))}
+          value={folderFilter}
+          onChange={id => setFolderFilter(id as Folder)}
+        />
+      </CrmV2Header>
 
-      {/* Stats */}
-      <div style={{ padding: isMobile ? '14px 12px 12px' : '24px 24px 16px', maxWidth: 1400, margin: '0 auto' }}>
-        {/* Mobile : grille 2 colonnes pour éviter que les cartes soient coupées */}
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(4, 1fr)', gap: isMobile ? 10 : 16 }}>
-          <StatCard label="Total" value={stats.total} color="#C9A84C" icon={FileText} />
-          <StatCard label="Publiés" value={stats.published} color="#22c55e" icon={CheckCircle2} />
-          <StatCard label="Vues totales" value={stats.totalViews.toLocaleString('fr-FR')} color="#06b6d4" icon={Eye} />
-          <StatCard label="Soumissions" value={stats.totalSubmissions.toLocaleString('fr-FR')} color="#a855f7" icon={Send} />
-        </div>
-      </div>
+      <CrmV2Body>
+        <CrmV2KpiGrid>
+          <CrmV2KpiCard label="Total" value={stats.total} color={crmV2.gold} icon={<FileText size={15} />} detail="Toutes marques" />
+          <CrmV2KpiCard label="Publiés" value={stats.published} color="#16a34a" icon={<CheckCircle2 size={15} />} detail="En ligne" />
+          <CrmV2KpiCard label="Vues totales" value={stats.totalViews.toLocaleString('fr-FR')} color={crmV2.link} icon={<Eye size={15} />} detail="Affichages des formulaires" />
+          <CrmV2KpiCard label="Soumissions" value={stats.totalSubmissions.toLocaleString('fr-FR')} color="#7e22ce" icon={<Send size={15} />} detail="Hors spam" />
+        </CrmV2KpiGrid>
 
-      {/* Tabs dossiers */}
-      <div style={{ padding: isMobile ? '0 12px 12px' : '0 24px 12px', maxWidth: 1400, margin: '0 auto' }}>
-        <div style={{ display: 'flex', gap: 6, borderBottom: '1px solid #e5ddc8', overflowX: 'auto', flexWrap: 'wrap' }}>
-          {FOLDERS.map(f => {
-            const active = folderFilter === f
-            const count = folderCounts[f]
-            return (
-              <button
-                key={f}
-                onClick={() => setFolderFilter(f)}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  borderBottom: active ? `2px solid ${FOLDER_COLOR[f]}` : '2px solid transparent',
-                  marginBottom: -1,
-                  padding: '10px 14px',
-                  color: active ? FOLDER_COLOR[f] : '#4a6070',
-                  fontSize: 13,
-                  fontWeight: active ? 700 : 600,
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                <span>{f}</span>
-                <span style={{
-                  background: active ? `${FOLDER_COLOR[f]}20` : '#f7f4ee',
-                  color: active ? FOLDER_COLOR[f] : '#4a6070',
-                  fontSize: 11,
-                  fontWeight: 700,
-                  padding: '2px 8px',
-                  borderRadius: 10,
-                }}>{count}</span>
-              </button>
+        <CrmV2TableCard
+          toolbar={
+            <>
+              <CrmV2Search
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Rechercher un formulaire…"
+                style={isMobile ? { flex: '1 1 100%' } : undefined}
+              />
+              <MktSelectPill value={statusFilter} active={!!statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+                <option value="">Statut : tous</option>
+                {Object.entries(STATUS_META).map(([k, v]) => (
+                  <option key={k} value={k}>{v.label}</option>
+                ))}
+              </MktSelectPill>
+            </>
+          }
+        >
+          {loading ? (
+            <CrmV2Spinner />
+          ) : filtered.length === 0 ? (
+            forms.length === 0 ? (
+              <CrmV2Empty
+                icon={<FileText size={26} />}
+                title="Aucun formulaire pour le moment"
+                description="Crée un formulaire pour capturer des prospects sur ton site."
+                action={<CrmV2Button variant="primary" icon={<Plus size={14} />} onClick={() => setShowNewModal(true)}>Créer mon premier formulaire</CrmV2Button>}
+              />
+            ) : (
+              <div style={{ textAlign: 'center', padding: 40, color: crmV2.textMuted, fontSize: 13 }}>Aucun formulaire ne correspond aux filtres.</div>
             )
-          })}
-        </div>
-      </div>
-
-      {/* Barre d'action */}
-      <div style={{ padding: isMobile ? '0 12px 16px' : '0 24px 16px', maxWidth: 1400, margin: '0 auto' }}>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8, padding: '6px 12px', flex: '1 1 280px', minWidth: 0, minHeight: isMobile ? 36 : undefined, boxSizing: 'border-box' }}>
-            <Search size={14} style={{ color: '#4a6070' }} />
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Rechercher un formulaire…"
-              style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', color: '#0e1e35', outline: 'none', fontSize: 13, fontFamily: 'inherit' }}
-            />
-          </div>
-          <select
-            value={statusFilter}
-            onChange={e => setStatusFilter(e.target.value)}
-            style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8, padding: '6px 12px', color: '#0e1e35', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', minHeight: isMobile ? 36 : undefined }}
-          >
-            <option value="">Tous statuts</option>
-            {Object.entries(STATUS_META).map(([k, v]) => (
-              <option key={k} value={k}>{v.label}</option>
-            ))}
-          </select>
-          {!isMobile && <div style={{ flex: 1 }} />}
-          <button
-            onClick={() => setShowImportModal(true)}
-            style={{ background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 8, padding: '8px 14px', color: '#f59e0b', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit', ...(isMobile ? { flex: '1 1 100%', minHeight: 40 } : {}) }}
-          >
-            <Download size={14} /> Importer des formulaires
-          </button>
-          <button
-            onClick={() => setShowNewModal(true)}
-            style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 8, padding: '8px 16px', color: '#22c55e', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit', ...(isMobile ? { flex: '1 1 100%', minHeight: 40 } : {}) }}
-          >
-            <Plus size={14} /> Nouveau formulaire
-          </button>
-        </div>
-      </div>
-
-      {/* Liste */}
-      <div style={{ padding: isMobile ? '0 12px 60px' : '0 24px 60px', maxWidth: 1400, margin: '0 auto' }}>
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: 40, color: '#4a6070' }}>Chargement…</div>
-        ) : filtered.length === 0 ? (
-          forms.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 60, background: '#ffffff', border: '1px dashed #e5ddc8', borderRadius: 12 }}>
-              <FileText size={48} style={{ color: '#a89e8a', margin: '0 auto 16px' }} />
-              <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>Aucun formulaire pour le moment</div>
-              <div style={{ fontSize: 13, color: '#4a6070', marginBottom: 20 }}>Crée un formulaire pour capturer des prospects sur ton site.</div>
-              <button onClick={() => setShowNewModal(true)} style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 8, padding: '10px 20px', color: '#22c55e', fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit' }}>
-                <Plus size={14} /> Créer mon premier formulaire
-              </button>
+          ) : isMobile ? (
+            <div>
+              {filtered.map(f => {
+                const meta = STATUS_META[f.status]
+                return (
+                  <MktMobileRow
+                    key={f.id}
+                    href={`${base}/forms/${f.id}`}
+                    icon={<MktIconBox color={meta.color} bg={meta.bg} size={32}><FileText size={15} /></MktIconBox>}
+                    title={f.name}
+                    subtitle={`${(f.submission_count || 0).toLocaleString('fr-FR')} soumission${f.submission_count > 1 ? 's' : ''} · ${f.view_count || 0} vues`}
+                    right={<CrmV2StatusPill label={meta.label} color={meta.color} bg={meta.bg} />}
+                    actions={
+                      <MktMenu items={[
+                        ...(f.status === 'published' ? [{ label: 'Voir la page publique', icon: <ExternalLink size={14} />, onClick: () => openPublic(f) }] : []),
+                        { label: 'Changer de dossier', icon: <FolderInput size={14} />, onClick: () => setMoveForm(f) },
+                        { label: 'Dupliquer', icon: <Copy size={14} />, onClick: () => duplicate(f) },
+                        { label: 'Supprimer', icon: <Trash2 size={14} />, onClick: () => remove(f), danger: true },
+                      ]} />
+                    }
+                  />
+                )
+              })}
             </div>
           ) : (
-            <div style={{ textAlign: 'center', padding: 40, color: '#4a6070' }}>Aucun formulaire ne correspond aux filtres.</div>
-          )
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {filtered.map(f => (
-              <FormRow key={f.id} form={f} isMobile={isMobile} onDuplicate={() => duplicate(f)} onDelete={() => remove(f)} onMove={(target) => moveToFolder(f, target)} />
-            ))}
-          </div>
-        )}
-      </div>
+            <CrmV2Table>
+              <thead>
+                <tr>
+                  <CrmV2Th>Formulaire</CrmV2Th>
+                  <CrmV2Th>Marque</CrmV2Th>
+                  <CrmV2Th style={{ textAlign: 'right' }}>Vues</CrmV2Th>
+                  <CrmV2Th style={{ textAlign: 'right' }}>Soumissions</CrmV2Th>
+                  <CrmV2Th style={{ textAlign: 'right' }}>Conversion</CrmV2Th>
+                  <CrmV2Th>Statut</CrmV2Th>
+                  <CrmV2Th>Mis à jour</CrmV2Th>
+                  <CrmV2Th style={{ width: 1 }}>{''}</CrmV2Th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(f => {
+                  const meta = STATUS_META[f.status]
+                  const conversionRate = f.view_count > 0 ? Math.round((f.submission_count / f.view_count) * 100) : 0
+                  return (
+                    <CrmV2Tr key={f.id} onClick={() => openForm(f)}>
+                      <CrmV2Td style={{ maxWidth: 380 }}>
+                        <MktNameCell
+                          icon={<FileText size={14} />}
+                          iconColor={meta.color}
+                          iconBg={meta.bg}
+                          href={`${base}/forms/${f.id}`}
+                          title={f.name}
+                          subtitle={`/forms/${f.slug}`}
+                        />
+                      </CrmV2Td>
+                      <CrmV2Td>{folderSelect(f)}</CrmV2Td>
+                      <CrmV2Td style={numCell}>{(f.view_count || 0).toLocaleString('fr-FR')}</CrmV2Td>
+                      <CrmV2Td style={numCell}>{(f.submission_count || 0).toLocaleString('fr-FR')}</CrmV2Td>
+                      <CrmV2Td style={{ ...numCell, color: conversionRate > 0 ? '#16a34a' : crmV2.textMuted }}>{conversionRate} %</CrmV2Td>
+                      <CrmV2Td><CrmV2StatusPill label={meta.label} color={meta.color} bg={meta.bg} /></CrmV2Td>
+                      <CrmV2Td style={mutedCell}>{ago(f.updated_at)}</CrmV2Td>
+                      <CrmV2Td>
+                        <span style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }} onClick={e => e.stopPropagation()}>
+                          {f.status === 'published' && (
+                            <MktIconButton title="Voir la page publique" onClick={() => openPublic(f)}><ExternalLink size={14} /></MktIconButton>
+                          )}
+                          <MktIconButton title="Dupliquer" onClick={() => duplicate(f)}><Copy size={14} /></MktIconButton>
+                          <MktIconButton title="Supprimer" onClick={() => remove(f)} danger><Trash2 size={14} /></MktIconButton>
+                        </span>
+                      </CrmV2Td>
+                    </CrmV2Tr>
+                  )
+                })}
+              </tbody>
+            </CrmV2Table>
+          )}
+        </CrmV2TableCard>
+      </CrmV2Body>
 
       {showNewModal && (
-        <NewFormModal onClose={() => setShowNewModal(false)} onCreated={(id) => { window.location.href = `/admin/crm/forms/${id}` }} />
+        <NewFormModal onClose={() => setShowNewModal(false)} onCreated={(id) => { window.location.href = `${base}/forms/${id}` }} />
       )}
       {showImportModal && (
-        <ImportHubspotModal onClose={() => setShowImportModal(false)} onDone={() => { setShowImportModal(false); load() }} />
+        <ImportFormsModal onClose={() => setShowImportModal(false)} onDone={() => { setShowImportModal(false); load() }} />
       )}
-    </div>
+      {moveForm && (
+        <MktModal
+          open
+          onClose={() => setMoveForm(null)}
+          title="Changer de dossier"
+          footer={<CrmV2Button variant="secondary" onClick={() => setMoveForm(null)}>Fermer</CrmV2Button>}
+        >
+          <CrmV2Field label={moveForm.name}>
+            <CrmV2Select
+              value={getFolder(moveForm)}
+              onChange={e => {
+                const v = e.target.value as Folder
+                if (v !== getFolder(moveForm)) moveToFolder(moveForm, v)
+                setMoveForm(null)
+              }}
+              style={{ height: 44 }}
+            >
+              {FOLDERS.map(x => <option key={x} value={x}>{x}</option>)}
+            </CrmV2Select>
+          </CrmV2Field>
+        </MktModal>
+      )}
+    </CrmV2Page>
   )
 }
 
-// ─── Modal Import HubSpot ────────────────────────────────────────────────
-function ImportHubspotModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+// ─── Fenêtre d'import de formulaires externes ─────────────────────────────
+function ImportFormsModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
   const [prefix, setPrefix] = useState('NS')
   const [folder, setFolder] = useState<Folder>(DEFAULT_FOLDER)
   const [step, setStep] = useState<'config' | 'preview' | 'importing' | 'done'>('config')
@@ -345,301 +419,144 @@ function ImportHubspotModal({ onClose, onDone }: { onClose: () => void; onDone: 
   const updated = results.filter(r => r.status === 'updated').length
   const errors = results.filter(r => r.status === 'error').length
 
-  return (
+  const listBox: React.CSSProperties = {
+    maxHeight: 300, overflowY: 'auto', background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: 12, padding: 6,
+  }
+
+  const footer = step === 'config' ? (
     <>
-      <div onClick={step !== 'importing' ? onClose : undefined} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 60 }} />
-      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 560, maxWidth: 'calc(100vw - 32px)', boxSizing: 'border-box', maxHeight: '85vh', overflowY: 'auto', background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 24, zIndex: 61 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0e1e35', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Download size={16} style={{ color: '#f59e0b' }} />
-            Importer des formulaires
-          </h3>
-          {step !== 'importing' && (
-            <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#4a6070', cursor: 'pointer' }}><X size={18} /></button>
-          )}
-        </div>
+      <CrmV2Button variant="secondary" onClick={onClose}>Annuler</CrmV2Button>
+      <CrmV2Button
+        variant="primary"
+        onClick={runPreview}
+        disabled={!prefix.trim() || loading}
+        icon={loading ? <Loader2 size={14} style={{ animation: 'crm-v2-spin 1s linear infinite' }} /> : undefined}
+      >
+        {loading ? 'Analyse…' : 'Prévisualiser'}
+      </CrmV2Button>
+    </>
+  ) : step === 'preview' ? (
+    <>
+      <CrmV2Button variant="secondary" icon={<ChevronLeft size={14} />} onClick={() => setStep('config')} style={{ marginRight: 'auto' }}>Modifier</CrmV2Button>
+      <CrmV2Button variant="primary" onClick={runImport} disabled={preview.length === 0}>
+        Importer les {preview.length} formulaire{preview.length > 1 ? 's' : ''}
+      </CrmV2Button>
+    </>
+  ) : step === 'done' ? (
+    <CrmV2Button variant="primary" onClick={onDone}>Fermer</CrmV2Button>
+  ) : undefined
 
-        {step === 'config' && (
-          <>
-            <div style={{ fontSize: 13, color: '#4a6070', marginBottom: 16, lineHeight: 1.5 }}>
-              Récupère tous les formulaires externes dont le nom commence par le préfixe ci-dessous, et les importe dans ton CRM natif avec leurs champs.
-            </div>
-            <div style={{ fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Préfixe du nom</div>
-            <input
-              value={prefix}
-              onChange={e => setPrefix(e.target.value)}
-              placeholder="NS"
-              autoFocus
-              style={{ width: '100%', background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 8, padding: '8px 12px', color: '#0e1e35', fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
-            />
-
-            <div style={{ fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', margin: '14px 0 4px' }}>Dossier cible</div>
-            <select
-              value={folder}
-              onChange={e => setFolder(e.target.value as Folder)}
-              style={{ width: '100%', background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 8, padding: '8px 12px', color: '#0e1e35', fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', cursor: 'pointer' }}
-            >
-              {FOLDERS.map(f => <option key={f} value={f}>{f}</option>)}
-            </select>
-            <div style={{ fontSize: 11, color: '#4a6070', marginTop: 4 }}>
-              Exemple : <code style={{ color: '#C9A84C' }}>NS</code> importera &quot;NS Landing PASS&quot;, &quot;NS Inscription LAS&quot;, etc.
-            </div>
-
-            {error === 'SCOPE_MISSING' ? (
-              <div style={{ marginTop: 12, padding: 14, background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 8, fontSize: 12, color: '#0e1e35' }}>
-                <div style={{ color: '#f59e0b', fontWeight: 700, marginBottom: 8, fontSize: 13 }}>⚠️ Scope manquant : &quot;forms&quot;</div>
-                <div style={{ marginBottom: 10, lineHeight: 1.5 }}>
-                  Le token d&apos;accès actuel n&apos;a pas la permission de lire les formulaires.
-                </div>
-                <div style={{ fontWeight: 600, marginBottom: 6, color: '#C9A84C' }}>À faire :</div>
-                <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7, fontSize: 12, color: '#4a6070' }}>
-                  <li>Ouvre <a href="https://app.hubspot.com/settings/integrations/private-apps" target="_blank" rel="noreferrer" style={{ color: '#06b6d4' }}>Paramètres → Private Apps</a></li>
-                  <li>Clique sur ton application privée</li>
-                  <li>Onglet &quot;Scopes&quot; → recherche <code style={{ color: '#C9A84C' }}>forms</code></li>
-                  <li>Coche <strong>forms</strong> (Read)</li>
-                  <li>Clique &quot;Commit changes&quot; → copie le nouveau token</li>
-                  <li>Mets à jour le token d&apos;accès sur Vercel</li>
-                  <li>Redéploie puis relance l&apos;import</li>
-                </ol>
-              </div>
-            ) : error ? (
-              <div style={{ marginTop: 12, padding: 10, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, color: '#ef4444', fontSize: 12 }}>{error}</div>
-            ) : null}
-
-            <div style={{ display: 'flex', gap: 8, marginTop: 24, justifyContent: 'flex-end' }}>
-              <button onClick={onClose} style={{ background: '#ffffff', border: '1px solid #e5ddc8', color: '#4a6070', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}>Annuler</button>
-              <button
-                onClick={runPreview}
-                disabled={!prefix.trim() || loading}
-                style={{ background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', color: '#f59e0b', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13, fontFamily: 'inherit', opacity: !prefix.trim() || loading ? 0.5 : 1, display: 'flex', alignItems: 'center', gap: 6 }}
-              >
-                {loading && <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />}
-                {loading ? 'Analyse…' : 'Prévisualiser'}
-              </button>
-            </div>
-          </>
-        )}
-
-        {step === 'preview' && (
-          <>
-            <div style={{ fontSize: 13, color: '#0e1e35', marginBottom: 12 }}>
-              <strong style={{ color: '#f59e0b' }}>{preview.length}</strong> formulaire{preview.length > 1 ? 's' : ''} trouvé{preview.length > 1 ? 's' : ''} commençant par &quot;{prefix}&quot; :
-            </div>
-            {preview.length === 0 ? (
-              <div style={{ padding: 20, textAlign: 'center', color: '#4a6070', fontSize: 13, background: '#ffffff', borderRadius: 8 }}>
-                Aucun formulaire ne correspond à ce préfixe.
-              </div>
-            ) : (
-              <div style={{ maxHeight: 300, overflowY: 'auto', background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8, padding: 8 }}>
-                {preview.map((f, i) => (
-                  <div key={f.id} style={{ padding: '8px 10px', borderBottom: i < preview.length - 1 ? '1px solid #e5ddc8' : 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 13, color: '#0e1e35' }}>{f.name}</span>
-                    <span style={{ fontSize: 11, color: '#4a6070' }}>{f.fieldsCount} champ{f.fieldsCount > 1 ? 's' : ''}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div style={{ display: 'flex', gap: 8, marginTop: 20, justifyContent: 'space-between' }}>
-              <button onClick={() => setStep('config')} style={{ background: '#ffffff', border: '1px solid #e5ddc8', color: '#4a6070', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}>← Modifier</button>
-              <button
-                onClick={runImport}
-                disabled={preview.length === 0}
-                style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)', color: '#22c55e', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13, fontFamily: 'inherit', opacity: preview.length === 0 ? 0.5 : 1 }}
-              >
-                Importer les {preview.length} formulaire{preview.length > 1 ? 's' : ''}
-              </button>
-            </div>
-          </>
-        )}
-
-        {step === 'importing' && (
-          <div style={{ padding: 40, textAlign: 'center' }}>
-            <Loader2 size={32} style={{ color: '#f59e0b', animation: 'spin 1s linear infinite', margin: '0 auto 16px' }} />
-            <div style={{ fontSize: 14, color: '#0e1e35', fontWeight: 600, marginBottom: 4 }}>Import en cours…</div>
-            <div style={{ fontSize: 12, color: '#4a6070' }}>Récupération des formulaires et création dans Supabase. Peut prendre 20-60 secondes.</div>
+  return (
+    <MktModal
+      open
+      onClose={step !== 'importing' ? onClose : () => { /* import en cours : fermeture bloquée */ }}
+      title={<span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><Download size={16} color={crmV2.gold} /> Importer des formulaires</span>}
+      footer={footer}
+      width={560}
+    >
+      {step === 'config' && (
+        <>
+          <div style={{ fontSize: 13, color: crmV2.textMuted, lineHeight: 1.5 }}>
+            Récupère tous les formulaires externes dont le nom commence par le préfixe ci-dessous, et les importe dans ton CRM natif avec leurs champs.
           </div>
-        )}
+          <CrmV2Field label="Préfixe du nom">
+            <CrmV2Input value={prefix} onChange={e => setPrefix(e.target.value)} placeholder="NS" autoFocus />
+          </CrmV2Field>
+          <CrmV2Field
+            label="Dossier cible"
+            hint={<>Exemple : <strong style={{ color: crmV2.goldDark }}>NS</strong> importera &quot;NS Landing PASS&quot;, &quot;NS Inscription LAS&quot;, etc.</>}
+          >
+            <CrmV2Select value={folder} onChange={e => setFolder(e.target.value as Folder)}>
+              {FOLDERS.map(f => <option key={f} value={f}>{f}</option>)}
+            </CrmV2Select>
+          </CrmV2Field>
 
-        {step === 'done' && (
-          <>
-            <div style={{ padding: 16, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 8, marginBottom: 16 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#22c55e', marginBottom: 8 }}>✅ Import terminé !</div>
-              <div style={{ fontSize: 12, color: '#0e1e35', display: 'flex', gap: 12 }}>
-                <span><strong>{created}</strong> créés</span>
-                <span><strong>{updated}</strong> mis à jour</span>
-                {errors > 0 && <span style={{ color: '#ef4444' }}><strong>{errors}</strong> erreurs</span>}
+          {error === 'SCOPE_MISSING' ? (
+            <MktNotice icon={<AlertTriangle size={16} />}>
+              <div style={{ fontWeight: 700, marginBottom: 6 }}>Scope manquant : &quot;forms&quot;</div>
+              <div style={{ marginBottom: 8, color: crmV2.text }}>
+                Le token d&apos;accès actuel n&apos;a pas la permission de lire les formulaires.
               </div>
-            </div>
+              <div style={{ fontWeight: 700, marginBottom: 4 }}>À faire :</div>
+              <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7, fontSize: 12, color: crmV2.textMuted }}>
+                <li>Ouvre <a href="https://app.hubspot.com/settings/integrations/private-apps" target="_blank" rel="noreferrer" style={{ color: crmV2.link, fontWeight: 600 }}>Paramètres → Private Apps</a></li>
+                <li>Clique sur ton application privée</li>
+                <li>Onglet &quot;Scopes&quot; → recherche <strong>forms</strong></li>
+                <li>Coche <strong>forms</strong> (Read)</li>
+                <li>Clique &quot;Commit changes&quot; → copie le nouveau token</li>
+                <li>Mets à jour le token d&apos;accès sur Vercel</li>
+                <li>Redéploie puis relance l&apos;import</li>
+              </ol>
+            </MktNotice>
+          ) : error ? (
+            <MktNotice tone="red" icon={<XCircle size={16} />}>{error}</MktNotice>
+          ) : null}
+        </>
+      )}
 
-            <div style={{ maxHeight: 300, overflowY: 'auto', background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8, padding: 8 }}>
-              {results.map((r, i) => (
-                <div key={i} style={{ padding: '8px 10px', borderBottom: i < results.length - 1 ? '1px solid #e5ddc8' : 'none', fontSize: 12 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ color: '#0e1e35' }}>{r.name}</span>
-                    <span style={{
-                      color: r.status === 'error' ? '#ef4444' : r.status === 'created' ? '#22c55e' : '#06b6d4',
-                      fontWeight: 600,
-                      fontSize: 11,
-                    }}>
-                      {r.status === 'created' && `✅ Créé (${r.fieldsCount} champs)`}
-                      {r.status === 'updated' && `🔄 Mis à jour (${r.fieldsCount} champs)`}
-                      {r.status === 'error' && `❌ Erreur`}
-                    </span>
-                  </div>
-                  {r.error && <div style={{ color: '#ef4444', fontSize: 10, marginTop: 4 }}>{r.error}</div>}
+      {step === 'preview' && (
+        <>
+          <div style={{ fontSize: 13, color: crmV2.text }}>
+            <strong style={{ color: crmV2.goldDark }}>{preview.length}</strong> formulaire{preview.length > 1 ? 's' : ''} trouvé{preview.length > 1 ? 's' : ''} commençant par &quot;{prefix}&quot; :
+          </div>
+          {preview.length === 0 ? (
+            <div style={{ padding: 20, textAlign: 'center', color: crmV2.textMuted, fontSize: 13 }}>
+              Aucun formulaire ne correspond à ce préfixe.
+            </div>
+          ) : (
+            <div style={listBox}>
+              {preview.map((f, i) => (
+                <div key={f.id} style={{ padding: '8px 10px', borderBottom: i < preview.length - 1 ? `1px solid ${crmV2.borderLight}` : 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 13, color: crmV2.text, minWidth: 0 }}>{f.name}</span>
+                  <span style={{ fontSize: 12, color: crmV2.textMuted, whiteSpace: 'nowrap' }}>{f.fieldsCount} champ{f.fieldsCount > 1 ? 's' : ''}</span>
                 </div>
               ))}
             </div>
-
-            <div style={{ marginTop: 16, padding: 10, background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8, fontSize: 11, color: '#4a6070' }}>
-              💡 Les formulaires importés sont en <strong>brouillon</strong>. Ouvre-les pour vérifier les champs et publier.
-            </div>
-
-            <div style={{ display: 'flex', gap: 8, marginTop: 20, justifyContent: 'flex-end' }}>
-              <button onClick={onDone} style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)', color: '#22c55e', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13, fontFamily: 'inherit' }}>Fermer</button>
-            </div>
-          </>
-        )}
-      </div>
-      <style jsx global>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
-    </>
-  )
-}
-
-function StatCard({ label, value, color, icon: Icon }: { label: string; value: number | string; color: string; icon: typeof FileText }) {
-  return (
-    <div style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 16, minWidth: 0 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, minWidth: 0 }}>
-        <Icon size={14} style={{ color, flexShrink: 0 }} />
-        <span style={{ fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{label}</span>
-      </div>
-      <div style={{ fontSize: 24, fontWeight: 700, color }}>{value}</div>
-    </div>
-  )
-}
-
-function FormRow({ form, onDuplicate, onDelete, onMove, isMobile = false }: { form: Form; onDuplicate: () => void; onDelete: () => void; onMove: (target: Folder) => void; isMobile?: boolean }) {
-  const meta = STATUS_META[form.status]
-  const Icon = meta.icon
-  const conversionRate = form.view_count > 0 ? Math.round((form.submission_count / form.view_count) * 100) : 0
-  const currentFolder = getFolder(form)
-
-  const folderSelect = (
-    <select
-      value={currentFolder}
-      onChange={(e) => {
-        const v = e.target.value as Folder
-        if (v !== currentFolder) onMove(v)
-      }}
-      style={{
-        background: `${FOLDER_COLOR[currentFolder]}12`,
-        border: `1px solid ${FOLDER_COLOR[currentFolder]}40`,
-        borderRadius: 8,
-        padding: '5px 8px',
-        color: FOLDER_COLOR[currentFolder],
-        fontSize: 11,
-        fontWeight: 600,
-        cursor: 'pointer',
-        fontFamily: 'inherit',
-        ...(isMobile ? { minHeight: 36, maxWidth: '100%' } : {}),
-      }}
-      title="Déplacer dans un autre dossier"
-    >
-      {FOLDERS.map(f => <option key={f} value={f}>{f}</option>)}
-    </select>
-  )
-
-  // Mobile : carte empilée — titre pleine largeur, ligne de compteurs, puis actions
-  if (isMobile) {
-    return (
-      <div
-        onClick={() => window.location.href = `/admin/crm/forms/${form.id}`}
-        style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 10, padding: 12, cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }}
-      >
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, minWidth: 0 }}>
-          <div style={{ width: 32, height: 32, borderRadius: 8, background: meta.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <Icon size={15} style={{ color: meta.color }} />
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: '#0e1e35', marginBottom: 2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{form.name}</div>
-            <div style={{ fontSize: 11, color: '#4a6070', fontFamily: 'ui-monospace, monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>/forms/{form.slug}</div>
-          </div>
-          <span style={{ fontSize: 10, fontWeight: 600, color: meta.color, background: meta.bg, padding: '4px 10px', borderRadius: 999, whiteSpace: 'nowrap', flexShrink: 0 }}>
-            {meta.label}
-          </span>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 6, background: '#f7f4ee', borderRadius: 8, padding: '8px 4px' }}>
-          <Metric label="Vues" value={form.view_count} compact />
-          <Metric label="Soumissions" value={form.submission_count} color="#a855f7" compact />
-          <Metric label="Conversion" value={`${conversionRate}%`} color="#22c55e" compact />
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
-          <div style={{ flex: '1 1 auto', minWidth: 0 }}>{folderSelect}</div>
-          {form.status === 'published' && (
-            <IconBtn title="Voir la page publique" onClick={() => window.open(`/forms/${form.slug}`, '_blank')} size={36}><ExternalLink size={14} /></IconBtn>
           )}
-          <IconBtn title="Dupliquer" onClick={onDuplicate} size={36}><Copy size={14} /></IconBtn>
-          <IconBtn title="Supprimer" onClick={onDelete} color="#ef4444" size={36}><Trash2 size={14} /></IconBtn>
+        </>
+      )}
+
+      {step === 'importing' && (
+        <div style={{ padding: 32, textAlign: 'center' }}>
+          <Loader2 size={30} color={crmV2.gold} style={{ animation: 'crm-v2-spin 1s linear infinite', margin: '0 auto 14px', display: 'block' }} />
+          <div style={{ fontSize: 14, color: crmV2.text, fontWeight: 600, marginBottom: 4 }}>Import en cours…</div>
+          <div style={{ fontSize: 12, color: crmV2.textMuted }}>Récupération des formulaires et création dans Supabase. Peut prendre 20-60 secondes.</div>
         </div>
-      </div>
-    )
-  }
+      )}
 
-  return (
-    <div
-      onClick={() => window.location.href = `/admin/crm/forms/${form.id}`}
-      style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 10, padding: '14px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14 }}
-    >
-      <div style={{ width: 36, height: 36, borderRadius: 10, background: meta.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        <Icon size={16} style={{ color: meta.color }} />
-      </div>
+      {step === 'done' && (
+        <>
+          <div style={{ padding: 14, background: 'rgba(22,163,74,0.08)', border: '1px solid rgba(22,163,74,0.25)', borderRadius: 12 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#16a34a', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <CheckCircle2 size={16} /> Import terminé !
+            </div>
+            <div style={{ fontSize: 12, color: crmV2.text, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              <span><strong>{created}</strong> créés</span>
+              <span><strong>{updated}</strong> mis à jour</span>
+              {errors > 0 && <span style={{ color: '#dc2626' }}><strong>{errors}</strong> erreurs</span>}
+            </div>
+          </div>
 
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 14, fontWeight: 600, color: '#0e1e35', marginBottom: 2 }}>{form.name}</div>
-        <div style={{ fontSize: 11, color: '#4a6070', fontFamily: 'ui-monospace, monospace' }}>/forms/{form.slug}</div>
-      </div>
+          <div style={listBox}>
+            {results.map((r, i) => (
+              <div key={i} style={{ padding: '8px 10px', borderBottom: i < results.length - 1 ? `1px solid ${crmV2.borderLight}` : 'none', fontSize: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+                  <span style={{ color: crmV2.text, minWidth: 0 }}>{r.name}</span>
+                  {r.status === 'created' && <CrmV2StatusPill dot={false} label={<><Check size={12} /> Créé ({r.fieldsCount} champs)</>} {...MKT_TONES.green} />}
+                  {r.status === 'updated' && <CrmV2StatusPill dot={false} label={<><RefreshCw size={12} /> Mis à jour ({r.fieldsCount} champs)</>} {...MKT_TONES.blue} />}
+                  {r.status === 'error' && <CrmV2StatusPill dot={false} label={<><XCircle size={12} /> Erreur</>} {...MKT_TONES.red} />}
+                </div>
+                {r.error && <div style={{ color: '#dc2626', fontSize: 11, marginTop: 4 }}>{r.error}</div>}
+              </div>
+            ))}
+          </div>
 
-      <Metric label="Vues" value={form.view_count} />
-      <Metric label="Soumissions" value={form.submission_count} color="#a855f7" />
-      <Metric label="Conversion" value={`${conversionRate}%`} color="#22c55e" />
-
-      <span style={{ fontSize: 10, fontWeight: 600, color: meta.color, background: meta.bg, padding: '4px 10px', borderRadius: 999, whiteSpace: 'nowrap' }}>
-        {meta.label}
-      </span>
-
-      {/* Sélecteur de dossier */}
-      <div onClick={e => e.stopPropagation()}>
-        {folderSelect}
-      </div>
-
-      <div style={{ display: 'flex', gap: 4 }} onClick={e => e.stopPropagation()}>
-        {form.status === 'published' && (
-          <IconBtn title="Voir la page publique" onClick={() => window.open(`/forms/${form.slug}`, '_blank')}><ExternalLink size={13} /></IconBtn>
-        )}
-        <IconBtn title="Dupliquer" onClick={onDuplicate}><Copy size={13} /></IconBtn>
-        <IconBtn title="Supprimer" onClick={onDelete} color="#ef4444"><Trash2 size={13} /></IconBtn>
-      </div>
-    </div>
-  )
-}
-
-function Metric({ label, value, color = '#0e1e35', compact = false }: { label: string; value: number | string; color?: string; compact?: boolean }) {
-  return (
-    <div style={{ minWidth: compact ? 0 : 80, textAlign: 'center' }}>
-      <div style={{ fontSize: 14, fontWeight: 700, color }}>{value}</div>
-      <div style={{ fontSize: 10, color: '#4a6070', textTransform: 'uppercase', letterSpacing: 0.5, ...(compact ? { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } : {}) }}>{label}</div>
-    </div>
-  )
-}
-
-function IconBtn({ children, onClick, title, color = '#4a6070', size }: { children: React.ReactNode; onClick: () => void; title: string; color?: string; size?: number }) {
-  return (
-    <button onClick={onClick} title={title} style={{ background: 'transparent', border: '1px solid #e5ddc8', borderRadius: 6, padding: 6, color, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', ...(size ? { width: size, height: size, flexShrink: 0, boxSizing: 'border-box' as const } : {}) }}>
-      {children}
-    </button>
+          <MktNotice tone="blue" icon={<Lightbulb size={15} />}>
+            Les formulaires importés sont en <strong>brouillon</strong>. Ouvre-les pour vérifier les champs et publier.
+          </MktNotice>
+        </>
+      )}
+    </MktModal>
   )
 }
 
@@ -667,47 +584,34 @@ function NewFormModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
   }
 
   return (
-    <>
-      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 60 }} />
-      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 440, maxWidth: 'calc(100vw - 32px)', boxSizing: 'border-box', background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 24, zIndex: 61 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0e1e35' }}>Nouveau formulaire</h3>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#4a6070', cursor: 'pointer' }}><X size={18} /></button>
-        </div>
-
-        <div style={{ fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Nom du formulaire *</div>
-        <input
+    <MktModal
+      open
+      onClose={onClose}
+      title="Nouveau formulaire"
+      width={440}
+      footer={
+        <>
+          <CrmV2Button variant="secondary" onClick={onClose}>Annuler</CrmV2Button>
+          <CrmV2Button variant="primary" onClick={submit} disabled={!name.trim() || loading}>
+            {loading ? 'Création…' : 'Créer et configurer'}
+          </CrmV2Button>
+        </>
+      }
+    >
+      <CrmV2Field label="Nom du formulaire *">
+        <CrmV2Input
           value={name}
           onChange={e => setName(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') submit() }}
           placeholder="Ex: Inscription PASS 2026"
           autoFocus
-          style={{ width: '100%', background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 8, padding: '8px 12px', color: '#0e1e35', fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
         />
-
-        <div style={{ fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', margin: '14px 0 4px' }}>Dossier *</div>
-        <select
-          value={folder}
-          onChange={e => setFolder(e.target.value as Folder)}
-          style={{ width: '100%', background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 8, padding: '8px 12px', color: '#0e1e35', fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', cursor: 'pointer' }}
-        >
+      </CrmV2Field>
+      <CrmV2Field label="Dossier *" hint="Les champs par défaut (prénom, nom, email, téléphone) seront ajoutés automatiquement.">
+        <CrmV2Select value={folder} onChange={e => setFolder(e.target.value as Folder)}>
           {FOLDERS.map(f => <option key={f} value={f}>{f}</option>)}
-        </select>
-
-        <div style={{ fontSize: 11, color: '#4a6070', marginTop: 8 }}>
-          Les champs par défaut (prénom, nom, email, téléphone) seront ajoutés automatiquement.
-        </div>
-
-        <div style={{ display: 'flex', gap: 8, marginTop: 24, justifyContent: 'flex-end' }}>
-          <button onClick={onClose} style={{ background: '#ffffff', border: '1px solid #e5ddc8', color: '#4a6070', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}>Annuler</button>
-          <button
-            onClick={submit}
-            disabled={!name.trim() || loading}
-            style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)', color: '#22c55e', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13, fontFamily: 'inherit', opacity: !name.trim() || loading ? 0.5 : 1 }}
-          >
-            {loading ? 'Création…' : 'Créer et configurer →'}
-          </button>
-        </div>
-      </div>
-    </>
+        </CrmV2Select>
+      </CrmV2Field>
+    </MktModal>
   )
 }

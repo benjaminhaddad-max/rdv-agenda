@@ -1,12 +1,27 @@
 'use client'
 
-import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import Link from 'next/link'
-import { ArrowLeft, ArrowRight, Check, Plus, Trash2, X } from 'lucide-react'
-import MarketingNav from '@/components/crm/MarketingNav'
-import { CrmV2Button, CrmV2Card, CrmV2Page } from '@/components/crm-v2/primitives'
+import { ArrowLeft, ArrowRight, Plus, Trash2, X } from 'lucide-react'
+import {
+  CrmV2Body,
+  CrmV2Button,
+  CrmV2Field,
+  CrmV2FormSection,
+  CrmV2Header,
+  CrmV2Input,
+  CrmV2Page,
+  CrmV2Select,
+  CrmV2Textarea,
+} from '@/components/crm-v2/primitives'
+import {
+  EvBanner,
+  EvChoiceCard,
+  EvIconButton,
+  EvStepper,
+} from '@/components/crm-v2/marketing2/events-list/EventsListParts'
 import { crmV2 } from '@/lib/crm-v2-theme'
+import { useIsMobile } from '@/lib/useIsMobile'
 import {
   BRAND_CONFIG,
   DIPLOMA_CAMPUSES,
@@ -27,30 +42,10 @@ type CrmProp = {
 
 const STEPS = ['Marque & type', 'Infos événement', 'Formulaire CRM']
 
-const inputStyle: CSSProperties = {
-  width: '100%',
-  padding: '10px 12px',
-  borderRadius: crmV2.radius,
-  border: `1px solid ${crmV2.borderStrong}`,
-  background: crmV2.bg,
-  color: crmV2.text,
-  fontSize: 14,
-  fontFamily: 'inherit',
-  outline: 'none',
-  boxSizing: 'border-box',
-}
-
-const labelStyle: CSSProperties = {
-  display: 'block',
-  fontSize: 12,
-  fontWeight: 600,
-  color: crmV2.textMuted,
-  marginBottom: 6,
-}
-
 export default function NewEventWizardPage() {
   const router = useRouter()
   const search = useSearchParams()
+  const isMobile = useIsMobile()
   const initialBrand = (search.get('brand') as EventBrand) || 'diploma'
 
   const [step, setStep] = useState(0)
@@ -187,205 +182,108 @@ export default function NewEventWizardPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: crmV2.bgSoft }}>
-      <MarketingNav title="Nouvel événement" />
-      <CrmV2Page style={{ padding: '20px 28px 48px', maxWidth: 820, margin: '0 auto' }}>
-        <Link
-          href="/admin/crm/events"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            fontSize: 13,
-            color: crmV2.link,
-            textDecoration: 'none',
-            marginBottom: 14,
-          }}
-        >
-          <ArrowLeft size={14} /> Retour à la liste
-        </Link>
+    <CrmV2Page style={{ paddingBottom: 32 }}>
+      <CrmV2Header
+        back={{ href: '/admin/crm/events', label: 'Événements' }}
+        title="Nouvel événement"
+        subtitle="Parcours en 3 étapes — le formulaire CRM type est créé automatiquement."
+      />
 
-        <h1 style={{ margin: '0 0 6px', fontSize: 22, fontWeight: 600 }}>Nouvel événement</h1>
-        <p style={{ margin: '0 0 20px', fontSize: 13, color: crmV2.textMuted }}>
-          Parcours en 3 étapes — le formulaire CRM type est créé automatiquement.
-        </p>
+      <CrmV2Body>
+        <div style={{ maxWidth: 880, width: '100%', display: 'flex', flexDirection: 'column', gap: isMobile ? 12 : 16 }}>
+          <EvStepper steps={STEPS} current={step} />
 
-        <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-          {STEPS.map((label, i) => {
-            const active = i === step
-            const done = i < step
-            return (
-              <div
-                key={label}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '8px 14px',
-                  borderRadius: crmV2.radiusPill,
-                  background: active ? crmV2.text : done ? crmV2.goldSoft : crmV2.bg,
-                  border: `1px solid ${active ? crmV2.text : done ? crmV2.goldBorder : crmV2.border}`,
-                  color: active ? '#fff' : crmV2.text,
-                  fontSize: 12,
-                  fontWeight: 600,
-                }}
+          {error && <EvBanner tone="danger">{error}</EvBanner>}
+
+          {step === 0 && (
+            <>
+              <CrmV2FormSection
+                title="Marque"
+                description="La marque détermine les types d'événements disponibles et le dossier du formulaire."
+                columns={1}
               >
-                <span
+                <div
                   style={{
-                    width: 20,
-                    height: 20,
-                    borderRadius: '50%',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    background: active ? 'rgba(255,255,255,0.2)' : done ? crmV2.gold : crmV2.bgMuted,
-                    fontSize: 11,
+                    display: 'grid',
+                    gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, minmax(0, 1fr))',
+                    gap: 10,
                   }}
                 >
-                  {done ? <Check size={12} /> : i + 1}
-                </span>
-                {label}
-              </div>
-            )
-          })}
-        </div>
-
-        {error && (
-          <div
-            style={{
-              marginBottom: 14,
-              padding: '10px 14px',
-              borderRadius: crmV2.radius,
-              background: crmV2.dangerSoft,
-              color: crmV2.danger,
-              fontSize: 13,
-            }}
-          >
-            {error}
-          </div>
-        )}
-
-        <CrmV2Card style={{ padding: 22 }}>
-          {step === 0 && (
-            <div style={{ display: 'grid', gap: 20 }}>
-              <div>
-                <div style={labelStyle}>Marque</div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-                  {(['diploma', 'medibox', 'edumove'] as EventBrand[]).map((b) => {
-                    const active = brand === b
-                    return (
-                      <button
-                        key={b}
-                        type="button"
-                        onClick={() => setBrand(b)}
-                        style={{
-                          padding: 14,
-                          borderRadius: crmV2.radiusLg,
-                          border: `2px solid ${active ? crmV2.gold : crmV2.border}`,
-                          background: active ? crmV2.goldSoft : crmV2.bg,
-                          cursor: 'pointer',
-                          textAlign: 'left',
-                          fontFamily: 'inherit',
-                        }}
-                      >
-                        <div style={{ fontWeight: 600, fontSize: 14, color: crmV2.text }}>{BRAND_CONFIG[b].name}</div>
-                        <div style={{ fontSize: 11, color: crmV2.textFaint, marginTop: 4 }}>
-                          {brandEventTypes(b)
-                            .map((t) => EVENT_TYPES[t].short)
-                            .join(' · ')}
-                        </div>
-                      </button>
-                    )
-                  })}
+                  {(['diploma', 'medibox', 'edumove'] as EventBrand[]).map((b) => (
+                    <EvChoiceCard
+                      key={b}
+                      active={brand === b}
+                      onClick={() => setBrand(b)}
+                      title={BRAND_CONFIG[b].name}
+                      description={brandEventTypes(b)
+                        .map((t) => EVENT_TYPES[t].short)
+                        .join(' · ')}
+                    />
+                  ))}
                 </div>
-              </div>
-              <div>
-                <div style={labelStyle}>Type d&apos;événement</div>
+              </CrmV2FormSection>
+
+              <CrmV2FormSection title="Type d'événement" columns={1}>
                 <div style={{ display: 'grid', gap: 8 }}>
                   {types.map((t) => {
                     const cfg = EVENT_TYPES[t]
-                    const active = eventType === t
                     return (
-                      <button
+                      <EvChoiceCard
                         key={t}
-                        type="button"
+                        active={eventType === t}
                         onClick={() => setEventType(t)}
-                        style={{
-                          padding: '12px 14px',
-                          borderRadius: crmV2.radius,
-                          border: `1px solid ${active ? crmV2.gold : crmV2.borderStrong}`,
-                          background: active ? crmV2.goldSoft : crmV2.bg,
-                          cursor: 'pointer',
-                          textAlign: 'left',
-                          fontFamily: 'inherit',
-                        }}
-                      >
-                        <div style={{ fontWeight: 600, fontSize: 14 }}>{cfg.label}</div>
-                        <div style={{ fontSize: 12, color: crmV2.textMuted, marginTop: 2 }}>{cfg.desc}</div>
-                        {!cfg.comms && (
-                          <div style={{ fontSize: 11, color: crmV2.gold, marginTop: 4, fontWeight: 600 }}>
-                            Aucun email / SMS à la publication
-                          </div>
-                        )}
-                      </button>
+                        title={cfg.label}
+                        description={cfg.desc}
+                        note={!cfg.comms ? 'Aucun email / SMS à la publication' : undefined}
+                      />
                     )
                   })}
                 </div>
-              </div>
-            </div>
+              </CrmV2FormSection>
+            </>
           )}
 
           {step === 1 && (
-            <div style={{ display: 'grid', gap: 14 }}>
-              <div>
-                <label style={labelStyle}>Nom de l&apos;événement</label>
-                <input
-                  style={inputStyle}
+            <CrmV2FormSection title="Infos événement" description={`${BRAND_CONFIG[brand].name} · ${typeCfg.label}`}>
+              <CrmV2Field label="Nom de l'événement" span={2}>
+                <CrmV2Input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder={`Ex: ${typeCfg.short} Printemps 2026`}
                 />
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-                <div>
-                  <label style={labelStyle}>Date</label>
-                  <input type="date" style={inputStyle} value={date} onChange={(e) => setDate(e.target.value)} />
-                </div>
-                <div>
-                  <label style={labelStyle}>Début</label>
-                  <input type="time" style={inputStyle} value={timeStart} onChange={(e) => setTimeStart(e.target.value)} />
-                </div>
-                <div>
-                  <label style={labelStyle}>Fin</label>
-                  <input type="time" style={inputStyle} value={timeEnd} onChange={(e) => setTimeEnd(e.target.value)} />
-                </div>
+              </CrmV2Field>
+              <CrmV2Field label="Date">
+                <CrmV2Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              </CrmV2Field>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12, minWidth: 0 }}>
+                <CrmV2Field label="Début">
+                  <CrmV2Input type="time" value={timeStart} onChange={(e) => setTimeStart(e.target.value)} />
+                </CrmV2Field>
+                <CrmV2Field label="Fin">
+                  <CrmV2Input type="time" value={timeEnd} onChange={(e) => setTimeEnd(e.target.value)} />
+                </CrmV2Field>
               </div>
               {isWebinar ? (
-                <div>
-                  <label style={labelStyle}>Lien Zoom</label>
-                  <input
-                    style={inputStyle}
+                <CrmV2Field label="Lien Zoom" span={2}>
+                  <CrmV2Input
                     value={zoom}
                     onChange={(e) => setZoom(e.target.value)}
                     placeholder="https://zoom.us/j/…"
                   />
-                </div>
+                </CrmV2Field>
               ) : useCampus ? (
-                <div>
-                  <label style={labelStyle}>Campus</label>
-                  <select style={inputStyle} value={location} onChange={(e) => setLocation(e.target.value)}>
+                <CrmV2Field label="Campus" span={2}>
+                  <CrmV2Select value={location} onChange={(e) => setLocation(e.target.value)}>
                     {DIPLOMA_CAMPUSES.map((c) => (
                       <option key={c.value} value={c.value}>
                         {c.label}
                       </option>
                     ))}
-                  </select>
-                </div>
+                  </CrmV2Select>
+                </CrmV2Field>
               ) : (
-                <div>
-                  <label style={labelStyle}>Lieu</label>
-                  <input
-                    style={inputStyle}
+                <CrmV2Field label="Lieu" span={2}>
+                  <CrmV2Input
                     value={locationText}
                     onChange={(e) => setLocationText(e.target.value)}
                     placeholder={
@@ -394,50 +292,37 @@ export default function NewEventWizardPage() {
                         : 'Adresse complète'
                     }
                   />
-                </div>
+                </CrmV2Field>
               )}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div>
-                  <label style={labelStyle}>Capacité (optionnel)</label>
-                  <input
-                    type="number"
-                    style={inputStyle}
-                    value={capacity}
-                    onChange={(e) => setCapacity(e.target.value)}
-                    placeholder="Ex: 80"
-                  />
-                </div>
-                <div>
-                  <label style={labelStyle}>Statut initial</label>
-                  <select
-                    style={inputStyle}
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value as 'draft' | 'published')}
-                  >
-                    <option value="draft">Brouillon</option>
-                    <option value="published">Publié</option>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label style={labelStyle}>Description (optionnel)</label>
-                <textarea
-                  style={{ ...inputStyle, minHeight: 80, resize: 'vertical' }}
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
+              <CrmV2Field label="Capacité (optionnel)">
+                <CrmV2Input
+                  type="number"
+                  value={capacity}
+                  onChange={(e) => setCapacity(e.target.value)}
+                  placeholder="Ex: 80"
                 />
-              </div>
-            </div>
+              </CrmV2Field>
+              <CrmV2Field label="Statut initial">
+                <CrmV2Select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as 'draft' | 'published')}
+                >
+                  <option value="draft">Brouillon</option>
+                  <option value="published">Publié</option>
+                </CrmV2Select>
+              </CrmV2Field>
+              <CrmV2Field label="Description (optionnel)" span={2}>
+                <CrmV2Textarea value={description} onChange={(e) => setDescription(e.target.value)} />
+              </CrmV2Field>
+            </CrmV2FormSection>
           )}
 
           {step === 2 && (
-            <div style={{ display: 'grid', gap: 16 }}>
-              <div>
-                <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>Formulaire type</div>
-                <p style={{ margin: 0, fontSize: 12, color: crmV2.textMuted }}>
-                  Créé automatiquement dans le dossier « {BRAND_CONFIG[brand].folder} », lié à cet événement.
-                </p>
-              </div>
+            <CrmV2FormSection
+              title="Formulaire type"
+              description={`Créé automatiquement dans le dossier « ${BRAND_CONFIG[brand].folder} », lié à cet événement.`}
+              columns={1}
+            >
               <div style={{ display: 'grid', gap: 6 }}>
                 {EVENT_FORM_TEMPLATE_FIELDS.map((f) => (
                   <div
@@ -446,20 +331,36 @@ export default function NewEventWizardPage() {
                       display: 'flex',
                       justifyContent: 'space-between',
                       alignItems: 'center',
-                      padding: '10px 12px',
+                      gap: 10,
+                      padding: '9px 12px',
+                      minHeight: 44,
+                      boxSizing: 'border-box',
                       borderRadius: crmV2.radius,
                       border: `1px solid ${crmV2.border}`,
                       background: crmV2.bgSoft,
                     }}
                   >
-                    <div>
+                    <div style={{ minWidth: 0 }}>
                       <span style={{ fontWeight: 600, fontSize: 13 }}>{f.label}</span>
                       {f.required && <span style={{ color: crmV2.danger, marginLeft: 4 }}>*</span>}
                       <div style={{ fontSize: 11, color: crmV2.textFaint }}>
                         {f.field_type} → {f.crm_field}
                       </div>
                     </div>
-                    <span style={{ fontSize: 11, color: crmV2.textMuted }}>Type</span>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: crmV2.textMuted,
+                        background: crmV2.chipBg,
+                        border: `1px solid ${crmV2.chipBorder}`,
+                        borderRadius: 999,
+                        padding: '2px 8px',
+                        flexShrink: 0,
+                      }}
+                    >
+                      Type
+                    </span>
                   </div>
                 ))}
                 {extraFields.map((p) => (
@@ -469,47 +370,73 @@ export default function NewEventWizardPage() {
                       display: 'flex',
                       justifyContent: 'space-between',
                       alignItems: 'center',
-                      padding: '10px 12px',
+                      gap: 10,
+                      padding: '6px 6px 6px 12px',
+                      minHeight: 44,
+                      boxSizing: 'border-box',
                       borderRadius: crmV2.radius,
                       border: `1px solid ${crmV2.goldBorder}`,
                       background: crmV2.goldSoft,
                     }}
                   >
-                    <div>
+                    <div style={{ minWidth: 0 }}>
                       <span style={{ fontWeight: 600, fontSize: 13 }}>{p.label}</span>
                       <div style={{ fontSize: 11, color: crmV2.textFaint }}>
                         {p.field_type} → {p.name}
                       </div>
                     </div>
-                    <button
-                      type="button"
+                    <EvIconButton
+                      title="Retirer"
                       onClick={() => setExtraFields((xs) => xs.filter((x) => x.name !== p.name))}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: crmV2.danger }}
+                      style={{ color: '#d13a41' }}
                     >
                       <Trash2 size={14} />
-                    </button>
+                    </EvIconButton>
                   </div>
                 ))}
               </div>
 
               {!showPropPicker ? (
-                <CrmV2Button variant="secondary" onClick={() => setShowPropPicker(true)}>
+                <button
+                  type="button"
+                  onClick={() => setShowPropPicker(true)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                    minHeight: 40,
+                    padding: '8px 14px',
+                    borderRadius: crmV2.radius,
+                    border: `1.5px dashed ${crmV2.borderStrong}`,
+                    background: 'transparent',
+                    color: crmV2.link,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    fontFamily: 'inherit',
+                    cursor: 'pointer',
+                  }}
+                >
                   <Plus size={14} /> Ajouter une propriété CRM
-                </CrmV2Button>
+                </button>
               ) : (
-                <div style={{ border: `1px solid ${crmV2.border}`, borderRadius: crmV2.radiusLg, padding: 12 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <span style={{ fontWeight: 600, fontSize: 13 }}>Propriétés contacts</span>
-                    <button
-                      type="button"
-                      onClick={() => setShowPropPicker(false)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer' }}
-                    >
-                      <X size={16} color={crmV2.textMuted} />
-                    </button>
+                <div
+                  style={{
+                    border: `1px solid ${crmV2.border}`,
+                    borderRadius: crmV2.radiusLg,
+                    padding: 12,
+                    background: crmV2.bg,
+                    boxShadow: crmV2.shadow,
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <span style={{ fontWeight: 700, fontSize: 13 }}>Propriétés contacts</span>
+                    <EvIconButton title="Fermer" onClick={() => setShowPropPicker(false)}>
+                      <X size={15} />
+                    </EvIconButton>
                   </div>
-                  <input
-                    style={{ ...inputStyle, marginBottom: 8 }}
+                  <CrmV2Input
+                    style={{ marginBottom: 8 }}
                     placeholder="Rechercher…"
                     value={propSearch}
                     onChange={(e) => setPropSearch(e.target.value)}
@@ -527,11 +454,13 @@ export default function NewEventWizardPage() {
                         style={{
                           textAlign: 'left',
                           padding: '8px 10px',
+                          minHeight: 40,
                           borderRadius: crmV2.radiusSm,
                           border: `1px solid ${crmV2.border}`,
                           background: crmV2.bg,
                           cursor: 'pointer',
                           fontFamily: 'inherit',
+                          color: crmV2.text,
                         }}
                       >
                         <div style={{ fontSize: 13, fontWeight: 600 }}>{p.label}</div>
@@ -544,25 +473,37 @@ export default function NewEventWizardPage() {
                   </div>
                 </div>
               )}
-            </div>
+            </CrmV2FormSection>
           )}
-        </CrmV2Card>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16 }}>
-          <CrmV2Button variant="secondary" onClick={back} disabled={step === 0 || saving}>
-            <ArrowLeft size={14} /> Retour
-          </CrmV2Button>
-          {step < 2 ? (
-            <CrmV2Button variant="primary" onClick={next}>
-              Continuer <ArrowRight size={14} />
+          {/* Pied de page aligné à droite : Retour, puis Continuer / Créer */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
+            <CrmV2Button
+              variant="secondary"
+              icon={<ArrowLeft size={14} />}
+              onClick={back}
+              disabled={step === 0 || saving}
+              style={isMobile ? { minHeight: 40 } : undefined}
+            >
+              Retour
             </CrmV2Button>
-          ) : (
-            <CrmV2Button variant="gold" onClick={submit} disabled={saving}>
-              {saving ? 'Création…' : 'Créer l’événement + formulaire'}
-            </CrmV2Button>
-          )}
+            {step < 2 ? (
+              <CrmV2Button variant="primary" onClick={next} style={isMobile ? { minHeight: 40 } : undefined}>
+                Continuer <ArrowRight size={14} />
+              </CrmV2Button>
+            ) : (
+              <CrmV2Button
+                variant="primary"
+                onClick={submit}
+                disabled={saving}
+                style={isMobile ? { minHeight: 40 } : undefined}
+              >
+                {saving ? 'Création…' : 'Créer l’événement + formulaire'}
+              </CrmV2Button>
+            )}
+          </div>
         </div>
-      </CrmV2Page>
-    </div>
+      </CrmV2Body>
+    </CrmV2Page>
   )
 }

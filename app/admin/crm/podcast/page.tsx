@@ -1,12 +1,17 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import {
+  BookOpen,
+  Calendar,
+  CheckCircle2,
   ChevronDown,
   ChevronUp,
   Copy,
   ExternalLink,
+  GraduationCap,
   Link2,
   Mail,
   MessageSquare,
@@ -17,12 +22,18 @@ import {
   Save,
   Sparkles,
   Star,
+  Stethoscope,
   Trash2,
   UserPlus,
-  X,
+  Users,
 } from 'lucide-react'
 import MarketingNav from '@/components/crm/MarketingNav'
-import { CrmV2Button, CrmV2Card, CrmV2Page, CrmV2PillTabs, CrmV2Search } from '@/components/crm-v2/primitives'
+import {
+  CrmV2Avatar, CrmV2Body, CrmV2Button, CrmV2Card, CrmV2Empty, CrmV2Field, CrmV2FilterPill, CrmV2FormSection,
+  CrmV2Header, CrmV2Input, CrmV2KpiCard, CrmV2KpiGrid, CrmV2Page, CrmV2Pill, CrmV2Search, CrmV2SectionLabel,
+  CrmV2Select, CrmV2Spinner, CrmV2StatusPill, CrmV2TableCard, CrmV2Tabs, CrmV2Textarea,
+} from '@/components/crm-v2/primitives'
+import { AdsBanner, AdsPillSelect } from '@/components/crm-v2/marketing2/ads/ui'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import { usePageTitle } from '@/components/DocumentTitle'
 import { useIsMobile } from '@/lib/useIsMobile'
@@ -53,6 +64,13 @@ const SOURCE_LABELS: Record<PodcastSource, string> = {
   externe: 'Ajout manuel',
 }
 
+const PROFILE_ICONS: Record<PodcastProfileType, ReactNode> = {
+  etudiant: <GraduationCap size={15} />,
+  prof: <BookOpen size={15} />,
+  praticien: <Stethoscope size={15} />,
+  parent: <Users size={15} />,
+}
+
 /** Message d'invitation prêt à coller (SMS / WhatsApp / email). */
 function invitationMessage(firstname?: string | null): string {
   const hello = firstname ? `Bonjour ${firstname},` : 'Bonjour,'
@@ -66,48 +84,6 @@ L’interview dure ${PODCAST_DURATION} et est rémunérée ${PODCAST_FEE}.
 
 À bientôt,
 L’équipe Diploma Santé`
-}
-
-const inputStyle: CSSProperties = {
-  width: '100%',
-  boxSizing: 'border-box',
-  padding: '10px 12px',
-  borderRadius: crmV2.radius,
-  border: `1px solid ${crmV2.border}`,
-  fontSize: 14,
-  background: crmV2.bg,
-  fontFamily: 'inherit',
-  color: crmV2.text,
-}
-
-const labelStyle: CSSProperties = {
-  display: 'block',
-  fontSize: 12,
-  fontWeight: 600,
-  color: crmV2.textMuted,
-  marginBottom: 6,
-}
-
-function Pill({ children, bg, color, border }: { children: ReactNode; bg: string; color: string; border?: string }) {
-  return (
-    <span
-      style={{
-        fontSize: 11,
-        fontWeight: 600,
-        padding: '3px 9px',
-        borderRadius: crmV2.radiusPill,
-        background: bg,
-        color,
-        border: border ? `1px solid ${border}` : undefined,
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 4,
-        whiteSpace: 'nowrap',
-      }}
-    >
-      {children}
-    </span>
-  )
 }
 
 /** datetime ISO → valeur d'un <input type="datetime-local"> (heure locale). */
@@ -143,7 +119,7 @@ function firstNameOf(name: string | null | undefined): string | null {
 export default function PodcastCastingPage() {
   usePageTitle('Podcast')
   const isMobile = useIsMobile()
-  const padX = isMobile ? 12 : 28
+  const inV2 = (usePathname() || '').startsWith('/admin/crm-v2')
 
   const [tab, setTab] = useState<Tab>('candidatures')
   const [candidates, setCandidates] = useState<PodcastCandidate[]>([])
@@ -344,12 +320,74 @@ export default function PodcastCastingPage() {
     return (
       <span style={{ display: 'inline-flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
         {phone && (
-          <a href={`tel:${phone}`} style={{ color: crmV2.link, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-            <Phone size={12} /> {phone}
+          <a href={`tel:${phone}`} style={{ color: crmV2.link, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 600 }}>
+            <Phone size={14} /> {phone}
           </a>
         )}
         {email && <span style={{ color: crmV2.textMuted }}>{email}</span>}
       </span>
+    )
+  }
+
+  /** Ligne repliable de la liste (une ligne par objet, panneau d'édition en dessous). */
+  function renderRow({
+    rowKey, open, onToggle, accent, avatarName, title, cells, mobileSubtitle, mobileRight, dimmed, panel,
+  }: {
+    rowKey: string
+    open: boolean
+    onToggle: () => void
+    accent: string
+    avatarName: string
+    title: ReactNode
+    cells: ReactNode[]
+    mobileSubtitle: ReactNode
+    mobileRight?: ReactNode
+    dimmed?: boolean
+    panel: ReactNode
+  }) {
+    const chevron = open ? <ChevronUp size={16} color={crmV2.textMuted} /> : <ChevronDown size={16} color={crmV2.textMuted} />
+    return (
+      <div key={rowKey} style={{ borderBottom: `1px solid ${crmV2.borderLight}`, opacity: dimmed ? 0.7 : 1 }}>
+        <button
+          type="button"
+          onClick={onToggle}
+          style={{
+            width: '100%', textAlign: 'left', border: 'none', fontFamily: 'inherit', cursor: 'pointer', color: crmV2.text,
+            background: open ? crmV2.rowHover : 'transparent', fontSize: 13,
+            ...(isMobile
+              ? { display: 'flex', alignItems: 'center', gap: 10, minHeight: 52, padding: '6px 12px' }
+              : { display: 'grid', gridTemplateColumns: gridCols, alignItems: 'center', gap: 12, minHeight: 44, padding: '4px 14px' }),
+          }}
+        >
+          {isMobile ? (
+            <>
+              <CrmV2Avatar name={avatarName} color={accent} radius="36%" size={28} />
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: 'block', fontWeight: 600, color: crmV2.link, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</span>
+                <span style={{ display: 'block', fontSize: 12, color: crmV2.textMuted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{mobileSubtitle}</span>
+              </span>
+              {mobileRight}
+              {chevron}
+            </>
+          ) : (
+            <>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                <CrmV2Avatar name={avatarName} color={accent} radius="36%" size={24} />
+                <span style={{ fontWeight: 600, color: crmV2.link, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</span>
+              </span>
+              {cells.map((c, i) => (
+                <span key={i} style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: crmV2.textMuted }}>{c}</span>
+              ))}
+              <span style={{ display: 'flex', justifyContent: 'flex-end' }}>{chevron}</span>
+            </>
+          )}
+        </button>
+        {open && (
+          <div style={{ padding: isMobile ? '12px 12px 14px' : '14px 18px 18px', background: crmV2.bgSoft, borderTop: `1px solid ${crmV2.borderLight}` }}>
+            {panel}
+          </div>
+        )}
+      </div>
     )
   }
 
@@ -358,212 +396,169 @@ export default function PodcastCastingPage() {
     const key = `${c.contactId}:${asParent ? 'parent' : 'etudiant'}`
     const already = alreadyApplied.has(c.contactId)
     const open = expandedId === key
-    const accent = asParent ? '#0369a1' : crmV2.gold
+    const accent = asParent ? '#0369a1' : crmV2.goldGradient
     const title = asParent ? c.parent?.name || `Parent de ${c.name}` : c.name
+    const tags = asParent ? [] : c.tags.filter(t => t !== 'Verbatim bilan S1')
+    const where = [c.faculty, c.departement ? `Dépt ${c.departement}` : null].filter(Boolean).join(' · ') || '—'
 
-    return (
-      <CrmV2Card key={key} style={{ padding: 0, overflow: 'hidden', borderLeft: `4px solid ${accent}` }}>
-        <button
-          type="button"
-          onClick={() => setExpandedId(open ? null : key)}
-          style={{
-            width: '100%', textAlign: 'left', border: 'none', background: 'transparent',
-            padding: '16px 18px 14px', cursor: 'pointer', display: 'flex',
-            alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, fontFamily: 'inherit',
-          }}
-        >
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <span style={{ fontWeight: 700, fontSize: 16, color: crmV2.text }}>{title}</span>
-              {c.promo && <Pill bg={crmV2.goldSoft} color={crmV2.text}>Promo {c.seasons.join(' + ')}</Pill>}
-              {c.formation && <Pill bg={crmV2.bgMuted} color={crmV2.textMuted}>{c.formation}</Pill>}
-              {!asParent && c.tags.filter(t => t !== 'Verbatim bilan S1').map(t => (
-                <Pill key={t} bg="#FEF3C7" color="#92400E" border="#F59E0B">
-                  <Star size={10} /> {t}
-                </Pill>
-              ))}
-              {already && <Pill bg="rgba(0,189,165,0.12)" color={crmV2.success}>A déjà candidaté</Pill>}
+    return renderRow({
+      rowKey: key,
+      open,
+      onToggle: () => setExpandedId(open ? null : key),
+      accent,
+      avatarName: title,
+      title,
+      mobileSubtitle: [c.promo ? `Promo ${c.seasons.join(' + ')}` : null, c.formation, asParent ? `Parent de ${c.name}` : where].filter(Boolean).join(' · '),
+      mobileRight: already
+        ? <CrmV2StatusPill label="Candidaté" color={crmV2.success} />
+        : tags.length > 0 ? <Star size={14} color={crmV2.gold} fill={crmV2.gold} /> : undefined,
+      cells: [
+        c.promo ? <CrmV2Pill>Promo {c.seasons.join(' + ')}</CrmV2Pill> : '—',
+        c.formation || '—',
+        asParent ? <>Parent de <strong style={{ color: crmV2.text }}>{c.name}</strong> · {where}</> : where,
+        <span key="sig" style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+          {already && <CrmV2StatusPill label="A déjà candidaté" color={crmV2.success} />}
+          {tags.map(t => (
+            <CrmV2StatusPill key={t} label={<><Star size={11} /> {t}</>} color={crmV2.goldDark} bg={crmV2.goldSoft} dot={false} />
+          ))}
+          {!already && tags.length === 0 && '—'}
+        </span>,
+      ],
+      panel: (
+        <div style={{ display: 'grid', gap: 10, fontSize: 13 }}>
+          {!asParent && c.verbatim && (
+            <div style={{ color: crmV2.text, fontStyle: 'italic', lineHeight: 1.5, borderLeft: `3px solid ${crmV2.goldBorder}`, paddingLeft: 10 }}>
+              « {c.verbatim} »
             </div>
-            <div style={{ marginTop: 6, fontSize: 13, color: crmV2.textMuted, lineHeight: 1.45 }}>
-              {asParent && <>Parent de <strong>{c.name}</strong> · </>}
-              {[c.faculty, c.departement ? `Dépt ${c.departement}` : null].filter(Boolean).join(' · ') || '—'}
+          )}
+          {isMobile && tags.length > 0 && (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {tags.map(t => <CrmV2StatusPill key={t} label={<><Star size={11} /> {t}</>} color={crmV2.goldDark} bg={crmV2.goldSoft} dot={false} />)}
             </div>
-            {!asParent && c.verbatim && (
-              <div
-                style={{
-                  marginTop: 8, fontSize: 13, color: crmV2.text, fontStyle: 'italic', lineHeight: 1.45,
-                  borderLeft: `3px solid ${crmV2.goldBorder}`, paddingLeft: 10,
-                  display: '-webkit-box', WebkitLineClamp: open ? undefined : 2, WebkitBoxOrient: 'vertical',
-                  overflow: 'hidden',
-                }}
-              >
-                « {c.verbatim} »
-              </div>
+          )}
+          <div>
+            <span style={{ color: crmV2.textFaint, marginRight: 8 }}>{asParent ? 'Parent' : 'Élève'}</span>
+            {asParent ? renderContactLine(c.parent?.phone ?? null, c.parent?.email ?? null) : renderContactLine(c.phone, c.email)}
+          </div>
+          {!asParent && c.parent && (
+            <div>
+              <span style={{ color: crmV2.textFaint, marginRight: 8 }}>Parent{c.parent.name ? ` (${c.parent.name})` : ''}</span>
+              {renderContactLine(c.parent.phone, c.parent.email)}
+            </div>
+          )}
+          {c.coachReco != null && (
+            <div style={{ color: crmV2.textMuted }}>Bilan S1 : recommande son coach {c.coachReco}/10</div>
+          )}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <CrmV2Button
+              variant="gold"
+              icon={<MessageSquare size={14} />}
+              onClick={() => copy(invitationMessage(firstNameOf(asParent ? c.parent?.name : c.name)), 'Message d’invitation')}
+            >
+              Copier l’invitation
+            </CrmV2Button>
+            <Link href={`/admin/crm/contacts/${c.contactId}`} target="_blank" style={{ textDecoration: 'none' }}>
+              <CrmV2Button variant="primary" icon={<ExternalLink size={14} />}>Ouvrir la fiche</CrmV2Button>
+            </Link>
+            {(asParent ? c.parent?.phone : c.phone) && (
+              <CrmV2Button variant="secondary" icon={<Copy size={14} />} onClick={() => copy((asParent ? c.parent?.phone : c.phone)!, 'Téléphone')}>
+                Copier le tél.
+              </CrmV2Button>
             )}
           </div>
-          <span style={{ color: crmV2.textMuted, flexShrink: 0, marginTop: 2 }}>
-            {open ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-          </span>
-        </button>
-
-        {open && (
-          <div style={{ padding: '0 18px 16px', borderTop: `1px solid ${crmV2.border}`, background: crmV2.bgSoft }}>
-            <div style={{ paddingTop: 12, display: 'grid', gap: 10, fontSize: 13 }}>
-              <div>
-                <span style={{ color: crmV2.textFaint, marginRight: 8 }}>{asParent ? 'Parent' : 'Élève'}</span>
-                {asParent ? renderContactLine(c.parent?.phone ?? null, c.parent?.email ?? null) : renderContactLine(c.phone, c.email)}
-              </div>
-              {!asParent && c.parent && (
-                <div>
-                  <span style={{ color: crmV2.textFaint, marginRight: 8 }}>Parent{c.parent.name ? ` (${c.parent.name})` : ''}</span>
-                  {renderContactLine(c.parent.phone, c.parent.email)}
-                </div>
-              )}
-              {c.coachReco != null && (
-                <div style={{ color: crmV2.textMuted }}>Bilan S1 : recommande son coach {c.coachReco}/10</div>
-              )}
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <CrmV2Button
-                  variant="gold"
-                  onClick={() => copy(invitationMessage(firstNameOf(asParent ? c.parent?.name : c.name)), 'Message d’invitation')}
-                >
-                  <MessageSquare size={14} /> Copier l’invitation
-                </CrmV2Button>
-                <Link href={`/admin/crm/contacts/${c.contactId}`} target="_blank" style={{ textDecoration: 'none' }}>
-                  <CrmV2Button variant="primary">Ouvrir la fiche</CrmV2Button>
-                </Link>
-                {(asParent ? c.parent?.phone : c.phone) && (
-                  <CrmV2Button variant="secondary" onClick={() => copy((asParent ? c.parent?.phone : c.phone)!, 'Téléphone')}>
-                    <Copy size={14} /> Copier le tél.
-                  </CrmV2Button>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-      </CrmV2Card>
-    )
+        </div>
+      ),
+    })
   }
 
   function renderCastingCard(row: PodcastCastingRow) {
     const st = PODCAST_STATUSES[row.status]
     const open = expandedId === row.id
-    return (
-      <CrmV2Card
-        key={row.id}
-        style={{ padding: 0, overflow: 'hidden', borderLeft: `4px solid ${st.color}`, opacity: row.status === 'ecarte' ? 0.7 : 1 }}
-      >
-        <button
-          type="button"
-          onClick={() => toggleCasting(row)}
-          style={{
-            width: '100%', textAlign: 'left', border: 'none', background: 'transparent',
-            padding: '16px 18px 14px', cursor: 'pointer', display: 'flex',
-            alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, fontFamily: 'inherit',
-          }}
-        >
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <span style={{ fontWeight: 700, fontSize: 16, color: crmV2.text }}>{row.full_name}</span>
-              <Pill bg={crmV2.goldSoft} color={crmV2.text}>{PODCAST_TARGETS[row.profile_type].label}</Pill>
-              <Pill bg={st.bg} color={st.color}>{st.label}</Pill>
-              {row.episode_label && <Pill bg={crmV2.bgMuted} color={crmV2.textMuted}><Mic size={10} /> {row.episode_label}</Pill>}
-            </div>
-            <div style={{ marginTop: 6, fontSize: 13, color: crmV2.textMuted, lineHeight: 1.45 }}>
-              {SOURCE_LABELS[row.source]} · reçue le {new Date(row.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
-              {row.parcours ? ` · ${row.parcours}` : ''}
-              {row.pre_interview_at ? ` · Pré-interview ${formatDateTime(row.pre_interview_at)}` : ''}
-              {row.story ? (
-                <>
-                  <br />
-                  <span
-                    style={{
-                      color: crmV2.text, display: '-webkit-box', WebkitLineClamp: open ? undefined : 2,
-                      WebkitBoxOrient: 'vertical', overflow: 'hidden', whiteSpace: 'pre-wrap',
-                    }}
-                  >
-                    {row.story}
-                  </span>
-                </>
-              ) : null}
-            </div>
+    const received = new Date(row.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+    return renderRow({
+      rowKey: row.id,
+      open,
+      onToggle: () => toggleCasting(row),
+      accent: st.color,
+      avatarName: row.full_name,
+      title: row.full_name,
+      dimmed: row.status === 'ecarte',
+      mobileSubtitle: [PODCAST_TARGETS[row.profile_type].label, `reçue le ${received}`, row.episode_label].filter(Boolean).join(' · '),
+      mobileRight: <CrmV2StatusPill label={st.label} color={st.color} bg={st.bg} />,
+      cells: [
+        <CrmV2Pill key="type">{PODCAST_TARGETS[row.profile_type].label}</CrmV2Pill>,
+        <CrmV2StatusPill key="st" label={st.label} color={st.color} bg={st.bg} />,
+        <>{SOURCE_LABELS[row.source]} · reçue le {received}{row.parcours ? ` · ${row.parcours}` : ''}</>,
+        row.pre_interview_at
+          ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Calendar size={13} /> {formatDateTime(row.pre_interview_at)}</span>
+          : row.episode_label
+            ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Mic size={13} /> {row.episode_label}</span>
+            : '—',
+      ],
+      panel: draft && (
+        <div style={{ display: 'grid', gap: 12 }}>
+          <div style={{ fontSize: 13, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+            {renderContactLine(row.phone, row.email)}
+            {row.social && <span style={{ color: crmV2.textMuted }}>{row.social}</span>}
+            {row.parcours && <span style={{ color: crmV2.textMuted }}>{row.parcours}</span>}
+            {row.episode_label && <span style={{ color: crmV2.textMuted, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Mic size={13} /> {row.episode_label}</span>}
           </div>
-          <span style={{ color: crmV2.textMuted, flexShrink: 0, marginTop: 2 }}>
-            {open ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-          </span>
-        </button>
-
-        {open && draft && (
-          <div style={{ padding: '0 18px 18px', borderTop: `1px solid ${crmV2.border}`, background: crmV2.bgSoft }}>
-            <div style={{ paddingTop: 14, display: 'grid', gap: 12 }}>
-              <div style={{ fontSize: 13, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-                {renderContactLine(row.phone, row.email)}
-                {row.social && <span style={{ color: crmV2.textMuted }}>{row.social}</span>}
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, 1fr)', gap: 10 }}>
-                <div>
-                  <label style={labelStyle}>Statut</label>
-                  <select value={draft.status} onChange={e => setDraft({ ...draft, status: e.target.value as PodcastStatus })} style={inputStyle}>
-                    {STATUSES.map(s => <option key={s} value={s}>{PODCAST_STATUSES[s].label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={labelStyle}>Type d’invité</label>
-                  <select value={draft.profile_type} onChange={e => setDraft({ ...draft, profile_type: e.target.value as PodcastProfileType })} style={inputStyle}>
-                    {PROFILE_TYPES.map(t => <option key={t} value={t}>{PODCAST_TARGETS[t].label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={labelStyle}>Call de pré-interview (15 min)</label>
-                  <input type="datetime-local" value={draft.pre_interview_at} onChange={e => setDraft({ ...draft, pre_interview_at: e.target.value })} style={inputStyle} />
-                </div>
-                <div>
-                  <label style={labelStyle}>Épisode</label>
-                  <input value={draft.episode_label} onChange={e => setDraft({ ...draft, episode_label: e.target.value })} placeholder="Ex : Ép. 3" style={inputStyle} />
-                </div>
-              </div>
-              <div>
-                <label style={labelStyle}>Son histoire / angle de l’épisode</label>
-                <textarea
-                  rows={4}
-                  value={draft.story}
-                  onChange={e => setDraft({ ...draft, story: e.target.value })}
-                  placeholder="Ce qui rend son parcours unique…"
-                  style={{ ...inputStyle, resize: 'vertical' }}
-                />
-              </div>
-              <div>
-                <label style={labelStyle}>Notes de pré-interview (aisance orale, moments forts)</label>
-                <textarea
-                  rows={3}
-                  value={draft.notes}
-                  onChange={e => setDraft({ ...draft, notes: e.target.value })}
-                  style={{ ...inputStyle, resize: 'vertical' }}
-                />
-              </div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <CrmV2Button variant="gold" disabled={savingId === row.id} onClick={() => saveCasting(row)}>
-                  <Save size={14} /> {savingId === row.id ? '…' : 'Enregistrer'}
-                </CrmV2Button>
-                {row.hubspot_contact_id && (
-                  <Link href={`/admin/crm/contacts/${row.hubspot_contact_id}`} target="_blank" style={{ textDecoration: 'none' }}>
-                    <CrmV2Button variant="primary">Ouvrir la fiche</CrmV2Button>
-                  </Link>
-                )}
-                {row.phone && (
-                  <CrmV2Button variant="secondary" onClick={() => copy(row.phone!, 'Téléphone')}>
-                    <Copy size={14} /> Copier le tél.
-                  </CrmV2Button>
-                )}
-                <CrmV2Button variant="ghost" style={{ color: crmV2.danger }} disabled={savingId === row.id} onClick={() => removeCasting(row)}>
-                  <Trash2 size={14} /> Retirer
-                </CrmV2Button>
-              </div>
-            </div>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
+            <CrmV2Field label="Statut">
+              <CrmV2Select value={draft.status} onChange={e => setDraft({ ...draft, status: e.target.value as PodcastStatus })}>
+                {STATUSES.map(s => <option key={s} value={s}>{PODCAST_STATUSES[s].label}</option>)}
+              </CrmV2Select>
+            </CrmV2Field>
+            <CrmV2Field label="Type d’invité">
+              <CrmV2Select value={draft.profile_type} onChange={e => setDraft({ ...draft, profile_type: e.target.value as PodcastProfileType })}>
+                {PROFILE_TYPES.map(t => <option key={t} value={t}>{PODCAST_TARGETS[t].label}</option>)}
+              </CrmV2Select>
+            </CrmV2Field>
+            <CrmV2Field label="Call de pré-interview (15 min)">
+              <CrmV2Input type="datetime-local" value={draft.pre_interview_at} onChange={e => setDraft({ ...draft, pre_interview_at: e.target.value })} />
+            </CrmV2Field>
+            <CrmV2Field label="Épisode">
+              <CrmV2Input value={draft.episode_label} onChange={e => setDraft({ ...draft, episode_label: e.target.value })} placeholder="Ex : Ép. 3" />
+            </CrmV2Field>
           </div>
-        )}
-      </CrmV2Card>
-    )
+          <CrmV2Field label="Son histoire / angle de l’épisode">
+            <CrmV2Textarea
+              rows={4}
+              value={draft.story}
+              onChange={e => setDraft({ ...draft, story: e.target.value })}
+              placeholder="Ce qui rend son parcours unique…"
+            />
+          </CrmV2Field>
+          <CrmV2Field label="Notes de pré-interview (aisance orale, moments forts)">
+            <CrmV2Textarea
+              rows={3}
+              value={draft.notes}
+              onChange={e => setDraft({ ...draft, notes: e.target.value })}
+            />
+          </CrmV2Field>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            {row.hubspot_contact_id && (
+              <Link href={`/admin/crm/contacts/${row.hubspot_contact_id}`} target="_blank" style={{ textDecoration: 'none' }}>
+                <CrmV2Button variant="secondary" icon={<ExternalLink size={14} />}>Ouvrir la fiche</CrmV2Button>
+              </Link>
+            )}
+            {row.phone && (
+              <CrmV2Button variant="secondary" icon={<Copy size={14} />} onClick={() => copy(row.phone!, 'Téléphone')}>
+                Copier le tél.
+              </CrmV2Button>
+            )}
+            <CrmV2Button variant="danger" icon={<Trash2 size={14} />} disabled={savingId === row.id} onClick={() => removeCasting(row)}>
+              Retirer
+            </CrmV2Button>
+            <span style={{ flex: 1 }} />
+            <CrmV2Button variant="secondary" onClick={() => toggleCasting(row)}>Annuler</CrmV2Button>
+            <CrmV2Button variant="primary" icon={<Save size={14} />} disabled={savingId === row.id} onClick={() => saveCasting(row)}>
+              {savingId === row.id ? '…' : 'Enregistrer'}
+            </CrmV2Button>
+          </div>
+        </div>
+      ),
+    })
   }
 
   const tabItems = [
@@ -578,229 +573,227 @@ export default function PodcastCastingPage() {
     parents: 'Parents des anciens élèves (coordonnées du responsable légal renseignées) : destinataires du lien de candidature.',
   }
 
-  return (
-    <div style={{ minHeight: '100vh', background: crmV2.bgSoft }}>
-      <MarketingNav title="Podcast" />
-      <CrmV2Page style={{ paddingBottom: 48 }}>
-        <div style={{ padding: `20px ${padX}px 0`, display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', gap: isMobile ? 12 : 16, alignItems: isMobile ? 'stretch' : 'flex-start' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <Mic size={20} color={crmV2.gold} />
-              <h1 style={{ margin: 0, fontSize: 22, fontWeight: 600, color: crmV2.text }}>Podcast « {PODCAST_NAME} »</h1>
-            </div>
-            <p style={{ margin: '6px 0 0', fontSize: 13, color: crmV2.textMuted, maxWidth: 720 }}>
-              Envoyez le lien de candidature aux anciens élèves, parents, profs et praticiens. Les candidatures arrivent ici :
-              suivez le call de pré-interview jusqu’au tournage.
-            </p>
-          </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <CrmV2Button variant="secondary" onClick={load} disabled={loading}>
-              <RefreshCw size={14} /> Actualiser
-            </CrmV2Button>
-            <CrmV2Button variant="gold" onClick={() => setShowExternal(v => !v)} disabled={!castingAvailable}>
-              <Plus size={14} /> Ajouter un invité
-            </CrmV2Button>
-          </div>
-        </div>
+  // En-têtes de colonnes (ordinateur) selon l'onglet
+  const gridCols = tab === 'candidatures'
+    ? 'minmax(180px, 1.4fr) 110px 170px minmax(160px, 2fr) minmax(130px, 1fr) 24px'
+    : 'minmax(180px, 1.4fr) minmax(120px, 0.9fr) minmax(110px, 0.9fr) minmax(160px, 1.6fr) minmax(140px, 1.2fr) 24px'
+  const headers = tab === 'candidatures'
+    ? ['Nom', 'Type', 'Statut', 'Source', 'Pré-interview / épisode', '']
+    : [tab === 'parents' ? 'Parent' : 'Élève', 'Promo', 'Formation', 'Fac · département', 'Signaux', '']
 
-        {/* Lien public de candidature */}
-        <div style={{ padding: `16px ${padX}px 0` }}>
-          <CrmV2Card style={{ padding: 18 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                  <Link2 size={16} color={crmV2.gold} />
-                  <span style={{ fontWeight: 600, fontSize: 14 }}>Page de candidature</span>
-                </div>
-                <p style={{ margin: '0 0 10px', fontSize: 12, color: crmV2.textMuted }}>
-                  Lien public à envoyer : présentation du podcast, rémunération {PODCAST_FEE} pour {PODCAST_DURATION}, formulaire.
-                </p>
-                <div
-                  style={{
-                    fontSize: 12, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', color: crmV2.link,
-                    wordBreak: 'break-all', padding: '8px 10px', background: crmV2.bgSoft,
-                    borderRadius: crmV2.radius, border: `1px solid ${crmV2.border}`,
-                  }}
-                >
-                  {PODCAST_PUBLIC_URL}
+  const listCount = tab === 'candidatures' ? filteredCasting.length : filtered.length
+
+  return (
+    <div style={{ minHeight: '100%', background: crmV2.bgSoft }}>
+      {/* Navigation marketing classique : inutile dans le shell V2 (sidebar) */}
+      {!inV2 && <MarketingNav title="Podcast" />}
+      <CrmV2Page style={{ paddingBottom: 48 }}>
+        <CrmV2Header
+          title={`Podcast « ${PODCAST_NAME} »`}
+          subtitle="Envoyez le lien de candidature aux anciens élèves, parents, profs et praticiens. Les candidatures arrivent ici : suivez le call de pré-interview jusqu’au tournage."
+          actions={
+            <>
+              <CrmV2Button variant="secondary" icon={<RefreshCw size={14} />} onClick={load} disabled={loading}>
+                Actualiser
+              </CrmV2Button>
+              <CrmV2Button variant="primary" icon={<Plus size={14} />} onClick={() => setShowExternal(v => !v)} disabled={!castingAvailable}>
+                Ajouter un invité
+              </CrmV2Button>
+            </>
+          }
+        >
+          <CrmV2Tabs bordered={false} items={tabItems} value={tab} onChange={id => setTab(id as Tab)} />
+        </CrmV2Header>
+
+        <CrmV2Body>
+          {/* Objectif des 13 premiers épisodes */}
+          <div>
+            <CrmV2SectionLabel icon={<Sparkles size={14} color={crmV2.gold} />} style={{ marginBottom: 8 }}>
+              Casting des 13 premiers épisodes
+            </CrmV2SectionLabel>
+            <CrmV2KpiGrid>
+              {PROFILE_TYPES.map(t => {
+                const { target, plural } = PODCAST_TARGETS[t]
+                const p = progress[t]
+                const pct = Math.min(100, Math.round((p.confirmed / target) * 100))
+                const done = pct >= 100
+                return (
+                  <CrmV2KpiCard
+                    key={t}
+                    label={plural}
+                    icon={PROFILE_ICONS[t]}
+                    color={done ? crmV2.success : crmV2.text}
+                    value={<>{p.confirmed}<span style={{ fontSize: 15, color: crmV2.textFaint, fontWeight: 600 }}> / {target}</span></>}
+                    detail={
+                      <>
+                        <div style={{ height: 6, borderRadius: 999, background: crmV2.bgMuted, margin: '4px 0 6px', overflow: 'hidden' }}>
+                          <div style={{ width: `${pct}%`, height: '100%', background: done ? crmV2.success : crmV2.gold }} />
+                        </div>
+                        {p.pending} en cours de qualification
+                      </>
+                    }
+                  />
+                )
+              })}
+            </CrmV2KpiGrid>
+            <div style={{ fontSize: 12, color: crmV2.textFaint, marginTop: 8 }}>
+              Compte les invités validés, bookés ou tournés. Profs et praticiens ne sont pas dans le CRM : ajoutez-les via « Ajouter un invité » ou envoyez-leur le lien.
+            </div>
+          </div>
+
+          {/* Lien public de candidature */}
+          <CrmV2Card style={{ padding: isMobile ? 14 : 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', minWidth: 0, flex: '1 1 320px' }}>
+                <span style={{ width: 40, height: 40, borderRadius: 12, background: crmV2.goldSoft, color: crmV2.goldDark, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Link2 size={18} />
+                </span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 15 }}>Page de candidature</div>
+                  <div style={{ margin: '2px 0 6px', fontSize: 13, color: crmV2.textMuted }}>
+                    Lien public à envoyer : présentation du podcast, rémunération {PODCAST_FEE} pour {PODCAST_DURATION}, formulaire.
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: crmV2.link, wordBreak: 'break-all' }}>{PODCAST_PUBLIC_URL}</div>
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <CrmV2Button variant="gold" onClick={() => copy(PODCAST_PUBLIC_URL, 'Lien')}>
-                  <Copy size={14} /> Copier le lien
+                <CrmV2Button variant="gold" icon={<Copy size={14} />} onClick={() => copy(PODCAST_PUBLIC_URL, 'Lien')}>
+                  Copier le lien
                 </CrmV2Button>
-                <CrmV2Button variant="secondary" onClick={() => copy(invitationMessage(), 'Message d’invitation')}>
-                  <MessageSquare size={14} /> Copier le message
+                <CrmV2Button variant="secondary" icon={<MessageSquare size={14} />} onClick={() => copy(invitationMessage(), 'Message d’invitation')}>
+                  Copier le message
                 </CrmV2Button>
                 <a href="/podcast" target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
-                  <CrmV2Button variant="secondary">
-                    <ExternalLink size={14} /> Ouvrir
+                  <CrmV2Button variant="secondary" icon={<ExternalLink size={14} />}>
+                    Ouvrir
                   </CrmV2Button>
                 </a>
               </div>
             </div>
           </CrmV2Card>
-        </div>
 
-        {/* Objectif des 13 premiers épisodes */}
-        <div style={{ padding: `16px ${padX}px 0` }}>
-          <CrmV2Card style={{ padding: 18 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-              <Sparkles size={16} color={crmV2.gold} />
-              <span style={{ fontWeight: 600, fontSize: 14 }}>Casting des 13 premiers épisodes</span>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 12 }}>
-              {PROFILE_TYPES.map(t => {
-                const { target, plural } = PODCAST_TARGETS[t]
-                const p = progress[t]
-                const pct = Math.min(100, Math.round((p.confirmed / target) * 100))
-                return (
-                  <div key={t} style={{ padding: 12, borderRadius: crmV2.radius, background: crmV2.bgSoft, border: `1px solid ${crmV2.border}` }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: crmV2.textMuted }}>{plural}</div>
-                    <div style={{ fontSize: 22, fontWeight: 700, color: crmV2.text, marginTop: 2 }}>
-                      {p.confirmed}<span style={{ fontSize: 14, color: crmV2.textFaint, fontWeight: 600 }}> / {target}</span>
-                    </div>
-                    <div style={{ height: 6, borderRadius: 3, background: crmV2.bgMuted, marginTop: 8, overflow: 'hidden' }}>
-                      <div style={{ width: `${pct}%`, height: '100%', background: pct >= 100 ? crmV2.success : crmV2.gold }} />
-                    </div>
-                    <div style={{ fontSize: 11, color: crmV2.textFaint, marginTop: 6 }}>
-                      {p.pending} en cours de qualification
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-            <div style={{ fontSize: 12, color: crmV2.textFaint, marginTop: 10 }}>
-              Compte les invités validés, bookés ou tournés. Profs et praticiens ne sont pas dans le CRM : ajoutez-les via « Ajouter un invité » ou envoyez-leur le lien.
-            </div>
-          </CrmV2Card>
-        </div>
-
-        {!castingAvailable && !loading && (
-          <div style={{ padding: `12px ${padX}px 0` }}>
-            <div style={{ padding: '10px 14px', borderRadius: crmV2.radius, background: '#FEF3C7', color: '#92400E', fontSize: 13 }}>
+          {!castingAvailable && !loading && (
+            <AdsBanner kind="warning">
               La table des candidatures n’existe pas encore : exécutez <code>supabase-migration-podcast-casting.sql</code> dans Supabase → SQL Editor.
               Tant que ce n’est pas fait, le formulaire public ne peut pas enregistrer de candidature.
-            </div>
-          </div>
-        )}
-
-        {showExternal && (
-          <div style={{ padding: `12px ${padX}px 0` }}>
-            <CrmV2Card style={{ padding: 18 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <span style={{ fontWeight: 600, fontSize: 14 }}>Ajouter un invité à la main (prof, praticien…)</span>
-                <button type="button" onClick={() => setShowExternal(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: crmV2.textMuted }} aria-label="Fermer">
-                  <X size={16} />
-                </button>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr 1fr 1fr', gap: 10 }}>
-                <div>
-                  <label style={labelStyle}>Nom complet</label>
-                  <input value={external.full_name} onChange={e => setExternal({ ...external, full_name: e.target.value })} placeholder="Dr Prénom Nom" style={inputStyle} />
-                </div>
-                <div>
-                  <label style={labelStyle}>Type</label>
-                  <select value={external.profile_type} onChange={e => setExternal({ ...external, profile_type: e.target.value as PodcastProfileType })} style={inputStyle}>
-                    {PROFILE_TYPES.map(t => <option key={t} value={t}>{PODCAST_TARGETS[t].label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={labelStyle}>Téléphone</label>
-                  <input value={external.phone} onChange={e => setExternal({ ...external, phone: e.target.value })} style={inputStyle} />
-                </div>
-                <div>
-                  <label style={labelStyle}>Email</label>
-                  <input value={external.email} onChange={e => setExternal({ ...external, email: e.target.value })} style={inputStyle} />
-                </div>
-              </div>
-              <div style={{ marginTop: 10 }}>
-                <label style={labelStyle}>Angle / histoire forte</label>
-                <input value={external.story} onChange={e => setExternal({ ...external, story: e.target.value })} placeholder="Ex : dentiste reconvertie après 2 échecs en PACES" style={inputStyle} />
-              </div>
-              <div style={{ marginTop: 12 }}>
-                <CrmV2Button variant="gold" onClick={addExternal} disabled={savingId === 'external'}>
-                  <UserPlus size={14} /> {savingId === 'external' ? '…' : 'Ajouter au casting'}
-                </CrmV2Button>
-              </div>
-            </CrmV2Card>
-          </div>
-        )}
-
-        <div style={{ padding: `16px ${padX}px` }}>
-          <CrmV2PillTabs items={tabItems} value={tab} onChange={id => setTab(id as Tab)} />
-          <div style={{ marginTop: 10, fontSize: 12, color: crmV2.textFaint }}>{tabHelp[tab]}</div>
-          <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            <CrmV2Search
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Nom, fac, formation, verbatim…"
-              style={{ flex: isMobile ? '1 1 100%' : '0 1 320px' }}
-            />
-            {tab !== 'candidatures' && (
-              <>
-                <select value={promo} onChange={e => setPromo(e.target.value)} style={{ ...inputStyle, width: 'auto', padding: '7px 12px', borderRadius: crmV2.radiusPill, fontSize: 13 }}>
-                  <option value="">Toutes les promos</option>
-                  {promos.map(p => <option key={p} value={p}>Promo {p}</option>)}
-                </select>
-                <CrmV2Button variant={strongOnly ? 'gold' : 'secondary'} onClick={() => setStrongOnly(v => !v)}>
-                  <Star size={14} /> Signaux forts uniquement
-                </CrmV2Button>
-                <CrmV2Button variant="secondary" onClick={copyEmails}>
-                  <Mail size={14} /> Copier les emails ({tab === 'parents' ? 'parents' : 'élèves'})
-                </CrmV2Button>
-              </>
-            )}
-          </div>
-        </div>
-
-        {toast && (
-          <div style={{ padding: `0 ${padX}px 12px` }}>
-            <div style={{ padding: '8px 12px', borderRadius: crmV2.radius, background: crmV2.goldSoft, fontSize: 13, color: crmV2.text }}>
-              {toast}
-            </div>
-          </div>
-        )}
-
-        <div style={{ padding: `0 ${padX}px` }}>
-          {error && (
-            <div style={{ marginBottom: 12, padding: '10px 14px', borderRadius: crmV2.radius, background: crmV2.dangerSoft, color: crmV2.danger, fontSize: 13 }}>
-              {error}
-            </div>
+            </AdsBanner>
           )}
-          {loading ? (
-            <div style={{ color: crmV2.textMuted, fontSize: 13, padding: 24 }}>Chargement des profils…</div>
-          ) : tab === 'candidatures' ? (
-            filteredCasting.length === 0 ? (
-              <CrmV2Card style={{ padding: 28, textAlign: 'center' }}>
-                <p style={{ margin: 0, color: crmV2.textMuted, fontSize: 14 }}>
-                  Aucune candidature pour l’instant. Copiez le lien de candidature et envoyez-le aux anciens élèves.
-                </p>
-              </CrmV2Card>
-            ) : (
-              <div style={{ display: 'grid', gap: 10 }}>{filteredCasting.map(renderCastingCard)}</div>
-            )
-          ) : filtered.length === 0 ? (
-            <CrmV2Card style={{ padding: 28, textAlign: 'center' }}>
-              <p style={{ margin: 0, color: crmV2.textMuted, fontSize: 14 }}>Aucun profil ne correspond à ces filtres.</p>
-            </CrmV2Card>
-          ) : (
-            <>
-              <div style={{ fontSize: 13, fontWeight: 600, color: crmV2.textMuted, marginBottom: 10 }}>
-                {filtered.length} profil{filtered.length > 1 ? 's' : ''}
+
+          {showExternal && (
+            <CrmV2FormSection
+              title="Ajouter un invité à la main"
+              description="Prof, praticien… : profils qui ne sont pas dans le CRM."
+              style={{ maxWidth: 'none' }}
+            >
+              <CrmV2Field label="Nom complet">
+                <CrmV2Input value={external.full_name} onChange={e => setExternal({ ...external, full_name: e.target.value })} placeholder="Dr Prénom Nom" />
+              </CrmV2Field>
+              <CrmV2Field label="Type">
+                <CrmV2Select value={external.profile_type} onChange={e => setExternal({ ...external, profile_type: e.target.value as PodcastProfileType })}>
+                  {PROFILE_TYPES.map(t => <option key={t} value={t}>{PODCAST_TARGETS[t].label}</option>)}
+                </CrmV2Select>
+              </CrmV2Field>
+              <CrmV2Field label="Téléphone">
+                <CrmV2Input value={external.phone} onChange={e => setExternal({ ...external, phone: e.target.value })} />
+              </CrmV2Field>
+              <CrmV2Field label="Email">
+                <CrmV2Input value={external.email} onChange={e => setExternal({ ...external, email: e.target.value })} />
+              </CrmV2Field>
+              <CrmV2Field label="Angle / histoire forte" span={2}>
+                <CrmV2Input value={external.story} onChange={e => setExternal({ ...external, story: e.target.value })} placeholder="Ex : dentiste reconvertie après 2 échecs en PACES" />
+              </CrmV2Field>
+              <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
+                <CrmV2Button variant="secondary" onClick={() => setShowExternal(false)}>Annuler</CrmV2Button>
+                <CrmV2Button variant="primary" icon={<UserPlus size={14} />} onClick={addExternal} disabled={savingId === 'external'}>
+                  {savingId === 'external' ? '…' : 'Ajouter au casting'}
+                </CrmV2Button>
               </div>
-              <div style={{ display: 'grid', gap: 10 }}>{filtered.slice(0, visible).map(renderCandidateCard)}</div>
-              {filtered.length > visible && (
-                <div style={{ marginTop: 14, textAlign: 'center' }}>
-                  <CrmV2Button variant="secondary" onClick={() => setVisible(v => v + PAGE_SIZE)}>
+            </CrmV2FormSection>
+          )}
+
+          {error && <AdsBanner kind="error">{error}</AdsBanner>}
+
+          <CrmV2TableCard
+            toolbar={
+              <>
+                <div style={{ flexBasis: '100%', fontSize: 12, color: crmV2.textFaint, lineHeight: 1.45 }}>{tabHelp[tab]}</div>
+                <CrmV2Search
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="Nom, fac, formation, verbatim…"
+                  style={{ flex: isMobile ? '1 1 100%' : '0 1 300px' }}
+                />
+                {tab !== 'candidatures' && (
+                  <>
+                    <AdsPillSelect value={promo} onChange={e => setPromo(e.target.value)} aria-label="Promo">
+                      <option value="">Toutes les promos</option>
+                      {promos.map(p => <option key={p} value={p}>Promo {p}</option>)}
+                    </AdsPillSelect>
+                    <CrmV2FilterPill
+                      label={<span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Star size={14} /> Signaux forts uniquement</span>}
+                      active={strongOnly}
+                      onClick={() => setStrongOnly(v => !v)}
+                    />
+                    <span style={{ flex: 1 }} />
+                    <CrmV2Button variant="secondary" icon={<Mail size={14} />} onClick={copyEmails}>
+                      Copier les emails ({tab === 'parents' ? 'parents' : 'élèves'})
+                    </CrmV2Button>
+                  </>
+                )}
+              </>
+            }
+            footer={!loading && listCount > 0 ? (
+              <>
+                <span>
+                  {tab === 'candidatures'
+                    ? `${filteredCasting.length} candidature${filteredCasting.length > 1 ? 's' : ''}`
+                    : `${Math.min(visible, filtered.length)} sur ${filtered.length} profil${filtered.length > 1 ? 's' : ''}`}
+                </span>
+                {tab !== 'candidatures' && filtered.length > visible && (
+                  <CrmV2Button variant="secondary" size="sm" onClick={() => setVisible(v => v + PAGE_SIZE)}>
                     Voir plus ({filtered.length - visible} restants)
                   </CrmV2Button>
-                </div>
-              )}
-            </>
-          )}
-        </div>
+                )}
+              </>
+            ) : undefined}
+          >
+            {loading ? (
+              <CrmV2Spinner />
+            ) : listCount === 0 ? (
+              <CrmV2Empty
+                icon={<Mic size={22} />}
+                title={tab === 'candidatures' ? 'Aucune candidature pour l’instant' : 'Aucun profil ne correspond à ces filtres.'}
+                description={tab === 'candidatures' ? 'Copiez le lien de candidature et envoyez-le aux anciens élèves.' : undefined}
+              />
+            ) : (
+              <div>
+                {!isMobile && (
+                  <div style={{
+                    display: 'grid', gridTemplateColumns: gridCols, gap: 12, alignItems: 'center', padding: '0 14px', height: 36,
+                    background: crmV2.thBg, borderBottom: `2px solid ${crmV2.thBorder}`,
+                    fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: crmV2.textMuted,
+                  }}>
+                    {headers.map((h, i) => <span key={i} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h}</span>)}
+                  </div>
+                )}
+                {tab === 'candidatures'
+                  ? filteredCasting.map(renderCastingCard)
+                  : filtered.slice(0, visible).map(renderCandidateCard)}
+              </div>
+            )}
+          </CrmV2TableCard>
+        </CrmV2Body>
       </CrmV2Page>
+
+      {toast && (
+        <div style={{
+          position: 'fixed', left: '50%', bottom: isMobile ? 80 : 28, transform: 'translateX(-50%)', zIndex: 1100,
+          padding: '10px 16px', borderRadius: 999, background: crmV2.primary, color: '#fff', fontSize: 13, fontWeight: 600,
+          boxShadow: crmV2.shadowPanel, display: 'inline-flex', alignItems: 'center', gap: 8, maxWidth: 'calc(100vw - 24px)',
+        }}>
+          <CheckCircle2 size={16} color={crmV2.gold} /> {toast}
+        </div>
+      )}
     </div>
   )
 }
