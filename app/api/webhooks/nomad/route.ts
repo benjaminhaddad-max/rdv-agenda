@@ -60,13 +60,14 @@ function timingSafeEqual(a: string, b: string): boolean {
 }
 
 function verifyKey(req: NextRequest): boolean {
-  const expected = process.env.NOMAD_IMPORT_KEY || ''
+  // trim : la valeur Vercel peut contenir un retour à la ligne final.
+  const expected = (process.env.NOMAD_IMPORT_KEY || '').trim()
   if (!expected) return false
   const provided =
     req.nextUrl.searchParams.get('key') ||
     req.headers.get('x-nomad-key') ||
     (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '')
-  return timingSafeEqual(provided || '', expected)
+  return timingSafeEqual((provided || '').trim(), expected)
 }
 
 function normalizePayloadKey(key: string): string {
