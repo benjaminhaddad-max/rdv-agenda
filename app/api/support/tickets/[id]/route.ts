@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { requireApiUser } from '@/lib/api-auth'
-import { signMessageAttachments } from '@/lib/support-server'
+import { isSupportSupervisor, signMessageAttachments } from '@/lib/support-server'
 import type { SupportMessage } from '@/lib/support'
 
 /**
  * GET /api/support/tickets/[id] — ticket + fil de messages (pièces jointes signées)
- * PATCH /api/support/tickets/[id] — { status } : l'auteur peut clore (fait) ou rouvrir (nouveau), l'admin tout.
+ * PATCH /api/support/tickets/[id] — { status } : l'auteur peut clore (fait) ou rouvrir (nouveau), le superviseur tout.
  */
 export async function GET(
   _req: NextRequest,
@@ -20,7 +20,7 @@ export async function GET(
   const db = createServiceClient()
   const { data: ticket } = await db.from('support_tickets').select('*').eq('id', id).maybeSingle()
   if (!ticket) return NextResponse.json({ error: 'Ticket introuvable' }, { status: 404 })
-  if (ticket.author_id !== ctx.appUserId && ctx.role !== 'admin') {
+  if (ticket.author_id !== ctx.appUserId && !(await isSupportSupervisor(ctx))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -55,9 +55,9 @@ export async function PATCH(
   const { data: ticket } = await db.from('support_tickets').select('author_id').eq('id', id).maybeSingle()
   if (!ticket) return NextResponse.json({ error: 'Ticket introuvable' }, { status: 404 })
 
-  const isAdmin = ctx.role === 'admin'
+  const isSupervisor = await isSupportSupervisor(ctx)
   const isAuthor = ticket.author_id === ctx.appUserId
-  const allowed = isAdmin
+  const allowed = isSupervisor
     ? ['nouveau', 'en_cours', 'besoin_infos', 'validation', 'fait', 'pas_fait']
     : isAuthor ? ['nouveau', 'fait'] : []
   if (!allowed.includes(body.status)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })

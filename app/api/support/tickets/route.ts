@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { requireApiUser } from '@/lib/api-auth'
-import { sanitizeAttachments } from '@/lib/support-server'
+import { isSupportSupervisor, sanitizeAttachments } from '@/lib/support-server'
 
 /**
- * GET /api/support/tickets — tickets de l'utilisateur (admin : tous, ?scope=all)
+ * GET /api/support/tickets — tickets de l'utilisateur (superviseur : tous, ?scope=all)
  * POST /api/support/tickets — { title, body, priority, page_url, attachments[] }
  */
 export async function GET(req: NextRequest) {
@@ -13,7 +13,8 @@ export async function GET(req: NextRequest) {
   const { ctx } = auth
 
   const db = createServiceClient()
-  const showAll = ctx.role === 'admin' && req.nextUrl.searchParams.get('scope') === 'all'
+  const canSeeAll = await isSupportSupervisor(ctx)
+  const showAll = canSeeAll && req.nextUrl.searchParams.get('scope') === 'all'
   let q = db
     .from('support_tickets')
     .select('*')
@@ -26,6 +27,7 @@ export async function GET(req: NextRequest) {
   const tickets = data || []
   return NextResponse.json({
     tickets,
+    canSeeAll,
     unread: tickets.filter(t => t.author_id === ctx.appUserId && t.unread_for_author).length,
   })
 }

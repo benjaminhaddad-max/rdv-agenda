@@ -1,5 +1,18 @@
 import { createServiceClient } from '@/lib/supabase'
 import { SUPPORT_BUCKET, type SupportAttachment, type SupportMessage } from '@/lib/support'
+import type { ApiUserContext } from '@/lib/api-auth'
+
+/** Seuls ces comptes voient et gèrent les demandes des autres (y compris celles des admins). */
+const SUPPORT_SUPERVISOR_EMAILS = ['aaron@diploma-sante.fr']
+
+/** L'utilisateur peut-il voir / gérer les demandes de toute l'équipe ? (vérifié par l'e-mail de connexion) */
+export async function isSupportSupervisor(ctx: ApiUserContext): Promise<boolean> {
+  if (ctx.role !== 'admin') return false
+  const db = createServiceClient()
+  const { data } = await db.auth.admin.getUserById(ctx.authUserId)
+  const email = data?.user?.email?.trim().toLowerCase()
+  return !!email && SUPPORT_SUPERVISOR_EMAILS.includes(email)
+}
 
 /** Valide les pièces jointes envoyées par le client : uniquement des fichiers uploadés par cet utilisateur. */
 export function sanitizeAttachments(raw: unknown, appUserId: string): SupportAttachment[] {
