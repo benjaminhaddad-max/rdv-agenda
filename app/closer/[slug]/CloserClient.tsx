@@ -1,18 +1,15 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
 import { format, addDays, startOfWeek, startOfToday, isBefore } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import {
-  Calendar, Clock, Save, X, Plus, ChevronLeft, ChevronRight,
-  Ban, CheckCircle, AlertCircle, User, Search, Phone, Tag,
-  FileText, Video, Copy, Check, Link, Mail, MapPin,
-  GraduationCap, PlusCircle, RefreshCw, RotateCcw,
+  ArrowRight, Ban, Briefcase, CalendarDays, Check, CheckCircle, ChevronLeft, ChevronRight, Clock, Copy,
+  FileText, GraduationCap, Link, LifeBuoy, LogOut, Mail, MapPin, Phone, Plus, RefreshCw, Repeat2, RotateCcw, Save,
+  Search, Tag, User, UserPlus, Video, X,
 } from 'lucide-react'
 import WeekCalendar from '@/components/WeekCalendar'
-import LogoutButton from '@/components/LogoutButton'
-import SupportButton from '@/components/SupportButton'
-import StatusBadge, { AppointmentStatus, STATUS_CONFIG } from '@/components/StatusBadge'
+import { AppointmentStatus, STATUS_CONFIG } from '@/components/StatusBadge'
 import AppointmentModal from '@/components/AppointmentModal'
 import RepopJournal from '@/components/RepopJournal'
 import PlatformGuide from '@/components/PlatformGuide'
@@ -22,6 +19,17 @@ import { crmV2 } from '@/lib/crm-v2-theme'
 import CRMGlobalSearchBar from '@/components/CRMGlobalSearchBar'
 import { parseExtraParticipants } from '@/lib/appointment-participants'
 import { usePageTitle } from '@/components/DocumentTitle'
+import { useIsMobile } from '@/lib/useIsMobile'
+import {
+  CrmV2Button, CrmV2Card, CrmV2Header, CrmV2KpiCard, CrmV2KpiGrid, CrmV2StatusPill, CrmV2Tabs, CrmV2Toggle, hexA,
+} from '@/components/crm-v2/primitives'
+import {
+  TpMobileHeader, TpPlusSheet, TpRoundButton, useLogout, useSupportUnread, type TpMenuItem,
+} from '@/components/telepro-v2/ui'
+import {
+  ChoiceButton, CloserTabBar, FieldLabel, GoldButton, Notice, StepBar, StepCard, SupportPill, closerInput,
+  type CloserMobileTab,
+} from '@/components/crm-v2/closer/ui'
 
 // ─── Types ──────────────────────────────────────────────────────────────
 type CloserUser = {
@@ -147,30 +155,6 @@ const CAMPUS_OPTIONS = [
   '29 rue Lauriston 75116 Paris',
 ]
 
-const inputStyle: React.CSSProperties = {
-  background: '#f7f4ee',
-  border: '1px solid #2d4a6b',
-  borderRadius: 8,
-  padding: '8px 12px',
-  color: '#0e1e35',
-  fontSize: 13,
-  outline: 'none',
-  cursor: 'pointer',
-  fontFamily: 'inherit',
-}
-
-const fieldInputStyle: React.CSSProperties = {
-  width: '100%', background: '#f7f4ee', border: '1px solid #2d4a6b',
-  borderRadius: 10, padding: '11px 14px', color: '#0e1e35',
-  fontSize: 14, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit',
-}
-
-const labelStyle: React.CSSProperties = {
-  fontWeight: 700, fontSize: 12, color: '#4a6070', marginBottom: 6,
-  display: 'flex', alignItems: 'center', gap: 5,
-  textTransform: 'uppercase', letterSpacing: '0.05em',
-}
-
 function generateJitsiLink() {
   // Nom historique — génère désormais une URL LiveKit sur notre domaine.
   const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
@@ -182,10 +166,12 @@ function generateJitsiLink() {
   return `${base}/visio/rdv-${id}`
 }
 
+type CloserTab = 'planning' | 'rdv' | 'dispos' | 'historique' | 'repop' | 'leads' | 'contacts'
+
 // ─── Composant principal ────────────────────────────────────────────────
 export default function CloserClient({ user }: { user: CloserUser }) {
   usePageTitle(user.name)
-  const [activeTab, setActiveTab] = useState<'planning' | 'rdv' | 'dispos' | 'historique' | 'repop' | 'leads' | 'contacts'>('planning')
+  const [activeTab, setActiveTab] = useState<CloserTab>('planning')
   const [leadsTotal, setLeadsTotal] = useState(0)
   const [contactsTotal, setContactsTotal] = useState(0)
   const [showGuide, setShowGuide] = useState(false)
@@ -201,9 +187,9 @@ export default function CloserClient({ user }: { user: CloserUser }) {
   const [rebookLoading, setRebookLoading] = useState<string | null>(null)
 
   const SUIVI_OPTIONS = [
-    { value: 'ne_repond_plus', label: '📵 Ne répond plus', color: '#6b7280' },
-    { value: 'a_travailler',   label: '🔧 À travailler',   color: '#C9A84C' },
-    { value: 'pre_positif',    label: '⭐ Pré-positif',    color: '#06b6d4' },
+    { value: 'ne_repond_plus', label: 'Ne répond plus', color: '#6b7280' },
+    { value: 'a_travailler',   label: 'À travailler',   color: '#b8963e' },
+    { value: 'pre_positif',    label: 'Pré-positif',    color: '#06b6d4' },
   ]
 
   const fetchHistorique = useCallback(async () => {
@@ -227,7 +213,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
   const uniqueStages = histRdvs.reduce<Array<{ label: string; color: string; count: number }>>((acc, r) => {
     if (!r.hs_stage_label) return acc
     const existing = acc.find(s => s.label === r.hs_stage_label)
-    if (existing) { existing.count++ } else { acc.push({ label: r.hs_stage_label, color: r.hs_stage_color || '#4a6070', count: 1 }) }
+    if (existing) { existing.count++ } else { acc.push({ label: r.hs_stage_label, color: r.hs_stage_color || crmV2.textMuted, count: 1 }) }
     return acc
   }, [])
 
@@ -667,849 +653,820 @@ export default function CloserClient({ user }: { user: CloserUser }) {
     } finally { setSubmitting(false) }
   }
 
-  // ─── Success screen RDV ────────────────────────────────────────────────
-  if (rdvSuccess) {
-    return (
-      <div className="crm-v2 crm-v2-skin" style={{ minHeight: '100vh', background: crmV2.bgSoft, color: crmV2.text, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: crmV2.font }}>
-        <div style={{ background: '#ffffff', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 20, padding: '48px 40px', textAlign: 'center', maxWidth: 440 }}>
-          <CheckCircle size={48} style={{ color: '#22c55e', marginBottom: 16 }} />
-          <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>RDV enregistré !</div>
-          <div style={{ fontSize: 15, color: '#4a6070', marginBottom: 4 }}>{contactName}</div>
-          <div style={{ fontSize: 14, color: '#22c55e', fontWeight: 600, marginBottom: 4 }}>
-            {selectedSlot && format(new Date(selectedSlot.start), 'EEEE d MMMM à HH:mm', { locale: fr })}
-          </div>
-          {meetingType === 'visio' && meetingLink && (
-            <div style={{ background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.2)', borderRadius: 8, padding: '10px 14px', marginBottom: 10, marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Video size={14} style={{ color: '#C9A84C', flexShrink: 0 }} />
-              <a href={meetingLink} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#C9A84C', wordBreak: 'break-all', flex: 1 }}>{meetingLink}</a>
-              <button onClick={() => { navigator.clipboard.writeText(meetingLink); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000) }}
-                style={{ background: linkCopied ? 'rgba(34,197,94,0.15)' : 'rgba(204,172,113,0.15)', border: 'none', borderRadius: 6, padding: '5px 10px', color: linkCopied ? '#22c55e' : '#C9A84C', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-                {linkCopied ? <><Check size={10} /> Copié</> : <><Copy size={10} /> Copier</>}
-              </button>
-            </div>
-          )}
-          <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-            <button onClick={() => { setRdvSuccess(false); resetContact() }} style={{ flex: 1, background: `${user.avatar_color}25`, color: user.avatar_color, border: `1px solid ${user.avatar_color}50`, borderRadius: 10, padding: '11px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
-              + Nouveau RDV
-            </button>
-            <button onClick={() => { setRdvSuccess(false); resetContact(); setActiveTab('planning') }} style={{ flex: 1, background: 'rgba(34,197,94,0.15)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 10, padding: '11px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
-              Mon planning
-            </button>
-          </div>
-        </div>
-      </div>
-    )
+
+  // ─── Présentation V2 ──────────────────────────────────────────────────
+  const isMobile = useIsMobile()
+  const firstName = (user.name || '').trim().split(/\s+/)[0] || user.name
+  const supportUnread = useSupportUnread()
+  const logout = useLogout()
+  const [plusOpen, setPlusOpen] = useState(false)
+  const inp = closerInput(isMobile)
+
+  function goTab(tab: CloserTab) {
+    setActiveTab(tab)
+    setPlusOpen(false)
   }
 
-  // ─── Render ───────────────────────────────────────────────────────────
-  return (
-    <div
-      className="crm-v2 crm-v2-skin"
-      style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: crmV2.bgSoft, color: crmV2.text, fontFamily: crmV2.font }}
-    >
+  // « Nouveau RDV » depuis l'en-tête ou la barre du bas : repart d'un formulaire vierge
+  // si le RDV précédent vient d'être enregistré.
+  function goNewRdv() {
+    if (rdvSuccess) { setRdvSuccess(false); resetContact() }
+    goTab('rdv')
+  }
 
-      {/* Header */}
-      <div style={{
-        background: crmV2.bg, borderBottom: `1px solid ${crmV2.border}`,
-        padding: '0 24px', height: 56,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        flexShrink: 0,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+  const skin = (node: ReactNode, style?: React.CSSProperties) => (
+    // Composants partagés encore au style d'origine : habillés par la skin V2
+    <div className="crm-v2-skin" style={style}>{node}</div>
+  )
+
+  const fullHeight: React.CSSProperties = { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }
+  const pagePad: React.CSSProperties = isMobile
+    ? { padding: 12, display: 'flex', flexDirection: 'column', gap: 12 }
+    : { maxWidth: 1080, width: '100%', margin: '0 auto', padding: '20px 28px 32px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: 16 }
+
+  const roundIconBtn: React.CSSProperties = {
+    width: 36, height: 36, borderRadius: 999, border: `1px solid ${crmV2.borderStrong}`, background: crmV2.bg,
+    color: crmV2.textMuted, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+    flexShrink: 0, fontFamily: 'inherit',
+  }
+
+  const copyLink = () => {
+    navigator.clipboard.writeText(meetingLink)
+    setLinkCopied(true)
+    setTimeout(() => setLinkCopied(false), 2000)
+  }
+
+  // ── Nouveau RDV : écran de confirmation ──
+  const successContent = (
+    <div style={{ ...pagePad, alignItems: 'center', justifyContent: 'center', flex: 1 }}>
+      <CrmV2Card style={{ padding: isMobile ? 20 : '32px 32px 28px', maxWidth: 460, width: '100%', boxSizing: 'border-box', textAlign: 'center' }}>
+        <span style={{
+          width: 56, height: 56, borderRadius: '50%', background: 'rgba(22,163,74,0.10)', color: crmV2.successStrong,
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14,
+        }}>
+          <CheckCircle size={28} />
+        </span>
+        <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', marginBottom: 6 }}>RDV enregistré</div>
+        <div style={{ fontSize: 15, color: crmV2.textMuted, marginBottom: 4 }}>{contactName}</div>
+        <div style={{ fontSize: 14, color: crmV2.successStrong, fontWeight: 700, textTransform: 'capitalize' }}>
+          {selectedSlot && format(new Date(selectedSlot.start), 'EEEE d MMMM à HH:mm', { locale: fr })}
+        </div>
+        {meetingType === 'visio' && meetingLink && (
           <div style={{
-            width: 36, height: 36, borderRadius: '50%', overflow: 'hidden', flexShrink: 0,
-            background: '#241F3F', boxShadow: '0 0 0 2px rgba(94, 188, 227, 0.35)',
+            background: crmV2.goldSoft, border: `1px solid ${crmV2.goldBorder}`, borderRadius: 12,
+            padding: '10px 12px', marginTop: 16, display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left',
           }}>
-            <img src="/logo-hub-diploma-mark.png" alt="Hub Diploma" width={36} height={36} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+            <Video size={14} style={{ color: crmV2.gold, flexShrink: 0 }} />
+            <a href={meetingLink} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: crmV2.goldDark, wordBreak: 'break-all', flex: 1 }}>{meetingLink}</a>
+            <CrmV2Button size="sm" variant={linkCopied ? 'secondary' : 'gold'} onClick={copyLink} icon={linkCopied ? <Check size={12} /> : <Copy size={12} />}>
+              {linkCopied ? 'Copié' : 'Copier'}
+            </CrmV2Button>
           </div>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 15 }}>{user.name}</div>
-            <div style={{ fontSize: 11, color: crmV2.textMuted }}>Mon espace closer</div>
+        )}
+        <div style={{ display: 'flex', gap: 8, marginTop: 20, flexWrap: 'wrap' }}>
+          <CrmV2Button variant="accent" icon={<Plus size={14} />} onClick={() => { setRdvSuccess(false); resetContact() }} style={{ flex: 1, minHeight: 42 }}>
+            Nouveau RDV
+          </CrmV2Button>
+          <CrmV2Button icon={<CalendarDays size={14} />} onClick={() => { setRdvSuccess(false); resetContact(); setActiveTab('planning') }} style={{ flex: 1, minHeight: 42 }}>
+            Mon planning
+          </CrmV2Button>
+        </div>
+      </CrmV2Card>
+    </div>
+  )
+
+  // ── Nouveau RDV : formulaire en 3 étapes ──
+  const rdvStep = !contact ? 1 : !selectedSlot ? 2 : 3
+  const rdvStepDone = [!!contact, !!selectedSlot, !!canSubmit]
+
+  const contactStep = (
+    <StepCard
+      n={1}
+      done={!!contact}
+      title={contact ? 'Contact sélectionné' : 'Trouver le contact dans le CRM'}
+      subtitle={contact ? undefined : 'Rechercher un contact existant ou en créer un nouveau'}
+    >
+      {contact ? (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+          background: crmV2.bg, border: '1px solid rgba(0,189,165,0.45)', borderRadius: 12, padding: '10px 12px',
+        }}>
+          <span style={{
+            width: 40, height: 40, borderRadius: '36%', background: hexA(user.avatar_color || crmV2.gold, 0.14),
+            color: user.avatar_color || crmV2.gold, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          }}>
+            <User size={18} />
+          </span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 700, fontSize: 15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {[contact.properties.firstname, contact.properties.lastname].filter(Boolean).join(' ') || 'Sans nom'}
+            </div>
+            <div style={{ fontSize: 12, color: crmV2.textMuted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{contact.properties.email}</div>
+          </div>
+          <CrmV2Button size="sm" variant="danger" icon={<X size={12} />} onClick={resetContact} style={{ minHeight: 34 }}>
+            Changer
+          </CrmV2Button>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {/* Choix Rechercher / Nouveau contact */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+            {([
+              { key: 'search' as const, label: isMobile ? 'Rechercher' : 'Rechercher dans le CRM', icon: <Search size={14} /> },
+              { key: 'new' as const, label: 'Nouveau contact', icon: <UserPlus size={14} /> },
+            ]).map(m => (
+              <ChoiceButton key={m.key} active={lookupMode === m.key} onClick={() => { setLookupMode(m.key); setLookupError(null); setSearchResults([]) }}>
+                {m.icon} {m.label}
+              </ChoiceButton>
+            ))}
+          </div>
+
+          {lookupMode === 'search' ? (
+            <>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  value={lookupInput}
+                  onChange={e => setLookupInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && searchContact()}
+                  placeholder="Nom, prénom, email ou téléphone…"
+                  style={{ ...inp, flex: 1 }}
+                />
+                <CrmV2Button
+                  variant="primary"
+                  onClick={searchContact}
+                  disabled={lookupLoading || !lookupInput.trim()}
+                  icon={<Search size={14} />}
+                  style={{ minHeight: isMobile ? 44 : 40 }}
+                >
+                  {lookupLoading ? 'Recherche…' : 'Chercher'}
+                </CrmV2Button>
+              </div>
+              {searchResults.length > 0 && (
+                <div style={{ border: `1px solid ${crmV2.border}`, borderRadius: 12, background: crmV2.bg, maxHeight: 320, overflowY: 'auto' }}>
+                  {searchResults.map(r => {
+                    const fullName = [r.firstname, r.lastname].filter(Boolean).join(' ') || '(Sans nom)'
+                    return (
+                      <button key={r.hubspot_contact_id}
+                        type="button"
+                        onClick={() => pickSearchResult(r)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 12px', minHeight: 52, background: 'transparent', border: 'none', borderBottom: `1px solid ${crmV2.borderLight}`, textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = crmV2.rowHover)}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                      >
+                        <span style={{ width: 34, height: 34, borderRadius: '36%', background: hexA(user.avatar_color || crmV2.gold, 0.14), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <User size={15} style={{ color: user.avatar_color || crmV2.gold }} />
+                        </span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: crmV2.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fullName}</div>
+                          <div style={{ fontSize: 12, color: crmV2.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {[r.email, r.phone, r.classe_actuelle].filter(Boolean).join(' · ') || '—'}
+                          </div>
+                        </div>
+                        <ChevronRight size={15} color={crmV2.textFaint} />
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 8 }}>
+              <input value={newFirstname} onChange={e => setNewFirstname(e.target.value)} placeholder="Prénom *" style={inp} />
+              <input value={newLastname} onChange={e => setNewLastname(e.target.value)} placeholder="Nom *" style={inp} />
+              <input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="Email *" style={{ ...inp, gridColumn: '1 / -1' }} />
+              <input value={newPhone} onChange={e => setNewPhone(e.target.value)} placeholder="Téléphone" inputMode="tel" style={inp} />
+              <input value={newDepartement} onChange={e => setNewDepartement(e.target.value)} placeholder="Département" style={inp} />
+              <CrmV2Button
+                variant="primary"
+                onClick={createNewContact}
+                disabled={creating || !newFirstname.trim() || !newLastname.trim() || !newEmail.trim()}
+                icon={<UserPlus size={14} />}
+                style={{ gridColumn: '1 / -1', minHeight: 42 }}
+              >
+                {creating ? 'Création…' : 'Créer le contact'}
+              </CrmV2Button>
+            </div>
+          )}
+
+          {lookupError && <Notice>{lookupError}</Notice>}
+        </div>
+      )}
+    </StepCard>
+  )
+
+  const slotStep = (
+    <StepCard
+      n={2}
+      done={!!selectedSlot}
+      title="Date et créneau"
+      subtitle={selectedSlot
+        ? <span style={{ textTransform: 'capitalize' }}>{format(new Date(selectedSlot.start), "EEEE d MMMM 'à' HH:mm", { locale: fr })}</span>
+        : 'Mes créneaux libres sur les 10 prochains jours ouvrés'}
+    >
+      {/* Jours */}
+      <div style={{ display: 'flex', gap: 6, overflowX: 'auto', scrollbarWidth: 'none', paddingBottom: 2, flexWrap: isMobile ? 'nowrap' : 'wrap' }}>
+        {bookingDays.map(day => {
+          const isSelected = !!selectedDate && isBefore(day, addDays(selectedDate, 1)) && !isBefore(day, selectedDate)
+          return (
+            <button key={day.toISOString()} type="button" onClick={() => handleSelectDate(day)}
+              style={{
+                flexShrink: 0, minWidth: 58, padding: '8px 10px', borderRadius: 12, cursor: 'pointer', textAlign: 'center', fontFamily: 'inherit',
+                background: isSelected ? crmV2.primary : crmV2.bg,
+                border: `1px solid ${isSelected ? crmV2.primary : crmV2.borderStrong}`,
+                color: isSelected ? '#fff' : crmV2.text,
+              }}>
+              <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: isSelected ? 'rgba(255,255,255,0.75)' : crmV2.textMuted }}>{format(day, 'EEE', { locale: fr })}</div>
+              <div style={{ fontSize: 16, fontWeight: 700 }}>{format(day, 'd')}</div>
+              <div style={{ fontSize: 11, color: isSelected ? 'rgba(255,255,255,0.75)' : crmV2.textMuted }}>{format(day, 'MMM', { locale: fr })}</div>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Créneaux */}
+      {selectedDate ? (
+        slotsLoading ? (
+          <div style={{ textAlign: 'center', padding: '20px 0', color: crmV2.textMuted, fontSize: 13 }}>Chargement des créneaux…</div>
+        ) : slots.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '20px 0', color: crmV2.textMuted, fontSize: 13 }}>Aucun créneau disponible ce jour.</div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(84px, 1fr))', gap: 6, marginTop: 14 }}>
+            {slots.map(slot => (
+              <ChoiceButton key={slot.start} active={selectedSlot?.start === slot.start} onClick={() => setSelectedSlot(slot)} style={{ padding: '0 8px' }}>
+                {format(new Date(slot.start), 'HH:mm')}
+              </ChoiceButton>
+            ))}
+          </div>
+        )
+      ) : (
+        <div style={{ fontSize: 13, color: crmV2.textFaint, marginTop: 12 }}>Choisis un jour pour voir les créneaux.</div>
+      )}
+    </StepCard>
+  )
+
+  const infosStep = (
+    <StepCard n={3} done={!!canSubmit} title="Informations prospect" subtitle="Les champs marqués * sont obligatoires">
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
+        <div>
+          <FieldLabel icon={<Mail size={12} />} extra={emailSynced ? (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, color: crmV2.successStrong, fontWeight: 700 }}><Check size={11} /> Synchronisé</span>
+          ) : undefined}>Email</FieldLabel>
+          <input value={email} onChange={e => setEmail(e.target.value)} onBlur={syncEmail} placeholder="email@exemple.com" style={inp} />
+        </div>
+        <div>
+          <FieldLabel icon={<Phone size={12} />}>Téléphone *</FieldLabel>
+          <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+33 6 00 00 00 00" inputMode="tel" style={inp} />
+        </div>
+        <div>
+          <FieldLabel icon={<MapPin size={12} />}>Département *</FieldLabel>
+          <input value={departement} onChange={e => setDepartement(e.target.value)} placeholder="ex: 75" style={inp} />
+        </div>
+        <div>
+          <FieldLabel icon={<GraduationCap size={12} />}>Classe actuelle *</FieldLabel>
+          <select value={classeActuelle} onChange={e => setClasseActuelle(e.target.value)} style={{ ...inp, cursor: 'pointer' }}>
+            <option value="">Sélectionner…</option>
+            {CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <div style={{ gridColumn: '1 / -1' }}>
+          <FieldLabel icon={<Tag size={12} />}>Formation demandée *</FieldLabel>
+          <select value={formation} onChange={e => setFormation(e.target.value)} style={{ ...inp, cursor: 'pointer' }}>
+            <option value="">Sélectionner…</option>
+            {FORMATIONS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+          </select>
+        </div>
+        <div style={{ gridColumn: '1 / -1' }}>
+          <FieldLabel icon={<Video size={12} />}>Type de réunion</FieldLabel>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+            {([
+              { value: 'visio', label: 'Visio', icon: <Video size={14} /> },
+              { value: 'presentiel', label: 'Présentiel', icon: <MapPin size={14} /> },
+            ] as const).map(t => (
+              <ChoiceButton key={t.value} active={meetingType === t.value} onClick={() => {
+                setMeetingType(t.value)
+                if (t.value === 'presentiel' && !meetingCampus) setMeetingCampus(CAMPUS_OPTIONS[0])
+              }}>
+                {t.icon} {t.label}
+              </ChoiceButton>
+            ))}
           </div>
         </div>
+        {meetingType === 'presentiel' && (
+          <div style={{ gridColumn: '1 / -1' }}>
+            <FieldLabel icon={<MapPin size={12} />}>Campus (présentiel)</FieldLabel>
+            <select value={meetingCampus} onChange={e => setMeetingCampus(e.target.value)} style={{ ...inp, cursor: 'pointer' }}>
+              {CAMPUS_OPTIONS.map(campus => (
+                <option key={campus} value={campus}>{campus}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        {meetingType === 'visio' && (
+          <div style={{ gridColumn: '1 / -1' }}>
+            <FieldLabel icon={<Link size={12} />}>Lien de visio</FieldLabel>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input value={meetingLink} onChange={e => setMeetingLink(e.target.value)} style={{ ...inp, flex: 1, fontSize: 12 }} />
+              <CrmV2Button variant={linkCopied ? 'secondary' : 'gold'} onClick={copyLink} icon={linkCopied ? <Check size={14} /> : <Copy size={14} />} style={{ minHeight: isMobile ? 44 : 40 }}>
+                {linkCopied ? 'Copié' : 'Copier'}
+              </CrmV2Button>
+            </div>
+          </div>
+        )}
+        <div style={{ gridColumn: '1 / -1' }}>
+          <FieldLabel icon={<FileText size={12} />}>Notes d&apos;appel</FieldLabel>
+          <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Observations, contexte particulier…" rows={3}
+            style={{ ...inp, height: 'auto', minHeight: 84, padding: '10px 12px', resize: 'vertical', lineHeight: 1.5 }} />
+        </div>
+      </div>
+    </StepCard>
+  )
 
-        {/* Tabs */}
-        <div style={{ display: 'flex', background: crmV2.bgSoft, borderRadius: crmV2.radiusPill, padding: 3, border: `1px solid ${crmV2.border}` }}>
-          {([
-            { key: 'planning' as const, label: 'Mon planning', icon: <Calendar size={13} /> },
-            { key: 'rdv' as const, label: 'Nouveau RDV', icon: <PlusCircle size={13} /> },
-            { key: 'contacts' as const, label: 'Mes Contacts', icon: <User size={13} /> },
-            { key: 'leads' as const, label: 'Mes Transactions', icon: <Tag size={13} /> },
-            { key: 'repop' as const, label: '🔁 Repop', icon: null },
-            { key: 'dispos' as const, label: 'Mes dispos', icon: <Clock size={13} /> },
-          ]).map(tab => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              style={{
-                background: activeTab === tab.key ? user.avatar_color : 'transparent',
-                border: 'none', borderRadius: 6, padding: '6px 16px',
-                color: activeTab === tab.key ? 'white' : '#4a6070',
-                fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: 6,
-                transition: 'all 0.15s',
+  const submitBlock = (
+    <>
+      {submitError && <Notice>{submitError}</Notice>}
+      <GoldButton onClick={submitRdv} disabled={submitting || !canSubmit}>
+        <CheckCircle size={16} />
+        {submitting ? 'Enregistrement…' : 'Valider le RDV'}
+      </GoldButton>
+    </>
+  )
+
+  const newRdvContent = rdvSuccess ? successContent : isMobile ? (
+    <>
+      <TpMobileHeader title="Nouveau RDV" subtitle="Placer un RDV dans mon planning">
+        <div style={{ marginTop: 12 }}>
+          <StepBar labels={['Contact', 'Créneau', 'Infos']} step={rdvStep} done={rdvStepDone} />
+        </div>
+      </TpMobileHeader>
+      <div style={pagePad}>
+        {contactStep}
+        {slotStep}
+        {infosStep}
+      </div>
+      <div style={{ position: 'sticky', bottom: 0, padding: '10px 12px 12px', background: crmV2.bgSoft, borderTop: `1px solid ${crmV2.border}`, display: 'flex', flexDirection: 'column', gap: 8, marginTop: 'auto' }}>
+        {submitBlock}
+      </div>
+    </>
+  ) : (
+    <div style={pagePad}>
+      <div>
+        <div style={{ fontSize: 15, fontWeight: 700, color: crmV2.text }}>Nouveau RDV</div>
+        <div style={{ fontSize: 13, color: crmV2.textMuted, marginTop: 2 }}>Placer un RDV dans mon planning</div>
+        <div style={{ maxWidth: 520, marginTop: 12 }}>
+          <StepBar labels={['Contact', 'Créneau', 'Infos']} step={rdvStep} done={rdvStepDone} />
+        </div>
+      </div>
+      {contactStep}
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 16, alignItems: 'start' }}>
+        {slotStep}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {infosStep}
+          {submitBlock}
+        </div>
+      </div>
+    </div>
+  )
+
+  // ── Mes disponibilités ──
+  const todayStr = format(today, 'yyyy-MM-dd')
+  const activeRules = rules.filter(r => r.is_active)
+  const weekMinutes = activeRules.reduce((sum, r) => {
+    const [sh, sm] = r.start_time.split(':').map(Number)
+    const [eh, em] = r.end_time.split(':').map(Number)
+    return sum + Math.max(0, (eh * 60 + em) - (sh * 60 + sm))
+  }, 0)
+  const upcomingBlocked = blockedDates.filter(b => b.blocked_date >= todayStr).length
+  const weekHoursLabel = `${Math.floor(weekMinutes / 60)} h${weekMinutes % 60 ? String(weekMinutes % 60).padStart(2, '0') : ''}`
+
+  const timeSelect: React.CSSProperties = {
+    ...inp, width: isMobile ? 76 : 96, height: 36, padding: '0 8px', fontSize: 13, cursor: 'pointer', flexShrink: 0,
+  }
+
+  const disposContent = (
+    <>
+      {isMobile && <TpMobileHeader title="Mes dispos" subtitle={weekLabelLocal(dispoWeekStart)} />}
+      <div style={{ ...pagePad, maxWidth: isMobile ? undefined : 960 }}>
+        <CrmV2KpiGrid>
+          <CrmV2KpiCard label="Jours actifs" icon={<CalendarDays size={15} />} color={crmV2.text} value={`${activeRules.length}/7`} detail="sur la semaine affichée" />
+          <CrmV2KpiCard label="Heures dispo" icon={<Clock size={15} />} color={crmV2.goldDark} value={weekHoursLabel} detail="ouvertes à la prise de RDV" />
+          <CrmV2KpiCard label="Jours bloqués" icon={<Ban size={15} />} color={upcomingBlocked > 0 ? '#d13a41' : crmV2.textMuted} value={upcomingBlocked} detail="à venir" />
+        </CrmV2KpiGrid>
+
+        {/* Section 1 : planning par semaine */}
+        <CrmV2Card style={{ padding: isMobile ? 14 : 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <Clock size={16} style={{ color: crmV2.gold }} />
+            <div style={{ fontSize: 15, fontWeight: 700 }}>Planning de la semaine</div>
+          </div>
+          <div style={{ fontSize: 13, color: crmV2.textMuted, marginBottom: 14 }}>Les créneaux ouverts chaque jour pour la prise de RDV.</div>
+
+          {rulesMigrationNeeded && (
+            <Notice tone="warning" style={{ marginBottom: 14 }}>
+              <strong>Mode hebdomadaire pas encore activé.</strong>
+              <br />Demande à l&apos;admin d&apos;appliquer la migration v26 (modale Disponibilités → bouton &quot;Activer le mode hebdomadaire&quot;).
+            </Notice>
+          )}
+
+          {/* Sélecteur de semaine */}
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 12,
+            padding: 6, background: crmV2.bgSoft, borderRadius: 999, border: `1px solid ${crmV2.border}`,
+          }}>
+            <button type="button" onClick={() => setDispoWeekStart(addWeeksISOLocal(dispoWeekStart, -1))} title="Semaine précédente" aria-label="Semaine précédente"
+              style={isMobile ? roundIconBtn : { ...roundIconBtn, width: 'auto', padding: '0 12px', gap: 4, fontSize: 12, fontWeight: 600, color: crmV2.text }}>
+              <ChevronLeft size={14} />{!isMobile && 'Sem. précédente'}
+            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: crmV2.text, whiteSpace: 'nowrap' }}>{weekLabelLocal(dispoWeekStart)}</div>
+              {dispoWeekStart !== mondayISO(new Date()) && (
+                <CrmV2Button size="sm" variant="gold" onClick={() => setDispoWeekStart(mondayISO(new Date()))} style={{ padding: '4px 10px' }}>
+                  Aujourd&apos;hui
+                </CrmV2Button>
+              )}
+            </div>
+            <button type="button" onClick={() => setDispoWeekStart(addWeeksISOLocal(dispoWeekStart, 1))} title="Semaine suivante" aria-label="Semaine suivante"
+              style={isMobile ? roundIconBtn : { ...roundIconBtn, width: 'auto', padding: '0 12px', gap: 4, fontSize: 12, fontWeight: 600, color: crmV2.text }}>
+              {!isMobile && 'Sem. suivante'}<ChevronRight size={14} />
+            </button>
+          </div>
+
+          {/* Copier la semaine précédente */}
+          <div style={{ marginBottom: 12 }}>
+            <CrmV2Button
+              size="sm"
+              icon={<Copy size={13} />}
+              onClick={async () => {
+                const previousWeek = addWeeksISOLocal(dispoWeekStart, -1)
+                const res = await fetch('/api/availability?action=copy', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    user_id: user.id,
+                    from_week_start: previousWeek,
+                    to_week_start: dispoWeekStart,
+                  }),
+                })
+                const data = await res.json().catch(() => null) as { error?: string } | null
+                if (res.ok) loadRules()
+                else if (isWeeklyMigrationMissing(res.status, data?.error)) {
+                  setRulesMigrationNeeded(true)
+                  setRulesError('Migration v26 manquante')
+                }
               }}
             >
-              {tab.icon} {tab.label}
-            </button>
-          ))}
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <SupportButton />
-          <LogoutButton />
-        </div>
-      </div>
-
-      {/* Recherche globale CRM — permet de retrouver et ouvrir n'importe quelle
-          fiche (contact / transaction), même non attribuée au closer. */}
-      <div style={{ flexShrink: 0 }}>
-        <CRMGlobalSearchBar />
-      </div>
-
-      {showGuide && <PlatformGuide role="closer" onClose={() => setShowGuide(false)} />}
-      {showResources && <ResourcesPanel role="closer" onClose={() => setShowResources(false)} />}
-
-      {/* ── Tab: Mon planning ──────────────────────────────────────────── */}
-      {activeTab === 'planning' && (
-        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <WeekCalendar closerId={user.id} closerColor={user.avatar_color} closerName={user.name} teamView allowAssign />
-        </div>
-      )}
-
-      {/* ── Tab: Nouveau RDV ───────────────────────────────────────────── */}
-      {activeTab === 'rdv' && (
-        <div style={{ flex: 1, overflow: 'auto' }}>
-          <div style={{ maxWidth: 860, margin: '0 auto', padding: '24px 20px' }}>
-
-            {/* Step 1 — Contact CRM */}
-            <div style={{ background: '#ffffff', border: '1px solid #2d4a6b', borderRadius: 14, padding: '20px 24px', marginBottom: 16 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <User size={16} style={{ color: user.avatar_color }} />
-                {contact ? '✓ Contact sélectionné' : 'Étape 1 — Trouver le contact dans le CRM'}
-              </div>
-
-              {contact ? (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 10, padding: '12px 16px' }}>
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: 14 }}>
-                      {[contact.properties.firstname, contact.properties.lastname].filter(Boolean).join(' ') || 'Sans nom'}
-                    </div>
-                    <div style={{ fontSize: 12, color: '#94a3b8' }}>{contact.properties.email}</div>
-                  </div>
-                  <button onClick={resetContact} style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, padding: '6px 12px', color: '#ef4444', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <X size={12} /> Changer
-                  </button>
-                </div>
-              ) : (
-                <>
-                  {/* Mode selector */}
-                  <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
-                    {([
-                      { key: 'search' as const, label: 'Rechercher dans le CRM', icon: <Search size={11} /> },
-                      { key: 'new' as const, label: 'Nouveau contact', icon: <Plus size={11} /> },
-                    ]).map(m => (
-                      <button key={m.key} onClick={() => { setLookupMode(m.key); setLookupError(null); setSearchResults([]) }}
-                        style={{ background: lookupMode === m.key ? `${user.avatar_color}20` : '#f7f4ee', border: `1px solid ${lookupMode === m.key ? `${user.avatar_color}50` : '#e5ddc8'}`, borderRadius: 8, padding: '6px 12px', color: lookupMode === m.key ? user.avatar_color : '#4a6070', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
-                        {m.icon} {m.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  {lookupMode === 'search' ? (
-                    <>
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <input
-                          value={lookupInput}
-                          onChange={e => setLookupInput(e.target.value)}
-                          onKeyDown={e => e.key === 'Enter' && searchContact()}
-                          placeholder="Nom, prénom, email ou téléphone…"
-                          style={{ ...fieldInputStyle, flex: 1 }}
-                        />
-                        <button onClick={searchContact} disabled={lookupLoading || !lookupInput.trim()}
-                          style={{ background: user.avatar_color, color: 'white', border: 'none', borderRadius: 10, padding: '0 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: lookupLoading || !lookupInput.trim() ? 0.6 : 1 }}>
-                          <Search size={14} /> {lookupLoading ? 'Recherche…' : 'Chercher'}
-                        </button>
-                      </div>
-                      {searchResults.length > 0 && (
-                        <div style={{ marginTop: 10, border: '1px solid #e5ddc8', borderRadius: 10, background: '#ffffff', maxHeight: 320, overflowY: 'auto' }}>
-                          {searchResults.map(r => {
-                            const fullName = [r.firstname, r.lastname].filter(Boolean).join(' ') || '(Sans nom)'
-                            return (
-                              <button key={r.hubspot_contact_id}
-                                onClick={() => pickSearchResult(r)}
-                                style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 14px', background: 'transparent', border: 'none', borderBottom: '1px solid #f7f4ee', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit' }}
-                                onMouseEnter={e => (e.currentTarget.style.background = '#f7f4ee')}
-                                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                              >
-                                <div style={{ width: 32, height: 32, borderRadius: '50%', background: `${user.avatar_color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                  <User size={14} style={{ color: user.avatar_color }} />
-                                </div>
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                  <div style={{ fontSize: 13, fontWeight: 700, color: '#0e1e35', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fullName}</div>
-                                  <div style={{ fontSize: 11, color: '#4a6070', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                    {[r.email, r.phone, r.classe_actuelle].filter(Boolean).join(' · ') || '—'}
-                                  </div>
-                                </div>
-                              </button>
-                            )
-                          })}
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <input value={newFirstname} onChange={e => setNewFirstname(e.target.value)} placeholder="Prénom *" style={{ ...fieldInputStyle }} />
-                        <input value={newLastname} onChange={e => setNewLastname(e.target.value)} placeholder="Nom *" style={{ ...fieldInputStyle }} />
-                      </div>
-                      <input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="Email *" style={{ ...fieldInputStyle }} />
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <input value={newPhone} onChange={e => setNewPhone(e.target.value)} placeholder="Téléphone" style={{ ...fieldInputStyle }} />
-                        <input value={newDepartement} onChange={e => setNewDepartement(e.target.value)} placeholder="Département" style={{ ...fieldInputStyle }} />
-                      </div>
-                      <button onClick={createNewContact} disabled={creating || !newFirstname.trim() || !newLastname.trim() || !newEmail.trim()}
-                        style={{ background: user.avatar_color, color: 'white', border: 'none', borderRadius: 10, padding: '11px', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: creating || !newFirstname.trim() || !newLastname.trim() || !newEmail.trim() ? 0.6 : 1 }}>
-                        {creating ? 'Création…' : 'Créer le contact'}
-                      </button>
-                    </div>
-                  )}
-
-                  {lookupError && (
-                    <div style={{ marginTop: 10, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, padding: '8px 12px', color: '#ef4444', fontSize: 12 }}>
-                      {lookupError}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-
-            {/* Step 2 — Date + créneau */}
-            <div style={{ background: '#ffffff', border: '1px solid #2d4a6b', borderRadius: 14, padding: '20px 24px', marginBottom: 16 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Calendar size={16} style={{ color: user.avatar_color }} />
-                Étape 2 — Date &amp; créneau
-              </div>
-
-              {/* Date picker */}
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
-                {bookingDays.map(day => {
-                  const isSelected = selectedDate && isBefore(day, addDays(selectedDate, 1)) && !isBefore(day, selectedDate)
-                  return (
-                    <button key={day.toISOString()} onClick={() => handleSelectDate(day)}
-                      style={{ background: isSelected ? `${user.avatar_color}25` : '#f7f4ee', border: `1px solid ${isSelected ? user.avatar_color : '#e5ddc8'}`, borderRadius: 10, padding: '8px 12px', color: isSelected ? user.avatar_color : '#4a6070', fontSize: 12, fontWeight: 600, cursor: 'pointer', textAlign: 'center', minWidth: 60 }}>
-                      <div style={{ fontSize: 10, textTransform: 'uppercase' }}>{format(day, 'EEE', { locale: fr })}</div>
-                      <div style={{ fontSize: 15, fontWeight: 700 }}>{format(day, 'd')}</div>
-                      <div style={{ fontSize: 10 }}>{format(day, 'MMM', { locale: fr })}</div>
-                    </button>
-                  )
-                })}
-              </div>
-
-              {/* Slots */}
-              {selectedDate && (
-                slotsLoading ? (
-                  <div style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 13 }}>Chargement des créneaux…</div>
-                ) : slots.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 13 }}>Aucun créneau disponible ce jour.</div>
-                ) : (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: 6 }}>
-                    {slots.map(slot => {
-                      const isSelected = selectedSlot?.start === slot.start
-                      return (
-                        <button key={slot.start} onClick={() => setSelectedSlot(slot)}
-                          style={{ background: isSelected ? `${user.avatar_color}25` : '#f7f4ee', border: `1px solid ${isSelected ? user.avatar_color : '#e5ddc8'}`, borderRadius: 8, padding: '8px 6px', color: isSelected ? user.avatar_color : '#0e1e35', fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'center' }}>
-                          {format(new Date(slot.start), 'HH:mm')}
-                        </button>
-                      )
-                    })}
-                  </div>
-                )
-              )}
-            </div>
-
-            {/* Step 3 — Détails */}
-            <div style={{ background: '#ffffff', border: '1px solid #2d4a6b', borderRadius: 14, padding: '20px 24px', marginBottom: 16 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <FileText size={16} style={{ color: user.avatar_color }} />
-                Étape 3 — Informations prospect
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                {/* Email */}
-                <div>
-                  <div style={labelStyle}><Mail size={11} /> Email</div>
-                  <input value={email} onChange={e => setEmail(e.target.value)} onBlur={syncEmail}
-                    placeholder="email@exemple.com" style={{ ...fieldInputStyle }} />
-                  {emailSynced && <div style={{ fontSize: 10, color: '#22c55e', marginTop: 3 }}>✓ Synchronisé</div>}
-                </div>
-
-                {/* Téléphone */}
-                <div>
-                  <div style={labelStyle}><Phone size={11} /> Téléphone *</div>
-                  <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+33 6 00 00 00 00" style={{ ...fieldInputStyle }} />
-                </div>
-
-                {/* Département */}
-                <div>
-                  <div style={labelStyle}><MapPin size={11} /> Département *</div>
-                  <input value={departement} onChange={e => setDepartement(e.target.value)} placeholder="ex: 75" style={{ ...fieldInputStyle }} />
-                </div>
-
-                {/* Classe actuelle */}
-                <div>
-                  <div style={labelStyle}><GraduationCap size={11} /> Classe actuelle *</div>
-                  <select value={classeActuelle} onChange={e => setClasseActuelle(e.target.value)} style={{ ...fieldInputStyle }}>
-                    <option value="">Sélectionner…</option>
-                    {CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-
-                {/* Formation */}
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <div style={labelStyle}><Tag size={11} /> Formation demandée *</div>
-                  <select value={formation} onChange={e => setFormation(e.target.value)} style={{ ...fieldInputStyle }}>
-                    <option value="">Sélectionner…</option>
-                    {FORMATIONS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-                  </select>
-                </div>
-
-                {/* Type de réunion */}
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <div style={labelStyle}><Video size={11} /> Type de réunion</div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    {([
-                      { value: 'visio', label: 'Visio', icon: <Video size={12} /> },
-                      { value: 'presentiel', label: 'Présentiel', icon: <MapPin size={12} /> },
-                    ] as const).map(t => (
-                      <button key={t.value} onClick={() => {
-                        setMeetingType(t.value)
-                        if (t.value === 'presentiel' && !meetingCampus) setMeetingCampus(CAMPUS_OPTIONS[0])
-                      }}
-                        style={{ flex: 1, background: meetingType === t.value ? `${user.avatar_color}20` : '#f7f4ee', border: `1px solid ${meetingType === t.value ? `${user.avatar_color}60` : '#e5ddc8'}`, borderRadius: 8, padding: '9px', color: meetingType === t.value ? user.avatar_color : '#4a6070', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
-                        {t.icon} {t.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Campus présentiel */}
-                {meetingType === 'presentiel' && (
-                  <div style={{ gridColumn: '1 / -1' }}>
-                    <div style={labelStyle}><MapPin size={11} /> Campus (présentiel)</div>
-                    <select value={meetingCampus} onChange={e => setMeetingCampus(e.target.value)} style={{ ...fieldInputStyle }}>
-                      {CAMPUS_OPTIONS.map(campus => (
-                        <option key={campus} value={campus}>{campus}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                {/* Lien visio */}
-                {meetingType === 'visio' && (
-                  <div style={{ gridColumn: '1 / -1' }}>
-                    <div style={labelStyle}><Link size={11} /> Lien de visio</div>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <input value={meetingLink} onChange={e => setMeetingLink(e.target.value)} style={{ ...fieldInputStyle, flex: 1, fontFamily: 'monospace', fontSize: 12 }} />
-                      <button onClick={() => { navigator.clipboard.writeText(meetingLink); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000) }}
-                        style={{ background: linkCopied ? 'rgba(34,197,94,0.15)' : 'rgba(204,172,113,0.15)', border: 'none', borderRadius: 8, padding: '0 14px', color: linkCopied ? '#22c55e' : '#C9A84C', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
-                        {linkCopied ? <><Check size={12} /> Copié</> : <><Copy size={12} /> Copier</>}
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Notes */}
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <div style={labelStyle}><FileText size={11} /> Notes d&apos;appel</div>
-                  <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Observations, contexte particulier…" rows={3}
-                    style={{ ...fieldInputStyle, resize: 'vertical', lineHeight: 1.5 }} />
-                </div>
-              </div>
-            </div>
-
-            {/* Submit */}
-            {submitError && (
-              <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 10, padding: '10px 16px', color: '#ef4444', fontSize: 13, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <AlertCircle size={14} /> {submitError}
-              </div>
-            )}
-
-            <button onClick={submitRdv} disabled={submitting || !canSubmit}
-              style={{ width: '100%', background: canSubmit ? user.avatar_color : '#f7f4ee', color: canSubmit ? 'white' : '#94a3b8', border: 'none', borderRadius: 12, padding: '14px', fontSize: 15, fontWeight: 700, cursor: canSubmit ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'all 0.15s' }}>
-              <CheckCircle size={16} />
-              {submitting ? 'Enregistrement…' : 'Valider le RDV'}
-            </button>
-
+              Copier la semaine précédente
+            </CrmV2Button>
           </div>
-        </div>
-      )}
 
-      {/* ── Tab: Mes disponibilités ────────────────────────────────────── */}
-      {activeTab === 'dispos' && (
-        <div style={{ flex: 1, overflow: 'auto' }}>
-          <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 20px' }}>
-
-            {/* Section 1 : Planning par semaine */}
-            <div style={{ background: '#ffffff', border: '1px solid #2d4a6b', borderRadius: 14, padding: '20px 24px', marginBottom: 20 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Clock size={16} style={{ color: '#C9A84C' }} />
-                Planning de la semaine
-              </div>
-
-              {rulesMigrationNeeded && (
-                <div style={{
-                  background: '#fef3c7', border: '1px solid #f59e0b', borderRadius: 10,
-                  padding: 12, marginBottom: 14, fontSize: 13, color: '#92400e',
-                }}>
-                  <strong>Mode hebdomadaire pas encore activé.</strong>
-                  <br />Demande à l&apos;admin d&apos;appliquer la migration v26 (modale Disponibilités → bouton &quot;Activer le mode hebdomadaire&quot;).
-                </div>
-              )}
-
-              {/* Selecteur de semaine */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 12, padding: '8px 12px', background: '#f7f4ee', borderRadius: 10, border: '1px solid #e5ddc8' }}>
-                <button onClick={() => setDispoWeekStart(addWeeksISOLocal(dispoWeekStart, -1))}
-                  style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#0e1e35', fontWeight: 600 }}>
-                  <ChevronLeft size={12} /> Sem. précédente
-                </button>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#0e1e35' }}>{weekLabelLocal(dispoWeekStart)}</div>
-                  {dispoWeekStart !== mondayISO(new Date()) && (
-                    <button onClick={() => setDispoWeekStart(mondayISO(new Date()))}
-                      style={{ background: 'rgba(204,172,113,0.12)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600, color: '#C9A84C', cursor: 'pointer' }}>
-                      Aujourd&apos;hui
-                    </button>
-                  )}
-                </div>
-                <button onClick={() => setDispoWeekStart(addWeeksISOLocal(dispoWeekStart, 1))}
-                  style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#0e1e35', fontWeight: 600 }}>
-                  Sem. suivante <ChevronRight size={12} />
-                </button>
-              </div>
-
-              {/* Bouton copier la semaine precedente */}
-              <div style={{ marginBottom: 12 }}>
-                <button
-                  onClick={async () => {
-                    const previousWeek = addWeeksISOLocal(dispoWeekStart, -1)
-                    const res = await fetch('/api/availability?action=copy', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        user_id: user.id,
-                        from_week_start: previousWeek,
-                        to_week_start: dispoWeekStart,
-                      }),
-                    })
-                    const data = await res.json().catch(() => null) as { error?: string } | null
-                    if (res.ok) loadRules()
-                    else if (isWeeklyMigrationMissing(res.status, data?.error)) {
-                      setRulesMigrationNeeded(true)
-                      setRulesError('Migration v26 manquante')
-                    }
-                  }}
-                  style={{ background: '#f7f4ee', border: '1px solid #cbd5e1', borderRadius: 8, padding: '6px 12px', fontSize: 12, color: '#0e1e35', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
-                >
-                  📋 Copier la semaine précédente
-                </button>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {DAYS.map(day => {
-                  const rule = rules.find(r => r.day_of_week === day.value)!
-                  return (
-                    <div key={day.value} style={{ display: 'grid', gridTemplateColumns: '120px 44px 1fr 20px 1fr', alignItems: 'center', gap: 12, padding: '10px 14px', background: rule.is_active ? 'rgba(204,172,113,0.05)' : '#f7f4ee', border: `1px solid ${rule.is_active ? 'rgba(204,172,113,0.2)' : '#e5ddc8'}`, borderRadius: 10, transition: 'all 0.15s' }}>
-                      <div style={{ fontWeight: 600, fontSize: 14, color: rule.is_active ? '#0e1e35' : '#94a3b8' }}>{day.label}</div>
-                      <button onClick={() => updateRule(day.value, 'is_active', !rule.is_active)}
-                        style={{ width: 44, height: 24, borderRadius: 12, background: rule.is_active ? '#C9A84C' : '#353849', border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
-                        <div style={{ width: 18, height: 18, borderRadius: '50%', background: 'white', position: 'absolute', top: 3, left: rule.is_active ? 23 : 3, transition: 'left 0.2s' }} />
-                      </button>
-                      <select value={rule.start_time} onChange={e => updateRule(day.value, 'start_time', e.target.value)} disabled={!rule.is_active} style={{ ...inputStyle, opacity: rule.is_active ? 1 : 0.3 }}>
-                        {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
-                      </select>
-                      <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>→</div>
-                      <select value={rule.end_time} onChange={e => updateRule(day.value, 'end_time', e.target.value)} disabled={!rule.is_active} style={{ ...inputStyle, opacity: rule.is_active ? 1 : 0.3 }}>
-                        {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
-                      </select>
-                    </div>
-                  )
-                })}
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 16 }}>
-                <button onClick={saveRules} disabled={rulesSaving}
-                  style={{ background: '#C9A84C', color: '#0e1e35', border: 'none', borderRadius: 10, padding: '10px 24px', fontSize: 14, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, opacity: rulesSaving ? 0.7 : 1 }}>
-                  <Save size={15} />
-                  {rulesSaving ? 'Enregistrement…' : 'Enregistrer le planning'}
-                </button>
-                {rulesSaved && <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#22c55e', fontSize: 13, fontWeight: 600 }}><CheckCircle size={15} /> Enregistré</div>}
-                {rulesError && <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#ef4444', fontSize: 13 }}><AlertCircle size={15} /> {rulesError}</div>}
-              </div>
-            </div>
-
-            {/* Section 2 : Jours bloqués */}
-            <div style={{ background: '#ffffff', border: '1px solid #2d4a6b', borderRadius: 14, padding: '20px 24px' }}>
-              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Ban size={16} style={{ color: '#ef4444' }} />
-                Jours bloqués (vacances, indisponibilités)
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                <button onClick={() => setCalendarWeekStart(prev => addDays(prev, -7))} style={{ background: '#f7f4ee', border: '1px solid #2d4a6b', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#4a6070' }}>
-                  <ChevronLeft size={14} />
-                </button>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#4a6070' }}>
-                  {format(calendarWeekStart, 'd MMM', { locale: fr })} — {format(addDays(calendarWeekStart, 27), 'd MMM yyyy', { locale: fr })}
-                </div>
-                <button onClick={() => setCalendarWeekStart(prev => addDays(prev, 7))} style={{ background: '#f7f4ee', border: '1px solid #2d4a6b', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#4a6070' }}>
-                  <ChevronRight size={14} />
-                </button>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 16 }}>
-                {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map(d => (
-                  <div key={d} style={{ textAlign: 'center', fontSize: 10, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', padding: '4px 0' }}>{d}</div>
-                ))}
-                {calendarDays.map(day => {
-                  const dateStr = format(day, 'yyyy-MM-dd')
-                  const isBlocked = blockedSet.has(dateStr)
-                  const isPast = isBefore(day, today)
-                  const isSunday = day.getDay() === 0
-                  const isConfirming = blockingDate === dateStr
-                  return (
-                    <div key={dateStr} style={{ position: 'relative' }}>
-                      <button
-                        onClick={() => {
-                          if (isPast) return
-                          if (isBlocked) {
-                            const blocked = blockedDates.find(b => b.blocked_date === dateStr)
-                            if (blocked) unblockDate(blocked.id)
-                          } else {
-                            setBlockingDate(isConfirming ? null : dateStr)
-                          }
-                        }}
-                        disabled={isPast}
-                        style={{ width: '100%', aspectRatio: '1', background: isBlocked ? 'rgba(239,68,68,0.15)' : isConfirming ? 'rgba(204,172,113,0.15)' : '#f7f4ee', border: `1px solid ${isBlocked ? 'rgba(239,68,68,0.4)' : isConfirming ? 'rgba(204,172,113,0.4)' : '#e5ddc8'}`, borderRadius: 8, color: isPast ? '#353849' : isBlocked ? '#ef4444' : isConfirming ? '#C9A84C' : '#4a6070', fontSize: 13, fontWeight: 600, cursor: isPast || isSunday ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
-                        {format(day, 'd')}
-                      </button>
-                    </div>
-                  )
-                })}
-              </div>
-
-              {blockingDate && (
-                <div style={{ background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.2)', borderRadius: 10, padding: '12px 16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ fontSize: 13, color: '#C9A84C', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                    Bloquer le {format(new Date(blockingDate + 'T00:00:00'), 'EEEE d MMMM', { locale: fr })}
-                  </div>
-                  <input value={blockReason} onChange={e => setBlockReason(e.target.value)} placeholder="Raison (optionnel)…" style={{ ...inputStyle, flex: 1, fontSize: 12 }} />
-                  <button onClick={() => blockDate(blockingDate)} style={{ background: '#C9A84C', color: '#0e1e35', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                    <Plus size={12} style={{ display: 'inline', verticalAlign: -2 }} /> Bloquer
-                  </button>
-                  <button onClick={() => { setBlockingDate(null); setBlockReason('') }} style={{ background: 'transparent', border: '1px solid #2d4a6b', borderRadius: 8, padding: '6px 8px', color: '#4a6070', cursor: 'pointer' }}>
-                    <X size={14} />
-                  </button>
-                </div>
-              )}
-
-              {blockedDates.length > 0 && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  {blockedDates.map(b => (
-                    <div key={b.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f7f4ee', border: '1px solid #2d4a6b', borderRadius: 8, padding: '8px 14px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <Ban size={13} style={{ color: '#ef4444' }} />
-                        <span style={{ fontSize: 13, fontWeight: 600, color: '#0e1e35', textTransform: 'capitalize' }}>
-                          {format(new Date(b.blocked_date + 'T00:00:00'), 'EEEE d MMMM yyyy', { locale: fr })}
-                        </span>
-                        {b.reason && <span style={{ fontSize: 12, color: '#94a3b8' }}>— {b.reason}</span>}
-                      </div>
-                      <button onClick={() => unblockDate(b.id)} style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 6, padding: '4px 10px', color: '#ef4444', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
-                        Débloquer
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {blockedDates.length === 0 && !blockingDate && (
-                <div style={{ fontSize: 12, color: '#94a3b8', textAlign: 'center', padding: '8px 0' }}>
-                  Aucun jour bloqué. Cliquez sur une date ci-dessus pour la bloquer.
-                </div>
-              )}
-            </div>
-
-          </div>
-        </div>
-      )}
-
-      {/* ── Tab: Historique ──────────────────────────────────────────── */}
-      {activeTab === 'historique' && (
-        <div style={{ flex: 1, overflow: 'auto' }}>
-          <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 20px' }}>
-
-            {/* En-tête */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-              <div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: '#0e1e35', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Clock size={18} style={{ color: user.avatar_color }} />
-                  Historique RDV
-                </div>
-                <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
-                  Diploma Santé 2026-2027 — Mes RDVs passés
-                </div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                {histLoading && (
-                  <span style={{ fontSize: 12, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> Chargement…
-                  </span>
-                )}
-                <button onClick={fetchHistorique} style={{ background: '#f7f4ee', border: '1px solid #2d4a6b', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#4a6070' }}>
-                  <RefreshCw size={13} style={{ animation: histLoading ? 'spin 1s linear infinite' : 'none' }} />
-                </button>
-                {!histLoading && (
-                  <span style={{ fontSize: 12, color: '#94a3b8' }}>
-                    {histRdvs.length} RDV{histRdvs.length > 1 ? 's' : ''}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Filtres par stage */}
-            {uniqueStages.length > 0 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
-                {stageFilter && (
-                  <button
-                    onClick={() => setStageFilter(null)}
-                    style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid #3a3d50', borderRadius: 20, padding: '3px 10px', fontSize: 11, color: '#4a6070', cursor: 'pointer', fontFamily: 'inherit' }}
-                  >
-                    ✕ Tous ({histRdvs.length})
-                  </button>
-                )}
-                {uniqueStages.map(s => (
-                  <button
-                    key={s.label}
-                    onClick={() => setStageFilter(stageFilter === s.label ? null : s.label)}
-                    style={{
-                      background: stageFilter === s.label ? `${s.color}22` : 'rgba(255,255,255,0.04)',
-                      border: `1px solid ${stageFilter === s.label ? `${s.color}66` : '#3a3d50'}`,
-                      borderRadius: 20, padding: '3px 10px',
-                      color: stageFilter === s.label ? s.color : '#4a6070',
-                      fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600,
-                    }}
-                  >
-                    {s.label} <span style={{ opacity: 0.7 }}>{s.count}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {!histLoading && histRdvs.length === 0 && (
-              <div style={{ textAlign: 'center', padding: '40px 20px', color: '#94a3b8', fontSize: 13 }}>
-                {user.hubspot_owner_id
-                  ? 'Aucun RDV trouvé sur la pipeline Diploma Santé 2026-2027.'
-                  : 'Aucun ID propriétaire configuré pour ce closer.'}
-              </div>
-            )}
-
-            {filteredHistRdvs.length === 0 && stageFilter && !histLoading && (
-              <div style={{ textAlign: 'center', padding: '30px 20px', color: '#94a3b8', fontSize: 13 }}>
-                Aucun RDV avec le statut «&nbsp;{stageFilter}&nbsp;».
-              </div>
-            )}
-
-            {filteredHistRdvs.map(rdv => {
-              const RESULT_STATUSES = ['no_show', 'annule', 'a_travailler', 'pre_positif', 'positif', 'negatif']
-              const resultCfg = RESULT_STATUSES.includes(rdv.status) ? STATUS_CONFIG[rdv.status as AppointmentStatus] : null
-
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {DAYS.map(day => {
+              const rule = rules.find(r => r.day_of_week === day.value)!
               return (
-                <div
-                  key={rdv.id}
-                  onClick={() => setSelectedHistRdv(rdv)}
-                  style={{
-                    background: '#ffffff',
-                    border: '1px solid #2d4a6b',
-                    borderRadius: 12, marginBottom: 10, overflow: 'hidden',
-                    cursor: 'pointer', transition: 'border-color 0.15s',
-                  }}
-                  onMouseEnter={e => (e.currentTarget.style.borderColor = user.avatar_color)}
-                  onMouseLeave={e => (e.currentTarget.style.borderColor = '#e5ddc8')}
-                >
-                  {/* Ligne principale */}
-                  <div style={{ padding: '14px 20px 10px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div style={{ minWidth: 80, fontSize: 11, color: '#94a3b8', flexShrink: 0 }}>
-                      {new Date(rdv.start_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit' })}
-                    </div>
-                    <div style={{ flex: 1, fontWeight: 700, fontSize: 14, color: '#0e1e35', minWidth: 0 }}>
-                      {rdv.prospect_name}
-                      {rdv.telepro && (
-                        <span style={{ marginLeft: 8, fontSize: 11, color: '#94a3b8', fontWeight: 400 }}>
-                          via {rdv.telepro.name}
-                        </span>
-                      )}
-                    </div>
-                    {rdv.hs_stage_label && rdv.hs_stage_color && (
-                      <span style={{
-                        background: `${rdv.hs_stage_color}22`, border: `1px solid ${rdv.hs_stage_color}66`,
-                        color: rdv.hs_stage_color, borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600,
-                        flexShrink: 0,
-                      }}>
-                        {rdv.hs_stage_label}
-                      </span>
-                    )}
-                    {rdv.repop_form_date && (
-                      <span style={{
-                        background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.4)',
-                        color: '#C9A84C', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 700,
-                        flexShrink: 0,
-                      }}>
-                        🔁 Repop {format(new Date(rdv.repop_form_date), 'd MMM', { locale: fr })}
-                      </span>
-                    )}
+                <div key={day.value} style={{
+                  display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 12, padding: isMobile ? '8px 10px' : '8px 14px', minHeight: 48, boxSizing: 'border-box',
+                  background: rule.is_active ? crmV2.goldSoft : crmV2.bgHover,
+                  border: `1px solid ${rule.is_active ? crmV2.goldBorder : crmV2.border}`, borderRadius: 12,
+                }}>
+                  <CrmV2Toggle checked={rule.is_active} onChange={v => updateRule(day.value, 'is_active', v)} />
+                  <div style={{ flex: 1, minWidth: 0, fontWeight: 600, fontSize: 14, color: rule.is_active ? crmV2.text : crmV2.textFaint, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {isMobile ? day.label.slice(0, 3) + '.' : day.label}
                   </div>
-
-                  {/* Infos prospect */}
-                  <div style={{ padding: '0 20px 12px', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {rdv.prospect_phone && (
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#4a6070', background: '#f7f4ee', borderRadius: 5, padding: '2px 8px' }}>
-                        <Phone size={10} /> {rdv.prospect_phone}
-                      </span>
-                    )}
-                    {rdv.formation_type && (
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#4a6070', background: '#f7f4ee', borderRadius: 5, padding: '2px 8px' }}>
-                        <Tag size={10} style={{ color: '#C9A84C' }} />
-                        Filière : <strong style={{ color: '#0e1e35' }}>{rdv.formation_type}</strong>
-                      </span>
-                    )}
-                    {resultCfg && (
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, background: resultCfg.bg, color: resultCfg.color, border: `1px solid ${resultCfg.border}`, borderRadius: 5, padding: '2px 8px', fontWeight: 600 }}>
-                        {resultCfg.label}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Boutons d'action pour "À replanifier" */}
-                  {rdv.hs_stage_label === 'À replanifier' && (
-                    <div style={{ padding: '0 20px 14px', display: 'flex', gap: 8 }}>
-                      <button
-                        onClick={e => { e.stopPropagation(); handleReprendre(rdv) }}
-                        disabled={rebookLoading === rdv.id}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 6,
-                          background: 'rgba(204,172,113,0.12)', border: '1px solid rgba(204,172,113,0.35)',
-                          borderRadius: 7, padding: '5px 12px', color: '#C9A84C',
-                          fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-                        }}
-                      >
-                        <RotateCcw size={12} />
-                        {rebookLoading === rdv.id ? 'Chargement…' : 'Reprendre RDV'}
-                      </button>
-                      <button
-                        onClick={e => { e.stopPropagation(); marquerPerdu(rdv) }}
-                        disabled={closingDeal === rdv.id}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 6,
-                          background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
-                          borderRadius: 7, padding: '5px 12px', color: '#ef4444',
-                          fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-                        }}
-                      >
-                        <X size={12} />
-                        {closingDeal === rdv.id ? 'En cours…' : 'Marquer comme perdu'}
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Suivi post-RDV pour "Délai de réflexion" */}
-                  {rdv.hs_stage_label === 'Délai de réflexion' && (
-                    <div style={{ padding: '0 20px 14px' }} onClick={e => e.stopPropagation()}>
-                      <div style={{ fontSize: 10, fontWeight: 600, color: '#94a3b8', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                        Suivi post-RDV
-                      </div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                        {SUIVI_OPTIONS.map(opt => {
-                          const isActive = rdv.telepro_suivi === opt.value
-                          return (
-                            <button
-                              key={opt.value}
-                              onClick={() => saveSuivi(rdv, isActive ? null : opt.value)}
-                              disabled={savingSuivi === rdv.id}
-                              style={{
-                                background: isActive ? `${opt.color}22` : 'rgba(255,255,255,0.04)',
-                                border: `1px solid ${isActive ? `${opt.color}66` : '#3a3d50'}`,
-                                borderRadius: 7, padding: '5px 12px',
-                                color: isActive ? opt.color : '#4a6070',
-                                fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-                              }}
-                            >
-                              {opt.label}
-                            </button>
-                          )
-                        })}
-                      </div>
-                      {rdv.telepro_suivi && rdv.telepro_suivi_at && (
-                        <p style={{ fontSize: 11, color: '#94a3b8', margin: '6px 0 0' }}>
-                          Mis à jour le {new Date(rdv.telepro_suivi_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                        </p>
-                      )}
-                    </div>
-                  )}
+                  <select value={rule.start_time} onChange={e => updateRule(day.value, 'start_time', e.target.value)} disabled={!rule.is_active} style={{ ...timeSelect, opacity: rule.is_active ? 1 : 0.4 }}>
+                    {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                  <ArrowRight size={14} color={crmV2.textFaint} style={{ flexShrink: 0 }} />
+                  <select value={rule.end_time} onChange={e => updateRule(day.value, 'end_time', e.target.value)} disabled={!rule.is_active} style={{ ...timeSelect, opacity: rule.is_active ? 1 : 0.4 }}>
+                    {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
                 </div>
               )
             })}
           </div>
-        </div>
-      )}
 
-      {/* ── Tab: Mes Contacts (propriétaire du contact) ───────────── */}
-      {activeTab === 'contacts' && (
-        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          {!user.hubspot_owner_id ? (
-            <div style={{ padding: 24, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 10, margin: 20, color: '#ef4444', fontSize: 13 }}>
-              ⚠ Ce compte n&apos;a pas d&apos;ID propriétaire configuré.
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 16, flexWrap: 'wrap' }}>
+            <CrmV2Button variant="primary" onClick={saveRules} disabled={rulesSaving} icon={<Save size={14} />} style={{ minHeight: 40 }}>
+              {rulesSaving ? 'Enregistrement…' : 'Enregistrer le planning'}
+            </CrmV2Button>
+            {rulesSaved && <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: crmV2.successStrong, fontSize: 13, fontWeight: 600 }}><CheckCircle size={15} /> Enregistré</div>}
+            {rulesError && <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#d13a41', fontSize: 13 }}><X size={15} /> {rulesError}</div>}
+          </div>
+        </CrmV2Card>
+
+        {/* Section 2 : jours bloqués */}
+        <CrmV2Card style={{ padding: isMobile ? 14 : 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <Ban size={16} style={{ color: '#ef4444' }} />
+            <div style={{ fontSize: 15, fontWeight: 700 }}>Jours bloqués</div>
+          </div>
+          <div style={{ fontSize: 13, color: crmV2.textMuted, marginBottom: 14 }}>Vacances, indisponibilités : clique sur une date pour la bloquer.</div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+            <button type="button" onClick={() => setCalendarWeekStart(prev => addDays(prev, -7))} style={roundIconBtn} title="Semaine précédente" aria-label="Semaine précédente">
+              <ChevronLeft size={14} />
+            </button>
+            <div style={{ fontSize: 13, fontWeight: 600, color: crmV2.textMuted, flex: isMobile ? 1 : undefined, textAlign: 'center' }}>
+              {format(calendarWeekStart, 'd MMM', { locale: fr })} — {format(addDays(calendarWeekStart, 27), 'd MMM yyyy', { locale: fr })}
             </div>
-          ) : (
-            <UserCRMView
-              ownerParam="contact_owner_hs_id"
-              ownerId={user.hubspot_owner_id}
-              mode="closer"
-              assignedScopeOnly
-              onTotalChange={setContactsTotal}
-            />
-          )}
-        </div>
-      )}
+            <button type="button" onClick={() => setCalendarWeekStart(prev => addDays(prev, 7))} style={roundIconBtn} title="Semaine suivante" aria-label="Semaine suivante">
+              <ChevronRight size={14} />
+            </button>
+          </div>
 
-      {/* ── Tab: Mes Transactions — kanban filtre par contact_owner_hs_id ─ */}
-      {activeTab === 'leads' && (
-        <div style={{ width: '100%' }}>
-          {!user.hubspot_owner_id ? (
-            <div style={{ padding: 24, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 10, margin: 20, color: '#ef4444', fontSize: 13 }}>
-              ⚠ Ce compte n&apos;a pas d&apos;ID propriétaire configuré.
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 4, marginBottom: 16, maxWidth: 520 }}>
+            {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map(d => (
+              <div key={d} style={{ textAlign: 'center', fontSize: 11, fontWeight: 700, color: crmV2.textFaint, textTransform: 'uppercase', padding: '4px 0' }}>{d}</div>
+            ))}
+            {calendarDays.map(day => {
+              const dateStr = format(day, 'yyyy-MM-dd')
+              const isBlocked = blockedSet.has(dateStr)
+              const isPast = isBefore(day, today)
+              const isSunday = day.getDay() === 0
+              const isConfirming = blockingDate === dateStr
+              return (
+                <div key={dateStr} style={{ position: 'relative' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (isPast) return
+                      if (isBlocked) {
+                        const blocked = blockedDates.find(b => b.blocked_date === dateStr)
+                        if (blocked) unblockDate(blocked.id)
+                      } else {
+                        setBlockingDate(isConfirming ? null : dateStr)
+                      }
+                    }}
+                    disabled={isPast}
+                    style={{
+                      width: '100%', aspectRatio: '1', minHeight: 40, borderRadius: 10, fontFamily: 'inherit',
+                      background: isBlocked ? 'rgba(239,68,68,0.12)' : isConfirming ? crmV2.goldSoft : isPast ? crmV2.bgHover : crmV2.bg,
+                      border: `1px solid ${isBlocked ? 'rgba(239,68,68,0.40)' : isConfirming ? crmV2.gold : crmV2.border}`,
+                      color: isPast ? crmV2.borderStrong : isBlocked ? '#d13a41' : isConfirming ? crmV2.goldDark : crmV2.text,
+                      fontSize: 13, fontWeight: 600, cursor: isPast || isSunday ? 'default' : 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background .12s, border-color .12s',
+                    }}>
+                    {format(day, 'd')}
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+
+          {blockingDate && (
+            <div style={{
+              background: crmV2.goldSoft, border: `1px solid ${crmV2.goldBorder}`, borderRadius: 12, padding: '10px 12px', marginBottom: 12,
+              display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+            }}>
+              <div style={{ fontSize: 13, color: crmV2.goldDark, fontWeight: 700, whiteSpace: 'nowrap', textTransform: 'capitalize' }}>
+                Bloquer le {format(new Date(blockingDate + 'T00:00:00'), 'EEEE d MMMM', { locale: fr })}
+              </div>
+              <input value={blockReason} onChange={e => setBlockReason(e.target.value)} placeholder="Raison (optionnel)…" style={{ ...inp, height: 36, flex: 1, minWidth: 140, fontSize: 13 }} />
+              <CrmV2Button variant="primary" size="sm" icon={<Plus size={12} />} onClick={() => blockDate(blockingDate)} style={{ minHeight: 36 }}>
+                Bloquer
+              </CrmV2Button>
+              <button type="button" onClick={() => { setBlockingDate(null); setBlockReason('') }} style={roundIconBtn} title="Annuler" aria-label="Annuler">
+                <X size={14} />
+              </button>
             </div>
-          ) : (
-            <iframe
-              src={`/closer/${encodeURIComponent(user.slug)}/transactions?contact_owner=${encodeURIComponent(user.hubspot_owner_id)}&embed=1`}
-              style={{ width: '100%', height: 'calc(100vh - 180px)', border: 'none', display: 'block' }}
-              title="Kanban Mes Transactions"
-            />
           )}
+
+          {blockedDates.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {blockedDates.map(b => (
+                <div key={b.id} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, minHeight: 44,
+                  background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: 12, padding: '6px 8px 6px 14px',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                    <Ban size={14} style={{ color: '#ef4444', flexShrink: 0 }} />
+                    <span style={{ fontSize: 13, fontWeight: 600, color: crmV2.text, textTransform: 'capitalize', whiteSpace: 'nowrap' }}>
+                      {format(new Date(b.blocked_date + 'T00:00:00'), isMobile ? 'EEE d MMM yyyy' : 'EEEE d MMMM yyyy', { locale: fr })}
+                    </span>
+                    {b.reason && <span style={{ fontSize: 12, color: crmV2.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>— {b.reason}</span>}
+                  </div>
+                  <CrmV2Button size="sm" variant="danger" onClick={() => unblockDate(b.id)} style={{ flexShrink: 0 }}>
+                    Débloquer
+                  </CrmV2Button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {blockedDates.length === 0 && !blockingDate && (
+            <div style={{ fontSize: 13, color: crmV2.textFaint, textAlign: 'center', padding: '8px 0' }}>
+              Aucun jour bloqué. Cliquez sur une date ci-dessus pour la bloquer.
+            </div>
+          )}
+        </CrmV2Card>
+      </div>
+    </>
+  )
+
+  // ── Historique (onglet retiré de la navigation, conservé) ──
+  const historiqueContent = (
+    <div style={pagePad}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: crmV2.text }}>Historique RDV</div>
+          <div style={{ fontSize: 13, color: crmV2.textMuted, marginTop: 2 }}>Diploma Santé 2026-2027 — Mes RDVs passés</div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {!histLoading && (
+            <span style={{ fontSize: 13, color: crmV2.textMuted }}>{histRdvs.length} RDV{histRdvs.length > 1 ? 's' : ''}</span>
+          )}
+          <TpRoundButton onClick={fetchHistorique} title="Actualiser" spinning={histLoading}><RefreshCw size={14} /></TpRoundButton>
+        </div>
+      </div>
+
+      {/* Filtres par étape */}
+      {uniqueStages.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {stageFilter && (
+            <button type="button" onClick={() => setStageFilter(null)} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4, background: crmV2.bg, border: `1px solid ${crmV2.borderStrong}`,
+              borderRadius: 999, padding: '5px 12px', fontSize: 12, fontWeight: 700, color: crmV2.textMuted, cursor: 'pointer', fontFamily: 'inherit',
+            }}>
+              <X size={12} /> Tous ({histRdvs.length})
+            </button>
+          )}
+          {uniqueStages.map(s => (
+            <button key={s.label} type="button" onClick={() => setStageFilter(stageFilter === s.label ? null : s.label)} style={{
+              background: stageFilter === s.label ? hexA(s.color, 0.12) : crmV2.bg,
+              border: `1px solid ${stageFilter === s.label ? hexA(s.color, 0.4) : crmV2.border}`,
+              borderRadius: 999, padding: '5px 12px', color: stageFilter === s.label ? s.color : crmV2.textMuted,
+              fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700,
+            }}>
+              {s.label} <span style={{ opacity: 0.7 }}>{s.count}</span>
+            </button>
+          ))}
         </div>
       )}
 
-      {/* ── Tab: Repop ───────────────────────────────────────────────── */}
-      {activeTab === 'repop' && (
-        <div style={{ flex: 1, overflow: 'auto' }}>
-          <RepopJournal
-            hubspotOwnerId={user.hubspot_owner_id}
-            scope="closer"
-            scopeId={user.id}
-          />
+      {!histLoading && histRdvs.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '40px 20px', color: crmV2.textMuted, fontSize: 13 }}>
+          {user.hubspot_owner_id
+            ? 'Aucun RDV trouvé sur la pipeline Diploma Santé 2026-2027.'
+            : 'Aucun ID propriétaire configuré pour ce closer.'}
         </div>
       )}
 
-      {/* Modal AppointmentModal pour l'historique */}
+      {filteredHistRdvs.length === 0 && stageFilter && !histLoading && (
+        <div style={{ textAlign: 'center', padding: '30px 20px', color: crmV2.textMuted, fontSize: 13 }}>
+          Aucun RDV avec le statut «&nbsp;{stageFilter}&nbsp;».
+        </div>
+      )}
+
+      {filteredHistRdvs.map(rdv => {
+        const RESULT_STATUSES = ['no_show', 'annule', 'a_travailler', 'pre_positif', 'positif', 'negatif']
+        const resultCfg = RESULT_STATUSES.includes(rdv.status) ? STATUS_CONFIG[rdv.status as AppointmentStatus] : null
+        const chip: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: crmV2.textMuted, background: crmV2.chipBg, border: `1px solid ${crmV2.chipBorder}`, borderRadius: 999, padding: '2px 9px' }
+        return (
+          <div key={rdv.id} onClick={() => setSelectedHistRdv(rdv)} style={{
+            background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: crmV2.radiusLg, boxShadow: crmV2.shadow,
+            cursor: 'pointer', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <div style={{ fontSize: 12, color: crmV2.textMuted, flexShrink: 0 }}>
+                {new Date(rdv.start_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit' })}
+              </div>
+              <div style={{ flex: 1, fontWeight: 700, fontSize: 14, color: crmV2.text, minWidth: 0 }}>
+                {rdv.prospect_name}
+                {rdv.telepro && <span style={{ marginLeft: 8, fontSize: 12, color: crmV2.textMuted, fontWeight: 500 }}>via {rdv.telepro.name}</span>}
+              </div>
+              {rdv.hs_stage_label && rdv.hs_stage_color && (
+                <CrmV2StatusPill label={rdv.hs_stage_label} color={rdv.hs_stage_color} style={{ fontSize: 11 }} />
+              )}
+              {rdv.repop_form_date && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: crmV2.goldSoft, color: crmV2.goldDark, borderRadius: 999, padding: '2px 10px', fontSize: 11, fontWeight: 700 }}>
+                  <Repeat2 size={11} /> Repop {format(new Date(rdv.repop_form_date), 'd MMM', { locale: fr })}
+                </span>
+              )}
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {rdv.prospect_phone && <span style={chip}><Phone size={10} /> {rdv.prospect_phone}</span>}
+              {rdv.formation_type && <span style={chip}><Tag size={10} color={crmV2.gold} /> Filière : <strong style={{ color: crmV2.text }}>{rdv.formation_type}</strong></span>}
+              {resultCfg && <span style={{ ...chip, background: resultCfg.bg, color: resultCfg.color, border: `1px solid ${resultCfg.border}`, fontWeight: 700 }}>{resultCfg.label}</span>}
+            </div>
+            {rdv.hs_stage_label === 'À replanifier' && (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <CrmV2Button size="sm" variant="gold" icon={<RotateCcw size={12} />} disabled={rebookLoading === rdv.id}
+                  onClick={e => { e.stopPropagation(); handleReprendre(rdv) }}>
+                  {rebookLoading === rdv.id ? 'Chargement…' : 'Reprendre RDV'}
+                </CrmV2Button>
+                <CrmV2Button size="sm" variant="danger" icon={<X size={12} />} disabled={closingDeal === rdv.id}
+                  onClick={e => { e.stopPropagation(); marquerPerdu(rdv) }}>
+                  {closingDeal === rdv.id ? 'En cours…' : 'Marquer comme perdu'}
+                </CrmV2Button>
+              </div>
+            )}
+            {rdv.hs_stage_label === 'Délai de réflexion' && (
+              <div onClick={e => e.stopPropagation()}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: crmV2.textMuted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Suivi post-RDV</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {SUIVI_OPTIONS.map(opt => {
+                    const isActive = rdv.telepro_suivi === opt.value
+                    return (
+                      <button key={opt.value} type="button" onClick={() => saveSuivi(rdv, isActive ? null : opt.value)} disabled={savingSuivi === rdv.id} style={{
+                        background: isActive ? hexA(opt.color, 0.12) : crmV2.bg, border: `1px solid ${isActive ? hexA(opt.color, 0.4) : crmV2.border}`,
+                        borderRadius: 999, padding: '5px 12px', color: isActive ? opt.color : crmV2.textMuted,
+                        fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                      }}>
+                        {opt.label}
+                      </button>
+                    )
+                  })}
+                </div>
+                {rdv.telepro_suivi && rdv.telepro_suivi_at && (
+                  <p style={{ fontSize: 11, color: crmV2.textMuted, margin: '6px 0 0' }}>
+                    Mis à jour le {new Date(rdv.telepro_suivi_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+
+  const noOwnerNotice = (
+    <div style={{ padding: isMobile ? 12 : '20px 28px' }}>
+      <Notice tone="warning">Ce compte n&apos;a pas d&apos;ID propriétaire configuré.</Notice>
+    </div>
+  )
+
+  // Contenu de l'onglet actif (identique mobile / ordinateur, en-têtes mobiles en plus)
+  function tabContent(): ReactNode {
+    switch (activeTab) {
+      case 'planning':
+        return (
+          <div style={{ ...fullHeight, minHeight: isMobile ? 0 : 560 }}>
+            <WeekCalendar closerId={user.id} closerColor={user.avatar_color} closerName={user.name} teamView allowAssign />
+          </div>
+        )
+      case 'rdv':
+        return newRdvContent
+      case 'dispos':
+        return disposContent
+      case 'historique':
+        return historiqueContent
+      case 'contacts':
+        // Mes contacts (propriétaire du contact)
+        return (
+          <>
+            {isMobile && <TpMobileHeader title="Mes contacts" />}
+            {isMobile && skin(<CRMGlobalSearchBar />, { flexShrink: 0 })}
+            {!user.hubspot_owner_id ? noOwnerNotice : skin(
+              <UserCRMView
+                ownerParam="contact_owner_hs_id"
+                ownerId={user.hubspot_owner_id}
+                mode="closer"
+                assignedScopeOnly
+                onTotalChange={setContactsTotal}
+              />,
+              { flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' },
+            )}
+          </>
+        )
+      case 'leads':
+        // Mes transactions — kanban filtré par contact_owner_hs_id
+        return (
+          <>
+            {isMobile && <TpMobileHeader title="Mes transactions" />}
+            {!user.hubspot_owner_id ? noOwnerNotice : (
+              <div style={{ ...fullHeight, minHeight: isMobile ? 0 : 600 }}>
+                <iframe
+                  src={`/closer/${encodeURIComponent(user.slug)}/transactions?contact_owner=${encodeURIComponent(user.hubspot_owner_id)}&embed=1`}
+                  style={{ width: '100%', flex: 1, minHeight: isMobile ? 480 : 600, border: 'none', display: 'block' }}
+                  title="Kanban Mes Transactions"
+                />
+              </div>
+            )}
+          </>
+        )
+      case 'repop':
+        return (
+          <>
+            {isMobile && <TpMobileHeader title="Repop" />}
+            {skin(
+              <RepopJournal
+                hubspotOwnerId={user.hubspot_owner_id}
+                scope="closer"
+                scopeId={user.id}
+              />,
+            )}
+          </>
+        )
+      default:
+        return null
+    }
+  }
+
+  const overlays = (
+    <>
+      {showGuide && <PlatformGuide role="closer" onClose={() => setShowGuide(false)} />}
+      {showResources && <ResourcesPanel role="closer" onClose={() => setShowResources(false)} />}
+
+      {/* Fiche RDV de l'historique */}
       {selectedHistRdv && (
         <AppointmentModal
           appointment={{
@@ -1524,7 +1481,109 @@ export default function CloserClient({ user }: { user: CloserUser }) {
           }}
         />
       )}
+    </>
+  )
 
+  const logo = (size: number) => (
+    <span style={{ width: size, height: size, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: '#241F3F', boxShadow: '0 0 0 2px rgba(94,188,227,0.35)', display: 'inline-block' }}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/logo-hub-diploma-mark.png" alt="Hub Diploma" width={size} height={size} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+    </span>
+  )
+
+  // ─── Mobile : en-têtes blancs + barre d'onglets navy en bas ────────────
+  if (isMobile) {
+    const mobileTab: CloserMobileTab = plusOpen ? 'plus'
+      : activeTab === 'planning' ? 'planning'
+      : activeTab === 'contacts' ? 'contacts'
+      : activeTab === 'rdv' ? 'rdv'
+      : activeTab === 'dispos' ? 'dispos'
+      : 'plus'
+    const plusItems: TpMenuItem[] = [
+      { key: 'leads', label: 'Mes transactions', icon: <Briefcase size={18} />, onClick: () => goTab('leads'), active: activeTab === 'leads' },
+      { key: 'repop', label: 'Repop', icon: <Repeat2 size={18} />, onClick: () => goTab('repop'), active: activeTab === 'repop' },
+      { key: 'support', label: 'Service technique', icon: <LifeBuoy size={18} />, href: '/support', badge: supportUnread },
+      { key: 'logout', label: 'Déconnexion', icon: <LogOut size={18} />, onClick: () => { void logout() }, danger: true },
+    ]
+    return (
+      <div className="crm-v2" style={{
+        height: '100dvh', display: 'flex', flexDirection: 'column', background: crmV2.bgSoft, color: crmV2.text,
+        fontFamily: crmV2.font, overflow: 'hidden',
+      }}>
+        <main style={{ flex: 1, minHeight: 0, overflowY: activeTab === 'planning' ? 'hidden' : 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          {activeTab === 'planning' && (
+            <div style={{
+              background: crmV2.bg, borderBottom: `1px solid ${crmV2.border}`, padding: 12, flexShrink: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+                {logo(38)}
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 16, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Bonjour {firstName}</div>
+                  <div style={{ fontSize: 12, color: crmV2.textMuted }}>Mon espace closer</div>
+                </div>
+              </div>
+              <SupportPill unread={supportUnread} compact />
+            </div>
+          )}
+          {tabContent()}
+        </main>
+        <CloserTabBar
+          active={mobileTab}
+          onPlanning={() => goTab('planning')}
+          onContacts={() => goTab('contacts')}
+          onNew={goNewRdv}
+          onDispos={() => goTab('dispos')}
+          onPlus={() => setPlusOpen(true)}
+        />
+        <TpPlusSheet open={plusOpen} onClose={() => setPlusOpen(false)} title="Hub Diploma · Closer" items={plusItems} />
+        {overlays}
+      </div>
+    )
+  }
+
+  // ─── Ordinateur : en-tête blanc + onglets soulignés ────────────────────
+  const tabs = [
+    { id: 'planning', label: 'Mon planning' },
+    { id: 'rdv', label: 'Nouveau RDV' },
+    { id: 'contacts', label: 'Mes contacts', count: contactsTotal > 0 ? contactsTotal : undefined },
+    { id: 'leads', label: 'Mes transactions' },
+    { id: 'repop', label: 'Repop' },
+    { id: 'dispos', label: 'Mes dispos' },
+  ]
+
+  return (
+    <div className="crm-v2" style={{
+      height: '100vh', display: 'flex', flexDirection: 'column', background: crmV2.bgSoft, color: crmV2.text, fontFamily: crmV2.font,
+    }}>
+      <CrmV2Header
+        title={(
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
+            {logo(36)}
+            Bonjour {firstName}
+          </span>
+        )}
+        subtitle={`${user.name} · Mon espace closer`}
+        actions={(
+          <>
+            <CrmV2Button variant="accent" icon={<Plus size={14} />} onClick={goNewRdv}>Nouveau RDV</CrmV2Button>
+            <SupportPill unread={supportUnread} />
+            <CrmV2Button variant="danger" icon={<LogOut size={14} />} onClick={() => { void logout() }}>Déconnexion</CrmV2Button>
+          </>
+        )}
+      >
+        <CrmV2Tabs bordered={false} items={tabs} value={activeTab === 'historique' ? '' : activeTab} onChange={id => setActiveTab(id as CloserTab)} />
+      </CrmV2Header>
+
+      {/* Recherche globale CRM — permet de retrouver et ouvrir n'importe quelle
+          fiche (contact / transaction), même non attribuée au closer. */}
+      {skin(<CRMGlobalSearchBar />, { flexShrink: 0 })}
+
+      <main style={{ flex: 1, minHeight: 0, overflowY: activeTab === 'planning' ? 'hidden' : 'auto', display: 'flex', flexDirection: 'column' }}>
+        {tabContent()}
+      </main>
+
+      {overlays}
     </div>
   )
 }

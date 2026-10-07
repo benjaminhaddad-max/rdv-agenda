@@ -1,10 +1,15 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, User, Clock, Tag, Zap, CheckCircle, AlertCircle, Eye, EyeOff } from 'lucide-react'
+import { User, Clock, Tag, Zap, CheckCircle, AlertCircle, Eye, EyeOff, RefreshCw } from 'lucide-react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { formatAppointmentPlacementLabel } from '@/lib/appointment-display'
+import { crmV2 } from '@/lib/crm-v2-theme'
+import { useIsMobile } from '@/lib/useIsMobile'
+import {
+  CrmV2Avatar, CrmV2Button, CrmV2CloseButton, CrmV2StatusPill, hexA,
+} from '@/components/crm-v2/primitives'
 
 type Appointment = {
   id: string
@@ -33,8 +38,9 @@ type Commercial = {
 
 const COLORS = ['#C9A84C','#22c55e','#C9A84C','#a855f7','#06b6d4','#ef4444','#f97316']
 
-function getInitials(name: string) {
-  return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+const metaChip: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: crmV2.textMuted,
+  background: crmV2.chipBg, border: `1px solid ${crmV2.chipBorder}`, borderRadius: 999, padding: '3px 10px',
 }
 
 /** Panneau de sélection closer — réutilisable en modale autonome ou inline dans AppointmentModal. */
@@ -171,33 +177,33 @@ export function AssignCloserPanel({
   return (
     <>
       {showMeta && (appointment.formation_type || appointment.source) && (
-        <div style={{ padding: '12px 24px', borderBottom: '1px solid #e5ddc8', flexShrink: 0 }}>
-          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+        <div style={{ padding: '12px 18px', borderBottom: `1px solid ${crmV2.borderLight}`, flexShrink: 0 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {appointment.formation_type && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#4a6070' }}>
-                <Tag size={13} style={{ color: '#C9A84C' }} />
-                <span style={{ color: '#0e1e35', fontWeight: 600 }}>{appointment.formation_type}</span>
-              </div>
+              <span style={metaChip}>
+                <Tag size={12} style={{ color: crmV2.gold }} />
+                <span style={{ color: crmV2.text, fontWeight: 700 }}>{appointment.formation_type}</span>
+              </span>
             )}
             {appointment.source && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#4a6070' }}>
-                <Zap size={13} style={{ color: '#C9A84C' }} />
+              <span style={metaChip}>
+                <Zap size={12} style={{ color: crmV2.gold }} />
                 <span>{formatAppointmentPlacementLabel(appointment)}</span>
-              </div>
+              </span>
             )}
           </div>
         </div>
       )}
 
       <div style={{ overflow: 'auto', flex: 1, minHeight: 0 }}>
-        <div style={{ padding: '12px 24px 4px' }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: '#4a6070', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+        <div style={{ padding: '14px 18px 4px' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
             Choisir un closer
           </div>
         </div>
-        <div style={{ padding: '8px 16px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{ padding: '8px 14px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
           {closers.length === 0 && (
-            <div style={{ textAlign: 'center', color: '#94a3b8', padding: '20px 0', fontSize: 13 }}>
+            <div style={{ textAlign: 'center', color: crmV2.textFaint, padding: '20px 0', fontSize: 13 }}>
               Chargement des closers…
             </div>
           )}
@@ -208,113 +214,77 @@ export function AssignCloserPanel({
             const isSelected = selected === closer.id
             const isCurrent = reassign && currentCloserId === closer.id
             const load = closer.rdv_count || 0
-            const loadColor = load <= 3 ? '#22c55e' : load <= 6 ? '#C9A84C' : '#ef4444'
+            const loadColor = load <= 3 ? crmV2.successStrong : load <= 6 ? crmV2.goldDark : '#d13a41'
             const available = closer.is_available
             const blocked = closer.is_blocked
+            const previewOpen = previewCloserId === closer.id
 
             return (
               <div key={closer.id} style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
                 <div
                   onClick={() => setSelected(closer.id)}
                   style={{
-                    background: isSelected ? `${color}12` : '#f7f4ee',
-                    border: `1px solid ${isSelected ? color : blocked ? 'rgba(239,68,68,0.2)' : '#e5ddc8'}`,
+                    background: isSelected ? hexA(color, 0.07) : crmV2.bg,
+                    border: `1px solid ${isSelected ? color : blocked ? 'rgba(239,68,68,0.25)' : crmV2.border}`,
+                    boxShadow: isSelected ? `0 0 0 1px ${color}` : 'none',
                     borderRadius: 12,
-                    padding: '12px 16px',
+                    padding: '10px 12px',
+                    minHeight: 44,
                     cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', gap: 14,
-                    transition: 'all 0.15s',
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    transition: 'background .12s, border-color .12s',
                   }}
                 >
-                  <div style={{
-                    width: 40, height: 40, borderRadius: 10,
-                    background: `${color}20`,
-                    border: `1px solid ${color}40`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 14, fontWeight: 700, color,
-                    flexShrink: 0,
-                  }}>
-                    {getInitials(closer.name)}
-                  </div>
+                  <CrmV2Avatar name={closer.name} color={color} size={36} />
 
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      <span style={{ fontWeight: 600, fontSize: 14, color: '#0e1e35' }}>{closer.name}</span>
-                      {isCurrent && (
-                        <span style={{
-                          background: 'rgba(204,172,113,0.15)', color: '#C9A84C',
-                          borderRadius: 6, padding: '1px 8px',
-                          fontSize: 10, fontWeight: 700,
-                        }}>
-                          Actuel
-                        </span>
-                      )}
-                      {available && (
-                        <span style={{
-                          background: 'rgba(34,197,94,0.15)', color: '#22c55e',
-                          borderRadius: 6, padding: '1px 8px',
-                          fontSize: 10, fontWeight: 700,
-                        }}>
-                          Disponible
-                        </span>
-                      )}
-                      {blocked && (
-                        <span style={{
-                          background: 'rgba(239,68,68,0.15)', color: '#ef4444',
-                          borderRadius: 6, padding: '1px 8px',
-                          fontSize: 10, fontWeight: 700,
-                        }}>
-                          Indisponible
-                        </span>
-                      )}
-                      {!available && !blocked && (
-                        <span style={{
-                          background: 'rgba(204,172,113,0.15)', color: '#C9A84C',
-                          borderRadius: 6, padding: '1px 8px',
-                          fontSize: 10, fontWeight: 700,
-                        }}>
-                          Occupé
-                        </span>
-                      )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <span style={{ fontWeight: 600, fontSize: 14, color: crmV2.text }}>{closer.name}</span>
+                      {isCurrent && <CrmV2StatusPill label="Actuel" color={crmV2.goldDark} bg={crmV2.goldSoft} dot={false} style={{ fontSize: 11 }} />}
+                      {available && <CrmV2StatusPill label="Disponible" color={crmV2.successStrong} style={{ fontSize: 11 }} />}
+                      {blocked && <CrmV2StatusPill label="Indisponible" color="#ef4444" style={{ fontSize: 11 }} />}
+                      {!available && !blocked && <CrmV2StatusPill label="Occupé" color="#b8963e" style={{ fontSize: 11 }} />}
                     </div>
-                    <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ color: loadColor, fontWeight: 600 }}>{load} RDV</span>
+                    <div style={{ fontSize: 12, color: crmV2.textMuted, marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ color: loadColor, fontWeight: 700 }}>{load} RDV</span>
                       <span>cette semaine</span>
                     </div>
                   </div>
 
                   <button
+                    type="button"
                     onClick={(e) => { e.stopPropagation(); togglePreview(closer.id) }}
                     style={{
-                      background: previewCloserId === closer.id ? 'rgba(204,172,113,0.15)' : 'transparent',
-                      border: `1px solid ${previewCloserId === closer.id ? 'rgba(204,172,113,0.4)' : '#e5ddc8'}`,
-                      borderRadius: 8, width: 32, height: 32,
+                      background: previewOpen ? crmV2.goldSoft : crmV2.bg,
+                      border: `1px solid ${previewOpen ? crmV2.goldBorder : crmV2.borderStrong}`,
+                      borderRadius: 999, width: 34, height: 34,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       cursor: 'pointer', flexShrink: 0,
-                      color: previewCloserId === closer.id ? '#C9A84C' : '#94a3b8',
+                      color: previewOpen ? crmV2.goldDark : crmV2.textMuted,
                     }}
                     title="Voir le planning"
+                    aria-label="Voir le planning"
                   >
-                    {previewCloserId === closer.id ? <EyeOff size={14} /> : <Eye size={14} />}
+                    {previewOpen ? <EyeOff size={14} /> : <Eye size={14} />}
                   </button>
 
                   {isSelected && (
-                    <CheckCircle size={20} style={{ color, flexShrink: 0 }} />
+                    <CheckCircle size={18} style={{ color, flexShrink: 0 }} />
                   )}
                 </div>
 
-                {previewCloserId === closer.id && (
+                {previewOpen && (
                   <div style={{
-                    background: '#f7f4ee', border: '1px solid #e5ddc8',
-                    borderRadius: 10, padding: '10px 14px', margin: '4px 16px 8px',
+                    background: crmV2.bgHover, border: `1px solid ${crmV2.border}`,
+                    borderRadius: 12, padding: '10px 14px', margin: '6px 8px 8px',
                   }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>
                       Planning semaine — {closer.name}
                     </div>
                     {previewLoading ? (
-                      <div style={{ color: '#94a3b8', fontSize: 12, padding: '8px 0' }}>Chargement…</div>
+                      <div style={{ color: crmV2.textFaint, fontSize: 12, padding: '8px 0' }}>Chargement…</div>
                     ) : previewAppts.length === 0 ? (
-                      <div style={{ color: '#22c55e', fontSize: 12, padding: '4px 0' }}>Aucun RDV cette semaine</div>
+                      <div style={{ color: crmV2.successStrong, fontSize: 12, fontWeight: 600, padding: '4px 0' }}>Aucun RDV cette semaine</div>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                         {previewAppts.map(appt => {
@@ -326,15 +296,15 @@ export function AssignCloserPanel({
                               key={appt.id}
                               style={{
                                 display: 'flex', alignItems: 'center', gap: 8,
-                                padding: '4px 8px', borderRadius: 6,
-                                background: isSameSlot ? 'rgba(239,68,68,0.1)' : 'transparent',
+                                padding: '4px 8px', borderRadius: 8,
+                                background: isSameSlot ? 'rgba(239,68,68,0.08)' : 'transparent',
                                 border: isSameSlot ? '1px solid rgba(239,68,68,0.25)' : '1px solid transparent',
                               }}
                             >
-                              <span style={{ fontSize: 11, color: '#C9A84C', fontWeight: 600, minWidth: 80 }}>
+                              <span style={{ fontSize: 12, color: crmV2.goldDark, fontWeight: 700, minWidth: 84 }}>
                                 {format(apptStart, 'EEE d · HH:mm', { locale: fr })}
                               </span>
-                              <span style={{ fontSize: 12, color: '#4a6070', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              <span style={{ fontSize: 12, color: crmV2.textMuted, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {appt.prospect_name}
                               </span>
                             </div>
@@ -350,44 +320,29 @@ export function AssignCloserPanel({
         </div>
       </div>
 
-      <div style={{ padding: '16px 24px', borderTop: '1px solid #e5ddc8', flexShrink: 0 }}>
+      <div style={{ padding: '12px 18px', borderTop: `1px solid ${crmV2.border}`, flexShrink: 0, background: crmV2.bg }}>
         {error && (
           <div style={{
             display: 'flex', alignItems: 'center', gap: 8,
-            color: '#ef4444', fontSize: 13, marginBottom: 12,
+            color: '#d13a41', fontSize: 13, marginBottom: 10,
           }}>
             <AlertCircle size={14} />
             <span>{error}</span>
           </div>
         )}
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button
-            onClick={onCancel}
-            style={{
-              flex: 1, background: 'transparent',
-              border: '1px solid #e5ddc8', borderRadius: 10,
-              padding: '10px', color: '#4a6070', fontSize: 14,
-              cursor: 'pointer', fontWeight: 500, fontFamily: 'inherit',
-            }}
-          >
+        <div style={{ display: 'flex', gap: 8 }}>
+          <CrmV2Button onClick={onCancel} style={{ flex: 1, minHeight: 40 }}>
             Annuler
-          </button>
-          <button
+          </CrmV2Button>
+          <CrmV2Button
+            variant="primary"
             onClick={assign}
             disabled={!selected || assigning}
-            style={{
-              flex: 2, background: selected ? '#C9A84C' : '#f0e9da',
-              border: 'none', borderRadius: 10,
-              padding: '10px', color: selected ? '#0e1e35' : '#94a3b8', fontSize: 14,
-              cursor: selected ? 'pointer' : 'default', fontWeight: 700,
-              transition: 'all 0.15s',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              fontFamily: 'inherit',
-            }}
+            icon={<User size={14} />}
+            style={{ flex: 2, minHeight: 40 }}
           >
-            <User size={16} />
             {assigning ? (reassign ? 'Réassignation…' : 'Assignation…') : (reassign ? 'Réassigner ce closer' : 'Assigner ce closer')}
-          </button>
+          </CrmV2Button>
         </div>
       </div>
     </>
@@ -410,54 +365,62 @@ export default function AssignModal({
 }) {
   const start = new Date(appointment.start_at)
   const end = new Date(appointment.end_at)
+  const isMobile = useIsMobile()
 
   return (
     <div
+      className="crm-v2"
       style={{
         position: 'fixed', inset: 0, zIndex: 1100,
-        background: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(4px)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: 16,
+        background: 'rgba(15,31,61,0.40)',
+        display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center',
+        padding: isMobile ? 0 : 16, fontFamily: crmV2.font, color: crmV2.text,
       }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div style={{
-        background: '#ffffff',
-        border: '1px solid #e5ddc8',
-        borderRadius: 16,
-        width: '100%', maxWidth: 560,
-        boxShadow: '0 24px 60px rgba(15,23,42,0.18)',
-        overflow: 'hidden',
-        maxHeight: '90vh',
-        display: 'flex', flexDirection: 'column',
-      }}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        style={{
+          background: crmV2.bg,
+          border: isMobile ? 'none' : `1px solid ${crmV2.border}`,
+          borderRadius: isMobile ? '22px 22px 0 0' : 20,
+          width: '100%', maxWidth: isMobile ? '100%' : 560,
+          boxShadow: crmV2.shadowPanel,
+          overflow: 'hidden',
+          maxHeight: isMobile ? '88dvh' : '90vh',
+          display: 'flex', flexDirection: 'column',
+          paddingBottom: isMobile ? 'env(safe-area-inset-bottom)' : 0,
+        }}
+      >
+        {isMobile && (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0 0', flexShrink: 0 }}>
+            <span style={{ width: 40, height: 4, borderRadius: 999, background: crmV2.borderStrong }} />
+          </div>
+        )}
         <div style={{
-          padding: '20px 24px',
-          borderBottom: '1px solid #e5ddc8',
-          display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+          padding: isMobile ? '10px 16px 14px' : '16px 18px 14px',
+          borderBottom: `1px solid ${crmV2.border}`,
+          display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12,
           flexShrink: 0,
         }}>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: '#C9A84C', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>
-              {reassign ? '🔄 Réassigner le closer' : 'Assigner le RDV'}
+          <div style={{ minWidth: 0 }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6,
+              fontSize: 11, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase', letterSpacing: '0.4px',
+            }}>
+              {reassign ? <RefreshCw size={12} color={crmV2.gold} /> : <User size={12} color={crmV2.gold} />}
+              {reassign ? 'Réassigner le closer' : 'Assigner le RDV'}
             </div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: '#0e1e35' }}>
+            <div style={{ fontSize: 20, fontWeight: 700, color: crmV2.text, letterSpacing: '-0.02em' }}>
               {appointment.prospect_name}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#4a6070', fontSize: 13, marginTop: 4 }}>
-              <Clock size={13} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: crmV2.textMuted, fontSize: 13, marginTop: 4 }}>
+              <Clock size={13} color={crmV2.gold} />
               <span>{format(start, 'EEEE d MMMM · HH:mm', { locale: fr })} – {format(end, 'HH:mm')}</span>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            style={{
-              background: 'transparent', border: 'none', cursor: 'pointer',
-              color: '#4a6070', padding: 4, display: 'flex', alignItems: 'center',
-            }}
-          >
-            <X size={18} />
-          </button>
+          <CrmV2CloseButton onClick={onClose} />
         </div>
 
         <AssignCloserPanel

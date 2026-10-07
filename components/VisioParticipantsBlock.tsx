@@ -4,14 +4,17 @@ import { useEffect, useState } from 'react'
 import { Mail, UserPlus, Users } from 'lucide-react'
 import { parseExtraParticipants, type ExtraParticipant } from '@/lib/appointment-participants'
 import { validateEmailDomain } from '@/lib/email-validation'
+import { crmV2 } from '@/lib/crm-v2-theme'
 
 const inputStyle: React.CSSProperties = {
   flex: 1,
-  background: '#f7f4ee',
-  border: '1px solid #e5ddc8',
-  borderRadius: 8,
-  padding: '8px 12px',
-  color: '#0f172a',
+  height: 38,
+  boxSizing: 'border-box',
+  background: crmV2.bg,
+  border: `1px solid ${crmV2.borderStrong}`,
+  borderRadius: crmV2.radius,
+  padding: '0 12px',
+  color: crmV2.text,
   fontSize: 13,
   outline: 'none',
   fontFamily: 'inherit',
@@ -103,9 +106,9 @@ export default function VisioParticipantsBlock({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 14, color: '#4a6070' }}>
-        <Users size={14} style={{ color: '#C9A84C', flexShrink: 0 }} />
-        <span style={{ fontWeight: 600, color: '#0f172a' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 13, color: crmV2.textMuted }}>
+        <Users size={14} style={{ color: crmV2.gold, flexShrink: 0 }} />
+        <span style={{ fontWeight: 600, color: crmV2.text }}>
           {participants.length === 0
             ? 'Aucun participant supplémentaire'
             : `${participants.length} participant${participants.length > 1 ? 's' : ''} supplémentaire${participants.length > 1 ? 's' : ''}`}
@@ -118,34 +121,34 @@ export default function VisioParticipantsBlock({
             display: 'inline-flex',
             alignItems: 'center',
             gap: 4,
-            background: 'rgba(204,172,113,0.1)',
-            border: '1px solid rgba(204,172,113,0.3)',
-            borderRadius: 6,
-            padding: '2px 8px',
-            color: '#C9A84C',
-            fontSize: 11,
-            fontWeight: 600,
+            background: crmV2.bg,
+            border: `1px solid ${crmV2.borderStrong}`,
+            borderRadius: 999,
+            padding: '4px 10px',
+            color: crmV2.text,
+            fontSize: 12,
+            fontWeight: 700,
             cursor: disabled || saving ? 'not-allowed' : 'pointer',
             fontFamily: 'inherit',
           }}
         >
-          <UserPlus size={10} />
+          <UserPlus size={12} />
           Ajouter un participant
         </button>
         {ok && (
-          <span style={{ fontSize: 12, fontWeight: 600, color: '#0e8a5f' }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: crmV2.successStrong }}>
             Invitation envoyée
           </span>
         )}
       </div>
 
       {participants.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingLeft: 22 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingLeft: 24 }}>
           {participants.map(p => (
-            <div key={p.email} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#4a6070' }}>
-              <Mail size={12} style={{ color: '#C9A84C', flexShrink: 0 }} />
-              <span>
-                {p.name ? <strong style={{ color: '#0f172a' }}>{p.name}</strong> : null}
+            <div key={p.email} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: crmV2.textMuted, minWidth: 0 }}>
+              <Mail size={12} style={{ color: crmV2.gold, flexShrink: 0 }} />
+              <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {p.name ? <strong style={{ color: crmV2.text }}>{p.name}</strong> : null}
                 {p.name ? ' · ' : ''}
                 {p.email}
               </span>
@@ -160,9 +163,9 @@ export default function VisioParticipantsBlock({
           flexDirection: 'column',
           gap: 8,
           padding: 12,
-          background: '#f7f4ee',
-          border: '1px solid #e5ddc8',
-          borderRadius: 10,
+          background: crmV2.bgHover,
+          border: `1px solid ${crmV2.border}`,
+          borderRadius: 12,
         }}>
           <input
             type="text"
@@ -190,7 +193,7 @@ export default function VisioParticipantsBlock({
             }}
           />
           {error && (
-            <span style={{ fontSize: 12, color: '#dc2626', fontWeight: 600 }}>{error}</span>
+            <span style={{ fontSize: 12, color: '#d13a41', fontWeight: 600 }}>{error}</span>
           )}
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
             <button
@@ -198,11 +201,11 @@ export default function VisioParticipantsBlock({
               disabled={saving}
               onClick={() => { setOpen(false); setError(null) }}
               style={{
-                background: 'transparent',
-                border: '1px solid #e5ddc8',
-                borderRadius: 8,
-                padding: '6px 12px',
-                color: '#4a6070',
+                background: crmV2.bg,
+                border: `1px solid ${crmV2.borderStrong}`,
+                borderRadius: 999,
+                padding: '6px 14px',
+                color: crmV2.text,
                 fontSize: 12,
                 fontWeight: 600,
                 cursor: 'pointer',
@@ -216,13 +219,14 @@ export default function VisioParticipantsBlock({
               disabled={saving || !email.trim()}
               onClick={() => void addParticipant()}
               style={{
-                background: '#C9A84C',
+                background: crmV2.primary,
                 border: 'none',
-                borderRadius: 8,
-                padding: '6px 12px',
-                color: '#0e1e35',
+                borderRadius: 999,
+                padding: '6px 14px',
+                color: '#fff',
                 fontSize: 12,
-                fontWeight: 700,
+                fontWeight: 600,
+                opacity: saving || !email.trim() ? 0.55 : 1,
                 cursor: saving || !email.trim() ? 'not-allowed' : 'pointer',
                 fontFamily: 'inherit',
               }}

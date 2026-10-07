@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { Mic, MicOff, X, Loader2 } from 'lucide-react'
+import { AlertTriangle, Mic, MicOff, X, Loader2 } from 'lucide-react'
 
 // Jitsi IFrame API type (loaded from external script)
 declare global {
@@ -338,12 +338,14 @@ export default function JitsiMeeting({ meetingLink, appointmentId, onClose, onRe
           borderBottom: '1px solid rgba(239,68,68,0.3)', color: '#ef4444',
           fontSize: 13, display: 'flex', alignItems: 'center', gap: 8,
         }}>
-          <span>⚠️ {error}</span>
+          <AlertTriangle size={14} style={{ flexShrink: 0 }} />
+          <span>{error}</span>
           <button
             onClick={() => setError(null)}
-            style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 16 }}
+            aria-label="Fermer le message"
+            style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', marginLeft: 'auto' }}
           >
-            ×
+            <X size={14} />
           </button>
         </div>
       )}

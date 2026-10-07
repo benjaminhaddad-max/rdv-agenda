@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Video, MapPin, ArrowLeftRight } from 'lucide-react'
 import { CAMPUS_OPTIONS, type CampusOption } from '@/lib/campus'
+import { crmV2 } from '@/lib/crm-v2-theme'
 
 type MeetingMode = 'visio' | 'presentiel'
 
@@ -88,19 +89,19 @@ export default function MeetingModeSwitcher({
     <div style={{ marginTop: 4 }}>
       {showCampusPicker ? (
         <div style={{
-          background: '#f7f4ee', border: '1px solid #e5ddc8',
-          borderRadius: 10, padding: '12px 14px',
+          background: crmV2.bgHover, border: `1px solid ${crmV2.border}`,
+          borderRadius: 12, padding: '12px 14px',
         }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#4a6070', marginBottom: 8 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: crmV2.textMuted, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
             Choisir le campus
           </div>
           <select
             value={selectedCampus}
             onChange={(e) => setSelectedCampus(e.target.value as CampusOption)}
             style={{
-              width: '100%', background: '#ffffff', border: '1px solid #e5ddc8',
-              borderRadius: 8, padding: '9px 12px', fontSize: 13, color: '#0f172a',
-              marginBottom: 10, fontFamily: 'inherit',
+              width: '100%', height: 38, background: crmV2.bg, border: `1px solid ${crmV2.borderStrong}`,
+              borderRadius: crmV2.radius, padding: '0 12px', fontSize: 13, color: crmV2.text,
+              marginBottom: 10, fontFamily: 'inherit', outline: 'none',
             }}
           >
             {CAMPUS_OPTIONS.map((campus) => (
@@ -113,8 +114,8 @@ export default function MeetingModeSwitcher({
               onClick={() => void applyChange(selectedCampus)}
               disabled={changing || disabled}
               style={{
-                flex: 1, background: '#C9A84C', color: '#0e1e35', border: 'none',
-                borderRadius: 8, padding: '8px 12px', fontSize: 12, fontWeight: 700,
+                flex: 1, background: crmV2.primary, color: '#fff', border: 'none',
+                borderRadius: 999, padding: '8px 14px', fontSize: 12, fontWeight: 600,
                 cursor: changing ? 'wait' : 'pointer', opacity: changing ? 0.7 : 1,
                 fontFamily: 'inherit',
               }}
@@ -126,9 +127,9 @@ export default function MeetingModeSwitcher({
               onClick={() => setShowCampusPicker(false)}
               disabled={changing}
               style={{
-                background: 'transparent', border: '1px solid #e5ddc8',
-                borderRadius: 8, padding: '8px 12px', fontSize: 12, fontWeight: 600,
-                color: '#4a6070', cursor: 'pointer', fontFamily: 'inherit',
+                background: crmV2.bg, border: `1px solid ${crmV2.borderStrong}`,
+                borderRadius: 999, padding: '8px 14px', fontSize: 12, fontWeight: 600,
+                color: crmV2.text, cursor: 'pointer', fontFamily: 'inherit',
               }}
             >
               Annuler
@@ -142,9 +143,9 @@ export default function MeetingModeSwitcher({
           disabled={changing || disabled}
           style={{
             display: 'inline-flex', alignItems: 'center', gap: 6,
-            background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.35)',
-            borderRadius: 8, padding: '6px 12px',
-            color: '#C9A84C', fontSize: 12, fontWeight: 600,
+            background: crmV2.goldSoft, border: `1px solid ${crmV2.goldBorder}`,
+            borderRadius: 999, padding: '6px 12px',
+            color: crmV2.goldDark, fontSize: 12, fontWeight: 600,
             cursor: changing ? 'wait' : 'pointer', fontFamily: 'inherit',
             opacity: changing || disabled ? 0.7 : 1,
           }}
@@ -156,12 +157,12 @@ export default function MeetingModeSwitcher({
       )}
 
       {success && (
-        <div style={{ marginTop: 8, fontSize: 12, color: '#22c55e', fontWeight: 600 }}>
+        <div style={{ marginTop: 8, fontSize: 12, color: crmV2.successStrong, fontWeight: 600 }}>
           Mode modifié — SMS et email envoyés au prospect
         </div>
       )}
       {error && (
-        <div style={{ marginTop: 8, fontSize: 12, color: '#ef4444' }}>{error}</div>
+        <div style={{ marginTop: 8, fontSize: 12, color: '#d13a41' }}>{error}</div>
       )}
     </div>
   )

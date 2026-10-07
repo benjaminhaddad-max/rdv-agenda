@@ -4,7 +4,13 @@ import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { Calendar, Loader2, MapPin, PhoneCall, Video, X } from 'lucide-react'
+import { Calendar, Check, Clock, Loader2, MapPin, PhoneCall, Video } from 'lucide-react'
+import { crmV2 } from '@/lib/crm-v2-theme'
+import { useIsMobile } from '@/lib/useIsMobile'
+import { CrmV2Button } from '@/components/crm-v2/primitives'
+import {
+  ChoiceButton, CloserSheet, FieldLabel, Notice, SheetHeader, StepBar, StepCard, closerInput,
+} from '@/components/crm-v2/closer/ui'
 
 type ContactPreview = {
   id: string
@@ -142,86 +148,108 @@ export default function DiplomaAppointmentModal({ contact, onClose, onSaved }: P
     }
   }
 
+  const isMobile = useIsMobile()
+  const inp = closerInput(isMobile)
+  const prospectOk = !!(firstName && lastName && email && phone)
+  const step = !selectedSlot ? 1 : !prospectOk ? 2 : 3
+  const contactName = [contact.firstname, contact.lastname].filter(Boolean).join(' ')
+
   return (
-    <div
-      className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
-      style={{ zIndex: 200000 }}
-      onClick={onClose}
+    <CloserSheet
+      onClose={onClose}
+      zIndex={200000}
+      header={(
+        <SheetHeader
+          kicker="Prendre RDV"
+          icon={<Calendar size={12} />}
+          title="Rendez-vous Diploma Santé"
+          subtitle={contactName || contact.email || undefined}
+          onClose={onClose}
+        >
+          <StepBar labels={['Créneau', 'Prospect', 'Mode']} step={step} done={[!!selectedSlot, prospectOk, false]} />
+        </SheetHeader>
+      )}
+      footer={(
+        <>
+          <CrmV2Button onClick={onClose} style={{ minHeight: 40 }}>Fermer</CrmV2Button>
+          <CrmV2Button
+            variant="accent"
+            onClick={handleSubmit}
+            disabled={saving || slotsLoading || !selectedSlot}
+            icon={saving ? <Loader2 size={14} style={{ animation: 'crm-v2-spin 0.9s linear infinite' }} /> : <Check size={14} />}
+            style={{ flex: 1, minHeight: 40 }}
+          >
+            {saving ? 'Création...' : 'Confirmer le RDV'}
+          </CrmV2Button>
+        </>
+      )}
     >
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-3 border-b">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-md bg-[#0e1e35]/10 text-[#0e1e35] flex items-center justify-center">
-              <Calendar size={16} />
-            </div>
-            <h2 className="text-base font-semibold text-slate-800">Programmer rendez-vous Diploma Santé</h2>
-          </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700">
-            <X size={18} />
-          </button>
-        </div>
+      <div style={{ padding: isMobile ? 12 : 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {/* 1. Date et créneau */}
+        <StepCard
+          n={1}
+          done={!!selectedSlot}
+          title="Date et créneau"
+          subtitle={selectedSlot
+            ? <span style={{ textTransform: 'capitalize' }}>{format(new Date(selectedSlot.start), "EEEE d MMMM 'à' HH:mm", { locale: fr })}</span>
+            : 'Choisir un créneau libre dans le planning des closers'}
+        >
+          <FieldLabel icon={<Calendar size={12} />}>Date</FieldLabel>
+          <input
+            type="date"
+            min={minDate}
+            value={date}
+            onChange={e => setDate(e.target.value)}
+            style={{ ...inp, cursor: 'pointer' }}
+          />
 
-        <div className="p-5 space-y-4 overflow-auto">
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">Date</label>
-            <input
-              type="date"
-              min={minDate}
-              value={date}
-              onChange={e => setDate(e.target.value)}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">Créneaux disponibles</label>
+          <div style={{ marginTop: 14 }}>
+            <FieldLabel icon={<Clock size={12} />}>Créneaux disponibles</FieldLabel>
             {slotsLoading ? (
-              <div className="text-sm text-slate-500 flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Chargement...</div>
+              <div style={{ fontSize: 13, color: crmV2.textMuted, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Loader2 size={14} style={{ animation: 'crm-v2-spin 0.9s linear infinite' }} /> Chargement...
+              </div>
             ) : slotError ? (
-              <div className="text-sm text-red-600">{slotError}</div>
+              <Notice>{slotError}</Notice>
             ) : slots.length === 0 ? (
-              <div className="text-sm text-slate-500">Aucun créneau disponible sur cette date.</div>
+              <div style={{ fontSize: 13, color: crmV2.textMuted }}>Aucun créneau disponible sur cette date.</div>
             ) : (
-              <div className="flex flex-wrap gap-2">
-                {slots.map(slot => {
-                  const isSelected = selectedSlot?.start === slot.start
-                  return (
-                    <button
-                      key={slot.start}
-                      type="button"
-                      onClick={() => setSelectedSlot(slot)}
-                      className={`px-3 py-1.5 rounded-md text-sm border ${
-                        isSelected
-                          ? 'bg-[#0e1e35] text-white border-[#0e1e35]'
-                          : 'bg-white text-slate-700 border-slate-300 hover:border-[#0e1e35]'
-                      }`}
-                    >
-                      {format(new Date(slot.start), 'HH:mm', { locale: fr })}
-                    </button>
-                  )
-                })}
+              <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${isMobile ? 76 : 84}px, 1fr))`, gap: 6 }}>
+                {slots.map(slot => (
+                  <ChoiceButton
+                    key={slot.start}
+                    active={selectedSlot?.start === slot.start}
+                    onClick={() => setSelectedSlot(slot)}
+                    style={{ padding: '0 8px' }}
+                  >
+                    {format(new Date(slot.start), 'HH:mm', { locale: fr })}
+                  </ChoiceButton>
+                ))}
               </div>
             )}
           </div>
+        </StepCard>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {/* 2. Prospect */}
+        <StepCard n={2} done={prospectOk} title="Prospect" subtitle="Prénom, nom, e-mail et téléphone sont requis">
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
             <Field label="Prénom">
-              <input value={firstName} onChange={e => setFirstName(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+              <input value={firstName} onChange={e => setFirstName(e.target.value)} style={inp} />
             </Field>
             <Field label="Nom">
-              <input value={lastName} onChange={e => setLastName(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+              <input value={lastName} onChange={e => setLastName(e.target.value)} style={inp} />
             </Field>
             <Field label="E-mail">
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} style={inp} />
             </Field>
             <Field label="Téléphone">
-              <input value={phone} onChange={e => setPhone(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+              <input value={phone} onChange={e => setPhone(e.target.value)} inputMode="tel" style={inp} />
             </Field>
             <Field label="Études actuelles">
               <select
                 value={currentStudies}
                 onChange={e => setCurrentStudies(e.target.value)}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white"
+                style={{ ...inp, cursor: 'pointer' }}
               >
                 <option value="">Sélectionner...</option>
                 {CURRENT_STUDIES_OPTIONS.map(opt => (
@@ -230,69 +258,48 @@ export default function DiplomaAppointmentModal({ contact, onClose, onSaved }: P
               </select>
             </Field>
             <Field label="Département">
-              <input value={department} onChange={e => setDepartment(e.target.value)} placeholder="ex: 75" className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+              <input value={department} onChange={e => setDepartment(e.target.value)} placeholder="ex: 75" style={inp} />
             </Field>
           </div>
+        </StepCard>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">Type de RDV</label>
-            <div className="flex gap-2">
-              {([
-                { key: 'visio', icon: <Video size={13} />, label: 'Visio' },
-                { key: 'telephone', icon: <PhoneCall size={13} />, label: 'Téléphone' },
-                { key: 'presentiel', icon: <MapPin size={13} />, label: 'Présentiel' },
-              ] as const).map(m => (
-                <button
-                  key={m.key}
-                  type="button"
-                  onClick={() => setMeetingType(m.key)}
-                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm border ${
-                    meetingType === m.key
-                      ? 'bg-[#0e1e35] text-white border-[#0e1e35]'
-                      : 'bg-white text-slate-700 border-slate-300 hover:border-[#0e1e35]'
-                  }`}
-                >
-                  {m.icon} {m.label}
-                </button>
-              ))}
-            </div>
-            {meetingType === 'visio' && (
+        {/* 3. Mode du RDV */}
+        <StepCard n={3} title="Mode du RDV">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 6 }}>
+            {([
+              { key: 'visio', icon: <Video size={14} />, label: 'Visio' },
+              { key: 'telephone', icon: <PhoneCall size={14} />, label: 'Téléphone' },
+              { key: 'presentiel', icon: <MapPin size={14} />, label: 'Présentiel' },
+            ] as const).map(m => (
+              <ChoiceButton key={m.key} active={meetingType === m.key} onClick={() => setMeetingType(m.key)} style={{ padding: '0 8px', fontSize: 12 }}>
+                {m.icon} {m.label}
+              </ChoiceButton>
+            ))}
+          </div>
+          {meetingType === 'visio' && (
+            <div style={{ marginTop: 12 }}>
+              <FieldLabel icon={<Video size={12} />}>Lien visio</FieldLabel>
               <input
                 value={meetingLink}
                 onChange={e => setMeetingLink(e.target.value)}
                 placeholder="Lien visio…"
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm mt-2"
+                style={{ ...inp, fontSize: 12 }}
               />
-            )}
-          </div>
-
-          {error && <div className="px-3 py-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">{error}</div>}
-          {success && (
-            <div className="px-3 py-2 bg-emerald-50 border border-emerald-200 rounded text-sm text-emerald-700">
-              RDV Diploma Santé créé avec succès.
             </div>
           )}
-        </div>
+        </StepCard>
 
-        <div className="px-5 py-3 border-t flex justify-end gap-2">
-          <button onClick={onClose} className="px-4 py-2 text-sm border border-slate-300 rounded-lg">Fermer</button>
-          <button
-            onClick={handleSubmit}
-            disabled={saving || slotsLoading || !selectedSlot}
-            className="px-4 py-2 text-sm font-semibold rounded-lg bg-[#0e1e35] text-white disabled:opacity-60"
-          >
-            {saving ? 'Création...' : 'Confirmer'}
-          </button>
-        </div>
+        {error && <Notice>{error}</Notice>}
+        {success && <Notice tone="success">RDV Diploma Santé créé avec succès.</Notice>}
       </div>
-    </div>
+    </CloserSheet>
   )
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div>
-      <label className="block text-xs font-semibold text-slate-600 mb-1">{label}</label>
+    <div style={{ minWidth: 0 }}>
+      <FieldLabel>{label}</FieldLabel>
       {children}
     </div>
   )
