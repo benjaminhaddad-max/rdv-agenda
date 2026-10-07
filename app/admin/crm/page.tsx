@@ -44,10 +44,14 @@ import {
   hasDiplomaFormEventRule,
 } from '@/lib/diploma-sante-crm-view'
 import {
+  bucketHasFacets,
+  EMPTY_BUCKET_FACETS,
   inferViewKind,
   isAttributionBucketId,
   isAttributionSubViewId,
   parseAttributionParentId,
+  withBucketFacets,
+  type BucketFacetSelection,
 } from '@/lib/crm-attribution-buckets'
 import { CRMBucketSubviewsBar } from '@/components/crm/CRMBucketSubviews'
 import { CRMManageViewsModal } from '@/components/crm/CRMManageViewsModal'
@@ -490,6 +494,9 @@ export default function CRMPage() {
     if (v.kind === 'bucket' || isAttributionBucketId(v.id)) return v.id
     return null
   }, [crmViews, activeViewId])
+  // Filtres rapides Classe / Zone du bucket actif (non sauvegardés dans la vue).
+  const [bucketFacets, setBucketFacets] = useState<BucketFacetSelection>(EMPTY_BUCKET_FACETS)
+  const activeBucketHasFacets = bucketHasFacets(activeBucketId)
   const activeBucketParent = useMemo(
     () => (activeBucketId ? crmViews.find(v => v.id === activeBucketId) ?? null : null),
     [crmViews, activeBucketId],
@@ -1491,9 +1498,28 @@ export default function CRMPage() {
     setShowExternal(true)
     setAllClasses(true)
     syncViewIdInUrl(view.id, 'push')
+    // Les facettes suivent l'utilisateur d'une sous-vue à l'autre du même bucket.
+    const targetBucketId = view.parentId
+      ?? parseAttributionParentId(view.id)
+      ?? (isAttributionBucketId(view.id) ? view.id : null)
+    const facets = targetBucketId && targetBucketId === activeBucketId && bucketHasFacets(targetBucketId)
+      ? bucketFacets
+      : EMPTY_BUCKET_FACETS
+    setBucketFacets(facets)
     setActiveViewId(view.id)
     setFilterGroups(view.groups)
-    applyGroupsToFilters(view.groups, view.presetFlags)
+    applyGroupsToFilters(withBucketFacets(view.groups, facets), view.presetFlags)
+    setPage(0)
+    scheduleRefetch()
+  }
+
+  function changeBucketFacets(next: BucketFacetSelection) {
+    const view = crmViews.find(v => v.id === activeViewId)
+    setBucketFacets(next)
+    setLoading(true)
+    setSelectedIds(new Set())
+    setSelectionScope('page')
+    applyGroupsToFilters(withBucketFacets(filterGroups, next), view?.presetFlags)
     setPage(0)
     scheduleRefetch()
   }
@@ -2378,6 +2404,8 @@ export default function CRMPage() {
           activeViewId={activeViewId}
           viewCounts={viewCounts}
           onSelect={applyCRMView}
+          facets={activeBucketHasFacets ? bucketFacets : undefined}
+          onFacetsChange={activeBucketHasFacets ? changeBucketFacets : undefined}
         />
       )}
 

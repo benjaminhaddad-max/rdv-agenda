@@ -50,6 +50,12 @@ export const THOTIS_ORIGINES = [
   'Thotis Suspect',
 ] as const
 
+export const NOMAD_ORIGINES = [
+  'Nomad Education (Partenaire)',
+  'NOMAD',
+  'Nomad - PASS / LAS',
+] as const
+
 export const ETUDES_SUP_CLASSES = [
   'Etudes Sup.',
   'Autres',
@@ -86,6 +92,8 @@ export interface AttributionBucketDef {
   /** Seuls les buckets enabled sont matérialisés en base. */
   enabled: boolean
   filters: AttributionBucketFilters
+  /** Affiche les filtres rapides Classe + Zone sous les sous-vues. */
+  facets?: boolean
   note?: string
 }
 
@@ -167,7 +175,18 @@ export const ATTRIBUTION_BUCKETS: AttributionBucketDef[] = [
     filters: {
       origine: [...THOTIS_ORIGINES],
     },
+    facets: true,
     note: 'Toutes classes et zones, origine Thotis.',
+  },
+  {
+    id: 'b_leads_nomad',
+    name: 'Leads Nomad',
+    enabled: true,
+    filters: {
+      origine: [...NOMAD_ORIGINES],
+    },
+    facets: true,
+    note: 'Toutes classes et zones, origine Nomad.',
   },
   {
     id: 'b_etudes_sup_autres',
@@ -318,4 +337,64 @@ export function findAttributionBucket(id: string): AttributionBucketDef | undefi
   const parentId = parseAttributionParentId(id) ?? (isAttributionBucketId(id) ? id : null)
   if (!parentId) return undefined
   return ATTRIBUTION_BUCKETS.find(b => b.id === parentId)
+}
+
+// ── Filtres rapides (facettes) ────────────────────────────────────────────────
+// Se cumulent avec la sous-vue active (ex. Terminale + Non assignés télépro + IDF)
+// sans modifier la vue sauvegardée.
+
+export interface BucketFacetSelection {
+  classe: string
+  zone: string
+}
+
+export const EMPTY_BUCKET_FACETS: BucketFacetSelection = { classe: '', zone: '' }
+
+export const BUCKET_FACET_IDF_ZONES = ['IDF', 'Proche IDF'] as const
+
+export const BUCKET_FACET_CLASSES: { key: string; label: string; values: readonly string[] }[] = [
+  { key: 'seconde', label: 'Seconde', values: ['Seconde'] },
+  { key: 'premiere', label: 'Première', values: ['Première'] },
+  { key: 'terminale', label: 'Terminale', values: ['Terminale'] },
+  { key: 'etudes_sup', label: 'Études Sup.', values: ETUDES_SUP_CLASSES },
+]
+
+export const BUCKET_FACET_ZONES: { key: string; label: string }[] = [
+  { key: 'idf', label: 'IDF' },
+  { key: 'hors_idf', label: 'Hors IDF' },
+]
+
+export function bucketHasFacets(bucketId: string | null | undefined): boolean {
+  if (!bucketId) return false
+  return !!ATTRIBUTION_BUCKETS.find(b => b.id === bucketId)?.facets
+}
+
+export function hasActiveFacets(f: BucketFacetSelection): boolean {
+  return !!f.classe || !!f.zone
+}
+
+/** Ajoute les règles des facettes au premier groupe (AND). */
+export function withBucketFacets(
+  groups: CRMFilterGroup[],
+  facets: BucketFacetSelection,
+): CRMFilterGroup[] {
+  const extra: CRMFilterRule[] = []
+  const classe = BUCKET_FACET_CLASSES.find(c => c.key === facets.classe)
+  if (classe) {
+    extra.push(makeRule(
+      'facet_classe',
+      'classe',
+      classe.values.length > 1 ? 'is_any' : 'is',
+      classe.values.join(','),
+    ))
+  }
+  if (facets.zone === 'idf') {
+    extra.push(makeRule('facet_zone', 'zone', 'is_any', BUCKET_FACET_IDF_ZONES.join(',')))
+  } else if (facets.zone === 'hors_idf') {
+    extra.push(makeRule('facet_zone', 'zone', 'is_none', BUCKET_FACET_IDF_ZONES.join(',')))
+  }
+  if (extra.length === 0) return groups
+  const [first, ...rest] = groups
+  if (!first) return [{ id: 'facet_g', rules: extra }]
+  return [{ ...first, rules: [...first.rules, ...extra] }, ...rest]
 }
