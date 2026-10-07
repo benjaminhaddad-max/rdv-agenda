@@ -1,25 +1,37 @@
 'use client'
 
-import { useEffect, useState, useCallback, use, useRef } from 'react'
+import { useEffect, useState, useCallback, use, useRef, type ReactNode } from 'react'
 import { flushSync } from 'react-dom'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { format, formatDistanceToNow } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import {
-  StickyNote, Mail, Phone, CheckSquare, Calendar, ChevronDown, ChevronRight,
-  Plus, Search, Settings, Briefcase, Clock, User, TrendingUp, Award, FileText, History,
-  GraduationCap, AlertTriangle, Circle, Pencil, Megaphone, Copy, Check, Trash2,
-  SlidersHorizontal, ArrowUp, ArrowDown, X, GripVertical, Globe,
+  ArrowDown, ArrowLeft, ArrowUp, CalendarPlus, Check, ChevronDown, ChevronRight, GripVertical, History, Mail, MapPin,
+  Phone, Plus, Search, SquareCheckBig, StickyNote, Trash2, User, X,
 } from 'lucide-react'
 import type { QuickActionType } from '@/components/crm/QuickActionModal'
-import AircallRecordingPlayer, { stripAircallRecordingLinks } from '@/components/crm/AircallRecordingPlayer'
 import { resolveActivityAuthorLabel } from '@/lib/activity-author'
 import { getCached, prefetch, refetch, invalidate, jsonFetcher } from '@/lib/client-cache'
 import { telHref } from '@/lib/phone-e164'
 import { usePageTitle } from '@/components/DocumentTitle'
 import { mergeCrmOrigineOptions } from '@/lib/origine-normalization'
-import { appEventLabel, appName, appSessionCompletedCount, appSessionSeconds, type AppActivitySession } from '@/lib/app-activity'
+import { appEventLabel, type AppActivitySession } from '@/lib/app-activity'
+import { crmV2 } from '@/lib/crm-v2-theme'
+import { getStageMeta } from '@/lib/crm-stages'
+import { useIsMobile } from '@/lib/useIsMobile'
+import { STATUS_CONFIG } from '@/components/StatusBadge'
+import { CrmV2Button, CrmV2Page, CrmV2Pill, CrmV2Section, CrmV2Segmented, CrmV2Spinner, CrmV2StatusPill } from '@/components/crm-v2/primitives'
+import ActivityTimeline from '@/components/crm-v2/contact/ActivityTimeline'
+import { AddPropertyPicker, FicheField } from '@/components/crm-v2/contact/Coordinates'
+import {
+  AdTrackingSection, AppointmentsSection, DealsSection, FormsSection, InscriptionSections, PlatformsSection,
+  TasksSection, WebActivitySection, normalizedParcoursup,
+} from '@/components/crm-v2/contact/RightSections'
+import type {
+  Activity, Any, ContactDetails, CRMProperty, ParcoursupPayload, ParcoursupQ1, ParcoursupQ3Voeu, TimelineItem, TimelineTab, WebActivity,
+} from '@/components/crm-v2/contact/types'
+import { appSessionTitle, appTabLabel, formatGroup, formatSeconds, labelForType, visitSourceLabel } from '@/components/crm-v2/contact/utils'
 
 // Modals/panels rendus sur action utilisateur uniquement -> hors bundle initial.
 const QuickActionModal = dynamic(() => import('@/components/crm/QuickActionModal'), { ssr: false })
@@ -27,222 +39,8 @@ const PropertyHistoryPanel = dynamic(() => import('@/components/crm/PropertyHist
 const LinovaAppointmentModal = dynamic(() => import('@/components/crm/LinovaAppointmentModal'), { ssr: false })
 const DiplomaAppointmentModal = dynamic(() => import('@/components/crm/DiplomaAppointmentModal'), { ssr: false })
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Any = any
-
-interface CRMProperty {
-  name: string
-  label: string
-  description?: string
-  group_name: string
-  type: string
-  field_type: string
-  options?: Array<{ label: string; value: string; displayOrder?: number }>
-}
-
-interface Activity {
-  id: number
-  hubspot_engagement_id?: string
-  activity_type: string
-  subject?: string
-  body?: string
-  direction?: string
-  status?: string
-  owner_id?: string
-  metadata?: Any
-  occurred_at: string
-  hubspot_deal_id?: string
-}
-
-interface FormSubmission {
-  id: number
-  form_id: string
-  form_title?: string
-  form_type?: string
-  page_url?: string
-  values?: Any
-  submitted_at: string
-}
-
-interface Owner {
-  hubspot_owner_id: string
-  email?: string
-  firstname?: string
-  lastname?: string
-}
-
-interface CRMTask {
-  id: number
-  title: string
-  description?: string
-  owner_id?: string
-  status: 'pending' | 'completed' | 'cancelled'
-  priority: 'low' | 'normal' | 'high' | 'urgent'
-  task_type: string
-  due_at?: string
-  completed_at?: string
-  created_at: string
-  hubspot_deal_id?: string
-}
-
-interface EmailStats {
-  sent: number
-  delivered: number
-  opens: number
-  clicks: number
-  bounces: number
-  spam: number
-  lastEventAt?: string
-  events?: Array<{ type: string; at: string; data?: Any }>
-}
-
-interface SMSLinkClick {
-  clicked_at: string
-  ip?: string | null
-  user_agent?: string | null
-}
-
-interface SMSLink {
-  placeholder: string
-  label?: string | null
-  original_url: string
-  click_count: number
-  first_clicked_at?: string | null
-  last_clicked_at?: string | null
-  clicks: SMSLinkClick[]
-}
-
-interface SMSMessage {
-  id: string
-  campaign_id: string
-  phone: string | null
-  sent_at: string | null
-  created_at: string
-  status: string
-  rendered_message: string | null
-  error_message?: string | null
-  segments_count?: number | null
-  campaign: { id: string; name: string | null; sender: string | null; campaign_type: string | null } | null
-  links: SMSLink[]
-  total_clicks: number
-}
-
-interface EmailCampaignLinkClick {
-  at: string
-  ip?: string | null
-  ua?: string | null
-}
-
-interface EmailCampaignLink {
-  url: string
-  click_count: number
-  clicks: EmailCampaignLinkClick[]
-}
-
-interface EmailCampaign {
-  id: string
-  campaign_id: string | null
-  contact_id?: string | null
-  email: string | null
-  status: string | null
-  error_message?: string | null
-  sent_at: string | null
-  delivered_at: string | null
-  first_open_at: string | null
-  last_open_at: string | null
-  open_count: number
-  first_click_at: string | null
-  last_click_at: string | null
-  click_count: number
-  brevo_message_id: string | null
-  created_at: string
-  campaign: { id: string; name: string | null; subject: string | null; sender_name: string | null; sender_email: string | null } | null
-  stats: EmailStats | null
-  links: EmailCampaignLink[]
-}
-
-interface ContactDetails {
-  contact: Record<string, Any>
-  deals: Array<Record<string, Any>>
-  appointments: Array<Record<string, Any>>
-  properties: CRMProperty[]
-  dealProperties: Array<{ name: string; label?: string; options?: Array<{ label: string; value: string }> }>
-  groups: Record<string, CRMProperty[]>
-  activities: Activity[]
-  formSubmissions: FormSubmission[]
-  owners: Owner[]
-  tasks: CRMTask[]
-  emailStatsByMessageId?: Record<string, EmailStats>
-  preInscriptions?: PreInscription[]
-  smsMessages?: SMSMessage[]
-  emailCampaigns?: EmailCampaign[]
-}
-
-interface PreInscription {
-  id: number
-  saison: string                      // ex: "2026-2027"
-  detected_at: string                 // ISO timestamp
-  paiement_status: string | null      // 'en_attente' | 'paye' | 'partiel' | null
-  formation: string | null
-  montant: number | null
-  notes: string | null
-  external_data: Record<string, Any>
-  updated_at: string
-}
-
-interface ParcoursupVerdict {
-  status?: string | null
-  label?: string | null
-  ratio_pct?: number | null
-  formation?: string | null
-  manual?: boolean | null
-}
-
-interface ParcoursupQ1 {
-  proposition?: string | null
-  formations?: string[] | null
-  va_valider?: string | null
-}
-
-interface ParcoursupQ3Voeu {
-  formation?: string | null
-  mineure?: string | null
-  rang?: number | null
-  rang_dernier_admis?: number | null
-}
-
-interface ParcoursupPayload {
-  verdict?: ParcoursupVerdict | null
-  voeux_alert?: { flagged?: boolean | null; formations?: string[] | null } | null
-  q1?: ParcoursupQ1 | null
-  q3?: { voeux?: ParcoursupQ3Voeu[] | null } | null
-  updated_at?: string | null
-}
-
-type TimelineTab = 'all' | 'note' | 'email' | 'sms' | 'call' | 'task' | 'meeting' | 'app'
-
-function timelineTabToQuickAction(tab: TimelineTab): QuickActionType | null {
-  const map: Partial<Record<TimelineTab, QuickActionType>> = {
-    all: 'note',
-    note: 'note',
-    email: 'email',
-    call: 'call',
-    task: 'task',
-    meeting: 'meeting',
-  }
-  return map[tab] ?? null
-}
-
-const TIMELINE_ADD_LABELS: Record<QuickActionType, string> = {
-  note: 'Ajouter une note',
-  email: 'Logger un e-mail',
-  call: 'Logger un appel',
-  task: 'Créer une tâche',
-  meeting: 'Logger une réunion',
-}
-
-// Liste par défaut des propriétés affichées dans la carte « À propos ».
-// Chaque utilisateur peut la personnaliser (stockée dans crm_user_prefs).
+// Liste par défaut des propriétés ajoutées sous « Coordonnées » (ex-carte « À propos »).
+// Chaque utilisateur peut la personnaliser (stockée dans crm_user_prefs.contact_about_fields).
 const DEFAULT_ABOUT_FIELDS: Array<{ name: string; label: string }> = [
   { name: 'firstname',             label: 'Prénom' },
   { name: 'lastname',              label: 'Nom' },
@@ -267,23 +65,22 @@ const ABOUT_FIELD_FALLBACK_LABELS: Record<string, string> = Object.fromEntries(
   DEFAULT_ABOUT_FIELDS.map(f => [f.name, f.label])
 )
 
-// Couleurs pour les status de lead (pills)
-const LEAD_STATUS_COLORS: Record<string, string> = {
-  'Nouveau':              'bg-amber-100 text-amber-800 border-amber-200',
-  'Nouveau - Chaud':      'bg-red-100 text-red-800 border-red-200',
-  'Rdv pris':             'bg-green-100 text-green-800 border-green-200',
-  'Pré-inscription':      'bg-purple-100 text-purple-800 border-purple-200',
-  'Inscrit':              'bg-emerald-100 text-emerald-800 border-emerald-200',
-  'NRP1':                 'bg-amber-100 text-amber-800 border-amber-200',
-  'NRP2':                 'bg-amber-100 text-amber-800 border-amber-200',
-  'NRP3':                 'bg-orange-100 text-orange-800 border-orange-200',
-  'Délai de réflexion':   'bg-yellow-100 text-yellow-800 border-yellow-200',
-  'À replanifier':        'bg-[#C9A84C]/15 text-[#0e1e35] border-[#C9A84C]/20',
-  'Perdu':                'bg-gray-100 text-gray-800 border-gray-200',
-}
+// Bloc « Coordonnées » (gabarit B) : toujours affiché, dans cet ordre.
+// Plusieurs noms possibles par champ : on affiche le premier renseigné.
+const COORD_FIELDS: Array<{ label: string; names: string[]; kind?: 'email' | 'phone' }> = [
+  { label: 'Prénom',           names: ['firstname'] },
+  { label: 'Nom',              names: ['lastname'] },
+  { label: 'E-mail',           names: ['email'], kind: 'email' },
+  { label: 'Téléphone',        names: ['phone', 'mobilephone'], kind: 'phone' },
+  { label: 'Téléphone parent', names: ['telephone_parent', 'telephone_du_responsable_legal_1'], kind: 'phone' },
+  { label: 'E-mail parent',    names: ['email_parent', 'email_du_responsable_legal_1'], kind: 'email' },
+  { label: 'Adresse',          names: ['address', 'adresse'] },
+  { label: 'Ville',            names: ['city', 'ville'] },
+  { label: 'Code postal',      names: ['zip', 'code_postal'] },
+]
+const COORD_NAMES = new Set(COORD_FIELDS.flatMap(f => f.names))
 
-// Charte Diploma Santé : base navy, gold en accents uniquement
-const BRAND_GRADIENT = 'bg-gradient-to-br from-[#0e1e35] to-[#1f3553]'
+const OWNER_PROPS = new Set(['hubspot_owner_id', 'closer_du_contact_owner_id', 'teleprospecteur', 'telepro_user_id'])
 
 const PROP_NAME_TO_COLUMN: Record<string, string> = {
   firstname: 'firstname',
@@ -301,6 +98,8 @@ const PROP_NAME_TO_COLUMN: Record<string, string> = {
   'zone___localite': 'zone_localite',
   'diploma_sante___formation_demandee': 'formation_demandee',
 }
+
+const hasValue = (v: unknown) => v !== undefined && v !== null && String(v).trim() !== ''
 
 export default function ContactDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -363,13 +162,14 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   const [parcoursupEditor, setParcoursupEditor] = useState<{ preInscriptionId: number; data: ParcoursupPayload } | null>(null)
   const [savingParcoursup, setSavingParcoursup] = useState(false)
   // Édition inline d'une note / activité native dans la timeline
-  const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
-  const [noteDraftSubject, setNoteDraftSubject] = useState('')
-  const [noteDraftBody, setNoteDraftBody] = useState('')
   const [savingNote, setSavingNote] = useState(false)
   const [crmUsers, setCrmUsers] = useState<Array<{ id: string; name: string; email?: string | null; hubspot_owner_id?: string | null; hubspot_user_id?: string | null }>>([])
   const [currentUser, setCurrentUser] = useState<{ id: string; name: string; hubspot_owner_id?: string | null } | null>(null)
   const loadGenRef = useRef(0)
+  const isMobile = useIsMobile()
+  // Mobile (M3) : À propos / Activité / Transaction
+  const [mobileTab, setMobileTab] = useState<'about' | 'activity' | 'deal'>('about')
+  const [coordsOpen, setCoordsOpen] = useState(true)
 
   useEffect(() => {
     fetch('/api/users')
@@ -549,8 +349,8 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   }, [])
 
   if (loading) return <LoadingScreen />
-  if (err) return <div className="p-8 text-red-600">Erreur : {err}</div>
-  if (!data) return <div className="p-8">Aucune donnée.</div>
+  if (err) return <MessageScreen text={`Erreur : ${err}`} error />
+  if (!data) return <MessageScreen text="Aucune donnée." />
 
   const { contact, deals, appointments, properties: rawProperties, dealProperties, groups, activities, formSubmissions, owners, tasks = [], emailStatsByMessageId = {}, preInscriptions = [], smsMessages = [], emailCampaigns = [] } = data
   const properties = rawProperties.map(p =>
@@ -688,25 +488,21 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     }
   }
 
-  const startEditNote = (timelineId: string, subject: string, currentBody: string) => {
-    setEditingNoteId(timelineId)
-    setNoteDraftSubject(subject)
-    setNoteDraftBody(currentBody)
-  }
-
-  const saveNote = async (activityId: string) => {
+  // Édition inline d'une note / activité native dans la timeline (brouillon tenu par la carte)
+  const saveNote = async (activityId: string, subject: string, body: string): Promise<boolean> => {
     setSavingNote(true)
     try {
       const res = await fetch(`/api/crm/activities/${activityId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subject: noteDraftSubject, body: noteDraftBody }),
+        body: JSON.stringify({ subject, body }),
       })
       if (!res.ok) throw new Error(await res.text())
-      setEditingNoteId(null)
       await load({ force: true })
+      return true
     } catch (e) {
       alert(`Échec de la modification : ${e instanceof Error ? e.message : String(e)}`)
+      return false
     } finally {
       setSavingNote(false)
     }
@@ -718,7 +514,6 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     try {
       const res = await fetch(`/api/crm/activities/${activityId}`, { method: 'DELETE' })
       if (!res.ok) throw new Error(await res.text())
-      setEditingNoteId(null)
       await load({ force: true })
     } catch (e) {
       alert(`Échec de la suppression : ${e instanceof Error ? e.message : String(e)}`)
@@ -748,34 +543,11 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   // ── KPI values ─────────────────────────────────────────────────────────
   const leadStatus   = allValues.hs_lead_status as string | undefined
   const leadStatusLabel = formatPropValue(leadStatus, propMeta.hs_lead_status)
-  const leadStatusColor = LEAD_STATUS_COLORS[leadStatusLabel] ?? 'bg-slate-100 text-slate-700 border-[#e5ddc8]'
   const ownerName    = ownerLabel(contact.hubspot_owner_id)
   const createdAt    = contact.contact_createdate ? new Date(contact.contact_createdate) : null
   const lastFormDate = contact.recent_conversion_date ? new Date(contact.recent_conversion_date) : null
 
   // ── Timeline ──────────────────────────────────────────────────────────
-  type TimelineItem = {
-    id: string
-    type: 'note' | 'call' | 'email' | 'sms' | 'meeting' | 'form' | 'rdv' | 'task' | 'web' | 'app'
-    timestamp: number
-    title: string
-    body?: string
-    subtitle?: string
-    ownerId?: string
-    authorLabel?: string | null
-    emailStats?: EmailStats
-    sendStatus?: string
-    sms?: SMSMessage
-    emailCampaign?: EmailCampaign
-    aircallCallId?: number
-    isVoicemail?: boolean
-    // Renseigné pour les activités natives (crm_activities) → édition/suppression
-    activityId?: string
-    editable?: boolean
-    webVisit?: WebActivityVisit
-    appSession?: AppActivitySession
-    searchText?: string
-  }
   const timeline: TimelineItem[] = []
   for (const a of activities) {
     const t = a.activity_type.toLowerCase()
@@ -807,6 +579,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       activityId: String(a.id),
       editable: isNativeEditable,
       aircallCallId: aircallCallId && activityHasAircallAudio(a) ? aircallCallId : undefined,
+      callDuration: Number(a.metadata?.duration) > 0 ? Number(a.metadata?.duration) : undefined,
       isVoicemail,
     })
   }
@@ -846,7 +619,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       id: `rdv-${a.id}`,
       type: 'rdv',
       timestamp: startAt,
-      title: `Rendez-vous — ${a.status ?? 'programmé'}`,
+      title: `Rendez-vous — ${(STATUS_CONFIG as Record<string, { label: string }>)[String(a.status ?? '')]?.label ?? a.status ?? 'programmé'}`,
       body: a.notes as string | undefined,
     })
   }
@@ -895,34 +668,6 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   }
   timeline.sort((a, b) => b.timestamp - a.timestamp)
 
-  const timelineFiltered = timeline.filter(t => {
-    if (timelineTab === 'all') return true
-    if (timelineTab === 'meeting') return t.type === 'meeting' || t.type === 'rdv'
-    return t.type === timelineTab
-  }).filter(t => {
-    if (!timelineSearch) return true
-    const s = timelineSearch.toLowerCase()
-    return t.title.toLowerCase().includes(s) || (t.body ?? '').toLowerCase().includes(s) || (t.searchText ?? '').toLowerCase().includes(s)
-  })
-
-  const grouped: Record<string, TimelineItem[]> = {}
-  for (const it of timelineFiltered) {
-    const key = format(new Date(it.timestamp), 'MMMM yyyy', { locale: fr })
-    if (!grouped[key]) grouped[key] = []
-    grouped[key].push(it)
-  }
-
-  const counts = {
-    all: timeline.length,
-    note: timeline.filter(t => t.type === 'note').length,
-    email: timeline.filter(t => t.type === 'email').length,
-    sms: timeline.filter(t => t.type === 'sms').length,
-    call: timeline.filter(t => t.type === 'call').length,
-    task: timeline.filter(t => t.type === 'task').length,
-    meeting: timeline.filter(t => t.type === 'meeting' || t.type === 'rdv').length,
-    app: timeline.filter(t => t.type === 'app').length,
-  }
-
   const lastActivity = timeline[0]?.timestamp ? new Date(timeline[0].timestamp) : lastFormDate
 
   // Props modale
@@ -934,604 +679,196 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   }
   const toggleGroup = (g: string) => setCollapsed(s => ({ ...s, [g]: !s[g] }))
 
-  return (
-    <div className="min-h-screen bg-[#f7f4ee] text-slate-700">
-      {/* ═════ Header banner avec gradient Diploma Santé ═════ */}
-      <div className={`${BRAND_GRADIENT} text-white px-4 md:px-6 pt-3 pb-16 md:pb-20 relative`}>
-        <div className="max-w-[1600px] mx-auto flex items-center gap-2 text-xs text-white/80">
-          <Link href="/admin/crm" className="hover:text-white">Contacts</Link>
-          <ChevronRight size={12} />
-          <span>{fullName}</span>
-        </div>
-        <div className="max-w-[1600px] mx-auto flex items-start gap-3 md:gap-5 mt-3 md:mt-4">
-          <div className="w-14 h-14 md:w-20 md:h-20 shrink-0 rounded-full bg-white/25 backdrop-blur-sm border-2 border-white/60 flex items-center justify-center text-xl md:text-3xl font-bold shadow-xl">
-            {initials}
-          </div>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl md:text-3xl font-bold tracking-tight drop-shadow-sm break-words">{fullName}</h1>
-            <div className="flex flex-wrap items-center gap-3 mt-1.5 text-white/90 text-sm">
-              {contact.email && <a href={`mailto:${contact.email}`} className="flex items-center gap-1 hover:text-white min-w-0 break-all"><Mail size={14} /> {contact.email}</a>}
-              {contact.phone && (
-                <a
-                  href={telHref(contact.phone)}
-                  onClick={() => {
-                    void fetch(`/api/crm/contacts/${id}/aircall-sync`, { method: 'POST' }).catch(() => {})
-                  }}
-                  className="crm-phone-cell flex items-center gap-1 hover:text-white"
-                >
-                  <Phone size={14} /> {contact.phone}
-                </a>
-              )}
-            </div>
-          </div>
-        </div>
+
+  // ── Gabarit B : coordonnées + propriétés ajoutées ─────────────────────
+  const coordFields = COORD_FIELDS.map(f => ({
+    ...f,
+    name: f.names.find(n => hasValue(allValues[n])) ?? f.names.find(n => propMeta[n]) ?? f.names[0],
+  }))
+  const addedFields = aboutFields.filter(f => !COORD_NAMES.has(f.name))
+  const shownNames = new Set<string>([...COORD_NAMES, ...addedFields.map(f => f.name)])
+  const currentAboutNames = aboutFieldNames ?? DEFAULT_ABOUT_FIELD_NAMES
+  const addAboutField = (name: string) => {
+    if (currentAboutNames.includes(name) || currentAboutNames.length >= ABOUT_FIELDS_MAX) return
+    void saveAboutFields([...currentAboutNames, name])
+  }
+  const removeAboutField = (name: string) => {
+    void saveAboutFields(currentAboutNames.filter(n => n !== name))
+  }
+
+  const renderField = (name: string, label: string, opts: { kind?: 'email' | 'phone'; removable?: boolean; inline?: boolean } = {}) => {
+    const val = allValues[name]
+    const meta = propMeta[name]
+    const isOwnerField = OWNER_PROPS.has(name)
+    const display = isOwnerField ? (hasValue(val) ? ownerLabel(String(val)) : '') : formatPropValue(val, meta)
+    const href = hasValue(val)
+      ? opts.kind === 'email' ? `mailto:${String(val).trim()}` : opts.kind === 'phone' ? telHref(String(val)) : undefined
+      : undefined
+    return (
+      <FicheField
+        key={name}
+        label={label}
+        value={display}
+        href={href}
+        inline={opts.inline}
+        readOnly={isReadOnlyPropertyType(meta)}
+        onEdit={() => startInlineEdit(name, val, meta)}
+        editing={editing === name}
+        editor={
+          <EditCell
+            value={editValue}
+            meta={meta}
+            onChange={setEditValue}
+            onSave={() => saveProp(name, editValue)}
+            onCancel={() => setEditing(null)}
+            saving={saving}
+            customOptions={isOwnerField ? ownerOptions : undefined}
+            fieldRef={editFieldRef}
+          />
+        }
+        onRemove={opts.removable ? () => removeAboutField(name) : undefined}
+        onHistory={() => setHistoryProp({ name, label, options: meta?.options })}
+      />
+    )
+  }
+
+  const coordinatesList = (inline: boolean) => (
+    <>
+      {coordFields.map(f => renderField(f.name, f.label, { kind: f.kind, inline }))}
+      {addedFields.map(f => renderField(f.name, f.label, { removable: true, inline }))}
+      <AddPropertyPicker
+        properties={properties}
+        exclude={shownNames}
+        onAdd={addAboutField}
+        disabled={savingAboutFields || currentAboutNames.length >= ABOUT_FIELDS_MAX}
+      />
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 14, marginTop: 10, flexWrap: 'wrap' }}>
+        <button type="button" onClick={() => setShowAllProps(true)} style={linkBtn}>
+          Voir les {properties.length} propriétés
+        </button>
+        <button type="button" onClick={() => setShowCustomize(true)} style={linkBtn}>
+          Réorganiser
+        </button>
       </div>
+    </>
+  )
 
-      {/* ═════ KPI row ═════ */}
-      <div className="max-w-[1600px] mx-auto px-3 md:px-6 -mt-12 md:-mt-14 relative z-10">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3">
-          <KpiCard
-            icon={<Briefcase size={18} />}
-            label="Transactions"
-            value={String(deals.length)}
-            hint={deals[0]?.dealname as string | undefined}
-            color="bg-gradient-to-br from-[#C9A84C] to-[#0e1e35]"
-          />
-          <KpiCard
-            icon={<Award size={18} />}
-            label="Statut du lead"
-            value={leadStatusLabel || '—'}
-            pillColor={leadStatusColor}
-            color="bg-gradient-to-br from-[#C9A84C] to-[#b08f50]"
-          />
-          <KpiCard
-            icon={<Clock size={18} />}
-            label="Dernière activité"
-            value={lastActivity ? formatDistanceToNow(lastActivity, { locale: fr, addSuffix: true }) : '—'}
-            hint={lastActivity ? format(lastActivity, 'PP', { locale: fr }) : undefined}
-            color="bg-gradient-to-br from-[#b08f50] to-[#C9A84C]"
-          />
-          <KpiCard
-            icon={<User size={18} />}
-            label="Propriétaire"
-            value={ownerName}
-            hint={createdAt ? `Créé ${formatDistanceToNow(createdAt, { locale: fr, addSuffix: true })}` : undefined}
-            color="bg-gradient-to-br from-[#0e1e35] to-[#1f3553]"
-          />
-        </div>
-      </div>
+  // ── En-tête : ville, étape, formation, propriétaire ───────────────────
+  const cityText = [
+    ['city', 'ville'].map(n => allValues[n]).find(hasValue),
+    hasValue(allValues.zone___localite) ? `Zone ${formatPropValue(allValues.zone___localite, propMeta.zone___localite)}` : null,
+  ].filter(Boolean).join(' · ')
+  const mainDeal = deals[0]
+  const stageMeta = mainDeal ? getStageMeta(String(mainDeal.dealstage ?? '')) : undefined
+  const stageText = mainDeal?.dealstage ? (stageMeta?.label ?? stageLabel(mainDeal.dealstage as string)) : null
+  const formationValue = hasValue(allValues.formation_souhaitee)
+    ? formatPropValue(allValues.formation_souhaitee, propMeta.formation_souhaitee)
+    : hasValue(allValues.diploma_sante___formation_demandee)
+      ? formatPropValue(allValues.diploma_sante___formation_demandee, propMeta.diploma_sante___formation_demandee)
+      : (mainDeal?.formation as string | undefined) ?? ''
+  const classeValue = formatPropValue(allValues.classe_actuelle, propMeta.classe_actuelle)
+  const formationText = [formationValue, classeValue].filter(Boolean).join(' · ')
+  const hasOwner = hasValue(contact.hubspot_owner_id)
 
-      {/* ═════ Layout 3 colonnes ═════ */}
-      <div className="max-w-[1600px] mx-auto px-3 md:px-6 py-4 md:py-6 grid grid-cols-1 lg:grid-cols-12 gap-4">
-        {/* Colonne gauche */}
-        <aside className="lg:col-span-3 min-w-0">
-          <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-            <div className="px-4 py-3 border-b flex items-center justify-between">
-              <div className="flex items-center gap-2 font-semibold text-sm">
-                <User size={15} /> À propos
-              </div>
-              <button
-                onClick={() => setShowCustomize(true)}
-                className="text-xs text-[#0e1e35] hover:underline flex items-center gap-1"
-                title="Personnaliser les propriétés affichées"
-              >
-                <SlidersHorizontal size={12} /> Personnaliser
-              </button>
-            </div>
+  const callContact = () => {
+    if (contact.phone) {
+      void fetch(`/api/crm/contacts/${id}/aircall-sync`, { method: 'POST' }).catch(() => {})
+      window.location.href = telHref(String(contact.phone))
+    } else {
+      setQuickAction('call')
+    }
+  }
+  const openAppointment = () => (isLinovaContact ? setShowLinovaModal(true) : setShowDiplomaModal(true))
 
-            {/* Quick actions */}
-            <div className="px-4 py-3 border-b grid grid-cols-5 gap-2">
-              <QuickAction icon={<StickyNote size={14} />} label="Note"   color="bg-amber-50 text-amber-700 border-amber-200"   onClick={() => setQuickAction('note')} />
-              <QuickAction icon={<Mail size={14} />}       label="E-mail" color="bg-[#f7f4ee] text-[#0e1e35] border-amber-200"   onClick={() => setQuickAction('email')} />
-              <QuickAction icon={<Phone size={14} />}      label="Appel"  color="bg-green-50 text-green-700 border-green-200"  onClick={() => setQuickAction('call')} />
-              <QuickAction icon={<CheckSquare size={14} />} label="Tâche" color="bg-[#f7f4ee] text-slate-700 border-[#e5ddc8]"  onClick={() => setQuickAction('task')} />
-              <QuickAction icon={<Calendar size={14} />}   label="RDV"    color="bg-purple-50 text-purple-700 border-purple-200" onClick={() => setQuickAction('meeting')} />
-            </div>
+  const pills = (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: isMobile ? 12 : 14, flexWrap: 'wrap' }}>
+      {leadStatusLabel && <CrmV2Pill style={{ padding: '3px 12px' }}>{leadStatusLabel}</CrmV2Pill>}
+      {stageText && (
+        <CrmV2StatusPill label={stageText} color={stageMeta?.color ?? crmV2.textMuted} bg={stageMeta?.bg} style={{ padding: '3px 12px' }} />
+      )}
+      {formationText && (
+        <span style={{
+          background: crmV2.goldSoft, border: `1px solid ${crmV2.goldBorder}`, color: crmV2.goldDark, borderRadius: 999,
+          padding: '3px 12px', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
+        }}>{formationText}</span>
+      )}
+      {hasOwner && !isMobile && (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: crmV2.textMuted, marginLeft: 4 }}>
+          <span style={{
+            width: 20, height: 20, borderRadius: '50%', background: crmV2.gold, color: '#fff', fontSize: 9, fontWeight: 700,
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          }}>{initialsOf(ownerName)}</span>
+          Propriétaire : {ownerName}
+        </span>
+      )}
+      {!isMobile && (lastActivity || createdAt) && (
+        <span style={{ fontSize: 12, color: crmV2.textFaint, marginLeft: 4 }}>
+          {[
+            lastActivity ? `Dernière activité ${formatDistanceToNow(lastActivity, { locale: fr, addSuffix: true })}` : null,
+            createdAt ? `Créé le ${format(createdAt, 'd MMM yyyy', { locale: fr })}` : null,
+          ].filter(Boolean).join(' · ')}
+        </span>
+      )}
+    </div>
+  )
 
-            <dl className="divide-y px-4 text-sm">
-              {aboutFields.length === 0 && (
-                <div className="py-6 text-center text-xs text-[#a89e8a]">
-                  Aucune propriété affichée.{' '}
-                  <button onClick={() => setShowCustomize(true)} className="text-[#0e1e35] hover:underline font-medium">
-                    Personnaliser
-                  </button>
-                </div>
-              )}
-              {aboutFields.map(f => {
-                const val = allValues[f.name]
-                const meta = propMeta[f.name]
-                const isEditing = editing === f.name
-                const isOwnerField = f.name === 'hubspot_owner_id' || f.name === 'closer_du_contact_owner_id' || f.name === 'teleprospecteur' || f.name === 'telepro_user_id'
-                const isReadOnly = isReadOnlyPropertyType(meta)
-                const displayValue = isOwnerField ? ownerLabel(val as string) : formatPropValue(val, meta)
+  const avatar = (
+    <div style={{
+      width: isMobile ? 52 : 56, height: isMobile ? 52 : 56, borderRadius: '32%', background: crmV2.goldGradient, color: '#fff',
+      fontSize: isMobile ? 18 : 20, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      boxShadow: '0 4px 12px rgba(184,150,62,0.35)', flexShrink: 0,
+    }}>{initials}</div>
+  )
 
-                return (
-                  <div key={f.name} className="py-2.5 group">
-                    <dt className="text-[11px] uppercase tracking-wide text-[#a89e8a] mb-0.5 flex items-center justify-between">
-                      <span>{f.label}</span>
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); setHistoryProp({ name: f.name, label: f.label, options: meta?.options }) }}
-                        className="opacity-0 group-hover:opacity-100 text-[#a89e8a] hover:text-[#0e1e35] transition"
-                        title="Historique des changements"
-                      >
-                        <History size={11} />
-                      </button>
-                    </dt>
-                    <dd>
-                      {isEditing ? (
-                        <EditCell
-                          value={editValue}
-                          meta={meta}
-                          onChange={setEditValue}
-                          onSave={() => saveProp(f.name, editValue)}
-                          onCancel={() => setEditing(null)}
-                          saving={saving}
-                          customOptions={isOwnerField ? ownerOptions : undefined}
-                          fieldRef={editFieldRef}
-                        />
-                      ) : f.name === 'hs_lead_status' && displayValue && displayValue !== '—' ? (
-                        <button
-                          onClick={() => {
-                            if (isReadOnly) return
-                            startInlineEdit(f.name, val, meta)
-                          }}
-                          className={`px-2.5 py-1 rounded-full text-xs font-medium border ${leadStatusColor}`}
-                        >{displayValue}</button>
-                      ) : f.name === 'phone' && val ? (
-                        <div className="flex items-center gap-2 min-w-0">
-                          <a
-                            href={telHref(String(val))}
-                            className="crm-phone-cell text-sm text-[#16a34a] hover:underline truncate"
-                            onClick={e => e.stopPropagation()}
-                          >
-                            {displayValue}
-                          </a>
-                          {!isReadOnly && (
-                            <button
-                              type="button"
-                              onClick={() => startInlineEdit(f.name, val, meta)}
-                              className="opacity-0 group-hover:opacity-100 text-[#a89e8a] hover:text-[#0e1e35] shrink-0"
-                              title="Modifier"
-                            >
-                              <Pencil size={11} />
-                            </button>
-                          )}
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => {
-                            if (isReadOnly) return
-                            startInlineEdit(f.name, val, meta)
-                          }}
-                          className={`text-left w-full block text-sm truncate ${isReadOnly ? 'text-slate-400 cursor-not-allowed' : 'hover:text-[#0e1e35]'}`}
-                        >
-                          {displayValue || <span className="text-slate-300">—</span>}
-                          {isReadOnly && (
-                            <span className="ml-2 text-[10px] uppercase tracking-wide text-amber-600">(lecture seule)</span>
-                          )}
-                        </button>
-                      )}
-                    </dd>
-                  </div>
-                )
-              })}
-            </dl>
+  const backLink = (
+    <Link href="/admin/crm" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: crmV2.textMuted, textDecoration: 'none' }}>
+      <ArrowLeft size={14} /> Contacts
+    </Link>
+  )
 
-            <div className="px-4 py-3 border-t bg-[#f7f4ee]">
-              <button
-                onClick={() => setShowAllProps(true)}
-                className="text-xs text-[#0e1e35] hover:underline font-medium"
-              >
-                Voir les {properties.length} propriétés →
-              </button>
-            </div>
-          </div>
-        </aside>
+  // ── Colonne droite (ordinateur) / onglets du mobile ───────────────────
+  const tasksSection = (
+    <TasksSection tasks={tasks.filter(t => t.status === 'pending')} owners={owners} onUpdated={load} onAdd={() => setQuickAction('task')} />
+  )
+  const dealsSection = <DealsSection deals={deals} stageLabel={stageLabel} pipelineLabel={pipelineLabel} ownerLabel={ownerLabel} />
+  const rdvSection = <AppointmentsSection appointments={appointments} isLinova={isLinovaContact} onSchedule={openAppointment} ownerLabel={ownerLabel} />
+  const formsSection = <FormsSection forms={formSubmissions} />
+  // Inscription par saison — alimenté par la plateforme externe
+  const inscriptionSections = preInscriptions.map(pi => (
+    <InscriptionSections
+      key={`pi-block-${pi.id}`}
+      pi={pi}
+      onEditParcoursup={clone => setParcoursupEditor({ preInscriptionId: pi.id, data: clone })}
+    />
+  ))
+  const platformsSection = <PlatformsSection sessions={appSessions} />
+  // Tracking publicitaire (gclid, fbclid, UTM…) — visible si au moins une donnée d'attribution
+  const adsSection = <AdTrackingSection raw={contact.hubspot_raw as Record<string, unknown> | null | undefined} />
+  // Parcours web (diploma-tracker.js) — pages vues + temps passé
+  const webSection = <WebActivitySection data={webActivity} />
 
-        {/* Colonne centrale */}
-        <section className="lg:col-span-6 min-w-0">
-          <div className="bg-white rounded-lg shadow-sm border">
-            <div className="flex items-center border-b">
-              <div className="flex px-2 overflow-x-auto flex-1 min-w-0">
-                <TimelineTabBtn active={timelineTab === 'all'}     onClick={() => setTimelineTab('all')}     label="Toutes" count={counts.all} />
-                <TimelineTabBtn active={timelineTab === 'note'}    onClick={() => setTimelineTab('note')}    label="Notes"     count={counts.note} />
-                <TimelineTabBtn active={timelineTab === 'email'}   onClick={() => setTimelineTab('email')}   label="E-mails"   count={counts.email} />
-                <TimelineTabBtn active={timelineTab === 'sms'}     onClick={() => setTimelineTab('sms')}     label="SMS"       count={counts.sms} />
-                <TimelineTabBtn
-                  active={timelineTab === 'call'}
-                  onClick={() => {
-                    setTimelineTab('call')
-                    void load({ silent: true })
-                  }}
-                  label="Appels"
-                  count={counts.call}
-                />
-                <TimelineTabBtn active={timelineTab === 'task'}    onClick={() => setTimelineTab('task')}    label="Tâches"    count={counts.task} />
-                <TimelineTabBtn active={timelineTab === 'meeting'} onClick={() => setTimelineTab('meeting')} label="Réunions"  count={counts.meeting} />
-                {counts.app > 0 && (
-                  <TimelineTabBtn active={timelineTab === 'app'} onClick={() => setTimelineTab('app')} label={appTabLabel(appSessions)} count={counts.app} />
-                )}
-              </div>
-              {(() => {
-                const addAction = timelineTabToQuickAction(timelineTab)
-                if (!addAction) return null
-                return (
-                  <button
-                    type="button"
-                    onClick={() => setQuickAction(addAction)}
-                    title={TIMELINE_ADD_LABELS[addAction]}
-                    className="shrink-0 mr-2 w-8 h-8 flex items-center justify-center rounded-md border border-[#e5ddc8] text-[#0e1e35] hover:bg-[#C9A84C]/10 hover:border-[#C9A84C]/50 transition-colors"
-                  >
-                    <Plus size={16} />
-                  </button>
-                )
-              })()}
-            </div>
-            <div className="p-3 border-b">
-              <div className="relative">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#a89e8a]" />
-                <input
-                  type="text"
-                  value={timelineSearch}
-                  onChange={e => setTimelineSearch(e.target.value)}
-                  placeholder="Rechercher dans la timeline…"
-                  className="w-full pl-9 pr-3 py-2 border rounded-md text-sm bg-[#f7f4ee] focus:bg-white focus:ring-2 focus:ring-[#C9A84C]/20"
-                />
-              </div>
-            </div>
-            <div className="p-4">
-              {timelineFiltered.length === 0 ? (
-                <EmptyTimeline
-                  onAdd={timelineTabToQuickAction(timelineTab) ? () => setQuickAction(timelineTabToQuickAction(timelineTab)!) : undefined}
-                  addLabel={timelineTabToQuickAction(timelineTab) ? TIMELINE_ADD_LABELS[timelineTabToQuickAction(timelineTab)!] : undefined}
-                />
-              ) : (
-                <div className="relative pl-8">
-                  <div className="absolute left-3.5 top-3 bottom-3 w-px bg-slate-200" />
-                  {Object.entries(grouped).map(([month, items]) => (
-                    <div key={month} className="mb-6">
-                      <div className="text-[11px] font-bold uppercase tracking-widest text-[#a89e8a] mb-3 -ml-8 pl-8 sticky top-0 bg-white py-1">{month}</div>
-                      <ul className="space-y-3">
-                        {items.map(t => {
-                          const callBody = t.body ? stripAircallRecordingLinks(t.body) : ''
-                          return (
-                          <li key={t.id} className="relative">
-                            <div className="absolute -left-[22px] top-3">
-                              <TypeDot type={t.type} />
-                            </div>
-                            <div className="group bg-white border rounded-lg p-3 hover:shadow-md transition-shadow">
-                              <div className="flex items-center justify-between gap-2">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <TypeBadge type={t.type} />
-                                  <div className="text-sm font-semibold">{t.title}</div>
-                                  {t.authorLabel && ['note', 'call', 'email', 'meeting'].includes(t.type) && (
-                                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[#4a6070] bg-[#f7f4ee] border border-[#e5ddc8] rounded-full px-2 py-0.5">
-                                      <User size={10} />
-                                      {t.authorLabel}
-                                    </span>
-                                  )}
-                                  {t.type === 'email' && <EmailStatusBadges sendStatus={t.sendStatus} stats={t.emailStats} />}
-                                  {t.type === 'sms' && <SMSStatusBadges status={t.sendStatus} totalClicks={t.sms?.total_clicks} />}
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  {t.editable && t.activityId && editingNoteId !== t.id && (
-                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                      <button
-                                        onClick={() => startEditNote(t.id, t.title, t.body ?? '')}
-                                        className="p-1 rounded text-[#4a6070] hover:bg-[#f7f4ee] hover:text-[#0e1e35]"
-                                        title="Modifier"
-                                      >
-                                        <Pencil size={13} />
-                                      </button>
-                                      <button
-                                        onClick={() => deleteNote(t.activityId!)}
-                                        className="p-1 rounded text-red-500 hover:bg-red-50"
-                                        title="Supprimer"
-                                      >
-                                        <Trash2 size={13} />
-                                      </button>
-                                    </div>
-                                  )}
-                                  <div className="text-xs text-[#a89e8a] whitespace-nowrap">
-                                    {format(new Date(t.timestamp), "d MMM 'à' HH:mm", { locale: fr })}
-                                  </div>
-                                </div>
-                              </div>
-                              {t.subtitle && <div className="text-xs text-[#4a6070] mt-1">{t.subtitle}</div>}
-                              {t.ownerId && !['note', 'call', 'email', 'meeting'].includes(t.type) && (
-                                <div className="text-xs text-[#4a6070] mt-1 flex items-center gap-1">
-                                  <User size={11} /> {ownerLabel(t.ownerId)}
-                                </div>
-                              )}
-                              {editingNoteId === t.id ? (
-                                <div className="mt-2 space-y-2">
-                                  <input
-                                    type="text"
-                                    value={noteDraftSubject}
-                                    onChange={e => setNoteDraftSubject(e.target.value)}
-                                    placeholder="Titre (optionnel)"
-                                    className="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-[#C9A84C]/30 focus:border-[#C9A84C] outline-none"
-                                  />
-                                  <textarea
-                                    value={noteDraftBody}
-                                    onChange={e => setNoteDraftBody(e.target.value)}
-                                    rows={4}
-                                    autoFocus
-                                    placeholder="Contenu…"
-                                    className="w-full px-3 py-2 border rounded-md text-sm resize-y focus:ring-2 focus:ring-[#C9A84C]/30 focus:border-[#C9A84C] outline-none"
-                                  />
-                                  <div className="flex items-center justify-end gap-2">
-                                    <button
-                                      onClick={() => setEditingNoteId(null)}
-                                      disabled={savingNote}
-                                      className="px-3 py-1.5 text-sm border rounded-md hover:bg-[#f7f4ee] disabled:opacity-50"
-                                    >
-                                      Annuler
-                                    </button>
-                                    <button
-                                      onClick={() => saveNote(t.activityId!)}
-                                      disabled={savingNote}
-                                      className="px-3 py-1.5 text-sm text-white rounded-md disabled:opacity-50 hover:opacity-90 bg-[#C9A84C]"
-                                    >
-                                      {savingNote ? 'Enregistrement…' : 'Enregistrer'}
-                                    </button>
-                                  </div>
-                                </div>
-                              ) : callBody && (
-                                <div
-                                  className="text-sm text-slate-700 mt-2 whitespace-pre-wrap bg-[#f7f4ee] p-2 rounded"
-                                  dangerouslySetInnerHTML={{ __html: sanitize(callBody) }}
-                                />
-                              )}
-                              {t.aircallCallId && (
-                                <AircallRecordingPlayer
-                                  callId={t.aircallCallId}
-                                  isVoicemail={t.isVoicemail}
-                                />
-                              )}
-                              {t.type === 'web' && t.webVisit && <WebVisitPages visit={t.webVisit} />}
-                              {t.type === 'app' && t.appSession && <AppSessionEvents session={t.appSession} />}
-                              {t.type === 'sms' && t.sms?.error_message && (
-                                <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1 mt-2">
-                                  Erreur : {t.sms.error_message}
-                                </div>
-                              )}
-                              {t.type === 'sms' && t.sms?.links && t.sms.links.length > 0 && (
-                                <SMSLinksSection links={t.sms.links} />
-                              )}
-                              {t.type === 'email' && t.emailCampaign?.error_message && (
-                                <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1 mt-2">
-                                  Erreur : {t.emailCampaign.error_message}
-                                </div>
-                              )}
-                              {t.type === 'email' && t.emailCampaign?.links && t.emailCampaign.links.length > 0 && (
-                                <EmailLinksSection links={t.emailCampaign.links} />
-                              )}
-                            </div>
-                          </li>
-                          )
-                        })}
-                      </ul>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </section>
+  const timelineNode = (
+    <ActivityTimeline
+      timeline={timeline}
+      appTabLabel={appTabLabel(appSessions)}
+      tab={timelineTab}
+      onTabChange={(t: TimelineTab) => {
+        setTimelineTab(t)
+        if (t === 'call') void load({ silent: true })
+      }}
+      search={timelineSearch}
+      onSearchChange={setTimelineSearch}
+      onAdd={setQuickAction}
+      ownerLabel={ownerLabel}
+      onSaveNote={saveNote}
+      onDeleteNote={deleteNote}
+      savingNote={savingNote}
+      compact={isMobile}
+    />
+  )
 
-        {/* Colonne droite */}
-        <aside className="lg:col-span-3 space-y-3 min-w-0">
-          {/* Tâches en cours */}
-          <RightSection icon={<CheckSquare size={14} />} title="Tâches" count={tasks.filter(t => t.status === 'pending').length} accent="brand">
-            <PendingTasks
-              tasks={tasks.filter(t => t.status === 'pending')}
-              owners={owners}
-              onUpdated={load}
-              onAdd={() => setQuickAction('task')}
-            />
-          </RightSection>
-
-          <RightSection icon={<Briefcase size={14} />} title="Transactions" count={deals.length} accent="brand">
-            {deals.length === 0 ? (
-              <EmptyRight text="Aucune transaction." />
-            ) : (
-              <ul className="space-y-2">
-                {deals.map(d => (
-                  <li key={d.hubspot_deal_id as string}>
-                    <DealCard
-                      deal={d}
-                      stageLabel={stageLabel(d.dealstage as string)}
-                      pipelineLabel={pipelineLabel(d.pipeline as string)}
-                      ownerLabel={ownerLabel(d.hubspot_owner_id as string)}
-                    />
-                  </li>
-                ))}
-              </ul>
-            )}
-          </RightSection>
-
-          <RightSection icon={<Calendar size={14} />} title="Rendez-vous" count={appointments.length} accent="gold">
-            <div className="mb-2">
-              <button
-                onClick={() => (isLinovaContact ? setShowLinovaModal(true) : setShowDiplomaModal(true))}
-                className="w-full text-sm font-semibold px-3 py-2 rounded-lg bg-[#0e1e35] text-white hover:bg-[#1f3553]"
-              >
-                {isLinovaContact ? 'Programmer RDV admission Linova' : 'Programmer rendez-vous Diploma Santé'}
-              </button>
-            </div>
-            {appointments.length === 0 ? (
-              <EmptyRight text="Aucun RDV." />
-            ) : (
-              <ul className="space-y-2">
-                {appointments.map(a => (
-                  <li key={a.id as string} className="border rounded-lg p-3 text-sm bg-[#C9A84C]/5">
-                    <div className="font-medium">
-                      {a.start_at ? format(new Date(a.start_at as string), 'PPp', { locale: fr }) : '—'}
-                    </div>
-                    <div className="text-xs text-[#4a6070] mt-0.5">{a.status as string}</div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </RightSection>
-
-          <RightSection icon={<FileText size={14} />} title="Formulaires soumis" count={formSubmissions.length} accent="dark">
-            {formSubmissions.length === 0 ? (
-              <EmptyRight text="Aucune soumission." />
-            ) : (
-              <ul className="space-y-2">
-                {formSubmissions.slice(0, 10).map(f => (
-                  <li key={f.id} className="border rounded-lg p-3 text-sm bg-[#f7f4ee]">
-                    <div className="font-medium">{f.form_title || f.form_id}</div>
-                    <div className="text-xs text-[#4a6070] mt-0.5">
-                      {format(new Date(f.submitted_at), 'PP', { locale: fr })}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </RightSection>
-
-          {/* Tracking publicitaire (gclid, fbclid, UTM…) — visible uniquement
-              si au moins une donnée d'attribution est presente sur le contact */}
-          <AdTrackingSection raw={contact.hubspot_raw as Record<string, unknown> | null | undefined} />
-
-          {/* Parcours web (diploma-tracker.js) — pages vues + temps passé */}
-          <WebActivitySection data={webActivity} />
-
-          {/* Inscription par saison — alimenté par la plateforme externe */}
-          {preInscriptions.map(pi => {
-            // Titre court (26-27 au lieu de 2026-2027) pour rester sur 1 ligne
-            const yyShort = pi.saison.split('-').map(y => y.slice(2)).join('-')
-            const ext = pi.external_data || {}
-            const finalisationStep = Number(ext.finalisation_step ?? 0)
-            const paidAt = ext.paid_at as string | undefined
-            const acompteCents = Number(ext.amount_paid_cents ?? 0)
-            const acompteEuros = acompteCents / 100
-            // "Lien rempli" cote plateforme = etape 1 du formulaire de finalisation soumise
-            // (les champs fin_echeances / selected_formule / fin_remise_cheques apparaissent
-            // ensemble dans finalisation_data des que l'eleve valide la 1ere etape).
-            const finData = (ext.finalisation_data as Record<string, unknown> | null | undefined) ?? null
-            const formStarted = !!finData?.fin_echeances
-            const parcoursupOverride = ext.parcoursup_crm_override as ParcoursupPayload | undefined
-            const parcoursupRaw = ext.parcoursup as ParcoursupPayload | undefined
-            const parcoursupData = (parcoursupOverride ?? parcoursupRaw) ?? {}
-            // Bloc visible pour toute pré-inscription 26-27 (même sans formulaire rempli).
-            const showParcoursup2026 = pi.saison === '2026-2027'
-
-            const status = (() => {
-              const s = pi.paiement_status
-              if (s === 'archivee')   return { label: 'Inscription finalisée', color: 'bg-green-600 text-white', dot: 'bg-green-300' }
-              if (s === 'en_cours' && formStarted) return { label: 'Finalisation – lien rempli', color: 'bg-amber-100 text-amber-800', dot: 'bg-[#C9A84C]' }
-              if (s === 'en_cours')   return { label: 'Finalisation – lien envoyé', color: 'bg-amber-100 text-amber-800', dot: 'bg-amber-500' }
-              // payee + finalisation_step>0 = onglet "En finalisation" cote plateforme
-              if (s === 'payee' && finalisationStep > 0 && formStarted) return { label: 'Finalisation – lien rempli', color: 'bg-amber-100 text-amber-800', dot: 'bg-[#C9A84C]' }
-              if (s === 'payee' && finalisationStep > 0) return { label: 'Finalisation – lien envoyé', color: 'bg-amber-100 text-amber-800', dot: 'bg-amber-500' }
-              if (s === 'payee')      return { label: 'Pré-inscrit', color: 'bg-emerald-100 text-emerald-800', dot: 'bg-emerald-500' }
-              if (s === 'en_attente') return { label: 'En attente paiement', color: 'bg-amber-100 text-amber-800', dot: 'bg-amber-500' }
-              if (s === 'brouillon')  return { label: 'Brouillon', color: 'bg-slate-100 text-[#4a6070]', dot: 'bg-slate-400' }
-              if (s === 'annulee')    return { label: 'Inscription annulée', color: 'bg-red-100 text-red-800', dot: 'bg-red-500' }
-              return { label: 'En attente données…', color: 'bg-slate-100 text-[#4a6070]', dot: 'bg-slate-300' }
-            })()
-
-            return (
-              <div key={`pi-block-${pi.id}`} className="space-y-3">
-                <RightSection
-                  icon={<GraduationCap size={14} />}
-                  title={`Inscription ${yyShort}`}
-                  count={1}
-                  accent="brand"
-                >
-                  <div className="space-y-3 text-xs">
-                    {/* Statut en haut */}
-                    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${status.color}`}>
-                      <span className={`inline-block w-2 h-2 rounded-full ${status.dot}`} />
-                      <span className="font-semibold">{status.label}</span>
-                    </div>
-
-                    {/* Formation */}
-                    {pi.formation && (
-                      <div className="space-y-0.5">
-                        <div className="text-[#4a6070]">Formation</div>
-                        <div className="font-medium text-[#0e1e35]">{pi.formation}</div>
-                      </div>
-                    )}
-
-                    {/* Bloc montants */}
-                    {(pi.montant != null || acompteEuros > 0) && (
-                      <div className="bg-[#f7f4ee] rounded-lg p-2.5 space-y-1.5">
-                        {pi.montant != null && (
-                          <div className="flex items-center justify-between">
-                            <span className="text-[#4a6070]">Total formule</span>
-                            <span className="font-semibold">{Number(pi.montant).toLocaleString('fr-FR')} €</span>
-                          </div>
-                        )}
-                        {acompteEuros > 0 && (
-                          <div className="flex items-center justify-between">
-                            <span className="text-[#4a6070]">Acompte payé</span>
-                            <span className="font-medium text-emerald-700">{acompteEuros.toLocaleString('fr-FR')} €</span>
-                          </div>
-                        )}
-                        {paidAt && (
-                          <div className="flex items-center justify-between">
-                            <span className="text-[#4a6070]">Date paiement</span>
-                            <span>{format(new Date(paidAt), 'PP', { locale: fr })}</span>
-                          </div>
-                        )}
-                        {ext.payment_method && (
-                          <div className="flex items-center justify-between">
-                            <span className="text-[#4a6070]">Méthode</span>
-                            <span className="capitalize">{String(ext.payment_method).replace(/_/g, ' ')}</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Notes */}
-                    {pi.notes && (
-                      <div className="space-y-1">
-                        <div className="text-[#4a6070]">Notes</div>
-                        <div className="whitespace-pre-wrap text-slate-700 bg-amber-50 rounded p-2 leading-relaxed">{pi.notes}</div>
-                      </div>
-                    )}
-
-                    {/* Date detection (footer discret) */}
-                    <div className="text-[#a89e8a] pt-1 border-t flex items-center justify-between">
-                      <span>Détectée le {format(new Date(pi.detected_at), 'd MMM yyyy', { locale: fr })}</span>
-                      {ext.inscription_id && (
-                        <span title="ID plateforme">{String(ext.inscription_id).slice(0, 8)}…</span>
-                      )}
-                    </div>
-                  </div>
-                </RightSection>
-
-                {showParcoursup2026 && (
-                  <RightSection
-                    icon={<GraduationCap size={14} />}
-                    title="Parcoursup 2026"
-                    count={1}
-                    accent="brand"
-                  >
-                    <ParcoursupSummaryCard
-                      data={parcoursupData}
-                      inscriptionId={ext.inscription_id as string | undefined}
-                      onEdit={() => {
-                        const clone = (typeof globalThis.structuredClone === 'function')
-                          ? globalThis.structuredClone(parcoursupData)
-                          : JSON.parse(JSON.stringify(parcoursupData))
-                        setParcoursupEditor({ preInscriptionId: pi.id, data: clone })
-                      }}
-                    />
-                  </RightSection>
-                )}
-              </div>
-            )
-          })}
-        </aside>
-      </div>
-
+  const modals = (
+    <>
       {/* Modal Quick Action (note / appel / email / tâche / réunion) */}
       {quickAction && (
         <QuickActionModal
@@ -1585,7 +922,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
         />
       )}
 
-      {/* Side-panel historique d'une propriété */}
+      {/* Panneau historique d'une propriété */}
       {historyProp && (
         <PropertyHistoryPanel
           contactId={id}
@@ -1596,12 +933,12 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
         />
       )}
 
-      {/* Modale personnalisation des propriétés « À propos » */}
+      {/* Modale d'organisation des propriétés ajoutées à la fiche */}
       {showCustomize && (
         <CustomizeAboutModal
           allProperties={properties}
           labelForProp={labelForProp}
-          selected={(aboutFieldNames ?? DEFAULT_ABOUT_FIELD_NAMES)}
+          selected={currentAboutNames}
           saving={savingAboutFields}
           onClose={() => setShowCustomize(false)}
           onSave={async (names) => { await saveAboutFields(names); setShowCustomize(false) }}
@@ -1609,7 +946,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
         />
       )}
 
-      {/* Modale propriétés */}
+      {/* Modale toutes les propriétés */}
       {showAllProps && (
         <PropertiesModal
           properties={properties}
@@ -1634,57 +971,217 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
           onShowHistory={(p) => setHistoryProp({ name: p.name, label: p.label || p.name, options: p.options })}
         />
       )}
-    </div>
+    </>
   )
+
+  /* ═════ Mobile (M3) ═════ */
+  if (isMobile) {
+    const roundActions: Array<{ label: string; icon: ReactNode; onClick: () => void; bg: string; border: string; color: string }> = [
+      { label: 'Appeler', icon: <Phone size={18} />, onClick: callContact, bg: 'rgba(34,197,94,0.10)', border: 'rgba(34,197,94,0.30)', color: '#15803d' },
+      { label: 'Email', icon: <Mail size={18} />, onClick: () => setQuickAction('email'), bg: crmV2.bg, border: crmV2.borderStrong, color: crmV2.text },
+      { label: 'Note', icon: <StickyNote size={18} />, onClick: () => setQuickAction('note'), bg: crmV2.bg, border: crmV2.borderStrong, color: crmV2.text },
+      { label: 'Tâche', icon: <SquareCheckBig size={18} />, onClick: () => setQuickAction('task'), bg: crmV2.bg, border: crmV2.borderStrong, color: crmV2.text },
+      { label: 'RDV', icon: <CalendarPlus size={18} />, onClick: openAppointment, bg: crmV2.goldSoft, border: crmV2.goldBorder, color: crmV2.goldDark },
+    ]
+    const subtitle = [classeValue, formationValue, ['city', 'ville'].map(n => allValues[n]).find(hasValue)].filter(Boolean).join(' · ')
+    return (
+      <CrmV2Page>
+        <div style={{ background: crmV2.bg, borderBottom: `1px solid ${crmV2.thBorder}`, padding: '12px 12px 14px' }}>
+          {backLink}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 12 }}>
+            {avatar}
+            <div style={{ minWidth: 0 }}>
+              <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600, letterSpacing: '-0.02em', overflowWrap: 'anywhere' }}>{fullName}</h1>
+              {subtitle && <div style={{ fontSize: 12, color: crmV2.textMuted, marginTop: 2 }}>{subtitle}</div>}
+            </div>
+          </div>
+          {pills}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6, marginTop: 14 }}>
+            {roundActions.map(a => (
+              <button
+                key={a.label}
+                type="button"
+                onClick={a.onClick}
+                style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, background: 'none', border: 'none',
+                  padding: 0, cursor: 'pointer', fontFamily: 'inherit',
+                }}
+              >
+                <span style={{
+                  width: 46, height: 46, borderRadius: 999, background: a.bg, border: `1px solid ${a.border}`, color: a.color,
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                }}>{a.icon}</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: crmV2.textMuted }}>{a.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div style={{ padding: '10px 12px', background: crmV2.bg, borderBottom: `1px solid ${crmV2.border}` }}>
+          <CrmV2Segmented
+            stretch
+            value={mobileTab}
+            onChange={setMobileTab}
+            items={[
+              { id: 'about', label: 'À propos' },
+              { id: 'activity', label: 'Activité' },
+              { id: 'deal', label: 'Transaction' },
+            ]}
+          />
+        </div>
+        <div style={{ padding: '12px 12px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {mobileTab === 'about' && (
+            <>
+              <CrmV2Section title="Coordonnées" icon={<User size={15} />} count={coordFields.length + addedFields.length} storageKey="rs-open:Coordonnées">
+                {coordinatesList(true)}
+              </CrmV2Section>
+              {formsSection}
+              {platformsSection}
+              {adsSection}
+              {webSection}
+            </>
+          )}
+          {mobileTab === 'activity' && timelineNode}
+          {mobileTab === 'deal' && (
+            <>
+              {dealsSection}
+              {rdvSection}
+              {tasksSection}
+              {inscriptionSections}
+            </>
+          )}
+        </div>
+        {modals}
+      </CrmV2Page>
+    )
+  }
+
+  /* ═════ Ordinateur (gabarit B) ═════ */
+  return (
+    <CrmV2Page style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, overflow: 'hidden' }}>
+      <div style={{ background: crmV2.bg, borderBottom: `1px solid ${crmV2.thBorder}`, padding: '16px 28px', flexShrink: 0 }}>
+        {backLink}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 14, flexWrap: 'wrap' }}>
+          {avatar}
+          <div style={{ flex: '1 1 320px', minWidth: 260 }}>
+            <h1 style={{ margin: 0, fontSize: 24, fontWeight: 600, letterSpacing: '-0.02em', color: crmV2.text, overflowWrap: 'anywhere' }}>{fullName}</h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 4, fontSize: 13, color: '#64748b', flexWrap: 'wrap' }}>
+              {contact.email && (
+                <a href={`mailto:${contact.email}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: 'inherit', textDecoration: 'none', minWidth: 0, overflowWrap: 'anywhere' }}>
+                  <Mail size={13} /> {contact.email}
+                </a>
+              )}
+              {contact.phone && (
+                <a
+                  href={telHref(String(contact.phone))}
+                  onClick={() => {
+                    void fetch(`/api/crm/contacts/${id}/aircall-sync`, { method: 'POST' }).catch(() => {})
+                  }}
+                  className="crm-phone-cell"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: 'inherit', textDecoration: 'none' }}
+                >
+                  <Phone size={13} /> {contact.phone}
+                </a>
+              )}
+              {cityText && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><MapPin size={13} /> {cityText}</span>
+              )}
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <CrmV2Button icon={<StickyNote size={14} />} onClick={() => setQuickAction('note')}>Note</CrmV2Button>
+            <CrmV2Button icon={<Mail size={14} />} onClick={() => setQuickAction('email')}>Email</CrmV2Button>
+            <CrmV2Button icon={<Phone size={14} />} onClick={callContact}>Appeler</CrmV2Button>
+            <CrmV2Button icon={<SquareCheckBig size={14} />} onClick={() => setQuickAction('task')}>Tâche</CrmV2Button>
+            <CrmV2Button variant="accent" icon={<CalendarPlus size={14} />} onClick={openAppointment}>Prendre RDV</CrmV2Button>
+          </div>
+        </div>
+        {pills}
+      </div>
+
+      {/* Corps 3 colonnes : chaque colonne défile séparément */}
+      <div style={{
+        flex: 1, minHeight: 0, padding: '16px 28px 20px', overflowX: 'auto', display: 'grid',
+        gridTemplateColumns: 'minmax(240px,300px) minmax(420px,1fr) minmax(260px,320px)', gridTemplateRows: 'minmax(0, 1fr)',
+        gap: 16, alignItems: 'stretch',
+      }}>
+        {/* Colonne gauche — Coordonnées */}
+        <div style={{
+          background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: crmV2.radiusLg, boxShadow: crmV2.shadowRecord,
+          display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden',
+        }}>
+          <div style={{ padding: '14px 16px 12px', borderBottom: `1px solid ${crmV2.border}`, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <button
+              type="button"
+              onClick={() => setCoordsOpen(o => !o)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: crmV2.text, background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit' }}
+            >
+              <ChevronDown size={14} color={crmV2.textFaint} style={{ transform: coordsOpen ? 'none' : 'rotate(-90deg)', transition: 'transform .15s' }} />
+              Coordonnées
+            </button>
+            <button type="button" onClick={() => setShowCustomize(true)} style={{ ...linkBtn, fontSize: 12 }}>Modifier</button>
+          </div>
+          {coordsOpen && (
+            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '8px 16px 16px', display: 'flex', flexDirection: 'column' }}>
+              {coordinatesList(false)}
+            </div>
+          )}
+        </div>
+
+        {/* Colonne centrale — Activité */}
+        {timelineNode}
+
+        {/* Colonne droite — sections repliables */}
+        <div style={{ display: 'grid', gridAutoRows: 'max-content', alignContent: 'start', gap: 12, minHeight: 0, overflowY: 'auto', paddingBottom: 4 }}>
+          {tasksSection}
+          {dealsSection}
+          {rdvSection}
+          {formsSection}
+          {inscriptionSections}
+          {platformsSection}
+          {adsSection}
+          {webSection}
+        </div>
+      </div>
+
+      {modals}
+    </CrmV2Page>
+  )
+}
+
+const linkBtn: React.CSSProperties = {
+  appearance: 'none', border: 'none', background: 'none', padding: 0, fontFamily: 'inherit', cursor: 'pointer',
+  fontSize: 12, fontWeight: 600, color: crmV2.link,
+}
+
+function initialsOf(name: string) {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map(p => p[0]?.toUpperCase() ?? '').join('') || '?'
 }
 
 /* ═════════════════════ Composants visuels ═════════════════════ */
 
 function LoadingScreen() {
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="flex items-center gap-3 text-[#4a6070]">
-        <div className="w-6 h-6 border-2 border-[#e5ddc8] border-t-[#C9A84C] rounded-full animate-spin" />
-        <span>Chargement…</span>
-      </div>
-    </div>
+    <CrmV2Page>
+      <CrmV2Spinner />
+    </CrmV2Page>
   )
 }
 
-function KpiCard({ icon, label, value, hint, color, pillColor }: {
-  icon: React.ReactNode; label: string; value: string; hint?: string; color: string; pillColor?: string
-}) {
+function MessageScreen({ text, error = false }: { text: string; error?: boolean }) {
   return (
-    <div className="bg-white rounded-xl shadow-sm border p-3 md:p-4 flex gap-2 md:gap-3 items-start hover:shadow-md transition-shadow min-w-0">
-      <div className={`${color} w-8 h-8 md:w-10 md:h-10 shrink-0 rounded-lg flex items-center justify-center text-white shadow-sm`}>
-        {icon}
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="text-[10px] font-semibold uppercase tracking-widest text-[#a89e8a]">{label}</div>
-        {pillColor ? (
-          <div className="mt-1">
-            <span className={`inline-block px-2 py-0.5 text-xs font-semibold rounded-full border ${pillColor}`}>{value}</span>
-          </div>
-        ) : (
-          <div className="text-sm md:text-base font-bold text-[#0e1e35] truncate mt-0.5">{value}</div>
-        )}
-        {hint && <div className="text-[11px] text-[#4a6070] truncate mt-0.5">{hint}</div>}
-      </div>
-    </div>
+    <CrmV2Page>
+      <div style={{ padding: 28, fontSize: 14, color: error ? '#b91c1c' : crmV2.textMuted }}>{text}</div>
+    </CrmV2Page>
   )
 }
 
-function QuickAction({ icon, label, color, onClick }: { icon: React.ReactNode; label: string; color: string; onClick?: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex flex-col items-center gap-1 py-1.5 rounded-md border ${color} hover:opacity-80 transition-opacity cursor-pointer`}
-      title={label}
-    >
-      {icon}
-      <span className="text-[9px] font-medium">{label}</span>
-    </button>
-  )
+const editField: React.CSSProperties = {
+  flex: 1, minWidth: 0, height: 34, border: `1px solid ${crmV2.borderStrong}`, borderRadius: crmV2.radius, padding: '0 10px',
+  fontSize: 13, fontFamily: 'inherit', color: crmV2.text, background: crmV2.bg, outline: 'none', boxSizing: 'border-box',
+}
+const editBtn: React.CSSProperties = {
+  width: 34, height: 34, borderRadius: 999, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+  cursor: 'pointer', flexShrink: 0, padding: 0,
 }
 
 function EditCell({ value, meta, onChange, onSave, onCancel, saving, customOptions, fieldRef }: {
@@ -1698,7 +1195,7 @@ function EditCell({ value, meta, onChange, onSave, onCancel, saving, customOptio
   fieldRef?: React.RefObject<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null>
 }) {
   const editorValue = normalizeValueForEditor(value, meta)
-  // customOptions prend priorité (ex: liste des owners pour hubspot_owner_id)
+  // customOptions prend priorité (ex: liste des propriétaires pour hubspot_owner_id)
   const options = customOptions ?? (
     (meta?.field_type === 'select' || meta?.field_type === 'radio') ? meta.options : undefined
   )
@@ -1718,745 +1215,106 @@ function EditCell({ value, meta, onChange, onSave, onCancel, saving, customOptio
     onChange([...next].join(';'))
   }
   return (
-    <div className="flex gap-1">
+    <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
       {isMultiSelect ? (
-        <div className="flex-1 border rounded px-2 py-1 max-h-32 overflow-auto bg-white">
-          <div className="grid grid-cols-1 gap-1">
-            {(meta?.options ?? []).map(o => {
-              const checked = selectedMultiValues.includes(o.value)
-              return (
-                <label key={o.value} className="flex items-center gap-2 text-xs cursor-pointer">
-                  <input type="checkbox" checked={checked} onChange={() => toggleMultiValue(o.value)} />
-                  <span>{o.label}</span>
-                </label>
-              )
-            })}
-          </div>
+        <div style={{ ...editField, height: 'auto', maxHeight: 140, overflowY: 'auto', padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {(meta?.options ?? []).map(o => {
+            const checked = selectedMultiValues.includes(o.value)
+            return (
+              <label key={o.value} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
+                <input type="checkbox" checked={checked} onChange={() => toggleMultiValue(o.value)} />
+                <span>{o.label}</span>
+              </label>
+            )
+          })}
         </div>
       ) : options ? (
         <select
           ref={fieldRef as React.RefObject<HTMLSelectElement>}
           value={editorValue}
           onChange={e => onChange(e.target.value)}
-          className="flex-1 px-2 py-1 border rounded text-xs"
+          style={{ ...editField, cursor: 'pointer' }}
           autoFocus
         >
           <option value="">—</option>
           {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
+      ) : isBooleanProperty(meta) ? (
+        <select
+          ref={fieldRef as React.RefObject<HTMLSelectElement>}
+          value={editorValue}
+          onChange={e => onChange(e.target.value)}
+          style={{ ...editField, cursor: 'pointer' }}
+          autoFocus
+        >
+          <option value="">—</option>
+          <option value="true">Oui</option>
+          <option value="false">Non</option>
+        </select>
+      ) : isDateProperty(meta) ? (
+        <input
+          ref={fieldRef as React.RefObject<HTMLInputElement>}
+          type="date"
+          value={editorValue}
+          onChange={e => onChange(e.target.value)}
+          style={editField}
+          autoFocus
+        />
+      ) : isDateTimeProperty(meta) ? (
+        <input
+          ref={fieldRef as React.RefObject<HTMLInputElement>}
+          type="datetime-local"
+          value={editorValue}
+          onChange={e => onChange(e.target.value)}
+          style={editField}
+          autoFocus
+        />
+      ) : isNumberProperty(meta) ? (
+        <input
+          ref={fieldRef as React.RefObject<HTMLInputElement>}
+          type="number"
+          step="any"
+          value={editorValue}
+          onChange={e => onChange(e.target.value)}
+          style={editField}
+          autoFocus
+        />
+      ) : isTextareaProperty(meta) ? (
+        <textarea
+          ref={fieldRef as React.RefObject<HTMLTextAreaElement>}
+          value={editorValue}
+          onChange={e => onChange(e.target.value)}
+          style={{ ...editField, height: 'auto', minHeight: 68, padding: '6px 10px', resize: 'vertical', lineHeight: 1.45 }}
+          autoFocus
+        />
       ) : (
-        isBooleanProperty(meta) ? (
-          <select
-            ref={fieldRef as React.RefObject<HTMLSelectElement>}
-            value={editorValue}
-            onChange={e => onChange(e.target.value)}
-            className="flex-1 px-2 py-1 border rounded text-xs"
-            autoFocus
-          >
-            <option value="">—</option>
-            <option value="true">Oui</option>
-            <option value="false">Non</option>
-          </select>
-        ) : isDateProperty(meta) ? (
-          <input
-            ref={fieldRef as React.RefObject<HTMLInputElement>}
-            type="date"
-            value={editorValue}
-            onChange={e => onChange(e.target.value)}
-            className="flex-1 px-2 py-1 border rounded text-xs"
-            autoFocus
-          />
-        ) : isDateTimeProperty(meta) ? (
-          <input
-            ref={fieldRef as React.RefObject<HTMLInputElement>}
-            type="datetime-local"
-            value={editorValue}
-            onChange={e => onChange(e.target.value)}
-            className="flex-1 px-2 py-1 border rounded text-xs"
-            autoFocus
-          />
-        ) : isNumberProperty(meta) ? (
-          <input
-            ref={fieldRef as React.RefObject<HTMLInputElement>}
-            type="number"
-            step="any"
-            value={editorValue}
-            onChange={e => onChange(e.target.value)}
-            className="flex-1 px-2 py-1 border rounded text-xs"
-            autoFocus
-          />
-        ) : isTextareaProperty(meta) ? (
-          <textarea
-            ref={fieldRef as React.RefObject<HTMLTextAreaElement>}
-            value={editorValue}
-            onChange={e => onChange(e.target.value)}
-            className="flex-1 px-2 py-1 border rounded text-xs min-h-[68px]"
-            autoFocus
-          />
-        ) : (
-          <input
-            ref={fieldRef as React.RefObject<HTMLInputElement>}
-            value={editorValue}
-            onChange={e => onChange(e.target.value)}
-            className="flex-1 px-2 py-1 border rounded text-xs"
-            autoFocus
-          />
-        )
+        <input
+          ref={fieldRef as React.RefObject<HTMLInputElement>}
+          value={editorValue}
+          onChange={e => onChange(e.target.value)}
+          style={editField}
+          autoFocus
+        />
       )}
       <button
+        type="button"
         onClick={onSave}
         disabled={saving}
-        className="px-2.5 text-white bg-[#0e1e35] rounded text-xs disabled:opacity-50 hover:bg-[#0e1e35]"
-      >✓</button>
+        title="Enregistrer"
+        aria-label="Enregistrer"
+        style={{ ...editBtn, background: crmV2.primary, border: `1px solid ${crmV2.primary}`, color: '#fff', opacity: saving ? 0.55 : 1 }}
+      >
+        <Check size={15} />
+      </button>
       <button
+        type="button"
         onClick={onCancel}
-        className="px-2.5 border rounded text-xs hover:bg-[#f7f4ee]"
-      >✕</button>
-    </div>
-  )
-}
-
-function TimelineTabBtn({ active, onClick, label, count }: { active: boolean; onClick: () => void; label: string; count: number }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`px-3.5 py-2.5 text-sm border-b-2 transition-colors whitespace-nowrap ${
-        active ? 'border-[#C9A84C] text-[#0e1e35] font-semibold' : 'border-transparent text-[#4a6070] hover:text-slate-700'
-      }`}
-    >
-      {label} {count > 0 && <span className={`text-xs ${active ? 'text-[#C9A84C]' : 'text-[#a89e8a]'}`}>({count})</span>}
-    </button>
-  )
-}
-
-function TypeDot({ type }: { type: string }) {
-  const map: Record<string, string> = {
-    note: 'bg-amber-400',
-    email: 'bg-[#C9A84C]',
-    sms: 'bg-violet-500',
-    call: 'bg-green-500',
-    task: 'bg-slate-400',
-    meeting: 'bg-purple-500',
-    rdv: 'bg-[#C9A84C]',
-    form: 'bg-rose-500',
-    web: 'bg-sky-500',
-    app: 'bg-indigo-500',
-  }
-  return <div className={`w-3 h-3 rounded-full ring-4 ring-white ${map[type] ?? 'bg-slate-400'}`} />
-}
-
-function TypeBadge({ type }: { type: string }) {
-  const map: Record<string, { icon: React.ReactNode; bg: string }> = {
-    note:    { icon: <StickyNote size={11} />, bg: 'bg-amber-100 text-amber-700' },
-    email:   { icon: <Mail size={11} />,       bg: 'bg-amber-100 text-[#0e1e35]' },
-    sms:     { icon: <Phone size={11} />,      bg: 'bg-violet-100 text-violet-700' },
-    call:    { icon: <Phone size={11} />,      bg: 'bg-green-100 text-green-700' },
-    task:    { icon: <CheckSquare size={11} />, bg: 'bg-slate-100 text-slate-700' },
-    meeting: { icon: <Calendar size={11} />,   bg: 'bg-purple-100 text-purple-700' },
-    rdv:     { icon: <Calendar size={11} />,   bg: 'bg-[#C9A84C]/15 text-[#0e1e35]' },
-    form:    { icon: <FileText size={11} />,   bg: 'bg-rose-100 text-rose-700' },
-    web:     { icon: <Globe size={11} />,      bg: 'bg-sky-100 text-sky-700' },
-    app:     { icon: <GraduationCap size={11} />, bg: 'bg-indigo-100 text-indigo-700' },
-  }
-  const m = map[type] ?? map.note
-  return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold ${m.bg}`}>
-      {m.icon}
-      {labelForType(type)}
-    </span>
-  )
-}
-
-function SMSStatusBadges({ status, totalClicks }: { status?: string; totalClicks?: number }) {
-  const items: Array<{ label: string; bg: string; title?: string }> = []
-  const statusMap: Record<string, { label: string; bg: string }> = {
-    sent:    { label: 'Envoyé',    bg: 'bg-green-100 text-green-700 border border-green-200' },
-    failed:  { label: 'Échec',     bg: 'bg-red-100 text-red-700 border border-red-200' },
-    skipped: { label: 'Ignoré',    bg: 'bg-amber-100 text-amber-700 border border-amber-200' },
-    pending: { label: 'En attente', bg: 'bg-slate-100 text-[#4a6070] border border-[#e5ddc8]' },
-  }
-  if (status && statusMap[status]) items.push(statusMap[status])
-  if ((totalClicks ?? 0) > 0) {
-    items.push({
-      label: `${totalClicks} clic${(totalClicks ?? 0) > 1 ? 's' : ''}`,
-      bg: 'bg-violet-100 text-violet-700 border border-violet-200',
-      title: 'Clics sur les liens trackés',
-    })
-  }
-  if (items.length === 0) return null
-  return (
-    <span className="flex items-center gap-1 flex-wrap">
-      {items.map((b, i) => (
-        <span key={i} className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${b.bg}`} title={b.title}>
-          {b.label}
-        </span>
-      ))}
-    </span>
-  )
-}
-
-function SMSLinksSection({ links }: { links: SMSLink[] }) {
-  const [expandedToken, setExpandedToken] = useState<string | null>(null)
-  return (
-    <div className="mt-2 space-y-1.5">
-      {links.map((link, idx) => {
-        const key = link.placeholder + idx
-        const isExpanded = expandedToken === key
-        const hasClicks = (link.click_count ?? 0) > 0
-        return (
-          <div key={key} className="text-xs border rounded-md bg-[#f7f4ee] px-2 py-1.5">
-            <div className="flex items-center gap-2 flex-wrap">
-              <code className="text-violet-700 font-semibold bg-white px-1.5 py-0.5 rounded text-[10px]">
-                {link.placeholder}
-              </code>
-              <a
-                href={link.original_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-slate-700 underline-offset-2 hover:underline truncate max-w-[260px]"
-                title={link.original_url}
-              >
-                {link.original_url}
-              </a>
-              {link.label && <span className="text-[#a89e8a] italic">({link.label})</span>}
-              <span className={`ml-auto px-1.5 py-0.5 rounded text-[10px] font-semibold ${hasClicks ? 'bg-violet-100 text-violet-700' : 'bg-slate-100 text-[#4a6070]'}`}>
-                {link.click_count ?? 0} clic{(link.click_count ?? 0) > 1 ? 's' : ''}
-              </span>
-              {hasClicks && link.clicks.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setExpandedToken(isExpanded ? null : key)}
-                  className="text-[10px] text-violet-600 hover:underline"
-                >
-                  {isExpanded ? 'Masquer' : 'Détails'}
-                </button>
-              )}
-            </div>
-            {hasClicks && link.last_clicked_at && (
-              <div className="text-[10px] text-[#4a6070] mt-0.5">
-                Dernier clic : {(() => {
-                  try { return formatDistanceToNow(new Date(link.last_clicked_at), { addSuffix: true, locale: fr }) }
-                  catch { return link.last_clicked_at }
-                })()}
-              </div>
-            )}
-            {isExpanded && link.clicks.length > 0 && (
-              <ul className="mt-2 space-y-1 border-t pt-2">
-                {link.clicks.map((c, i) => (
-                  <li key={i} className="text-[10px] text-[#4a6070] flex items-center gap-2">
-                    <span className="text-[#a89e8a]">•</span>
-                    <span className="font-mono">
-                      {format(new Date(c.clicked_at), "d MMM 'à' HH:mm:ss", { locale: fr })}
-                    </span>
-                    {c.ip && <span className="text-[#a89e8a]">IP {c.ip}</span>}
-                    {c.user_agent && (
-                      <span className="text-[#a89e8a] truncate max-w-[200px]" title={c.user_agent}>
-                        {c.user_agent.split(/[/\s]/)[0]}
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-function EmailLinksSection({ links }: { links: EmailCampaignLink[] }) {
-  const [expandedKey, setExpandedKey] = useState<string | null>(null)
-  return (
-    <div className="mt-2 space-y-1.5">
-      {links.map((link, idx) => {
-        const key = link.url + idx
-        const isExpanded = expandedKey === key
-        return (
-          <div key={key} className="text-xs border rounded-md bg-[#f7f4ee] px-2 py-1.5">
-            <div className="flex items-center gap-2 flex-wrap">
-              <a
-                href={link.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-slate-700 underline-offset-2 hover:underline truncate max-w-[300px]"
-                title={link.url}
-              >
-                {link.url}
-              </a>
-              <span className="ml-auto px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-[#0e1e35]">
-                {link.click_count} clic{link.click_count > 1 ? 's' : ''}
-              </span>
-              {link.clicks.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setExpandedKey(isExpanded ? null : key)}
-                  className="text-[10px] text-[#0e1e35] hover:underline"
-                >
-                  {isExpanded ? 'Masquer' : 'Détails'}
-                </button>
-              )}
-            </div>
-            {link.clicks.length > 0 && link.clicks[0]?.at && (
-              <div className="text-[10px] text-[#4a6070] mt-0.5">
-                Dernier clic : {(() => {
-                  try { return formatDistanceToNow(new Date(link.clicks[0].at), { addSuffix: true, locale: fr }) }
-                  catch { return link.clicks[0].at }
-                })()}
-              </div>
-            )}
-            {isExpanded && link.clicks.length > 0 && (
-              <ul className="mt-2 space-y-1 border-t pt-2">
-                {link.clicks.map((c, i) => (
-                  <li key={i} className="text-[10px] text-[#4a6070] flex items-center gap-2">
-                    <span className="text-[#a89e8a]">•</span>
-                    <span className="font-mono">
-                      {format(new Date(c.at), "d MMM 'à' HH:mm:ss", { locale: fr })}
-                    </span>
-                    {c.ip && <span className="text-[#a89e8a]">IP {c.ip}</span>}
-                    {c.ua && (
-                      <span className="text-[#a89e8a] truncate max-w-[200px]" title={c.ua}>
-                        {c.ua.split(/[/\s]/)[0]}
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-function EmailStatusBadges({ sendStatus, stats }: { sendStatus?: string; stats?: EmailStats }) {
-  const items: Array<{ label: string; bg: string; title?: string }> = []
-
-  // Trouve le dernier event d'un type donné dans stats.events
-  const lastEventOf = (predicate: (type: string) => boolean): string | undefined => {
-    if (!stats?.events) return undefined
-    const matches = stats.events.filter(e => predicate(e.type))
-    if (matches.length === 0) return undefined
-    // Le plus récent (occurred_at desc côté API)
-    return matches.reduce((acc, e) => (!acc || e.at > acc ? e.at : acc), '' as string) || undefined
-  }
-  const formatRelative = (iso?: string): string | undefined => {
-    if (!iso) return undefined
-    try { return formatDistanceToNow(new Date(iso), { addSuffix: true, locale: fr }) }
-    catch { return undefined }
-  }
-  const formatExact = (iso?: string): string | undefined => {
-    if (!iso) return undefined
-    try { return format(new Date(iso), "d MMM 'à' HH:mm", { locale: fr }) }
-    catch { return undefined }
-  }
-
-  if (sendStatus === 'FAILED') {
-    items.push({ label: 'Échec', bg: 'bg-red-100 text-red-700' })
-  } else if (sendStatus === 'SENT') {
-    items.push({ label: 'Envoyé', bg: 'bg-slate-100 text-[#4a6070]' })
-  }
-  if (stats) {
-    if (stats.delivered > 0) items.push({ label: 'Délivré', bg: 'bg-green-100 text-green-700' })
-    if (stats.opens > 0) {
-      const last = lastEventOf(t => t === 'open' || t === 'opened' || t === 'opens' || t === 'unique_opened' || t === 'proxy_open')
-      const rel = formatRelative(last)
-      const exact = formatExact(last)
-      const cnt = stats.opens > 1 ? ` ×${stats.opens}` : ''
-      items.push({
-        label: rel ? `Ouvert${cnt} · ${rel}` : `Ouvert${cnt}`,
-        bg: 'bg-amber-100 text-[#0e1e35]',
-        title: exact ? `Dernière ouverture : ${exact}` : undefined,
-      })
-    }
-    if (stats.clicks > 0) {
-      const last = lastEventOf(t => t === 'click' || t === 'clicks' || t === 'unique_clicked')
-      const rel = formatRelative(last)
-      const exact = formatExact(last)
-      const cnt = stats.clicks > 1 ? ` ×${stats.clicks}` : ''
-      items.push({
-        label: rel ? `Cliqué${cnt} · ${rel}` : `Cliqué${cnt}`,
-        bg: 'bg-violet-100 text-violet-700',
-        title: exact ? `Dernier clic : ${exact}` : undefined,
-      })
-    }
-    if (stats.bounces > 0) items.push({ label: 'Rejeté', bg: 'bg-orange-100 text-orange-700' })
-    if (stats.spam > 0) items.push({ label: 'Spam', bg: 'bg-rose-100 text-rose-700' })
-  }
-  if (items.length === 0) return null
-  return (
-    <>
-      {items.map((it, i) => (
-        <span key={i} className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold ${it.bg}`} title={it.title}>
-          {it.label}
-        </span>
-      ))}
-    </>
-  )
-}
-
-function RightSection({ icon, title, count, accent, children }: {
-  icon: React.ReactNode; title: string; count: number; accent: 'brand' | 'gold' | 'dark'; children: React.ReactNode
-}) {
-  // Persiste l'etat ouvert/ferme par section dans localStorage (defaut : ferme)
-  const storageKey = `rs-open:${title}`
-  const [open, setOpen] = useState(() => {
-    if (typeof window === 'undefined') return false
-    return localStorage.getItem(storageKey) === '1'
-  })
-  const toggle = () => {
-    setOpen(o => {
-      const next = !o
-      if (typeof window !== 'undefined') localStorage.setItem(storageKey, next ? '1' : '0')
-      return next
-    })
-  }
-  const accentColor = {
-    brand: 'text-[#0e1e35] bg-[#C9A84C]/10',
-    gold:  'text-[#C9A84C] bg-[#C9A84C]/10',
-    dark:  'text-[#333] bg-slate-100',
-  }[accent]
-  return (
-    <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-      <button
-        onClick={toggle}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-[#f7f4ee]"
+        title="Annuler"
+        aria-label="Annuler"
+        style={{ ...editBtn, background: crmV2.bg, border: `1px solid ${crmV2.borderStrong}`, color: crmV2.textMuted }}
       >
-        <div className="flex items-center gap-2">
-          <div className={`w-7 h-7 rounded-md ${accentColor} flex items-center justify-center`}>
-            {icon}
-          </div>
-          <span className="text-sm font-semibold">{title}</span>
-          <span className="text-xs text-[#4a6070] bg-slate-100 px-1.5 py-0.5 rounded-full">{count}</span>
-        </div>
-        <div className="flex gap-1 items-center">
-          <span className="text-[#a89e8a] hover:text-[#4a6070] p-1"><Plus size={14} /></span>
-          <span className="text-[#a89e8a] hover:text-[#4a6070] p-1"><Settings size={13} /></span>
-          {open ? <ChevronDown size={14} className="text-[#a89e8a]" /> : <ChevronRight size={14} className="text-[#a89e8a]" />}
-        </div>
+        <X size={15} />
       </button>
-      {open && <div className="p-3 pt-0">{children}</div>}
-    </div>
-  )
-}
-
-function DealCard({ deal, stageLabel, pipelineLabel, ownerLabel }: {
-  deal: Record<string, Any>
-  stageLabel: string
-  pipelineLabel: string
-  ownerLabel: string
-}) {
-  // Stages génériques pour la progress bar visuelle
-  const stageOrder = ['Rdv pris', 'Délai de réflexion', 'À replanifier', 'Pré-inscription', 'Finalisation', 'Inscription confirmée']
-  const stageLower = stageLabel.toLowerCase()
-  const idx = stageOrder.findIndex(s => stageLower.includes(s.toLowerCase().split(' ')[0])) // best-effort
-  const progress = idx >= 0 ? ((idx + 1) / stageOrder.length) * 100 : 25
-
-  return (
-    <Link
-      href={`/admin/crm/deals/${deal.hubspot_deal_id}`}
-      className="block border rounded-lg p-3 bg-gradient-to-br from-[#C9A84C]/5 to-white hover:shadow-md transition-shadow"
-    >
-      <div className="flex items-start gap-2">
-        <div className="w-8 h-8 rounded-md bg-gradient-to-br from-[#C9A84C] to-[#0e1e35] text-white flex items-center justify-center shadow-sm">
-          <Briefcase size={14} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="text-sm font-semibold text-[#0e1e35] truncate">
-            {deal.dealname || '(sans nom)'}
-          </div>
-          {deal.formation && (
-            <div className="text-xs text-[#4a6070] mt-0.5">{deal.formation as string}</div>
-          )}
-        </div>
-      </div>
-      <div className="mt-3">
-        <div className="flex items-center justify-between text-[11px] mb-1">
-          <span className="font-medium text-[#0e1e35]">{stageLabel}</span>
-          <span className="text-[#a89e8a]">{pipelineLabel}</span>
-        </div>
-        <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
-          <div className="h-full bg-gradient-to-r from-[#C9A84C] to-[#0e1e35]" style={{ width: `${progress}%` }} />
-        </div>
-      </div>
-      <div className="flex items-center justify-between mt-2 text-[11px] text-[#4a6070]">
-        <span className="flex items-center gap-1"><User size={10} /> {ownerLabel}</span>
-        <span>{deal.createdate ? format(new Date(deal.createdate as string), 'PP', { locale: fr }) : ''}</span>
-      </div>
-    </Link>
-  )
-}
-
-function PendingTasks({ tasks, owners, onUpdated, onAdd }: {
-  tasks: CRMTask[]
-  owners: Owner[]
-  onUpdated: () => void
-  onAdd: () => void
-}) {
-  const [nowMs] = useState(() => Date.now())
-  const ownerLabel = (id?: string | null) => {
-    if (!id) return ''
-    const o = owners.find(o => o.hubspot_owner_id === id)
-    if (!o) return id
-    return [o.firstname, o.lastname].filter(Boolean).join(' ') || o.email || id
-  }
-  const completeTask = async (id: number) => {
-    await fetch(`/api/crm/tasks/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'completed' }),
-    })
-    onUpdated()
-  }
-  const priorityColor: Record<string, string> = {
-    low:    'bg-slate-100 text-[#4a6070]',
-    normal: 'bg-amber-100 text-[#0e1e35]',
-    high:   'bg-orange-100 text-orange-700',
-    urgent: 'bg-red-100 text-red-700',
-  }
-
-  return (
-    <>
-      <button
-        onClick={onAdd}
-        className="w-full flex items-center justify-center gap-1 mb-2 py-1.5 text-xs text-[#0e1e35] border border-dashed border-[#C9A84C]/40 rounded-md hover:bg-[#C9A84C]/5"
-      >
-        <Plus size={12} /> Créer une tâche
-      </button>
-      {tasks.length === 0 ? (
-        <div className="text-xs text-[#a89e8a] text-center py-3 px-2 border border-dashed rounded-lg">
-          Aucune tâche en cours.
-        </div>
-      ) : (
-        <ul className="space-y-2">
-          {tasks.map(t => {
-            const isOverdue = t.due_at && new Date(t.due_at).getTime() < nowMs
-            return (
-              <li
-                key={t.id}
-                className={`border rounded-lg p-2.5 text-sm bg-white hover:shadow-sm ${isOverdue ? 'border-red-200 bg-red-50/30' : ''}`}
-              >
-                <div className="flex items-start gap-2">
-                  <button
-                    onClick={() => completeTask(t.id)}
-                    className="mt-0.5 w-4 h-4 rounded border-2 border-[#e5ddc8] hover:border-[#0e1e35] hover:bg-[#0e1e35]/10 flex-shrink-0"
-                    title="Marquer comme terminée"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium leading-tight">{t.title}</div>
-                    {t.description && <div className="text-xs text-[#4a6070] mt-0.5 line-clamp-2">{t.description}</div>}
-                    <div className="flex items-center gap-2 mt-1 flex-wrap">
-                      {t.priority !== 'normal' && (
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${priorityColor[t.priority] ?? ''}`}>
-                          {t.priority === 'urgent' ? 'Urgent' : t.priority === 'high' ? 'Haute' : 'Basse'}
-                        </span>
-                      )}
-                      {t.due_at && (
-                        <span className={`text-[10px] ${isOverdue ? 'text-red-600 font-medium' : 'text-[#4a6070]'}`}>
-                          {format(new Date(t.due_at), "PP 'à' HH:mm", { locale: fr })}
-                        </span>
-                      )}
-                      {t.owner_id && (
-                        <span className="text-[10px] text-[#4a6070] flex items-center gap-0.5">
-                          <User size={9} /> {ownerLabel(t.owner_id)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </li>
-            )
-          })}
-        </ul>
-      )}
-    </>
-  )
-}
-
-function EmptyTimeline({ onAdd, addLabel }: { onAdd?: () => void; addLabel?: string }) {
-  return (
-    <div className="text-center py-12 px-6">
-      <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 text-[#a89e8a] mb-3">
-        <TrendingUp size={28} />
-      </div>
-      <p className="text-sm font-medium text-[#4a6070]">Pas encore d&apos;activité</p>
-      <p className="text-xs text-[#a89e8a] mt-1">Les notes, appels, emails, formulaires apparaîtront ici.</p>
-      {onAdd && addLabel && (
-        <button
-          type="button"
-          onClick={onAdd}
-          className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium border border-[#C9A84C]/40 text-[#0e1e35] bg-[#C9A84C]/5 hover:bg-[#C9A84C]/15 transition-colors"
-        >
-          <Plus size={14} />
-          {addLabel}
-        </button>
-      )}
-    </div>
-  )
-}
-
-function EmptyRight({ text }: { text: string }) {
-  return (
-    <div className="text-xs text-[#a89e8a] text-center py-4 px-2 border border-dashed rounded-lg">{text}</div>
-  )
-}
-
-function parcoursupVerdictStyles(status?: string | null) {
-  const v = String(status || '').toLowerCase()
-  if (v === 'ok_valide') return 'bg-green-100 text-green-800 border-green-200'
-  if (v === 'ok_attente') return 'bg-blue-100 text-blue-800 border-blue-200'
-  if (v === 'good') return 'bg-emerald-100 text-emerald-800 border-emerald-200'
-  if (v === 'attention') return 'bg-amber-100 text-amber-800 border-amber-200'
-  if (v === 'bascule') return 'bg-red-100 text-red-800 border-red-200'
-  return 'bg-slate-100 text-slate-700 border-slate-200'
-}
-
-function normalizedParcoursup(data: ParcoursupPayload): ParcoursupPayload {
-  const toStringArray = (value: unknown): string[] => {
-    if (!Array.isArray(value)) return []
-    return value.map(v => String(v || '').trim()).filter(Boolean)
-  }
-  const toVoeuxArray = (value: unknown): ParcoursupQ3Voeu[] => {
-    if (!Array.isArray(value)) return []
-    return value
-      .filter(v => !!v && typeof v === 'object')
-      .map(v => v as ParcoursupQ3Voeu)
-  }
-
-  return {
-    verdict: (data.verdict && typeof data.verdict === 'object') ? data.verdict : {},
-    voeux_alert: {
-      flagged: !!data.voeux_alert?.flagged,
-      formations: toStringArray(data.voeux_alert?.formations),
-    },
-    q1: {
-      proposition: data.q1?.proposition ?? null,
-      formations: toStringArray(data.q1?.formations),
-      va_valider: data.q1?.va_valider ?? null,
-    },
-    q3: { voeux: toVoeuxArray(data.q3?.voeux) },
-    updated_at: data.updated_at ?? null,
-  }
-}
-
-function ParcoursupSummaryCard({
-  data,
-  inscriptionId,
-  onEdit,
-}: {
-  data: ParcoursupPayload
-  inscriptionId?: string
-  onEdit: () => void
-}) {
-  const p = normalizedParcoursup(data)
-  const verdictLabel = p.verdict?.label || 'En attente de verdict'
-  const proposition = p.q1?.proposition || '—'
-  const vaValider = p.q1?.va_valider || '—'
-  const formations = p.q1?.formations ?? []
-  const voeux = p.q3?.voeux ?? []
-  const flagged = !!p.voeux_alert?.flagged
-  const flaggedFormations = (p.voeux_alert?.formations ?? []).filter(Boolean)
-  const link = inscriptionId ? `https://admission.diploma-sante.fr/#/parcoursup/${inscriptionId}` : null
-
-  return (
-    <div className="space-y-3 text-xs">
-      <div className="flex items-center justify-between gap-2">
-        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full border font-semibold ${parcoursupVerdictStyles(p.verdict?.status)}`}>
-          <Circle size={10} />
-          {verdictLabel}
-        </span>
-        <button
-          type="button"
-          onClick={onEdit}
-          className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border bg-white hover:bg-slate-50"
-        >
-          <Pencil size={11} />
-          Modifier
-        </button>
-      </div>
-
-      {link && (
-        <a
-          href={link}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block text-[11px] break-all text-[#0038f0] hover:underline"
-        >
-          {link}
-        </a>
-      )}
-
-      <div className="grid grid-cols-2 gap-2">
-        <div className="rounded border bg-slate-50 px-2 py-1.5">
-          <div className="text-slate-500">Proposition reçue ?</div>
-          <div className="font-semibold text-slate-800 capitalize">{proposition}</div>
-        </div>
-        <div className="rounded border bg-slate-50 px-2 py-1.5">
-          <div className="text-slate-500">Validera</div>
-          <div className="font-semibold text-slate-800">{vaValider}</div>
-        </div>
-      </div>
-
-      {formations.length > 0 && (
-        <div>
-          <div className="text-slate-500 mb-1">Formations avec proposition</div>
-          <div className="flex flex-wrap gap-1">
-            {formations.map((f, idx) => (
-              <span key={`${f}-${idx}`} className="px-2 py-1 rounded border bg-[#ccac71]/10 border-[#ccac71]/30 text-slate-800">
-                {f}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {voeux.length > 0 && (
-        <div className="border rounded-lg overflow-hidden">
-          <div className="grid grid-cols-[minmax(0,2.3fr)_minmax(0,2.3fr)_minmax(70px,0.9fr)_minmax(90px,1.1fr)] gap-2 bg-slate-50 px-2 py-1 text-[10px] uppercase tracking-wide text-slate-500">
-            <span className="min-w-0">Formation</span>
-            <span className="min-w-0">Mineure</span>
-            <span className="text-right">Rang</span>
-            <span className="text-right">Dern. admis</span>
-          </div>
-          <div className="divide-y">
-            {voeux.slice(0, 8).map((v, idx) => (
-              <div key={`voeu-${idx}`} className="grid grid-cols-[minmax(0,2.3fr)_minmax(0,2.3fr)_minmax(70px,0.9fr)_minmax(90px,1.1fr)] gap-2 px-2 py-1.5 text-[11px]">
-                <span className="text-slate-800 min-w-0 break-words">{v.formation || '—'}</span>
-                <span className="text-slate-600 min-w-0 break-words">{v.mineure || '—'}</span>
-                <span className="font-semibold text-slate-800 text-right tabular-nums">{v.rang ?? '—'}</span>
-                <span className="text-slate-700 text-right tabular-nums">{v.rang_dernier_admis ?? '—'}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {flagged && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2">
-          <div className="flex items-center gap-1 text-red-700 font-semibold">
-            <AlertTriangle size={12} />
-            ATTENTION — Voeux à vérifier
-          </div>
-          {flaggedFormations.length > 0 && (
-            <div className="mt-1 text-red-700">
-              {flaggedFormations.join(', ')}
-            </div>
-          )}
-        </div>
-      )}
-
-      {p.updated_at && (
-        <div className="text-slate-400 text-right">
-          Mis à jour le {(() => {
-            try {
-              return format(new Date(p.updated_at as string), 'dd/MM/yyyy HH:mm', { locale: fr })
-            } catch {
-              return String(p.updated_at)
-            }
-          })()}
-        </div>
-      )}
     </div>
   )
 }
@@ -2475,12 +1333,12 @@ function ParcoursupEditorModal({
   const [draft, setDraft] = useState<ParcoursupPayload>(normalizedParcoursup(value))
   useEffect(() => { setDraft(normalizedParcoursup(value)) }, [value])
   const verdictChoices: Array<{ value: string; label: string; manual: boolean; status?: string; verdictLabel?: string }> = [
-    { value: 'auto', label: '🔄 Auto (recalculé)', manual: false },
-    { value: 'ok_valide', label: '✅ OK VALIDÉ', manual: true, status: 'ok_valide', verdictLabel: 'OK VALIDÉ' },
-    { value: 'ok_attente', label: '🔵 OK EN ATTENTE', manual: true, status: 'ok_attente', verdictLabel: 'OK EN ATTENTE' },
-    { value: 'good', label: '🟢 GOOD EN PRINCIPE', manual: true, status: 'good', verdictLabel: 'GOOD EN PRINCIPE' },
-    { value: 'attention', label: '🟠 ATTENTION JUSTE', manual: true, status: 'attention', verdictLabel: 'ATTENTION JUSTE' },
-    { value: 'bascule', label: '🔴 BASCULE COMPLÈTE PAES', manual: true, status: 'bascule', verdictLabel: 'BASCULE COMPLÈTE PAES' },
+    { value: 'auto', label: 'Auto (recalculé)', manual: false },
+    { value: 'ok_valide', label: 'OK VALIDÉ', manual: true, status: 'ok_valide', verdictLabel: 'OK VALIDÉ' },
+    { value: 'ok_attente', label: 'OK EN ATTENTE', manual: true, status: 'ok_attente', verdictLabel: 'OK EN ATTENTE' },
+    { value: 'good', label: 'GOOD EN PRINCIPE', manual: true, status: 'good', verdictLabel: 'GOOD EN PRINCIPE' },
+    { value: 'attention', label: 'ATTENTION JUSTE', manual: true, status: 'attention', verdictLabel: 'ATTENTION JUSTE' },
+    { value: 'bascule', label: 'BASCULE COMPLÈTE PAES', manual: true, status: 'bascule', verdictLabel: 'BASCULE COMPLÈTE PAES' },
   ]
 
   const baseChoices = [
@@ -2538,10 +1396,10 @@ function ParcoursupEditorModal({
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="px-5 py-4 border-b flex items-center justify-between">
           <h2 className="text-lg font-bold">Parcoursup 2026</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-xl">✕</button>
+          <button onClick={onClose} className="w-8 h-8 rounded-full border border-[#dfe3eb] text-[#516f90] hover:bg-[#f5f8fa] flex items-center justify-center" title="Fermer" aria-label="Fermer"><X size={16} /></button>
         </div>
         <div className="p-5 overflow-y-auto space-y-4 text-sm">
           <div className="grid grid-cols-3 gap-3">
@@ -2636,7 +1494,7 @@ function ParcoursupEditorModal({
                   </select>
                   <input className="col-span-1 border rounded px-2 py-1.5" value={v.rang ?? ''} onChange={e => patchVoeu(idx, { rang: e.target.value ? Number(e.target.value) : null })} placeholder="Rang" />
                   <input className="col-span-2 border rounded px-2 py-1.5" value={v.rang_dernier_admis ?? ''} onChange={e => patchVoeu(idx, { rang_dernier_admis: e.target.value ? Number(e.target.value) : null })} placeholder="Dern. admis" />
-                  <button className="col-span-1 border rounded text-red-600 hover:bg-red-50" onClick={() => removeVoeu(idx)} type="button">✕</button>
+                  <button className="col-span-1 border rounded-[10px] text-red-600 hover:bg-red-50 flex items-center justify-center" onClick={() => removeVoeu(idx)} type="button" title="Retirer ce vœu" aria-label="Retirer ce vœu"><X size={14} /></button>
                 </div>
               ))}
               <button
@@ -2650,11 +1508,11 @@ function ParcoursupEditorModal({
           </div>
         </div>
         <div className="px-5 py-3 border-t flex justify-end gap-2">
-          <button onClick={onClose} className="px-3 py-2 text-sm border rounded hover:bg-slate-50">Annuler</button>
+          <button onClick={onClose} className="px-4 py-2 text-sm font-semibold border border-[#cbd6e2] rounded-full hover:bg-[#f5f8fa]">Annuler</button>
           <button
             onClick={() => onSave({ ...draft, updated_at: new Date().toISOString() })}
             disabled={saving}
-            className="px-3 py-2 text-sm rounded bg-[#0038f0] text-white disabled:opacity-60"
+            className="px-4 py-2 text-sm font-semibold rounded-full bg-[#2d3e50] hover:bg-[#1f2d3b] text-white disabled:opacity-60"
           >
             {saving ? 'Enregistrement…' : 'Enregistrer'}
           </button>
@@ -2716,14 +1574,14 @@ function CustomizeAboutModal({
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-5 py-4 border-b flex items-start justify-between gap-3 bg-gradient-to-br from-[#0e1e35] to-[#1f3553] text-white">
+        <div className="px-5 py-4 border-b border-[#dfe3eb] flex items-start justify-between gap-3 bg-white text-[#2d3e50]">
           <div>
-            <h2 className="text-base font-bold">Modifier les propriétés de la carte</h2>
-            <p className="text-xs text-white/70 mt-1 leading-relaxed">
-              Réorganisez et ajoutez des propriétés à cette carte. Les modifications ne seront visibles que pour vous.
+            <h2 className="text-base font-bold">Propriétés de la fiche</h2>
+            <p className="text-xs text-[#516f90] mt-1 leading-relaxed">
+              Réorganisez les propriétés affichées sous les coordonnées. Les modifications ne seront visibles que pour vous.
             </p>
           </div>
-          <button onClick={onClose} className="text-white/70 hover:text-white shrink-0" title="Fermer">
+          <button onClick={onClose} className="text-[#7c98b6] hover:text-[#2d3e50] shrink-0" title="Fermer">
             <X size={18} />
           </button>
         </div>
@@ -2837,14 +1695,14 @@ function CustomizeAboutModal({
           <button
             onClick={() => onSave(current)}
             disabled={saving}
-            className="flex-1 px-4 py-2 rounded-md bg-[#C9A84C] text-[#0e1e35] font-semibold text-sm hover:bg-[#b8973f] disabled:opacity-60"
+            className="flex-1 px-4 py-2 rounded-full bg-[#2d3e50] text-white font-semibold text-sm hover:bg-[#1f2d3b] disabled:opacity-60"
           >
             {saving ? 'Enregistrement…' : 'Enregistrer'}
           </button>
           <button
             onClick={onReset}
             disabled={saving}
-            className="px-4 py-2 rounded-md border border-slate-300 text-slate-700 text-sm hover:bg-slate-50 disabled:opacity-60"
+            className="px-4 py-2 rounded-full border border-[#cbd6e2] text-[#2d3e50] text-sm font-semibold hover:bg-[#f5f8fa] disabled:opacity-60"
           >
             Rétablir le système par défaut
           </button>
@@ -2878,13 +1736,13 @@ function PropertiesModal({
   const editFieldRef = useRef<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null>(null)
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b">
           <div>
             <h2 className="text-lg font-bold">Toutes les propriétés</h2>
             <p className="text-xs text-[#4a6070] mt-0.5">{properties.length} propriétés</p>
           </div>
-          <button onClick={onClose} className="text-[#a89e8a] hover:text-slate-700 text-xl">✕</button>
+          <button onClick={onClose} className="w-8 h-8 rounded-full border border-[#dfe3eb] text-[#516f90] hover:bg-[#f5f8fa] flex items-center justify-center" title="Fermer" aria-label="Fermer"><X size={16} /></button>
         </div>
         <div className="px-5 py-3 border-b">
           <div className="relative">
@@ -2976,26 +1834,6 @@ function PropertiesModal({
 }
 
 /* ═════════ Helpers ═════════ */
-
-function labelForType(t: string) {
-  const labels: Record<string, string> = { note: 'Note', call: 'Appel', email: 'E-mail', sms: 'SMS', meeting: 'Réunion', task: 'Tâche', rdv: 'RDV', form: 'Formulaire', web: 'Site web', app: 'Appli' }
-  return labels[t] ?? t
-}
-
-function formatGroup(g: string) {
-  const map: Record<string, string> = {
-    contactinformation: 'Informations contact',
-    diploma_sante: 'Diploma Santé',
-    emailinformation: 'E-mails',
-    conversioninformation: 'Conversion',
-    leadstatus: 'Statut lead',
-    activityinformation: 'Activité',
-    socialmediainformation: 'Réseaux sociaux',
-    analyticsinformation: 'Analytics',
-    other: 'Autres',
-  }
-  return map[g] || g.replace(/_/g, ' ')
-}
 
 function formatPropValue(v: Any, p?: CRMProperty) {
   if (v === null || v === undefined || v === '') return ''
@@ -3135,13 +1973,6 @@ function normalizeValueForSave(value: string, p?: CRMProperty): string {
   return raw
 }
 
-function sanitize(html: string) {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, '')
-    .replace(/on\w+="[^"]*"/gi, '')
-    .replace(/javascript:/gi, '')
-}
-
 function aircallCallIdFromActivity(a: Activity): number | undefined {
   const meta = Number(a.metadata?.aircall_call_id)
   if (Number.isInteger(meta) && meta > 0) return meta
@@ -3156,497 +1987,4 @@ function activityHasAircallAudio(a: Activity): boolean {
   if (a.metadata?.recording || a.metadata?.voicemail) return true
   const status = String(a.status || '').toUpperCase()
   return status === 'COMPLETED' || status === 'LEFT_VOICEMAIL'
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// Tracking publicitaire — affiche les IDs Google Ads / Meta / etc. quand
-// un lead vient d'une campagne payante. Lecture des proprietes deja
-// synchronisees dans `crm_contacts.hubspot_raw` (gclid, fbclid,
-// hs_google_click_id, hs_facebook_click_id, utm_*, hs_analytics_*…).
-// La section reste cachee si aucun tracking n'est present sur le contact.
-// ────────────────────────────────────────────────────────────────────────────
-
-interface TrackingId { key: string; label: string }
-interface TrackingSource {
-  id: 'google' | 'meta' | 'bing' | 'linkedin' | 'tiktok' | 'snapchat'
-  label: string
-  badgeClass: string
-  ids: TrackingId[]
-  /** boolean property HubSpot : "le lead a cliqué sur une pub de ce reseau" */
-  clickedKey?: string
-}
-
-const AD_SOURCES: TrackingSource[] = [
-  {
-    id: 'google',
-    label: 'Google Ads',
-    badgeClass: 'bg-[#fef3c7] text-[#92400e] border-[#fcd34d]',
-    ids: [
-      { key: 'gclid', label: 'gclid' },
-      { key: 'hs_google_click_id', label: 'HS Google Click ID' },
-    ],
-    clickedKey: 'hs_google_ad_clicked',
-  },
-  {
-    id: 'meta',
-    label: 'Meta · Facebook / Instagram',
-    badgeClass: 'bg-[#dbeafe] text-[#1e40af] border-[#93c5fd]',
-    ids: [
-      { key: 'fbclid', label: 'fbclid' },
-      { key: 'hs_facebook_click_id', label: 'HS Facebook Click ID' },
-    ],
-    clickedKey: 'hs_facebook_ad_clicked',
-  },
-  {
-    id: 'bing',
-    label: 'Microsoft Ads (Bing)',
-    badgeClass: 'bg-[#cffafe] text-[#155e75] border-[#67e8f9]',
-    ids: [{ key: 'hs_bing_click_id', label: 'Bing Click ID' }],
-    clickedKey: 'hs_bing_ad_clicked',
-  },
-  {
-    id: 'linkedin',
-    label: 'LinkedIn Ads',
-    badgeClass: 'bg-[#dbeafe] text-[#1e3a8a] border-[#93c5fd]',
-    ids: [{ key: 'hs_linkedin_click_id', label: 'LinkedIn Click ID' }],
-    clickedKey: 'hs_linkedin_ad_clicked',
-  },
-  {
-    id: 'tiktok',
-    label: 'TikTok Ads',
-    badgeClass: 'bg-slate-900 text-white border-slate-700',
-    ids: [{ key: 'hs_tiktok_click_id', label: 'TikTok Click ID' }],
-    clickedKey: 'hs_tiktok_ad_clicked',
-  },
-  {
-    id: 'snapchat',
-    label: 'Snapchat Ads',
-    badgeClass: 'bg-[#fef9c3] text-[#854d0e] border-[#fde047]',
-    ids: [{ key: 'lead_id_snapchat', label: 'Snapchat Lead ID' }],
-  },
-]
-
-const UTM_FIELDS: TrackingId[] = [
-  { key: 'utm_source',   label: 'Source' },
-  { key: 'utm_medium',   label: 'Medium' },
-  { key: 'utm_campaign', label: 'Campagne' },
-  { key: 'utm_content',  label: 'Content' },
-  { key: 'utm_term',     label: 'Term' },
-]
-
-const HS_CAMPAIGN_FIELDS: TrackingId[] = [
-  { key: 'hs_analytics_first_touch_converting_campaign', label: 'First touch' },
-  { key: 'hs_analytics_last_touch_converting_campaign',  label: 'Last touch'  },
-]
-
-function rawString(raw: Record<string, unknown> | null | undefined, key: string): string | null {
-  if (!raw) return null
-  const v = raw[key]
-  if (v === null || v === undefined) return null
-  const s = String(v).trim()
-  return s.length ? s : null
-}
-
-function rawBool(raw: Record<string, unknown> | null | undefined, key: string): boolean {
-  const s = rawString(raw, key)
-  if (!s) return false
-  return s === 'true' || s === '1'
-}
-
-function AdTrackingSection({ raw }: { raw: Record<string, unknown> | null | undefined }) {
-  const sourcesPresent = AD_SOURCES
-    .map(src => {
-      const ids = src.ids
-        .map(i => ({ ...i, value: rawString(raw, i.key) }))
-        .filter(i => !!i.value)
-      const clicked = src.clickedKey ? rawBool(raw, src.clickedKey) : false
-      return { src, ids, clicked }
-    })
-    .filter(s => s.ids.length > 0 || s.clicked)
-
-  const utms = UTM_FIELDS
-    .map(f => ({ ...f, value: rawString(raw, f.key) }))
-    .filter(f => !!f.value)
-
-  const hsCampaigns = HS_CAMPAIGN_FIELDS
-    .map(f => ({ ...f, value: rawString(raw, f.key) }))
-    .filter(f => !!f.value)
-
-  const totalCount =
-    sourcesPresent.reduce((acc, s) => acc + s.ids.length, 0) +
-    utms.length +
-    hsCampaigns.length
-
-  if (totalCount === 0) return null
-
-  return (
-    <RightSection
-      icon={<Megaphone size={14} />}
-      title="Tracking publicitaire"
-      count={totalCount}
-      accent="gold"
-    >
-      <div className="space-y-3 text-xs">
-        {/* Badges des reseaux detectes */}
-        {sourcesPresent.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {sourcesPresent.map(({ src }) => (
-              <span
-                key={src.id}
-                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-medium ${src.badgeClass}`}
-              >
-                {src.label}
-              </span>
-            ))}
-          </div>
-        )}
-
-        {/* Detail par source */}
-        {sourcesPresent.map(({ src, ids, clicked }) => (
-          <div key={src.id} className="space-y-1.5">
-            <div className="flex items-center gap-2">
-              <div className="text-[11px] uppercase tracking-wide text-[#a89e8a] font-semibold">
-                {src.label}
-              </div>
-              {clicked && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  Pub cliquée
-                </span>
-              )}
-            </div>
-            {ids.map(i => (
-              <CopyableId key={i.key} label={i.label} value={i.value as string} />
-            ))}
-          </div>
-        ))}
-
-        {/* UTM */}
-        {utms.length > 0 && (
-          <div className="space-y-1.5 pt-1 border-t">
-            <div className="text-[11px] uppercase tracking-wide text-[#a89e8a] font-semibold">
-              UTM
-            </div>
-            <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1">
-              {utms.map(u => (
-                <div key={u.key} className="contents">
-                  <dt className="text-[#4a6070]">{u.label}</dt>
-                  <dd className="font-medium text-[#0e1e35] truncate" title={u.value as string}>
-                    {u.value}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-        )}
-
-        {/* HubSpot first/last touch campaigns */}
-        {hsCampaigns.length > 0 && (
-          <div className="space-y-1.5 pt-1 border-t">
-            <div className="text-[11px] uppercase tracking-wide text-[#a89e8a] font-semibold">
-              Campagne
-            </div>
-            <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1">
-              {hsCampaigns.map(c => (
-                <div key={c.key} className="contents">
-                  <dt className="text-[#4a6070]">{c.label}</dt>
-                  <dd className="font-medium text-[#0e1e35] truncate" title={c.value as string}>
-                    {c.value}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-        )}
-      </div>
-    </RightSection>
-  )
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// Parcours web — pages vues sur le site et temps passé (diploma-tracker.js),
-// équivalent de l'historique de navigation HubSpot. Cachée si aucune donnée.
-// ────────────────────────────────────────────────────────────────────────────
-
-interface WebActivityClick { at: string; kind: string; text: string | null; href: string | null }
-interface WebActivityPage {
-  at: string; left_at: string | null; path: string | null; url: string | null; title: string | null
-  seconds: number | null; scroll_pct: number | null; submitted_form: boolean; clicks: WebActivityClick[]
-}
-interface WebActivityVisit {
-  session_id: string; started_at: string; ended_at: string; device: string | null; referrer: string | null
-  utm_source: string | null; utm_medium: string | null; utm_campaign: string | null
-  click_ids: Record<string, string> | null; total_seconds: number; pages: WebActivityPage[]
-}
-interface WebActivity {
-  visits: WebActivityVisit[]
-  first_touch: { at: string; referrer: string | null; utm_source: string | null; utm_medium: string | null; utm_campaign: string | null; click_ids: Record<string, string> | null; landing_path: string | null; device: string | null } | null
-  totals: { visits: number; page_views: number; seconds: number; last_seen: string | null } | null
-}
-
-function formatSeconds(s: number): string {
-  if (s < 60) return `${s} s`
-  const m = Math.floor(s / 60)
-  if (m < 60) return `${m} min ${String(s % 60).padStart(2, '0')}`
-  return `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}`
-}
-
-const hms = (iso: string) => format(new Date(iso), 'HH:mm:ss', { locale: fr })
-
-function visitSourceLabel(v: { referrer: string | null; utm_source: string | null; utm_medium: string | null; click_ids: Record<string, string> | null }): string {
-  const ids = v.click_ids ?? {}
-  if (ids.gclid || ids.gbraid || ids.wbraid) return 'Google Ads'
-  if (ids.fbclid) return 'Meta Ads'
-  if (v.utm_source) return [v.utm_source, v.utm_medium].filter(Boolean).join(' / ')
-  if (v.referrer) {
-    try {
-      const host = new URL(v.referrer).hostname.replace(/^www\./, '')
-      if (!host.endsWith('diploma-sante.fr')) return host
-    } catch { /* ignore */ }
-  }
-  return 'Accès direct'
-}
-
-/** Détail d'une visite : page par page, heure d'arrivée / sortie, temps, scroll, clics. */
-function WebVisitPages({ visit }: { visit: WebActivityVisit }) {
-  return (
-    <div className="mt-2 space-y-2 text-xs">
-      <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-[#4a6070]">
-        <dt>Horaires</dt>
-        <dd className="text-[#0e1e35]">{hms(visit.started_at)} → {hms(visit.ended_at)}</dd>
-        {visit.device && (<><dt>Appareil</dt><dd className="text-[#0e1e35]">{visit.device}</dd></>)}
-        {visit.utm_campaign && (<><dt>Campagne</dt><dd className="text-[#0e1e35] truncate" title={visit.utm_campaign}>{visit.utm_campaign}</dd></>)}
-        {visit.referrer && (<><dt>Provenance</dt><dd className="text-[#0e1e35] truncate" title={visit.referrer}>{visit.referrer}</dd></>)}
-      </dl>
-      <ol className="space-y-1.5 bg-[#f7f4ee] p-2 rounded">
-        {visit.pages.map((p, i) => (
-          <li key={i}>
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <span className="font-mono text-[11px] text-[#4a6070] mr-1.5">{hms(p.at)}</span>
-                <a
-                  href={p.url ?? undefined}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-medium text-[#0e1e35] hover:underline"
-                  title={p.url ?? ''}
-                >
-                  {p.title?.split(' | ')[0] || p.path || p.url}
-                </a>
-                {p.path && p.title && <span className="ml-1 text-[#a89e8a]">{p.path}</span>}
-                {p.submitted_form && (
-                  <span className="ml-1 text-[10px] px-1 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">formulaire envoyé</span>
-                )}
-              </div>
-              <div className="shrink-0 text-right text-[#4a6070]">
-                <div className="font-medium text-[#0e1e35]">{p.seconds !== null ? formatSeconds(p.seconds) : '—'}</div>
-                {p.left_at && <div className="text-[10px]">sortie {hms(p.left_at)}</div>}
-                {p.scroll_pct !== null && <div className="text-[10px]">lu à {p.scroll_pct} %</div>}
-              </div>
-            </div>
-            {p.clicks.length > 0 && (
-              <ul className="mt-0.5 ml-[62px] space-y-0.5 text-[11px] text-[#4a6070]">
-                {p.clicks.map((c, j) => (
-                  <li key={j} className="truncate" title={c.href ?? ''}>
-                    <span className="font-mono mr-1.5">{hms(c.at)}</span>
-                    clic {c.kind} « {c.text || c.href} »
-                  </li>
-                ))}
-              </ul>
-            )}
-          </li>
-        ))}
-      </ol>
-    </div>
-  )
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// Activité Diplomalab (et autres apps) — envoyée par le backend de l'app via
-// /api/external/app-activity, une entrée de timeline par session.
-// ────────────────────────────────────────────────────────────────────────────
-
-/** Onglet de la timeline : nom de l'app si une seule, sinon « Applis ». */
-function appTabLabel(sessions: AppActivitySession[]): string {
-  const apps = new Set(sessions.map(s => s.app))
-  return apps.size === 1 ? appName([...apps][0]) : 'Applis'
-}
-
-function appSessionTitle(s: AppActivitySession): string {
-  const done = appSessionCompletedCount(s)
-  const seconds = appSessionSeconds(s)
-  const parts = [appName(s.app)]
-  if (done > 0) parts.push(`${done} exercice${done > 1 ? 's' : ''} terminé${done > 1 ? 's' : ''}`)
-  else parts.push(`${s.events.length} action${s.events.length > 1 ? 's' : ''}`)
-  if (seconds > 0) parts.push(formatSeconds(seconds))
-  return parts.join(' · ')
-}
-
-function scoreOf(d: Record<string, unknown>): { text: string; good: boolean | null } | null {
-  const score = typeof d.score === 'number' ? d.score : null
-  if (score === null) return null
-  const max = typeof d.max_score === 'number' && d.max_score > 0 ? d.max_score : null
-  const ratio = max ? score / max : null
-  const good = typeof d.success === 'boolean' ? d.success : ratio !== null ? ratio >= 0.5 : null
-  return { text: max ? `${score}/${max}` : String(score), good }
-}
-
-/** Détail d'une session : action par action, exercice, matière, score, durée. */
-function AppSessionEvents({ session }: { session: AppActivitySession }) {
-  return (
-    <div className="mt-2 space-y-2 text-xs">
-      <div className="text-[#4a6070]">
-        Horaires <span className="text-[#0e1e35]">{hms(session.started_at)} → {hms(session.ended_at)}</span>
-      </div>
-      <ol className="space-y-1.5 bg-[#f7f4ee] p-2 rounded">
-        {session.events.map((e, i) => {
-          const subject = [e.details.subject, e.details.chapter].filter(v => typeof v === 'string' && v).join(' › ')
-          const score = scoreOf(e.details)
-          return (
-            <li key={i} className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <span className="font-mono text-[11px] text-[#4a6070] mr-1.5">{hms(e.at)}</span>
-                <span className="font-medium text-[#0e1e35]">{appEventLabel(e)}</span>
-                {e.title && e.title !== appEventLabel(e) && <span className="text-[#0e1e35]"> — {e.title}</span>}
-                {subject && <span className="ml-1 text-[#a89e8a]">{subject}</span>}
-              </div>
-              <div className="shrink-0 text-right text-[#4a6070] flex items-center gap-2">
-                {score && (
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded border font-semibold ${
-                    score.good === true ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                      : score.good === false ? 'bg-red-50 text-red-700 border-red-200'
-                      : 'bg-white text-[#0e1e35] border-[#e5ddc8]'
-                  }`}>
-                    {score.text}
-                  </span>
-                )}
-                {e.seconds !== null && e.seconds > 0 && <span className="font-medium text-[#0e1e35]">{formatSeconds(e.seconds)}</span>}
-              </div>
-            </li>
-          )
-        })}
-      </ol>
-    </div>
-  )
-}
-
-function WebActivitySection({ data }: { data: WebActivity | null }) {
-  if (!data?.totals || data.visits.length === 0) return null
-  const { totals, first_touch: first } = data
-
-  return (
-    <RightSection icon={<Globe size={14} />} title="Parcours web" count={totals.page_views} accent="gold">
-      <div className="space-y-3 text-xs">
-        <div className="grid grid-cols-3 gap-2 text-center">
-          <div className="rounded border bg-[#f7f4ee] py-1.5">
-            <div className="font-semibold text-[#0e1e35]">{totals.visits}</div>
-            <div className="text-[10px] text-[#4a6070]">visite{totals.visits > 1 ? 's' : ''}</div>
-          </div>
-          <div className="rounded border bg-[#f7f4ee] py-1.5">
-            <div className="font-semibold text-[#0e1e35]">{totals.page_views}</div>
-            <div className="text-[10px] text-[#4a6070]">pages vues</div>
-          </div>
-          <div className="rounded border bg-[#f7f4ee] py-1.5">
-            <div className="font-semibold text-[#0e1e35]">{formatSeconds(totals.seconds)}</div>
-            <div className="text-[10px] text-[#4a6070]">sur le site</div>
-          </div>
-        </div>
-
-        {first && (
-          <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1">
-            <dt className="text-[#4a6070]">1re visite</dt>
-            <dd className="font-medium text-[#0e1e35]">{format(new Date(first.at), 'dd/MM/yyyy · HH:mm:ss', { locale: fr })}</dd>
-            {totals.last_seen && (<>
-              <dt className="text-[#4a6070]">Dernière visite</dt>
-              <dd className="font-medium text-[#0e1e35]">{format(new Date(totals.last_seen), 'dd/MM/yyyy · HH:mm:ss', { locale: fr })}</dd>
-            </>)}
-            <dt className="text-[#4a6070]">Source</dt>
-            <dd className="font-medium text-[#0e1e35] truncate">{visitSourceLabel(first)}</dd>
-            {first.utm_campaign && (<>
-              <dt className="text-[#4a6070]">Campagne</dt>
-              <dd className="font-medium text-[#0e1e35] truncate" title={first.utm_campaign}>{first.utm_campaign}</dd>
-            </>)}
-            {first.landing_path && (<>
-              <dt className="text-[#4a6070]">Page d&apos;entrée</dt>
-              <dd className="font-medium text-[#0e1e35] truncate" title={first.landing_path}>{first.landing_path}</dd>
-            </>)}
-            {first.device && (<>
-              <dt className="text-[#4a6070]">Appareil</dt>
-              <dd className="font-medium text-[#0e1e35] truncate">{first.device}</dd>
-            </>)}
-          </dl>
-        )}
-
-        <div className="space-y-2 pt-1 border-t">
-          {data.visits.slice(0, 10).map(v => (
-            <div key={v.session_id} className="space-y-1">
-              <div className="flex items-center justify-between gap-2">
-                <div className="text-[11px] font-semibold text-[#0e1e35]">
-                  {format(new Date(v.started_at), 'PP', { locale: fr })} · {format(new Date(v.started_at), 'HH:mm')}–{format(new Date(v.ended_at), 'HH:mm')}
-                </div>
-                <div className="text-[10px] text-[#a89e8a] truncate">
-                  {visitSourceLabel(v)} · {formatSeconds(v.total_seconds)}
-                </div>
-              </div>
-              <ul className="space-y-0.5 pl-2 border-l-2 border-[#C9A84C]/30">
-                {v.pages.map((p, i) => (
-                  <li key={i} className="flex items-start justify-between gap-2">
-                    <a
-                      href={p.url ?? undefined}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="truncate text-[#0e1e35] hover:underline"
-                      title={p.title ?? p.url ?? ''}
-                    >
-                      <span className="font-mono text-[10px] text-[#a89e8a] mr-1">{format(new Date(p.at), 'HH:mm')}</span>
-                      {p.path || p.title || p.url}
-                      {p.submitted_form && (
-                        <span className="ml-1 text-[10px] px-1 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">formulaire</span>
-                      )}
-                    </a>
-                    <span className="shrink-0 text-[10px] text-[#4a6070]">
-                      {p.seconds !== null ? formatSeconds(p.seconds) : '—'}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-          {data.visits.length > 10 && (
-            <div className="text-[10px] text-[#a89e8a]">+ {data.visits.length - 10} visites plus anciennes</div>
-          )}
-        </div>
-      </div>
-    </RightSection>
-  )
-}
-
-function CopyableId({ label, value }: { label: string; value: string }) {
-  const [copied, setCopied] = useState(false)
-  const onCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(value)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    } catch {
-      // fallback silencieux
-    }
-  }
-  return (
-    <div className="flex items-start gap-2">
-      <div className="flex-1 min-w-0">
-        <div className="text-[10px] text-[#a89e8a]">{label}</div>
-        <div className="font-mono text-[11px] text-[#0e1e35] break-all leading-snug" title={value}>
-          {value}
-        </div>
-      </div>
-      <button
-        type="button"
-        onClick={onCopy}
-        className="shrink-0 p-1.5 rounded border bg-white hover:bg-[#f7f4ee] text-[#4a6070]"
-        title="Copier"
-      >
-        {copied ? <Check size={12} className="text-emerald-600" /> : <Copy size={12} />}
-      </button>
-    </div>
-  )
 }
