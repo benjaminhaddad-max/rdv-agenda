@@ -7,6 +7,8 @@
  *         Les pièces jointes sont téléchargées dans .support-inbox/<numéro>/ ;
  *         notes vocales et vidéos sont transcrites (Deepgram) et les vidéos découpées
  *         en images (ffmpeg) pour pouvoir être lues.
+ *   bun scripts/support-agent.mjs list --author <rdv_users.id>
+ *       → idem, limité à un auteur (routine prioritaire chaque minute).
  *   bun scripts/support-agent.mjs claim <ticketId>
  *       → passe le ticket en « en_cours » (le collègue voit que c'est pris).
  *   bun scripts/support-agent.mjs reply <ticketId> <fait|pas_fait|besoin_infos|en_cours|validation> <fichier-message.md> [prUrl]
@@ -106,11 +108,12 @@ async function materializeAttachments(ticketNumber, messages) {
   }
 }
 
-async function list() {
+async function list(onlyAuthorId) {
   const { data: tickets, error } = await db
     .from('support_tickets')
     .select('*')
     .in('status', ['nouveau', 'en_cours'])
+    .match(onlyAuthorId ? { author_id: onlyAuthorId } : {})
     .order('priority', { ascending: false }) // urgente > normale > basse (ordre alpha inversé)
     .order('created_at', { ascending: true })
   if (error) throw error
@@ -210,7 +213,7 @@ async function reply(id, status, messageFile, prUrl) {
 }
 
 try {
-  if (cmd === 'list') await list()
+  if (cmd === 'list') await list(args[0] === '--author' ? args[1] : undefined)
   else if (cmd === 'claim' && args[0]) await claim(args[0])
   else if (cmd === 'pending-validation') await pendingValidation()
   else if (cmd === 'reply' && args.length >= 3) await reply(args[0], args[1], args[2], args[3])
