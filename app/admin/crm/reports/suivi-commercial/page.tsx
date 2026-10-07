@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import type { AgentMetrics, SuiviCommercialResponse, SuiviRole } from '@/lib/suivi-commercial'
 import PlanningPanel from './PlanningPanel'
+import ReachedContactsPanel from './ReachedContactsPanel'
 import { useIsMobile } from '@/lib/useIsMobile'
 
 type PeriodMode = 'week' | 'day' | 'month' | 'custom'
@@ -415,7 +416,7 @@ function AgentsTable({
           {data.agents.map(row => {
             const open = expanded === row.user_id
             return (
-              <AgentBlock key={row.user_id} row={row} open={open} isCloser={isCloser} onToggle={onToggle} colSpan={10} isMobile={isMobile} />
+              <AgentBlock key={row.user_id} row={row} open={open} isCloser={isCloser} onToggle={onToggle} colSpan={10} isMobile={isMobile} from={data.from} to={data.to} role={data.role} />
             )
           })}
           {data.agents.length === 0 && (
@@ -432,9 +433,12 @@ function AgentsTable({
 }
 
 function AgentBlock({
-  row, open, isCloser, onToggle, colSpan, isMobile,
+  row, open, isCloser, onToggle, colSpan, isMobile, from, to, role,
 }: {
   row: AgentMetrics
+  from: string
+  to: string
+  role: SuiviRole
   open: boolean
   isCloser: boolean
   onToggle: (id: string) => void
@@ -490,9 +494,13 @@ function AgentBlock({
               // Mobile : le détail reste collé à gauche, à la largeur de l'écran, même si le tableau défile
               <div style={{ position: 'sticky', left: 0, width: 'calc(100vw - 26px)', padding: '0 12px', boxSizing: 'border-box' }}>
                 <ExpandedStats row={row} isCloser={isCloser} isMobile />
+                <ReachedContactsPanel agentId={row.user_id} from={from} to={to} role={role} isMobile />
               </div>
             ) : (
-              <ExpandedStats row={row} isCloser={isCloser} />
+              <>
+                <ExpandedStats row={row} isCloser={isCloser} />
+                <ReachedContactsPanel agentId={row.user_id} from={from} to={to} role={role} />
+              </>
             )}
           </td>
         </tr>

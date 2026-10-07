@@ -392,3 +392,32 @@ export function unmappedKey(call: CallRow): string {
 export function unmappedLabel(call: CallRow): string {
   return call.agent_name || call.agent_email || 'Non mappé'
 }
+
+/** Contact joint au téléphone par un agent sur la période (détail dépliable). */
+export type ReachedContact = {
+  /** hubspot_contact_id, ou `phone:<numéro>` si le numéro n'est relié à aucune fiche. */
+  key: string
+  hubspot_contact_id: string | null
+  name: string | null
+  phone: string | null
+  calls: number
+  calls_2min: number
+  talk_sec: number
+  max_talk_sec: number
+  first_call_at: string
+  last_call_at: string
+  /** Statut lead actuel (hs_lead_status). */
+  lead_status: string | null
+  /** Statut juste avant le premier appel joint de la période. */
+  status_before: string | null
+  /** Dernier changement de statut survenu à partir du premier appel joint. */
+  status_changed_to: string | null
+  status_changed_at: string | null
+}
+
+export type ReachedContactsResponse = {
+  from: string
+  to: string
+  agent_id: string
+  contacts: ReachedContact[]
+}
