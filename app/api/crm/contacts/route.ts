@@ -11,7 +11,7 @@ import { fetchParcoursupVerdictsByContactId, fetchContactIdsByParcoursupVerdict 
 import { expandOrigineFilterValues } from '@/lib/origine-normalization'
 import { META_BACKFILL_TERM_IDF_VIEW_ID, resolveMetaBackfillTermIdfContactIds } from '@/lib/meta-backfill-view'
 import { overlaySavedViewParams, type CRMSavedView } from '@/lib/crm-views'
-import { resolveLabCallbackContactIds } from '@/lib/crm-lab-callbacks'
+import { resolveLabCallbackContactIds, resolveLabAppLeadContactIds } from '@/lib/crm-lab-callbacks'
 
 // Classes prioritaires — filtre SQL via .in()
 const PRIORITY_CLASSES = ['Seconde', 'Première', 'Terminale']
@@ -731,6 +731,32 @@ export async function GET(req: NextRequest) {
     }
     // Retire le filtre dédié : « lab_callback » n'est pas une colonne SQL.
     customFilters = customFilters.filter(r => r.field !== 'lab_callback')
+  }
+  // ── Resolver dédié : « Lead app Lab » (Diplomalab + Medibox Lab) ─────────
+  // Filtre activé via cf : [{ field: "lab_app", operator: "is_any",
+  // value: "diplomalab,medibox" }]. Même mécanique que « lab_callback » :
+  // on combine (ET) avec les IDs déjà résolus pour réutiliser son application.
+  {
+    const positive = customFilters.find(
+      r => r.field === 'lab_app' && (r.operator === 'is' || r.operator === 'is_any'),
+    )
+    const negative = customFilters.find(
+      r => r.field === 'lab_app' && (r.operator === 'is_not' || r.operator === 'is_none'),
+    )
+    if (positive) {
+      const ids = await resolveLabAppLeadContactIds(db, positive.value)
+      if (labCallbackContactIds === null) {
+        labCallbackContactIds = ids
+      } else {
+        const b = new Set(ids)
+        labCallbackContactIds = labCallbackContactIds.filter(id => b.has(id))
+      }
+    }
+    if (negative) {
+      const ids = await resolveLabAppLeadContactIds(db, negative.value)
+      labCallbackExcludedIds = [...new Set([...(labCallbackExcludedIds ?? []), ...ids])]
+    }
+    customFilters = customFilters.filter(r => r.field !== 'lab_app')
   }
   // La vue Meta ADS doit toujours inclure toutes les classes.
   const effectiveAllClasses =

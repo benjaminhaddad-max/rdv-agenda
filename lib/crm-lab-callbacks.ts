@@ -156,3 +156,76 @@ export async function resolveLabCallbackContactIds(
 
   return ids
 }
+
+/** Valeurs acceptées par le filtre « Lead app Lab ». */
+export const LAB_APP_LEAD_VALUES = ['diplomalab', 'medibox'] as const
+
+/**
+ * Résout le filtre « Lead app Lab » (téléchargements / leads des apps
+ * Diplomalab et Medibox Lab) en liste de contact_id. Un contact est retenu
+ * s'il remplit au moins une de ces conditions :
+ *   1. il a soumis un formulaire « Diploma Lab … » / « Medibox Lab … »
+ *      (historique complet de form_submissions, pas seulement le dernier) ;
+ *   2. son origine est une origine Lab (Diploma LAB, Medibox LAB,
+ *      Medibox Lab - Marseille…, quelle que soit la casse) ;
+ *   3. son dernier formulaire HubSpot est un formulaire Lab.
+ * Valeurs : diplomalab / medibox (OU entre elles) ; vide = les deux apps.
+ */
+export async function resolveLabAppLeadContactIds(
+  db: SupabaseClient,
+  rawValue: string,
+): Promise<string[]> {
+  const values = rawValue.split(',').map(v => v.trim().toLowerCase()).filter(Boolean)
+  const wanted = values.filter(v => (LAB_APP_LEAD_VALUES as readonly string[]).includes(v))
+  const apps = wanted.length > 0 ? wanted : [...LAB_APP_LEAD_VALUES]
+  const prefixes = apps.map(a => (a === 'medibox' ? 'medibox lab' : 'diploma lab'))
+
+  const ids = new Set<string>()
+
+  // 1. Soumissions des formulaires Lab
+  const { data: forms, error: formsErr } = await db
+    .from('forms')
+    .select('id')
+    .or(prefixes.map(p => `name.ilike.${p}*`).join(','))
+  if (formsErr) throw new Error(formsErr.message)
+  const formIds = (forms ?? []).map(f => f.id as string)
+  if (formIds.length > 0) {
+    const PAGE = 1000
+    for (let off = 0; off < 100000; off += PAGE) {
+      const { data: subs, error } = await db
+        .from('form_submissions')
+        .select('contact_id:data->>_contact_id')
+        .in('form_id', formIds)
+        .neq('status', 'spam')
+        .order('submitted_at', { ascending: true })
+        .range(off, off + PAGE - 1)
+      if (error) throw new Error(error.message)
+      for (const s of (subs ?? []) as Array<{ contact_id: string | null }>) {
+        if (s.contact_id) ids.add(s.contact_id)
+      }
+      if (!subs || subs.length < PAGE) break
+    }
+  }
+
+  // 2 + 3. Origine Lab ou dernier formulaire Lab
+  const orClauses = prefixes.flatMap(p => [
+    `origine.ilike.${p}*`,
+    `recent_conversion_event.ilike.${p}*`,
+  ])
+  const PAGE = 1000
+  for (let off = 0; off < 100000; off += PAGE) {
+    const { data: rows, error } = await db
+      .from('crm_contacts')
+      .select('hubspot_contact_id')
+      .or(orClauses.join(','))
+      .order('hubspot_contact_id', { ascending: true })
+      .range(off, off + PAGE - 1)
+    if (error) throw new Error(error.message)
+    for (const r of (rows ?? []) as Array<{ hubspot_contact_id: string | null }>) {
+      if (r.hubspot_contact_id) ids.add(r.hubspot_contact_id)
+    }
+    if (!rows || rows.length < PAGE) break
+  }
+
+  return [...ids]
+}

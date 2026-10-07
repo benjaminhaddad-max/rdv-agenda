@@ -3,6 +3,8 @@ import { createServiceClient } from '@/lib/supabase'
 import { cached } from '@/lib/cache'
 import { CRM_ORIGINE_VALUES, normalizeOrigineValue } from '@/lib/origine-normalization'
 
+export const maxDuration = 60
+
 /**
  * Paginated helper to fetch all distinct values for a column from crm_contacts.
  * Uses pagination (page size 1000) with ordering to avoid Supabase max_rows limits.
@@ -100,7 +102,11 @@ export async function GET() {
       departements: departements.slice().sort(),
     }
   })
-  const formEvents = await fetchDistinctFormEvents()
+  // Cache court (60 s) : le calcul parcourt ~50K contacts ; sans cache la
+  // réponse était si lente que la liste « Soumission de formulaire » des
+  // filtres avancés restait vide (« Aucun résultat »). Un nouveau formulaire
+  // apparaît en moins d'une minute.
+  const formEvents = await cached('crm:field-options:form-events:v1', 60, fetchDistinctFormEvents)
   const payload = {
     ...staticPayload,
     formEvents: formEvents.slice().sort(),

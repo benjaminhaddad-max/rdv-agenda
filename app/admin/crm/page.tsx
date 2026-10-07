@@ -19,6 +19,7 @@ import {
   STAGE_OPTIONS, FORMATION_OPTIONS, CLASSE_OPTIONS, PERIOD_OPTIONS,
   CRM_FILTER_FIELDS, LEAD_STATUS_OPTIONS_FALLBACK, PARCOURSUP_VERDICT_FILTER_OPTIONS,
   LAB_CALLBACK_FILTER_OPTIONS,
+  LAB_APP_FILTER_OPTIONS,
   opsForField, opsForKind, opNeedsValue, opIsMulti, opIsRange, propertyKindOf,
   defaultOpForField, shouldRenderMultiSelect, coerceMultiSelectOperator,
   type SelectOption,
@@ -1426,8 +1427,8 @@ export default function CRMPage() {
         }
         // Demande de rappel Lab : résolu côté API en liste de contact_id
         // (la source est une soumission de formulaire, pas une colonne).
-        if (ruleField === 'lab_callback') {
-          customFilters.push({ field: 'lab_callback', operator: rule.operator, value: val })
+        if (ruleField === 'lab_callback' || ruleField === 'lab_app') {
+          customFilters.push({ field: ruleField, operator: rule.operator, value: val })
           continue
         }
         // Verdict Parcoursup : résolu côté API par liste de statuts.
@@ -3132,6 +3133,7 @@ export default function CRMPage() {
                         case 'form_event':  valueOptions = formEventOptions.filter(o => o.id); break
                         case 'parcoursup_verdict': valueOptions = PARCOURSUP_VERDICT_FILTER_OPTIONS; break
                         case 'lab_callback': valueOptions = LAB_CALLBACK_FILTER_OPTIONS; break
+                        case 'lab_app':      valueOptions = LAB_APP_FILTER_OPTIONS; break
                       }
                     }
 
@@ -3154,6 +3156,7 @@ export default function CRMPage() {
                               value={rule.value}
                               onChange={v => updateRule(group.id, rule.id, { value: v })}
                               allowCustomValue
+                              loading={evOpts.length === 0}
                             />
                           )
                         }
