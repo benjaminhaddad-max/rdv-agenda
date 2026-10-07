@@ -6,7 +6,6 @@ import { ArrowLeft } from 'lucide-react'
 import CRMSidebarV2 from '@/components/crm-v2/CRMSidebarV2'
 import CRMGlobalSearchBar from '@/components/CRMGlobalSearchBar'
 import LogoutButton from '@/components/LogoutButton'
-import SupportWidget from '@/components/SupportWidget'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { crmV2 } from '@/lib/crm-v2-theme'
 
@@ -93,7 +92,8 @@ function Inner({ children }: { children: React.ReactNode }) {
 
   const role = me?.role
   const showAdminChrome = !embed && role === 'admin'
-  const mobileBottomPad = showAdminChrome && isMobile ? 56 : 0
+  // Barre d'onglets mobile : 56 px + zone de sécurité iOS
+  const mobileBottomPad = showAdminChrome && isMobile ? 'calc(56px + env(safe-area-inset-bottom, 0px))' : '0px'
   const showUserChrome = !embed && (role === 'closer' || role === 'telepro')
 
   const backHref =
@@ -113,13 +113,20 @@ function Inner({ children }: { children: React.ReactNode }) {
       <main style={{
         flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column',
         maxHeight: isMobile ? '100dvh' : '100vh', boxSizing: 'border-box', gap: isMobile ? 0 : 8,
-        padding: isMobile ? `0 0 ${mobileBottomPad}px` : (showAdminChrome ? '8px 8px 8px 0' : 0),
+        padding: isMobile ? `0 0 ${mobileBottomPad}` : (showAdminChrome ? '8px 8px 8px 0' : 0),
       }}>
         {showAdminChrome && !hideSearchBar && (
-          <div style={{
-            background: crmV2.bg, border: `1px solid ${crmV2.border}`,
-            borderRadius: isMobile ? 0 : 14, boxShadow: crmV2.shadow, flexShrink: 0, overflow: 'visible',
+          <div className="crm-v2-search-shell" style={{
+            background: crmV2.bg,
+            border: isMobile ? 'none' : `1px solid ${crmV2.border}`,
+            borderBottom: `1px solid ${crmV2.border}`,
+            borderRadius: isMobile ? 0 : crmV2.radiusMain, boxShadow: isMobile ? 'none' : crmV2.shadow,
+            flexShrink: 0, overflow: 'visible', position: 'relative', zIndex: 20,
           }}>
+            {/* La barre ⌘K garde son fond crème d'origine : on la rend transparente dans la coque blanche V2 */}
+            <style>{`
+              .crm-v2 .crm-v2-search-shell > div[style] { background: transparent !important; border-bottom: none !important; }
+            `}</style>
             <CRMGlobalSearchBar />
           </div>
         )}
@@ -159,13 +166,12 @@ function Inner({ children }: { children: React.ReactNode }) {
           flex: 1, minHeight: 0, overflow: 'auto',
           background: crmV2.bgSoft,
           border: (isMobile || !showAdminChrome) ? 'none' : `1px solid ${crmV2.border}`,
-          borderRadius: (isMobile || !showAdminChrome) ? 0 : 14,
+          borderRadius: (isMobile || !showAdminChrome) ? 0 : crmV2.radiusMain,
           boxShadow: (isMobile || !showAdminChrome) ? 'none' : crmV2.shadow,
         }}>
           {children}
         </div>
       </main>
-      {!pathname.startsWith('/admin/crm-v2/service-technique') && <SupportWidget />}
     </div>
   )
 }

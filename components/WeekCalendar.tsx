@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { ChevronLeft, ChevronRight, Calendar, Users, LayoutDashboard, Plus } from 'lucide-react'
+import { useState, useEffect, useCallback, useRef, useMemo, type ReactNode } from 'react'
+import { ChevronLeft, ChevronRight, Users, LayoutDashboard, Plus, Check, MapPin, Video, X } from 'lucide-react'
 import { format, startOfWeek, addDays, addWeeks, subWeeks, isSameDay, isToday } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import StatusBadge, { AppointmentStatus } from './StatusBadge'
@@ -12,6 +12,9 @@ import { parseExtraParticipants } from '@/lib/appointment-participants'
 import { campusShortLabel } from '@/lib/campus'
 import { RDV_BRANDS, normalizeRdvBrand, type RdvBrand } from '@/lib/rdv-brand'
 import MediboxBadge from './MediboxBadge'
+import { CrmV2Button, CrmV2Segmented } from '@/components/crm-v2/primitives'
+import { AgendaLegendChip, AgendaRoundButton, AgendaSelectPill } from '@/components/crm-v2/agenda/AgendaControls'
+import { crmV2, crmV2AgendaCards } from '@/lib/crm-v2-theme'
 
 type Appointment = {
   id: string
@@ -50,28 +53,38 @@ type Commercial = {
 const GRID_START_HOUR = 9
 const GRID_END_HOUR = 21
 const HOURS = Array.from({ length: GRID_END_HOUR - GRID_START_HOUR }, (_, i) => i + GRID_START_HOUR) // 9h … 20h
-const HOUR_HEIGHT = 40       // hauteur min d'une tranche en vue semaine (la grille prend toute la hauteur)
-const HOUR_HEIGHT_DAY = 76   // hauteur d'une ligne d'heure en vue jour
-const MOBILE_TIME_COL = 40   // colonne heures en vue semaine mobile (scroll horizontal)
+const HOUR_HEIGHT = 64        // hauteur min d'une tranche en vue semaine (défile sur les petits écrans)
+const HOUR_HEIGHT_DAY = 64    // hauteur min d'une tranche en vue jour (ordinateur)
+const HOUR_HEIGHT_MOBILE = 36 // hauteur min d'une tranche sur mobile
 
 /** Couleurs de FOND post-RDV — le CONTOUR reste toujours la couleur du closer. */
+/** Cartes de RDV façon maquette V2 : fond pastel, bordure douce, horaire coloré. */
+type CardPalette = { bg: string; border: string; time: string }
+const CARD_PALETTES = {
+  upcoming:       { bg: '#e6f3fa', border: '#b9dcef', time: '#1f7ca8' }, // RDV à venir
+  positif:        { bg: '#e5f7ec', border: '#b4e5c6', time: '#15803d' },
+  pre_positif:    { bg: '#e2f5f8', border: '#a9dfe8', time: '#0e7490' },
+  no_show:        { bg: '#eef0f3', border: '#d3d8df', time: '#4b5563' },
+  pending_update: { bg: '#fdecec', border: '#f3bdbd', time: '#c02626' }, // fiche non mise à jour
+  annule:         { bg: '#f5f6f8', border: '#e3e6eb', time: '#9aa5b1' },
+} as const satisfies Record<string, CardPalette>
+
+/** Couleurs de la légende (= couleur de l'horaire sur les cartes). */
 const POST_RDV_COLORS = {
-  positif: '#166534',       // vert foncé
-  pre_positif: '#86efac',   // vert clair
-  no_show: '#374151',       // gris foncé
-  pending_update: '#dc2626', // rouge — fiche non mise à jour
+  positif: CARD_PALETTES.positif.time,
+  pre_positif: CARD_PALETTES.pre_positif.time,
+  no_show: CARD_PALETTES.no_show.time,
+  pending_update: CARD_PALETTES.pending_update.time,
 } as const
 
-const POST_RDV_LEGEND: { label: string; color: string }[] = [
-  { label: 'Positif', color: POST_RDV_COLORS.positif },
-  { label: 'Pré-positif', color: POST_RDV_COLORS.pre_positif },
-  { label: 'No-show', color: POST_RDV_COLORS.no_show },
-  { label: 'Fiche non màj', color: POST_RDV_COLORS.pending_update },
+const POST_RDV_LEGEND: { label: string; color: string; bg: string }[] = [
+  { label: 'À venir', color: CARD_PALETTES.upcoming.time, bg: CARD_PALETTES.upcoming.bg },
+  { label: 'Positif', color: POST_RDV_COLORS.positif, bg: CARD_PALETTES.positif.bg },
+  { label: 'Pré-positif', color: POST_RDV_COLORS.pre_positif, bg: CARD_PALETTES.pre_positif.bg },
+  { label: 'No-show', color: POST_RDV_COLORS.no_show, bg: CARD_PALETTES.no_show.bg },
+  { label: 'Fiche non màj', color: POST_RDV_COLORS.pending_update, bg: CARD_PALETTES.pending_update.bg },
 ]
 
-const POST_RDV_LIGHT_FILL = new Set<string>([POST_RDV_COLORS.pre_positif])
-
-const MOBILE_DAY_COL = 88    // largeur min d'un jour en vue semaine mobile
 const SNAP_MIN = 15          // aimantation du glisser-déposer (minutes)
 const GRID_TOTAL_MIN = (GRID_END_HOUR - GRID_START_HOUR) * 60
 const COLORS = ['#C9A84C','#22c55e','#C9A84C','#a855f7','#06b6d4','#ef4444','#f97316']
@@ -217,7 +230,36 @@ function computeDayLayout<T extends { id: string; start_at: string; end_at: stri
   return { slots, overflow }
 }
 
-export default function WeekCalendar({ adminMode = false, closerId, closerColor, closerName, teamView = false, allowAssign = false }: { adminMode?: boolean; closerId?: string; closerColor?: string; closerName?: string; teamView?: boolean; allowAssign?: boolean }) {
+type CalendarView = 'day' | '2days' | 'week' | 'list'
+type CardScale = 'week' | 'day' | 'compact'
+
+/** « lun. » → « Lun » */
+function dayShort(day: Date): string {
+  const s = format(day, 'EEE', { locale: fr }).replace('.', '')
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+export default function WeekCalendar({
+  adminMode = false, closerId, closerColor, closerName, teamView = false, allowAssign = false,
+  title, onNewRdv, toolbarExtra,
+}: {
+  adminMode?: boolean
+  closerId?: string
+  closerColor?: string
+  closerName?: string
+  teamView?: boolean
+  allowAssign?: boolean
+  /** Titre de page affiché dans l'en-tête V2 (ex. « Agenda » côté admin) */
+  title?: string
+  /** Action « Nouveau RDV » fournie par la page parente (sinon : modale closer si closerId) */
+  onNewRdv?: () => void
+  /** Boutons supplémentaires affichés dans la rangée des filtres (outils admin) */
+  toolbarExtra?: ReactNode
+}) {
   const isMobile = useIsMobile()
   const mobileViewInit = useRef(false)
   const [currentWeekStart, setCurrentWeekStart] = useState(() =>
@@ -260,7 +302,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
   const [dayListModal, setDayListModal] = useState<{ day: Date; appts: Appointment[] } | null>(null)
   const [loading, setLoading] = useState(false)
-  const [view, setView] = useState<'day' | 'week' | 'list'>('week')
+  const [view, setView] = useState<CalendarView>('week')
   const [selectedDay, setSelectedDay] = useState<Date>(() => new Date())
   const [showNewRdvModal, setShowNewRdvModal] = useState(false)
   // Rafraîchit la couleur « fiche non màj » dès qu’un créneau vient de se terminer
@@ -270,19 +312,19 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
     return () => clearInterval(id)
   }, [])
 
-  // Sur mobile, la vue semaine est illisible : on démarre en vue liste.
+  // Sur mobile, on démarre en vue « 2 jours » (lisible sans défilement horizontal).
   useEffect(() => {
     if (isMobile && !mobileViewInit.current) {
-      setView('list')
+      setView('2days')
       mobileViewInit.current = true
     }
   }, [isMobile])
+  // La vue « 2 jours » n'existe que sur mobile : retour en semaine si l'écran s'élargit.
+  useEffect(() => {
+    if (!isMobile && view === '2days') setView('week')
+  }, [isMobile, view])
 
-  const padX = isMobile ? 12 : 24
-  const weekGridCols = isMobile
-    ? `${MOBILE_TIME_COL}px repeat(7, ${MOBILE_DAY_COL}px)`
-    : '56px repeat(7, 1fr)'
-  const weekGridMinWidth = isMobile ? MOBILE_TIME_COL + 7 * MOBILE_DAY_COL : undefined
+  const padX = isMobile ? 12 : 28
 
   // ── Glisser-déposer (déplacer un RDV sur un autre créneau) ──────────────
   const dragRef = useRef<{ id: string; grabOffsetY: number; durationMs: number; startISO: string; endISO: string } | null>(null)
@@ -296,12 +338,23 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
     return () => clearTimeout(t)
   }, [moveToast])
 
-  // En vue jour, la semaine chargée est celle du jour sélectionné (pour le fetch).
-  const activeWeekStart = view === 'day'
+  // En vue jour / 2 jours, la semaine chargée est celle du jour sélectionné (pour le fetch).
+  const dayBased = view === 'day' || view === '2days'
+  const activeWeekStart = dayBased
     ? startOfWeek(selectedDay, { weekStartsOn: 1 })
     : currentWeekStart
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(activeWeekStart, i))
   const weekKey = format(activeWeekStart, 'yyyy-MM-dd')
+  // Vue 2 jours à cheval sur deux semaines (dimanche + lundi) : on charge aussi la semaine suivante.
+  const nextDayWeekStart = startOfWeek(addDays(selectedDay, 1), { weekStartsOn: 1 })
+  const extraWeekKey = view === '2days' && !isSameDay(nextDayWeekStart, activeWeekStart)
+    ? format(nextDayWeekStart, 'yyyy-MM-dd')
+    : null
+  const visibleDays: Date[] = view === 'day'
+    ? [selectedDay]
+    : view === '2days'
+      ? [selectedDay, addDays(selectedDay, 1)]
+      : weekDays
 
   // Closers uniquement (pas managers, pas télépros) + admin (Pascal)
   const closers = commerciaux.filter(
@@ -313,18 +366,28 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
   const rdvCount = activeAppointments.length
   const rdvEffectues = activeAppointments.filter(a => ['va_reflechir', 'preinscription'].includes(a.status)).length
   const weekIsDense = rdvCount > 28
+  const rangeCount = dayBased
+    ? activeAppointments.filter(a => visibleDays.some(d => isSameDay(new Date(a.start_at), d))).length
+    : rdvCount
 
   const fetchAppointments = useCallback(async () => {
     setLoading(true)
     try {
-      const params = new URLSearchParams({ week: weekKey })
-      if (selectedCommercial !== 'all') params.set('commercial_id', selectedCommercial)
-      const res = await fetch(`/api/appointments?${params}`, { cache: 'no-store' })
-      if (res.ok) setAppointments(await res.json())
+      const keys = extraWeekKey ? [weekKey, extraWeekKey] : [weekKey]
+      const results = await Promise.all(keys.map(async k => {
+        const params = new URLSearchParams({ week: k })
+        if (selectedCommercial !== 'all') params.set('commercial_id', selectedCommercial)
+        const res = await fetch(`/api/appointments?${params}`, { cache: 'no-store' })
+        return res.ok ? (await res.json() as Appointment[]) : null
+      }))
+      if (results.every(r => r === null)) return
+      const merged = new Map<string, Appointment>()
+      for (const list of results) for (const a of list || []) merged.set(a.id, a)
+      setAppointments([...merged.values()])
     } finally {
       setLoading(false)
     }
-  }, [weekKey, selectedCommercial])
+  }, [weekKey, extraWeekKey, selectedCommercial])
 
   useEffect(() => {
     fetch('/api/users', { cache: 'no-store' }).then(r => r.json()).then(setCommerciaux)
@@ -360,25 +423,25 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
   }
 
   /** Fond du bloc = statut post-RDV (null = pas encore qualifié → fond blanc). */
-  function getStatusFill(appt: Appointment): string | null {
+  function getCardPalette(appt: Appointment): CardPalette {
     const s = appt.status
-    if (s === 'positif' || s === 'preinscription') return POST_RDV_COLORS.positif
-    if (s === 'pre_positif') return POST_RDV_COLORS.pre_positif
-    if (s === 'no_show') return POST_RDV_COLORS.no_show
-    if (s === 'annule') return 'rgba(107,114,128,0.18)'
-
+    if (s === 'positif' || s === 'preinscription') return CARD_PALETTES.positif
+    if (s === 'pre_positif') return CARD_PALETTES.pre_positif
+    if (s === 'no_show') return CARD_PALETTES.no_show
+    if (s === 'annule') return CARD_PALETTES.annule
     const ended = new Date(appt.end_at).getTime() < Date.now()
-    if (ended && (s === 'confirme' || s === 'confirme_prospect')) {
-      return POST_RDV_COLORS.pending_update
-    }
-    return null
+    if (ended && (s === 'confirme' || s === 'confirme_prospect')) return CARD_PALETTES.pending_update
+    return CARD_PALETTES.upcoming
+  }
+
+  /** Fond pastel d'un RDV passé (null = RDV à venir, fond blanc en vue liste). */
+  function getStatusFill(appt: Appointment): string | null {
+    const p = getCardPalette(appt)
+    return p === CARD_PALETTES.upcoming ? null : p.bg
   }
 
   function statusFillTextColor(fill: string | null): string {
-    if (!fill) return '#2d3e50'
-    if (POST_RDV_LIGHT_FILL.has(fill)) return '#2d3e50'
-    if (fill.startsWith('rgba')) return '#6b7280'
-    return '#ffffff'
+    return fill === CARD_PALETTES.annule.bg ? '#7c98b6' : '#2d3e50'
   }
 
   /** Applique le déplacement : calcule le nouveau créneau, met à jour de façon
@@ -475,29 +538,83 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
     }
   }
 
-  /** Carte RDV positionnée (vue semaine ou jour). `scale='day'` = plus grand. */
+  // ── Navigation ────────────────────────────────────────────────────────
+  function goPrev() {
+    if (view === 'day') setSelectedDay(d => addDays(d, -1))
+    else if (view === '2days') setSelectedDay(d => addDays(d, -2))
+    else setCurrentWeekStart(subWeeks(currentWeekStart, 1))
+  }
+  function goNext() {
+    if (view === 'day') setSelectedDay(d => addDays(d, 1))
+    else if (view === '2days') setSelectedDay(d => addDays(d, 2))
+    else setCurrentWeekStart(addWeeks(currentWeekStart, 1))
+  }
+  function goToday() {
+    if (dayBased) setSelectedDay(new Date())
+    else setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))
+  }
+
+  /** Libellé de la période affichée (sous-titre de l'en-tête). */
+  function rangeLabel(): string {
+    if (view === 'day') {
+      return capitalize(format(selectedDay, isMobile ? 'EEEE d MMMM' : 'EEEE d MMMM yyyy', { locale: fr }))
+    }
+    if (view === '2days') {
+      const d2 = addDays(selectedDay, 1)
+      const sameMonth = selectedDay.getMonth() === d2.getMonth()
+      return `${format(selectedDay, sameMonth ? 'd' : 'd MMMM', { locale: fr })} – ${format(d2, 'd MMMM', { locale: fr })}`
+    }
+    const end = addDays(activeWeekStart, 6)
+    const sameMonth = activeWeekStart.getMonth() === end.getMonth()
+    const sameYear = activeWeekStart.getFullYear() === end.getFullYear()
+    const startFmt = sameMonth ? 'd' : sameYear ? 'd MMMM' : 'd MMMM yyyy'
+    if (isMobile) {
+      return `${format(activeWeekStart, startFmt, { locale: fr })} – ${format(end, 'd MMMM', { locale: fr })}`
+    }
+    return `Semaine du ${format(activeWeekStart, startFmt, { locale: fr })} au ${format(end, 'd MMMM yyyy', { locale: fr })}`
+  }
+
+  /** Carte RDV positionnée. `day` = grande carte (vue jour), `compact` = semaine mobile. */
   function renderApptCard(
     appt: Appointment,
     day: Date,
     dayLayout: DayLayout<Appointment>,
-    scale: 'week' | 'day',
+    scale: CardScale,
   ) {
     const isDay = scale === 'day'
+    const compact = scale === 'compact'
+    // Mobile (jour / 2 jours) : carte sur une ligne, nom puis heure
+    const inline = isMobile && !compact
     const height = durationToPercent(appt.start_at, appt.end_at, day)
     // RDV hors plage (avant 9 h / après 21 h) : collé au bord plutôt que hors grille
     const top = Math.min(timeToPercent(appt.start_at, day), 100 - Math.min(height, 100))
     const closerColor = getColorForCommercial(appt.users?.id || '')
-    const statusFill = getStatusFill(appt)
+    const palette = getCardPalette(appt)
     const isCancelled = appt.status === 'annule'
     const isConfirmed = appt.status === 'confirme_prospect'
-    const textOnFill = statusFillTextColor(statusFill)
+    const textOnFill = isCancelled ? '#7c98b6' : '#2d3e50'
+    const subtleOnFill = '#64748b'
+    const timeColor = palette.time
     const formation = (appt.formation_type || '').trim()
     const displayName = shortProspectName(appt.prospect_name)
     const niveau = getNiveau(appt.classe_actuelle, appt.prospect_name)
-    const tooltip = `${normalizeRdvBrand(appt.brand) === 'medibox' ? '[Medibox] ' : ''}${format(new Date(appt.start_at), 'HH:mm')} ${appt.prospect_name}${niveau ? ` — ${niveau}` : ''}${formation ? ` · ${formation}` : ''}`
+    const startLabel = format(new Date(appt.start_at), 'HH:mm')
+    const rangeTime = `${startLabel} – ${format(new Date(appt.end_at), 'HH:mm')}`
+    const meetingLabel = appt.meeting_type === 'visio'
+      ? 'Visio'
+      : appt.meeting_type === 'presentiel'
+        ? `Présentiel${campusShortLabel(appt.meeting_link) ? ` — ${campusShortLabel(appt.meeting_link)}` : ''}`
+        : appt.meeting_type === 'telephone' ? 'Téléphone' : ''
+    // Infobulle : nom, heure, niveau, closer
+    const tooltip = [
+      `${normalizeRdvBrand(appt.brand) === 'medibox' ? '[Medibox] ' : ''}${appt.prospect_name}${niveau ? ` — ${niveau}` : ''}${formation ? ` · ${formation}` : ''}`,
+      [rangeTime, meetingLabel].filter(Boolean).join(' · '),
+      appt.users?.name ? `Closer : ${appt.users.name}` : 'Closer : non assigné',
+      isConfirmed ? 'Présence confirmée par le prospect' : '',
+    ].filter(Boolean).join('\n')
 
     const lay = dayLayout.slots.get(appt.id) || { col: 0, cols: 1 }
-    const gap = 3
+    const gap = compact ? 1 : 3
     const widthPct = 100 / lay.cols
     const leftPct = widthPct * lay.col
     const sideBySide = lay.cols > 1
@@ -508,13 +625,19 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
       const ae = new Date(appt.end_at).getTime()
       return as < be && ae > bs
     })
-    const rightReserve = hasOverflowBadge ? 38 : 0
+    const rightReserve = hasOverflowBadge ? (compact ? 16 : 38) : 0
 
-    const nameSize = isDay ? 14 : (sideBySide ? 10 : 11)
-    const niveauSize = isDay ? 12 : (sideBySide ? 8 : 9)
-    const badgeSize = isDay ? 11 : 8
+    const nameSize = isDay ? (isMobile ? 13 : 14) : compact ? 10 : 12
+    const metaSize = isDay ? 12 : 11
+    const badgeSize = isDay ? 11 : 10
+    const iconSize = isDay ? 12 : 10
 
     const isDragging = draggingId === appt.id
+    const meetingIcon = appt.meeting_type === 'visio'
+      ? <Video size={iconSize} strokeWidth={2.2} style={{ flexShrink: 0 }} />
+      : appt.meeting_type === 'presentiel'
+        ? <MapPin size={iconSize} strokeWidth={2.2} style={{ flexShrink: 0 }} />
+        : null
 
     return (
       <div
@@ -542,92 +665,97 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
         }}
         style={{
           position: 'absolute',
-          left: `calc(${leftPct}% + ${lay.col === 0 ? 3 : gap}px)`,
-          width: `calc(${widthPct}% - ${lay.cols === 1 ? 6 : gap + 2}px - ${rightReserve}px)`,
-          top: `${top}%`,
-          height: `${height}%`,
-          // Fond = statut post-RDV ; Contour = couleur closer
-          background: statusFill || '#fff',
-          border: `1px solid ${isCancelled ? 'rgba(107,114,128,0.35)' : `${closerColor}66`}`,
-          borderLeft: `${isDay ? 6 : 5}px solid ${isCancelled ? '#6b7280' : closerColor}`,
-          borderRadius: 8,
-          padding: isDay ? '6px 10px' : (sideBySide ? '2px 4px' : '3px 5px'),
+          left: `calc(${leftPct}% + ${lay.col === 0 ? (compact ? 1 : 3) : gap}px)`,
+          width: `calc(${widthPct}% - ${lay.cols === 1 ? (compact ? 2 : 6) : gap + (compact ? 1 : 2)}px - ${rightReserve}px)`,
+          // Hauteur = durée exacte du RDV (pas de hauteur mini : sinon les cartes se chevauchent)
+          top: `calc(${top}% + 1px)`,
+          height: `calc(${height}% - 2px)`,
+          // Style maquette : fond pastel selon l'issue, point = couleur du closer
+          background: palette.bg,
+          border: `1px solid ${palette.border}`,
+          borderRadius: compact ? 6 : 10,
+          padding: isDay && !isMobile ? '5px 10px' : compact ? '1px 3px' : inline ? '0 8px' : (sideBySide ? '3px 6px' : '4px 8px'),
+          display: 'flex',
+          flexDirection: inline ? 'row' : 'column',
+          alignItems: inline ? 'center' : 'stretch',
+          gap: inline ? 6 : 0,
           cursor: isCancelled ? 'pointer' : 'grab',
           overflow: 'hidden',
           zIndex: isDragging ? 9 : 1,
           opacity: isDragging ? 0.45 : 1,
           boxSizing: 'border-box',
-          boxShadow: '0 1px 2px rgba(14,30,53,0.06)',
+          textDecoration: isCancelled ? 'line-through' : undefined,
           transition: 'box-shadow 0.12s, z-index 0s, opacity 0.12s',
         }}
         onMouseEnter={e => {
           if (draggingId) return
           const el = e.currentTarget as HTMLDivElement
           el.style.zIndex = '8'
-          el.style.boxShadow = '0 6px 16px rgba(14,30,53,0.16)'
+          el.style.boxShadow = '0 4px 14px rgba(15,31,61,0.12)'
         }}
         onMouseLeave={e => {
           if (draggingId) return
           const el = e.currentTarget as HTMLDivElement
           el.style.zIndex = '1'
-          el.style.boxShadow = '0 1px 2px rgba(14,30,53,0.06)'
+          el.style.boxShadow = 'none'
         }}
       >
-        {isConfirmed && (
-          <span
-            title="Présence confirmée par le prospect"
-            style={{
-              position: 'absolute',
-              top: 4, right: 4,
-              width: isDay ? 16 : 12, height: isDay ? 16 : 12,
-              borderRadius: '50%',
-              background: '#10b981',
-              color: '#fff',
-              fontSize: isDay ? 10 : 8,
-              fontWeight: 700,
-              lineHeight: `${isDay ? 16 : 12}px`,
-              textAlign: 'center',
-            }}
-          >
-            ✓
-          </span>
-        )}
+        {/* Ligne 1 : nom */}
         <div style={{
-          fontSize: nameSize,
-          fontWeight: 700,
-          color: textOnFill,
-          lineHeight: 1.25,
-          overflow: 'hidden',
-          display: '-webkit-box',
-          WebkitLineClamp: 2,
-          WebkitBoxOrient: 'vertical',
-          paddingRight: isConfirmed ? (isDay ? 20 : 14) : 0,
+          display: 'flex', alignItems: 'center', gap: compact ? 2 : 4, minWidth: 0,
+          flex: inline ? 1 : undefined, flexShrink: 0,
+          lineHeight: compact ? '12px' : isDay && !isMobile ? '18px' : '15px',
         }}>
-          <span style={{ color: statusFill ? textOnFill : closerColor, marginRight: 4 }}>
-            {format(new Date(appt.start_at), 'HH:mm')}
-          </span>
-          {appt.meeting_type === 'visio' && <span style={{ marginRight: 2 }}>📹</span>}
-          {appt.meeting_type === 'presentiel' && <span style={{ marginRight: 2 }}>📍</span>}
-          <MediboxBadge brand={appt.brand} compact={!isDay} style={{ marginRight: 3 }} />
-          {displayName}
-        </div>
-        {niveau && (
-          <div style={{
-            fontSize: niveauSize,
-            fontWeight: 600,
-            color: statusFill
-              ? (POST_RDV_LIGHT_FILL.has(statusFill) || statusFill.startsWith('rgba') ? '#64748b' : 'rgba(255,255,255,0.85)')
-              : '#64748b',
-            lineHeight: 1.25,
-            marginTop: 1,
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
+          <span
+            title={appt.users?.name ? `Closer : ${appt.users.name}` : 'Non assigné'}
+            style={{
+              width: compact ? 5 : 7, height: compact ? 5 : 7, borderRadius: '50%', flexShrink: 0,
+              background: appt.users ? closerColor : 'transparent',
+              border: appt.users ? 'none' : `1.5px solid ${palette.time}`,
+              boxSizing: 'border-box',
+            }}
+          />
+          {!compact && <MediboxBadge brand={appt.brand} compact={!isDay} style={isDay ? undefined : { fontSize: 10 }} />}
+          <span style={{
+            fontSize: nameSize, fontWeight: 700, color: textOnFill, minWidth: 0,
+            overflow: 'hidden', textOverflow: compact ? 'clip' : 'ellipsis', whiteSpace: 'nowrap',
           }}>
-            {niveau}{isDay && formation ? ` · ${formation}` : ''}
+            {compact ? displayName.split(/\s+/)[0] : displayName}
+          </span>
+          {isConfirmed && !compact && (
+            <span
+              title="Présence confirmée par le prospect"
+              style={{
+                marginLeft: 'auto', flexShrink: 0,
+                width: isDay ? 16 : 12, height: isDay ? 16 : 12, borderRadius: '50%',
+                background: '#10b981', color: '#fff',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              <Check size={isDay ? 11 : 8} strokeWidth={3} />
+            </span>
+          )}
+        </div>
+
+        {/* Ligne 2 : heure (+ mode et niveau) */}
+        {!compact && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 4, minWidth: 0, flexShrink: 0,
+            fontSize: metaSize, fontWeight: 600, color: timeColor, whiteSpace: 'nowrap', overflow: 'hidden',
+            lineHeight: isDay && !isMobile ? '16px' : '13px',
+          }}>
+            <span style={{ flexShrink: 0 }}>{rangeTime}</span>
+            {isDay && meetingIcon}
+            {!inline && isDay && niveau && (
+              <span style={{ color: subtleOnFill, overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>
+                · {niveau}{isDay && formation ? ` · ${formation}` : ''}
+              </span>
+            )}
+            {inline && isConfirmed && <Check size={11} strokeWidth={3} color="#10b981" style={{ flexShrink: 0 }} />}
           </div>
         )}
-        {appt.meeting_type === 'visio' && appt.meeting_link && (() => {
+
+        {!isMobile && isDay && appt.meeting_type === 'visio' && appt.meeting_link && (() => {
           const badge = getVisioBadge(appt.meeting_link)
           return (
             <a
@@ -639,41 +767,50 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
+                alignSelf: 'flex-start',
                 gap: 3,
-                marginTop: isDay ? 5 : 2,
-                padding: isDay ? '2px 8px' : '1px 5px',
-                borderRadius: 4,
+                marginTop: isDay ? 4 : 2,
+                padding: isDay ? '1px 8px' : '0 6px',
+                borderRadius: 999,
                 background: badge.color,
                 color: '#fff',
                 fontSize: badgeSize,
                 fontWeight: 700,
                 textDecoration: 'none',
-                lineHeight: 1.4,
+                lineHeight: 1.5,
                 maxWidth: '100%',
+                flexShrink: 0,
               }}
             >
-              {badge.isGoogle ? '🎥 Meet' : '🎥 Visio'}
+              <Video size={badgeSize + 1} strokeWidth={2.2} />
+              {badge.shortLabel}
             </a>
           )
         })()}
-        {appt.meeting_type === 'presentiel' && campusShortLabel(appt.meeting_link) && (
+        {!isMobile && isDay && appt.meeting_type === 'presentiel' && campusShortLabel(appt.meeting_link) && (
           <div
             title={appt.meeting_link || undefined}
             style={{
-              marginTop: isDay ? 5 : 2,
-              padding: isDay ? '2px 8px' : '1px 5px',
-              borderRadius: 4,
+              display: 'inline-flex',
+              alignItems: 'center',
+              alignSelf: 'flex-start',
+              gap: 3,
+              marginTop: isDay ? 4 : 2,
+              padding: isDay ? '1px 8px' : '0 6px',
+              borderRadius: 999,
               background: 'rgba(201,168,76,0.15)',
-              color: '#8a6d1f',
+              color: crmV2.goldDark,
               fontSize: badgeSize,
               fontWeight: 700,
-              lineHeight: 1.4,
+              lineHeight: 1.5,
+              maxWidth: '100%',
               overflow: 'hidden',
-              textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
+              flexShrink: 0,
             }}
           >
-            📍 {campusShortLabel(appt.meeting_link)}
+            <MapPin size={badgeSize + 1} strokeWidth={2.2} style={{ flexShrink: 0 }} />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{campusShortLabel(appt.meeting_link)}</span>
           </div>
         )}
       </div>
@@ -681,7 +818,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
   }
 
   /** Badge « +N » pour les RDV masqués d'un créneau chargé. */
-  function renderOverflowBadge(block: DayLayout<Appointment>['overflow'][number], day: Date) {
+  function renderOverflowBadge(block: DayLayout<Appointment>['overflow'][number], day: Date, compact: boolean) {
     return (
       <button
         key={block.key}
@@ -695,17 +832,18 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
         ).join('\n')}
         style={{
           position: 'absolute',
-          right: 4,
+          right: compact ? 1 : 4,
           top: `${timeToPercent(block.start_at, day)}%`,
           height: `${durationToPercent(block.start_at, block.end_at, day)}%`,
           minHeight: 24,
-          width: 32,
-          background: '#2d3e50',
+          width: compact ? 14 : 32,
+          background: crmV2.primary,
           color: '#fff',
           border: 'none',
-          borderRadius: 6,
-          fontSize: 11,
-          fontWeight: 800,
+          borderRadius: compact ? 5 : 8,
+          fontSize: compact ? 10 : 11,
+          fontWeight: 700,
+          fontFamily: 'inherit',
           cursor: 'pointer',
           zIndex: 4,
           padding: 0,
@@ -718,25 +856,196 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
     )
   }
 
+  /** Grille horaire 9 h–21 h pour 1, 2 ou 7 jours : prend toute la hauteur disponible. */
+  function renderTimeGrid(days: Date[]) {
+    const single = days.length === 1
+    const compact = isMobile && days.length > 2
+    const scale: CardScale = single ? 'day' : compact ? 'compact' : 'week'
+    const timeCol = isMobile ? 34 : 52
+    const gridCols = `${timeCol}px repeat(${days.length}, minmax(0, 1fr))`
+    const hourHeight = isMobile ? HOUR_HEIGHT_MOBILE : single ? HOUR_HEIGHT_DAY : HOUR_HEIGHT
+    const lineColor = '#e4e9f0'
+
+    return (
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {/* En-têtes de jours */}
+        <div style={{
+          display: 'grid', gridTemplateColumns: gridCols, flexShrink: 0,
+          borderBottom: `1px solid ${crmV2.border}`, background: crmV2.thBg,
+        }}>
+          <div />
+          {days.map(day => {
+            const dayAppts = getAppointmentsForDay(day)
+            const today = isToday(day)
+            const busyDay = dayAppts.length > 5
+            const activeCount = single ? dayAppts.filter(a => a.status !== 'annule').length : dayAppts.length
+            const numPill = (
+              <span style={{
+                fontSize: 15, fontWeight: 700, borderRadius: 999, minWidth: 26, height: 26, padding: '0 4px',
+                boxSizing: 'border-box', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                color: today ? '#fff' : crmV2.text, background: today ? crmV2.gold : 'transparent',
+              }}>
+                {format(day, 'd')}
+              </span>
+            )
+            const countPill = activeCount > 0 && !compact ? (
+              <span style={{
+                minWidth: 18, height: 18, padding: '0 5px', borderRadius: 999, boxSizing: 'border-box',
+                background: busyDay ? crmV2.gold : crmV2.info, color: '#fff',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 11, fontWeight: 700, lineHeight: 1,
+              }}>
+                {activeCount}
+              </span>
+            ) : null
+            return (
+              <div
+                key={day.toISOString()}
+                role={busyDay ? 'button' : undefined}
+                tabIndex={busyDay ? 0 : undefined}
+                onClick={busyDay ? () => setDayListModal({ day, appts: dayAppts }) : undefined}
+                onKeyDown={busyDay ? e => { if (e.key === 'Enter') setDayListModal({ day, appts: dayAppts }) } : undefined}
+                title={busyDay ? `Voir les ${dayAppts.length} RDV` : undefined}
+                style={isMobile ? {
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, padding: '6px 0',
+                  borderLeft: `1px solid ${crmV2.border}`, cursor: busyDay ? 'pointer' : 'default', minWidth: 0,
+                } : {
+                  display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', minWidth: 0,
+                  borderLeft: `1px solid ${crmV2.border}`, cursor: busyDay ? 'pointer' : 'default',
+                }}
+              >
+                <span style={{
+                  fontSize: isMobile ? 10 : 11, fontWeight: 700, letterSpacing: isMobile ? 0 : '0.04em',
+                  textTransform: 'uppercase', color: isMobile ? crmV2.textFaint : crmV2.textMuted, whiteSpace: 'nowrap',
+                }}>
+                  {single && !isMobile
+                    ? format(day, 'EEEE', { locale: fr })
+                    : compact ? dayShort(day).charAt(0) : dayShort(day)}
+                </span>
+                {numPill}
+                {!isMobile && single && (
+                  <span style={{ fontSize: 13, color: crmV2.textMuted, textTransform: 'capitalize' }}>
+                    {format(day, 'MMMM', { locale: fr })}
+                  </span>
+                )}
+                {countPill && <span style={{ marginLeft: isMobile ? 0 : 'auto', display: 'inline-flex' }}>{countPill}</span>}
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Grille — remplit toute la hauteur dispo (défile seulement si l'écran est trop court) */}
+        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minHeight: 0, display: 'flex', flexDirection: 'column', paddingTop: 8 }}>
+          <div style={{
+            display: 'grid', gridTemplateColumns: gridCols, position: 'relative',
+            flex: '1 0 auto', minHeight: `${HOURS.length * hourHeight}px`,
+          }}>
+            {/* Libellés des heures */}
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {HOURS.map(h => (
+                <div
+                  key={h}
+                  style={{
+                    flex: 1, minHeight: 0, textAlign: 'right', paddingRight: isMobile ? 6 : 8,
+                    fontSize: isMobile ? 10 : 11, fontWeight: 600, color: crmV2.textMuted,
+                    transform: 'translateY(-7px)', boxSizing: 'border-box',
+                  }}
+                >
+                  {h}h
+                </div>
+              ))}
+            </div>
+
+            {/* Colonnes de jours */}
+            {days.map(day => {
+              const dayAppts = getAppointmentsForDay(day)
+              const today = isToday(day)
+              const dayLayout = computeDayLayout(dayAppts, single ? 3 : MAX_SIDE_COLS)
+              const hiddenIds = new Set(dayLayout.overflow.flatMap(b => b.appts.map(a => a.id)))
+              const dragOver = dragOverDay === day.toISOString()
+
+              return (
+                <div
+                  key={day.toISOString()}
+                  {...columnDragProps(day)}
+                  style={{
+                    position: 'relative', minWidth: 0, boxSizing: 'border-box',
+                    borderLeft: `1px solid ${crmV2.border}`,
+                    borderTop: `1px solid ${lineColor}`,
+                    backgroundColor: dragOver
+                      ? 'rgba(204,172,113,0.12)'
+                      : (today ? crmV2AgendaCards.todayColumn : 'transparent'),
+                    backgroundImage: `linear-gradient(to bottom, transparent calc(100% - 1px), ${lineColor} calc(100% - 1px))`,
+                    backgroundSize: `100% calc(100% / ${HOURS.length})`,
+                  }}
+                >
+                  {single && dayAppts.length === 0 && (
+                    <div style={{
+                      position: 'absolute', top: 24, left: 0, right: 0,
+                      textAlign: 'center', color: crmV2.textFaint, fontSize: 13,
+                    }}>
+                      Aucun RDV ce jour
+                    </div>
+                  )}
+
+                  {dayAppts.filter(a => !hiddenIds.has(a.id)).map(appt =>
+                    renderApptCard(appt, day, dayLayout, scale),
+                  )}
+
+                  {dayLayout.overflow.map(block => renderOverflowBadge(block, day, compact))}
+
+                  {/* Trait « maintenant » */}
+                  {today && (() => {
+                    const now = new Date()
+                    const nowPercent = timeToPercent(now.toISOString(), day)
+                    if (nowPercent <= 0 || nowPercent >= 100) return null
+                    return (
+                      <div style={{
+                        position: 'absolute', left: 0, right: 0,
+                        top: `${nowPercent}%`,
+                        height: 2, background: crmV2AgendaCards.nowLine,
+                        zIndex: 5, pointerEvents: 'none',
+                      }}>
+                        <span style={{
+                          position: 'absolute', left: -5, top: -4,
+                          width: 10, height: 10, borderRadius: '50%',
+                          background: crmV2AgendaCards.nowLine,
+                        }} />
+                      </div>
+                    )
+                  })()}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   // Filtre RDV Diploma / RDV Medibox, dans la barre d'outils de toutes les vues.
   const brandToggle = (
     <div
       role="group"
       aria-label="Filtrer par marque"
-      style={{ display: 'flex', background: '#f0e9da', borderRadius: 8, padding: 2, border: '1px solid #dfe3eb', flexShrink: 0 }}
+      style={{
+        display: 'inline-flex', gap: 2, background: crmV2.bgSoft, borderRadius: 999, padding: 3,
+        border: `1px solid ${crmV2.border}`, flexShrink: 0,
+      }}
     >
       {(['all', 'diploma', 'medibox'] as const).map(b => {
         const active = brandFilter === b
         return (
           <button
             key={b}
+            type="button"
             onClick={() => setBrandFilter(b)}
             aria-pressed={active}
             style={{
-              background: active ? (b === 'all' ? '#2d3e50' : RDV_BRANDS[b].color) : 'transparent',
-              border: 'none', borderRadius: 6, padding: '4px 10px',
-              color: active ? 'white' : '#516f90',
-              fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
+              background: active ? (b === 'all' ? crmV2.primary : RDV_BRANDS[b].color) : 'transparent',
+              border: 'none', borderRadius: 999, padding: '4px 10px', fontFamily: 'inherit',
+              color: active ? '#fff' : crmV2.textMuted,
+              fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
               display: 'inline-flex', alignItems: 'center', gap: 5,
             }}
           >
@@ -751,721 +1060,230 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
     </div>
   )
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#f5f8fa' }}>
-      {/* Top bar — masquée en mode admin et en mode closer (le parent gère le header) */}
-      {!adminMode && !closerId && (
-        <div style={{
-          padding: '0 24px',
-          height: 64,
-          background: '#ffffff',
-          borderBottom: '1px solid #dfe3eb',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          flexShrink: 0,
+  // Filtre closers selon le contexte (admin, closer en vue équipe, page autonome)
+  const closerFilter = adminMode || (!closerId) ? (
+    <AgendaSelectPill
+      icon={<Users size={13} />}
+      value={selectedCommercial}
+      onChange={e => handleSelectCommercial(e.target.value)}
+      aria-label="Filtrer par closer"
+    >
+      <option value="all">{adminMode ? 'Tous les closers' : 'Toute l’équipe'}</option>
+      {closers.map(c => (
+        <option key={c.id} value={c.id}>{c.name}</option>
+      ))}
+    </AgendaSelectPill>
+  ) : teamView ? (
+    // Vue équipe closer : voir tous les RDV pour repérer où il reste de la place
+    <AgendaSelectPill
+      icon={<Users size={13} />}
+      value={selectedCommercial}
+      onChange={e => handleSelectCommercial(e.target.value)}
+      aria-label="Agenda affiché"
+    >
+      {closerId && <option value={closerId}>Mon agenda</option>}
+      <option value="all">Toute l&apos;équipe</option>
+    </AgendaSelectPill>
+  ) : null
+
+  const viewItems: { id: CalendarView; label: string }[] = isMobile
+    ? [{ id: 'day', label: 'Jour' }, { id: '2days', label: '2 jours' }, { id: 'week', label: 'Semaine' }, { id: 'list', label: 'Liste' }]
+    : [{ id: 'day', label: 'Jour' }, { id: 'week', label: 'Semaine' }, { id: 'list', label: 'Liste' }]
+
+  // « Nouveau RDV » : modale closer, ou action fournie par la page parente
+  const newRdvAction = closerId ? () => setShowNewRdvModal(true) : onNewRdv
+  const pageTitle = title ?? (!adminMode && !closerId ? 'Agenda RDV' : undefined)
+  const showAdminLink = !adminMode && !closerId && !teamView
+  const showLegend = teamView || adminMode
+
+  const legend = showLegend ? (
+    <>
+      <span style={{ fontSize: 12, color: crmV2.textMuted, fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
+        Fond = issue · Point = closer
+      </span>
+      <AgendaLegendChip swatch={<MediboxBadge brand="medibox" compact style={{ fontSize: 10 }} />} label="RDV Medibox" />
+      {POST_RDV_LEGEND.map(item => (
+        <span key={item.label} style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0, whiteSpace: 'nowrap',
+          background: item.bg, color: item.color, borderRadius: 999, padding: '4px 10px', fontSize: 12, fontWeight: 700,
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{
-              width: 36, height: 36, borderRadius: 10,
-              background: 'rgba(204,172,113,0.15)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <Calendar size={18} style={{ color: '#C9A84C' }} />
-            </div>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 15, color: '#2d3e50' }}>Agenda RDV</div>
-              <div style={{ fontSize: 12, color: '#516f90' }}>Diploma Santé</div>
-            </div>
-          </div>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: item.color }} />
+          {item.label}
+        </span>
+      ))}
+    </>
+  ) : null
 
-          {/* Week counters */}
-          <div style={{ display: 'flex', gap: 16 }}>
-            <div style={{
-              background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.2)',
-              borderRadius: 10, padding: '6px 16px', textAlign: 'center',
-            }}>
-              <div style={{ fontSize: 22, fontWeight: 800, color: '#C9A84C', lineHeight: 1 }}>{rdvCount}</div>
-              <div style={{ fontSize: 11, color: '#516f90', marginTop: 2 }}>RDV cette semaine</div>
-            </div>
-            <div style={{
-              background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)',
-              borderRadius: 10, padding: '6px 16px', textAlign: 'center',
-            }}>
-              <div style={{ fontSize: 22, fontWeight: 800, color: '#22c55e', lineHeight: 1 }}>{rdvEffectues}</div>
-              <div style={{ fontSize: 11, color: '#516f90', marginTop: 2 }}>Avancés</div>
-            </div>
-          </div>
+  const subtitle = (
+    <>
+      {rangeLabel()}
+      <span> · {rangeCount} RDV</span>
+      {!isMobile && <span style={{ color: crmV2.successStrong, fontWeight: 600 }}> · {rdvEffectues} avancés</span>}
+    </>
+  )
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {/* Lien admin — masqué en vue équipe (télépro / closer) */}
-            {!teamView && (
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, position: 'relative',
+      background: crmV2.bgSoft, color: crmV2.text, fontFamily: 'inherit',
+    }}>
+      {/* En-tête V2 : titre, période, navigation, vues, action principale, filtres */}
+      <div style={{
+        background: crmV2.bg, borderBottom: `1px solid ${crmV2.border}`,
+        padding: isMobile ? '14px 12px 10px' : '20px 28px 16px', flexShrink: 0,
+      }}>
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          gap: isMobile ? 10 : '12px 16px', flexWrap: isMobile ? 'nowrap' : 'wrap',
+        }}>
+          <div style={{ minWidth: 0 }}>
+            {pageTitle ? (
+              <>
+                <h1 style={{ margin: 0, fontSize: isMobile ? 19 : 22, fontWeight: 600, letterSpacing: '-0.02em', color: crmV2.text }}>
+                  {pageTitle}
+                </h1>
+                <div style={{
+                  marginTop: 4, fontSize: 13, color: crmV2.textMuted,
+                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                }}>
+                  {subtitle}
+                </div>
+              </>
+            ) : (
+              <div style={{
+                fontSize: isMobile ? 15 : 16, fontWeight: 700, color: crmV2.text,
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+              }}>
+                {rangeLabel()}
+                <span style={{ fontSize: 13, fontWeight: 500, color: crmV2.textMuted }}> · {rangeCount} RDV</span>
+              </div>
+            )}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 8, flexWrap: 'wrap', flexShrink: 0 }}>
+            <AgendaRoundButton onClick={goPrev} label="Période précédente">
+              <ChevronLeft size={15} />
+            </AgendaRoundButton>
+            <CrmV2Button
+              variant="secondary"
+              onClick={goToday}
+              style={isMobile ? { height: 36, padding: '0 12px' } : undefined}
+            >
+              {isMobile ? 'Auj.' : 'Aujourd’hui'}
+            </CrmV2Button>
+            <AgendaRoundButton onClick={goNext} label="Période suivante">
+              <ChevronRight size={15} />
+            </AgendaRoundButton>
+            {!isMobile && (
+              <div style={{ marginLeft: 4 }}>
+                <CrmV2Segmented items={viewItems} value={view} onChange={setView} />
+              </div>
+            )}
+            {!isMobile && newRdvAction && (
+              <CrmV2Button variant="primary" icon={<Plus size={14} />} onClick={newRdvAction} style={{ marginLeft: 4 }}>
+                Nouveau RDV
+              </CrmV2Button>
+            )}
+            {!isMobile && showAdminLink && (
               <a
                 href="/admin"
                 style={{
-                  background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.25)',
-                  borderRadius: 8, padding: '6px 12px',
-                  color: '#C9A84C', fontSize: 12,
-                  textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5,
+                  display: 'inline-flex', alignItems: 'center', gap: 6, borderRadius: 999, padding: '8px 16px',
+                  fontSize: 13, fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap',
+                  background: crmV2.goldSoft, border: `1px solid ${crmV2.goldBorder}`, color: crmV2.goldDark,
                 }}
               >
-                <LayoutDashboard size={13} />
-                Admin
+                <LayoutDashboard size={14} /> Admin
               </a>
             )}
-
-            {/* Sélecteur closer */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Users size={14} style={{ color: '#516f90' }} />
-              <select
-                value={selectedCommercial}
-                onChange={e => handleSelectCommercial(e.target.value)}
-                style={{
-                  background: '#f0e9da', border: '1px solid #dfe3eb',
-                  borderRadius: 8, padding: '6px 10px', color: '#2d3e50',
-                  fontSize: 13, cursor: 'pointer', outline: 'none',
-                }}
-              >
-                <option value="all">Toute l&apos;équipe</option>
-                {closers.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* View toggle */}
-            <div style={{ display: 'flex', background: '#f0e9da', borderRadius: 8, padding: 3, border: '1px solid #dfe3eb' }}>
-              {(['day', 'week', 'list'] as const).map(v => (
-                <button
-                  key={v}
-                  onClick={() => setView(v)}
-                  style={{
-                    background: view === v ? '#C9A84C' : 'transparent',
-                    border: 'none', borderRadius: 6, padding: '5px 14px',
-                    color: view === v ? 'white' : '#516f90',
-                    fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                  }}
-                >
-                  {v === 'day' ? 'Jour' : v === 'week' ? 'Semaine' : 'Liste'}
-                </button>
-              ))}
-            </div>
           </div>
         </div>
-      )}
 
-      {/* Mode admin : barre unique compacte (stats + nav + filtres) */}
-      {adminMode && (
-        <div style={{
-          padding: `6px ${padX}px`,
-          background: '#ffffff',
-          borderBottom: '1px solid #dfe3eb',
-          display: 'flex', alignItems: 'center', gap: 12,
-          flexShrink: 0, flexWrap: 'wrap',
-        }}>
-          <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
-            <span style={{ fontSize: 12, color: '#C9A84C', fontWeight: 700 }}>{rdvCount} RDV</span>
-            <span style={{ fontSize: 12, color: '#22c55e', fontWeight: 700 }}>{rdvEffectues} avancés</span>
+        {isMobile && (
+          <div style={{ marginTop: 12 }}>
+            <CrmV2Segmented items={viewItems} value={view} onChange={setView} stretch />
           </div>
+        )}
 
-          <div style={{ width: 1, height: 20, background: '#dfe3eb', flexShrink: 0 }} />
-
-          <button
-            onClick={() => view === 'day'
-              ? setSelectedDay(d => addDays(d, -1))
-              : setCurrentWeekStart(subWeeks(currentWeekStart, 1))}
-            style={{
-              background: '#f0e9da', border: '1px solid #dfe3eb',
-              borderRadius: 8, width: 28, height: 28,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', color: '#516f90', flexShrink: 0,
-            }}
-          >
-            <ChevronLeft size={15} />
-          </button>
-
-          <div style={{ fontWeight: 700, fontSize: 13, color: '#2d3e50', textTransform: 'capitalize', flexShrink: 0 }}>
-            {view === 'day' ? (
-              format(selectedDay, 'EEEE d MMMM yyyy', { locale: fr })
-            ) : (
-              <>
-                {format(activeWeekStart, 'd MMMM', { locale: fr })}
-                {' '}—{' '}
-                {format(addDays(activeWeekStart, 6), 'd MMMM yyyy', { locale: fr })}
-              </>
-            )}
-          </div>
-
-          <button
-            onClick={() => view === 'day'
-              ? setSelectedDay(d => addDays(d, 1))
-              : setCurrentWeekStart(addWeeks(currentWeekStart, 1))}
-            style={{
-              background: '#f0e9da', border: '1px solid #dfe3eb',
-              borderRadius: 8, width: 28, height: 28,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', color: '#516f90', flexShrink: 0,
-            }}
-          >
-            <ChevronRight size={15} />
-          </button>
-
-          <button
-            onClick={() => view === 'day'
-              ? setSelectedDay(new Date())
-              : setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}
-            style={{
-              background: 'transparent', border: '1px solid #dfe3eb',
-              borderRadius: 8, padding: '4px 10px',
-              color: '#516f90', fontSize: 11, cursor: 'pointer', flexShrink: 0,
-            }}
-          >
-            Aujourd&apos;hui
-          </button>
-
+        {/* Filtres : closers, marque, légende, outils */}
+        <div
+          className="crm-v2-agenda-filters"
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8, marginTop: isMobile ? 10 : 16,
+            flexWrap: isMobile ? 'nowrap' : 'wrap',
+            overflowX: isMobile ? 'auto' : 'visible', scrollbarWidth: 'none',
+            margin: isMobile ? '10px -12px 0' : undefined, padding: isMobile ? '0 12px' : undefined,
+          }}
+        >
+          {closerFilter}
+          {brandToggle}
+          {legend}
+          {isMobile && showAdminLink && (
+            <a
+              href="/admin"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6, borderRadius: 999, height: 32, padding: '0 12px',
+                fontSize: 12, fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0,
+                background: crmV2.goldSoft, border: `1px solid ${crmV2.goldBorder}`, color: crmV2.goldDark,
+              }}
+            >
+              <LayoutDashboard size={13} /> Admin
+            </a>
+          )}
           {loading && (
-            <div style={{ fontSize: 11, color: '#516f90', flexShrink: 0 }}>Chargement…</div>
+            <span style={{ fontSize: 12, color: crmV2.textFaint, whiteSpace: 'nowrap', flexShrink: 0 }}>Chargement…</span>
           )}
-
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-            {brandToggle}
-            <Users size={13} style={{ color: '#516f90' }} />
-            <select
-              value={selectedCommercial}
-              onChange={e => setSelectedCommercial(e.target.value)}
-              style={{
-                background: '#f0e9da', border: '1px solid #dfe3eb',
-                borderRadius: 8, padding: '4px 8px', color: '#2d3e50',
-                fontSize: 11, cursor: 'pointer', outline: 'none',
-              }}
-            >
-              <option value="all">Tous les closers</option>
-              {closers.map(c => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-
-            <div style={{ display: 'flex', background: '#f0e9da', borderRadius: 8, padding: 2, border: '1px solid #dfe3eb' }}>
-              {(['day', 'week', 'list'] as const).map(v => (
-                <button
-                  key={v}
-                  onClick={() => setView(v)}
-                  style={{
-                    background: view === v ? '#C9A84C' : 'transparent',
-                    border: 'none', borderRadius: 6, padding: '3px 10px',
-                    color: view === v ? 'white' : '#516f90',
-                    fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                  }}
-                >
-                  {v === 'day' ? 'Jour' : v === 'week' ? 'Semaine' : 'Liste'}
-                </button>
-              ))}
+          {toolbarExtra && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0,
+              flexWrap: isMobile ? 'nowrap' : 'wrap', marginLeft: isMobile ? 0 : 'auto',
+            }}>
+              {toolbarExtra}
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Week nav — hors mode admin */}
-      {!adminMode && (
-      <div style={{
-        padding: '10px 24px',
-        background: '#ffffff',
-        borderBottom: '1px solid #dfe3eb',
-        display: 'flex', alignItems: 'center', gap: 12,
-        flexShrink: 0,
-      }}>
-        <button
-          onClick={() => view === 'day'
-            ? setSelectedDay(d => addDays(d, -1))
-            : setCurrentWeekStart(subWeeks(currentWeekStart, 1))}
-          style={{
-            background: '#f0e9da', border: '1px solid #dfe3eb',
-            borderRadius: 8, width: 32, height: 32,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', color: '#516f90',
-          }}
-        >
-          <ChevronLeft size={16} />
-        </button>
-
-        <div style={{ fontWeight: 700, fontSize: 14, color: '#2d3e50', minWidth: 200, textTransform: 'capitalize' }}>
-          {view === 'day' ? (
-            format(selectedDay, 'EEEE d MMMM yyyy', { locale: fr })
-          ) : (
-            <>
-              {format(activeWeekStart, 'd MMMM', { locale: fr })}
-              {' '}—{' '}
-              {format(addDays(activeWeekStart, 6), 'd MMMM yyyy', { locale: fr })}
-            </>
           )}
         </div>
-
-        <button
-          onClick={() => view === 'day'
-            ? setSelectedDay(d => addDays(d, 1))
-            : setCurrentWeekStart(addWeeks(currentWeekStart, 1))}
-          style={{
-            background: '#f0e9da', border: '1px solid #dfe3eb',
-            borderRadius: 8, width: 32, height: 32,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', color: '#516f90',
-          }}
-        >
-          <ChevronRight size={16} />
-        </button>
-
-        <button
-          onClick={() => view === 'day'
-            ? setSelectedDay(new Date())
-            : setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}
-          style={{
-            background: 'transparent', border: '1px solid #dfe3eb',
-            borderRadius: 8, padding: '5px 14px',
-            color: '#516f90', fontSize: 12, cursor: 'pointer',
-          }}
-        >
-          Aujourd&apos;hui
-        </button>
-
-        {brandToggle}
-
-        {/* Contrôles closer */}
-        {closerId && !adminMode && (
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-            {/* Sélecteur équipe — permet au closer de voir tous les RDV pour
-                repérer où il reste de la place avant de placer un RDV. */}
-            {teamView && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Users size={14} style={{ color: '#516f90' }} />
-                <select
-                  value={selectedCommercial}
-                  onChange={e => handleSelectCommercial(e.target.value)}
-                  style={{
-                    background: '#f0e9da', border: '1px solid #dfe3eb',
-                    borderRadius: 8, padding: '6px 10px', color: '#2d3e50',
-                    fontSize: 12, cursor: 'pointer', outline: 'none',
-                  }}
-                >
-                  {closerId && <option value={closerId}>Mon agenda</option>}
-                  <option value="all">Toute l&apos;équipe</option>
-                </select>
-              </div>
-            )}
-
-            <button
-              onClick={() => setShowNewRdvModal(true)}
-              style={{
-                background: 'rgba(204,172,113,0.15)',
-                border: '1px solid rgba(204,172,113,0.4)',
-                borderRadius: 8, padding: '6px 14px',
-                color: '#C9A84C', fontSize: 12, fontWeight: 700,
-                cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: 5,
-                transition: 'all 0.15s',
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.background = 'rgba(204,172,113,0.25)'
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = 'rgba(204,172,113,0.15)'
-              }}
-            >
-              <Plus size={13} />
-              Nouveau RDV
-            </button>
-
-            <div style={{ display: 'flex', background: '#f0e9da', borderRadius: 8, padding: 3, border: '1px solid #dfe3eb' }}>
-              {(['day', 'week', 'list'] as const).map(v => (
-                <button
-                  key={v}
-                  onClick={() => setView(v)}
-                  style={{
-                    background: view === v ? '#C9A84C' : 'transparent',
-                    border: 'none', borderRadius: 6, padding: '4px 12px',
-                    color: view === v ? 'white' : '#516f90',
-                    fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                  }}
-                >
-                  {v === 'day' ? 'Jour' : v === 'week' ? 'Semaine' : 'Liste'}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {loading && (
-          <div style={{ fontSize: 12, color: '#516f90', marginLeft: 8 }}>Chargement…</div>
-        )}
       </div>
-      )}
-
-      {/* Légende code couleur post-RDV (agenda équipe / admin) */}
-      {(teamView || adminMode) && (
-        <div style={{
-          padding: isMobile ? '6px 12px' : '6px 24px',
-          background: '#ffffff',
-          borderBottom: '1px solid #dfe3eb',
-          display: 'flex',
-          alignItems: 'center',
-          gap: isMobile ? 10 : 16,
-          flexWrap: 'wrap',
-          flexShrink: 0,
-        }}>
-          <span style={{ fontSize: 11, color: '#516f90', fontWeight: 600 }}>
-            Fond = statut · Contour = closer
-          </span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#2d3e50', fontWeight: 500 }}>
-            <MediboxBadge brand="medibox" compact /> RDV Medibox
-          </span>
-          {POST_RDV_LEGEND.map(item => (
-            <span
-              key={item.label}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 5,
-                fontSize: 11,
-                color: '#2d3e50',
-                fontWeight: 500,
-              }}
-            >
-              <span style={{
-                width: 10,
-                height: 10,
-                borderRadius: 3,
-                background: item.color,
-                flexShrink: 0,
-              }} />
-              {item.label}
-            </span>
-          ))}
-        </div>
-      )}
 
       {weekIsDense && view === 'week' && !isMobile && (
         <div style={{
-          padding: '8px 24px',
-          background: '#fff8eb',
-          borderBottom: '1px solid #f0d9a8',
+          padding: `8px ${padX}px`,
+          background: crmV2.goldSoft,
+          borderBottom: `1px solid ${crmV2.goldBorder}`,
           display: 'flex',
           alignItems: 'center',
           gap: 12,
           flexShrink: 0,
         }}>
-          <span style={{ fontSize: 12, color: '#92400e', fontWeight: 600 }}>
+          <span style={{ fontSize: 12, color: crmV2.goldDark, fontWeight: 600 }}>
             Semaine chargée ({rdvCount} RDV) — la vue liste est plus lisible.
           </span>
-          <button
-            type="button"
-            onClick={() => setView('list')}
-            style={{
-              background: '#C9A84C',
-              border: 'none',
-              borderRadius: 8,
-              padding: '5px 12px',
-              color: '#fff',
-              fontSize: 11,
-              fontWeight: 700,
-              cursor: 'pointer',
-            }}
-          >
+          <CrmV2Button variant="secondary" size="sm" onClick={() => setView('list')}>
             Passer en vue Liste
-          </button>
+          </CrmV2Button>
         </div>
       )}
 
-      {isMobile && view === 'week' && (
-        <div style={{
-          padding: `8px ${padX}px`,
-          background: '#fff8eb',
-          borderBottom: '1px solid #f0d9a8',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 8,
-          flexShrink: 0,
-          flexWrap: 'wrap',
-        }}>
-          <span style={{ fontSize: 11, color: '#92400e', fontWeight: 600, flex: 1, minWidth: 0 }}>
-            Sur mobile, la vue liste est plus lisible. Glissez horizontalement pour parcourir la semaine.
-          </span>
-          <button
-            type="button"
-            onClick={() => setView('list')}
-            style={{
-              background: '#C9A84C',
-              border: 'none',
-              borderRadius: 8,
-              padding: '5px 10px',
-              color: '#fff',
-              fontSize: 11,
-              fontWeight: 700,
-              cursor: 'pointer',
-              flexShrink: 0,
-            }}
-          >
-            Vue Liste
-          </button>
-        </div>
-      )}
-
-      {/* Calendar grid */}
-      {view === 'week' ? (
-        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-          <div style={{
-            flex: 1,
-            overflow: 'auto',
-            minHeight: 0,
-            WebkitOverflowScrolling: 'touch',
-          }}>
-          <div style={{
-            minWidth: weekGridMinWidth,
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            minHeight: '100%',
-          }}>
-          {/* Day headers — fixes, ne scrollent pas */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: weekGridCols,
-            borderBottom: '1px solid #dfe3eb',
-            background: '#ffffff',
-            flexShrink: 0,
-            zIndex: 2,
-          }}>
-            <div style={{ borderRight: '1px solid #dfe3eb' }} />
-            {weekDays.map(day => {
-              const dayAppts = getAppointmentsForDay(day)
-              const today = isToday(day)
-              const busyDay = dayAppts.length > 5
-              return (
-                <div
-                  key={day.toISOString()}
-                  role={busyDay ? 'button' : undefined}
-                  tabIndex={busyDay ? 0 : undefined}
-                  onClick={busyDay ? () => setDayListModal({ day, appts: dayAppts }) : undefined}
-                  onKeyDown={busyDay ? e => { if (e.key === 'Enter') setDayListModal({ day, appts: dayAppts }) } : undefined}
-                  title={busyDay ? `Voir les ${dayAppts.length} RDV` : undefined}
-                  style={{
-                    padding: '6px 4px',
-                    textAlign: 'center',
-                    borderRight: '1px solid #dfe3eb',
-                    background: today ? 'rgba(201,168,76,0.06)' : 'transparent',
-                    cursor: busyDay ? 'pointer' : 'default',
-                  }}
-                >
-                  <div style={{ fontSize: 10, color: '#516f90', textTransform: 'uppercase', fontWeight: 600 }}>
-                    {format(day, 'EEE', { locale: fr })}
-                  </div>
-                  <div style={{
-                    fontSize: 15, fontWeight: 700,
-                    color: today ? '#C9A84C' : '#2d3e50',
-                    lineHeight: 1.2, marginTop: 1,
-                  }}>
-                    {format(day, 'd')}
-                  </div>
-                  {dayAppts.length > 0 && (
-                    <div style={{
-                      marginTop: 2,
-                      minWidth: 18, height: 18, padding: '0 4px',
-                      background: busyDay ? '#C9A84C' : '#4cabdb',
-                      borderRadius: 10,
-                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 11, fontWeight: 800, color: 'white', lineHeight: 1,
-                    }}>
-                      {dayAppts.length}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
+      {/* Calendrier */}
+      {view !== 'list' ? (
+        isMobile ? (
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: crmV2.bg }}>
+            {renderTimeGrid(visibleDays)}
           </div>
-
-          {/* Time grid — remplit toute la hauteur dispo (scroll seulement si écran trop court) */}
-          <div style={{ flex: 1, overflow: 'auto', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: weekGridCols, position: 'relative', flex: '1 0 auto', minHeight: `${HOURS.length * HOUR_HEIGHT}px` }}>
-            {/* Hour labels */}
-            <div style={{ borderRight: '1px solid #dfe3eb', display: 'flex', flexDirection: 'column' }}>
-              {HOURS.map(h => (
-                <div
-                  key={h}
-                  style={{
-                    flex: 1, minHeight: 0,
-                    display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end',
-                    paddingRight: 8, paddingTop: 4,
-                    fontSize: 12, color: '#516f90', fontWeight: 600,
-                  }}
-                >
-                  {h}h
-                </div>
-              ))}
+        ) : (
+          <div style={{ flex: 1, minHeight: 0, padding: '16px 28px 20px', display: 'flex' }}>
+            <div style={{
+              flex: 1, minWidth: 0, background: crmV2.bg, border: `1px solid ${crmV2.border}`,
+              borderRadius: crmV2.radiusLg, boxShadow: crmV2.shadow, overflow: 'hidden',
+              display: 'flex', flexDirection: 'column',
+            }}>
+              {renderTimeGrid(visibleDays)}
             </div>
-
-            {/* Day columns */}
-            {weekDays.map(day => {
-              const dayAppts = getAppointmentsForDay(day)
-              const today = isToday(day)
-              const dayLayout = computeDayLayout(dayAppts)
-              const hiddenIds = new Set(dayLayout.overflow.flatMap(b => b.appts.map(a => a.id)))
-
-              return (
-                <div
-                  key={day.toISOString()}
-                  {...columnDragProps(day)}
-                  style={{
-                    borderRight: '1px solid #dfe3eb',
-                    position: 'relative',
-                    background: dragOverDay === day.toISOString()
-                      ? 'rgba(204,172,113,0.12)'
-                      : (today ? 'rgba(201,168,76,0.04)' : 'transparent'),
-                    minWidth: 0,
-                    display: 'flex', flexDirection: 'column',
-                  }}
-                >
-                  {HOURS.map(h => (
-                    <div key={h} style={{ flex: 1, minHeight: 0, borderBottom: '1px solid #eef1f6' }} />
-                  ))}
-
-                  {dayAppts.filter(a => !hiddenIds.has(a.id)).map(appt =>
-                    renderApptCard(appt, day, dayLayout, 'week'),
-                  )}
-
-                  {dayLayout.overflow.map(block => renderOverflowBadge(block, day))}
-
-                  {/* Current time indicator */}
-                  {today && (() => {
-                    const now = new Date()
-                    const nowPercent = timeToPercent(now.toISOString(), day)
-                    if (nowPercent < 0 || nowPercent > 100) return null
-                    return (
-                      <div style={{
-                        position: 'absolute', left: 0, right: 0,
-                        top: `${nowPercent}%`,
-                        height: 2, background: '#C9A84C',
-                        zIndex: 2,
-                      }}>
-                        <div style={{
-                          position: 'absolute', left: -4, top: -4,
-                          width: 10, height: 10, borderRadius: '50%',
-                          background: '#C9A84C',
-                        }} />
-                      </div>
-                    )
-                  })()}
-                </div>
-              )
-            })}
           </div>
-          </div>{/* fin overflow: auto */}
-          </div>{/* fin minWidth wrapper */}
-          </div>{/* fin scroll container */}
-        </div>
-      ) : view === 'day' ? (
-        /* Day view — grille horaire d'une seule colonne, plus grande */
-        (() => {
-          const dayAppts = getAppointmentsForDay(selectedDay)
-          const dayLayout = computeDayLayout(dayAppts, 3)
-          const hiddenIds = new Set(dayLayout.overflow.flatMap(b => b.appts.map(a => a.id)))
-          const today = isToday(selectedDay)
-          const activeCount = dayAppts.filter(a => a.status !== 'annule').length
-          return (
-            <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-              {/* En-tête du jour */}
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                padding: '10px 24px',
-                borderBottom: '1px solid #dfe3eb',
-                background: today ? 'rgba(204,172,113,0.06)' : '#ffffff',
-                flexShrink: 0,
-              }}>
-                <span style={{ fontSize: 15, fontWeight: 700, color: today ? '#C9A84C' : '#2d3e50', textTransform: 'capitalize' }}>
-                  {format(selectedDay, 'EEEE d MMMM', { locale: fr })}
-                </span>
-                <span style={{
-                  minWidth: 22, height: 22, padding: '0 7px',
-                  background: '#C9A84C', borderRadius: 11,
-                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 12, fontWeight: 800, color: 'white',
-                }}>
-                  {activeCount}
-                </span>
-                <span style={{ fontSize: 12, color: '#516f90' }}>RDV</span>
-              </div>
-
-              {/* Grille horaire — remplit toute la hauteur dispo */}
-              <div style={{ flex: 1, overflow: 'auto', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '64px 1fr', position: 'relative', flex: '1 0 auto', minHeight: `${HOURS.length * HOUR_HEIGHT_DAY}px` }}>
-                  {/* Libellés des heures */}
-                  <div style={{ borderRight: '1px solid #dfe3eb', display: 'flex', flexDirection: 'column' }}>
-                    {HOURS.map(h => (
-                      <div
-                        key={h}
-                        style={{
-                          flex: 1, minHeight: 0,
-                          display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end',
-                          paddingRight: 10, paddingTop: 4,
-                          fontSize: 13, color: '#516f90', fontWeight: 600,
-                        }}
-                      >
-                        {h}h
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Colonne du jour */}
-                  <div
-                    {...columnDragProps(selectedDay)}
-                    style={{ position: 'relative', minWidth: 0, background: dragOverDay === selectedDay.toISOString() ? 'rgba(204,172,113,0.12)' : (today ? 'rgba(201,168,76,0.04)' : 'transparent'), display: 'flex', flexDirection: 'column' }}
-                  >
-                    {HOURS.map(h => (
-                      <div key={h} style={{ flex: 1, minHeight: 0, borderBottom: '1px solid #eef1f6' }} />
-                    ))}
-
-                    {dayAppts.length === 0 && (
-                      <div style={{
-                        position: 'absolute', top: 24, left: 0, right: 0,
-                        textAlign: 'center', color: '#94a3b8', fontSize: 13,
-                      }}>
-                        Aucun RDV ce jour
-                      </div>
-                    )}
-
-                    {dayAppts.filter(a => !hiddenIds.has(a.id)).map(appt =>
-                      renderApptCard(appt, selectedDay, dayLayout, 'day'),
-                    )}
-
-                    {dayLayout.overflow.map(block => renderOverflowBadge(block, selectedDay))}
-
-                    {/* Indicateur d'heure courante */}
-                    {today && (() => {
-                      const now = new Date()
-                      const nowPercent = timeToPercent(now.toISOString(), selectedDay)
-                      if (nowPercent < 0 || nowPercent > 100) return null
-                      return (
-                        <div style={{
-                          position: 'absolute', left: 0, right: 0,
-                          top: `${nowPercent}%`,
-                          height: 2, background: '#C9A84C',
-                          zIndex: 2,
-                        }}>
-                          <div style={{
-                            position: 'absolute', left: -4, top: -4,
-                            width: 10, height: 10, borderRadius: '50%',
-                            background: '#C9A84C',
-                          }} />
-                        </div>
-                      )
-                    })()}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )
-        })()
+        )
       ) : (
-        /* List view */
-        <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? 12 : 24 }}>
+        /* Vue liste */
+        <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? 12 : '16px 28px 20px' }}>
           {activeAppointments.length === 0 ? (
-            <div style={{ textAlign: 'center', color: '#516f90', paddingTop: 60 }}>
+            <div style={{ textAlign: 'center', color: crmV2.textMuted, paddingTop: 60, fontSize: 13 }}>
               Aucun RDV assigné cette semaine
             </div>
           ) : (
@@ -1477,19 +1295,20 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                   key={appt.id}
                   onClick={() => setSelectedAppointment(appt)}
                   style={{
-                    background: getStatusFill(appt) || '#dfe3eb',
+                    background: getStatusFill(appt) || crmV2.bg,
                     border: `1px solid ${getColorForCommercial(appt.users?.id || '')}66`,
                     borderLeft: `6px solid ${getColorForCommercial(appt.users?.id || '')}`,
-                    borderRadius: 12, padding: isMobile ? '12px 14px' : '14px 18px',
+                    borderRadius: 12, padding: isMobile ? '10px 12px' : '12px 18px',
                     display: 'flex', alignItems: 'center', gap: isMobile ? 12 : 16,
-                    cursor: 'pointer', transition: 'border-color 0.15s',
+                    cursor: 'pointer', transition: 'border-color 0.15s, box-shadow 0.15s',
+                    boxShadow: crmV2.shadow, minHeight: 44, boxSizing: 'border-box',
                   }}
                   onMouseEnter={e => (e.currentTarget.style.borderColor = getColorForCommercial(appt.users?.id || ''))}
                   onMouseLeave={e => (e.currentTarget.style.borderColor = `${getColorForCommercial(appt.users?.id || '')}55`)}
                 >
                   {appt.users && (
                     <div style={{
-                      width: 38, height: 38, borderRadius: 10,
+                      width: 36, height: 36, borderRadius: '36%',
                       background: `${getColorForCommercial(appt.users.id)}20`,
                       border: `1px solid ${getColorForCommercial(appt.users.id)}40`,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -1505,15 +1324,15 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                     <div style={{
                       fontWeight: 700, fontSize: 14,
                       color: statusFillTextColor(getStatusFill(appt)),
+                      display: 'flex', alignItems: 'center', gap: 8, minWidth: 0,
                     }}>
-                      {appt.prospect_name}
-                      <MediboxBadge brand={appt.brand} style={{ marginLeft: 8 }} />
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{appt.prospect_name}</span>
+                      <MediboxBadge brand={appt.brand} />
                     </div>
                     <div style={{
                       fontSize: 12, marginTop: 2,
-                      color: getStatusFill(appt) && !POST_RDV_LIGHT_FILL.has(getStatusFill(appt)!)
-                        ? 'rgba(255,255,255,0.8)'
-                        : '#516f90',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: isMobile ? 'nowrap' : undefined,
+                      color: crmV2.textMuted,
                     }}>
                       {format(new Date(appt.start_at), 'EEEE d MMMM · HH:mm', { locale: fr })} – {format(new Date(appt.end_at), 'HH:mm')}
                       {appt.users && <span> · {appt.users.name}</span>}
@@ -1529,49 +1348,74 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
         </div>
       )}
 
+      {/* Bouton flottant « + » (mobile) */}
+      {isMobile && newRdvAction && (
+        <button
+          type="button"
+          onClick={newRdvAction}
+          aria-label="Nouveau RDV"
+          title="Nouveau RDV"
+          style={{
+            position: 'absolute', right: 14, bottom: 14, zIndex: 20,
+            width: 52, height: 52, borderRadius: 999, border: 'none', cursor: 'pointer',
+            background: crmV2.primary, color: '#fff',
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 8px 20px rgba(15,31,61,0.3)',
+          }}
+        >
+          <Plus size={22} />
+        </button>
+      )}
+
       {/* Liste du jour (créneaux chargés / badge +N) */}
       {dayListModal && (
         <div
           style={{
             position: 'fixed', inset: 0, zIndex: 60,
-            background: 'rgba(14,30,53,0.45)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            padding: 16,
+            background: 'rgba(15,31,61,0.40)',
+            display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center',
+            padding: isMobile ? 0 : 16,
           }}
           onClick={e => { if (e.target === e.currentTarget) setDayListModal(null) }}
         >
           <div style={{
-            background: '#fff',
-            borderRadius: 14,
+            background: crmV2.bg,
+            borderRadius: isMobile ? '22px 22px 0 0' : crmV2.radiusLg,
             width: '100%',
-            maxWidth: 480,
-            maxHeight: '80vh',
+            maxWidth: isMobile ? undefined : 480,
+            maxHeight: isMobile ? '85dvh' : '80vh',
             overflow: 'hidden',
             display: 'flex',
             flexDirection: 'column',
-            boxShadow: '0 20px 50px rgba(14,30,53,0.2)',
+            boxShadow: crmV2.shadowPanel,
+            fontFamily: crmV2.font,
+            color: crmV2.text,
           }}>
             <div style={{
               padding: '14px 18px',
-              borderBottom: '1px solid #dfe3eb',
+              borderBottom: `1px solid ${crmV2.border}`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
+              gap: 12,
             }}>
-              <span style={{ fontWeight: 700, fontSize: 15, color: '#2d3e50' }}>
-                {format(dayListModal.day, 'EEEE d MMMM', { locale: fr })}
+              <span style={{ fontWeight: 700, fontSize: 15, color: crmV2.text }}>
+                {capitalize(format(dayListModal.day, 'EEEE d MMMM', { locale: fr }))}
                 {' '}
-                <span style={{ color: '#C9A84C' }}>({dayListModal.appts.length} RDV)</span>
+                <span style={{ color: crmV2.goldDark }}>({dayListModal.appts.length} RDV)</span>
               </span>
               <button
                 type="button"
                 onClick={() => setDayListModal(null)}
+                aria-label="Fermer"
+                title="Fermer"
                 style={{
-                  background: 'none', border: 'none', fontSize: 20,
-                  color: '#94a3b8', cursor: 'pointer', lineHeight: 1,
+                  width: 34, height: 34, borderRadius: 999, border: `1px solid ${crmV2.border}`, background: crmV2.bg,
+                  color: crmV2.textMuted, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer', flexShrink: 0,
                 }}
               >
-                ✕
+                <X size={16} />
               </button>
             </div>
             <div style={{ overflow: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -1592,9 +1436,10 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                         setSelectedAppointment(appt)
                       }
                     }}
+                    title={appt.users?.name ? `Closer : ${appt.users.name}` : undefined}
                     style={{
                       textAlign: 'left',
-                      background: getStatusFill(appt) || '#f5f8fa',
+                      background: getStatusFill(appt) || crmV2.bgHover,
                       border: `1px solid ${getColorForCommercial(appt.users?.id || '')}55`,
                       borderLeft: `4px solid ${getColorForCommercial(appt.users?.id || '')}`,
                       borderRadius: 10,
@@ -1603,7 +1448,16 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                     }}
                   >
                     <div style={{
-                      fontSize: 12, fontWeight: 700,
+                      fontSize: 14, fontWeight: 700,
+                      color: statusFillTextColor(getStatusFill(appt)),
+                      display: 'flex', alignItems: 'center', gap: 6,
+                    }}>
+                      {shortProspectName(appt.prospect_name)}
+                      <MediboxBadge brand={appt.brand} />
+                    </div>
+                    <div style={{
+                      fontSize: 12, fontWeight: 600, marginTop: 2,
+                      display: 'flex', alignItems: 'center', gap: 5,
                       color: getStatusFill(appt)
                         ? statusFillTextColor(getStatusFill(appt))
                         : getColorForCommercial(appt.users?.id || ''),
@@ -1611,17 +1465,12 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                       {format(new Date(appt.start_at), 'HH:mm')}
                       {' – '}
                       {format(new Date(appt.end_at), 'HH:mm')}
-                      {appt.meeting_type === 'visio' ? ' · 📹' : appt.meeting_type === 'presentiel' ? ' · 📍' : ''}
-                    </div>
-                    <div style={{
-                      fontSize: 14, fontWeight: 700, marginTop: 2,
-                      color: statusFillTextColor(getStatusFill(appt)),
-                    }}>
-                      {shortProspectName(appt.prospect_name)}
+                      {appt.meeting_type === 'visio' && <Video size={12} />}
+                      {appt.meeting_type === 'presentiel' && <MapPin size={12} />}
                     </div>
                     {(() => {
                       const niveau = getNiveau(appt.classe_actuelle, appt.prospect_name)
-                      const meta = [niveau, appt.formation_type?.trim()].filter(Boolean).join(' · ')
+                      const meta = [niveau, appt.formation_type?.trim(), appt.users?.name].filter(Boolean).join(' · ')
                       return meta ? (
                         <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{meta}</div>
                       ) : null
@@ -1638,9 +1487,9 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                             style={{
                               display: 'inline-flex',
                               alignItems: 'center',
-                              gap: 4,
-                              padding: '4px 10px',
-                              borderRadius: 6,
+                              gap: 5,
+                              padding: '4px 12px',
+                              borderRadius: 999,
                               background: badge.color,
                               color: '#fff',
                               fontSize: 12,
@@ -1648,7 +1497,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                               textDecoration: 'none',
                             }}
                           >
-                            🎥 {badge.fullLabel}
+                            <Video size={13} /> {badge.fullLabel}
                           </a>
                           {badge.isGoogle && (
                             <span style={{
@@ -1657,8 +1506,8 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                               color: '#1a73e8',
                               background: 'rgba(26,115,232,0.1)',
                               border: '1px solid rgba(26,115,232,0.3)',
-                              borderRadius: 4,
-                              padding: '2px 6px',
+                              borderRadius: 999,
+                              padding: '2px 8px',
                             }}>
                               Lien Google externe
                             </span>
@@ -1667,8 +1516,8 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                       )
                     })()}
                     {appt.meeting_type === 'presentiel' && campusShortLabel(appt.meeting_link) && (
-                      <div style={{ fontSize: 12, color: '#8a6d1f', fontWeight: 600, marginTop: 6 }}>
-                        📍 {appt.meeting_link}
+                      <div style={{ fontSize: 12, color: crmV2.goldDark, fontWeight: 600, marginTop: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <MapPin size={12} style={{ flexShrink: 0 }} /> {appt.meeting_link}
                       </div>
                     )}
                   </div>
@@ -1719,14 +1568,14 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
         <div
           style={{
             position: 'fixed',
-            bottom: 24,
+            bottom: isMobile ? 84 : 24,
             left: '50%',
             transform: 'translateX(-50%)',
             zIndex: 80,
-            background: moveToast.kind === 'ok' ? '#2d3e50' : '#b91c1c',
+            background: moveToast.kind === 'ok' ? crmV2.primary : '#b91c1c',
             color: '#fff',
             padding: '10px 18px',
-            borderRadius: 10,
+            borderRadius: 12,
             fontSize: 13,
             fontWeight: 600,
             boxShadow: '0 8px 24px rgba(14,30,53,0.25)',

@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { crmV2 } from '@/lib/crm-v2-theme'
+import { CrmV2BottomSheet } from '@/components/crm-v2/primitives'
 
 interface NavItem {
   key: string
@@ -115,6 +116,7 @@ const NAVY = {
   goldIcon: '#e3c878',
   goldText: '#f0d999',
   goldBg: 'rgba(201, 168, 76, 0.22)',
+  logout: '#ff9298',
 }
 
 const MOBILE_TABS = [
@@ -238,6 +240,7 @@ export default function CRMSidebarV2() {
               type="button"
               onClick={() => toggleSection(section.title)}
               title={folded ? 'Déplier' : 'Replier'}
+              className="crm-v2-nav-section"
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
                 background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
@@ -262,6 +265,8 @@ export default function CRMSidebarV2() {
                   href={item.href}
                   onClick={onNavigate}
                   title={collapsed ? item.label : undefined}
+                  className="crm-v2-nav-link"
+                  data-active={active ? 'true' : undefined}
                   style={linkStyle(active, collapsed)}
                 >
                   <Icon size={16} strokeWidth={2} style={{ color: active ? NAVY.goldIcon : NAVY.faint, flexShrink: 0 }} />
@@ -282,7 +287,7 @@ export default function CRMSidebarV2() {
                       {badge > 0 && (
                         <span style={{
                           background: crmV2.danger, color: '#fff', fontSize: 10, fontWeight: 700,
-                          minWidth: 18, height: 18, padding: '0 6px', borderRadius: 9,
+                          minWidth: 18, height: 18, padding: '0 6px', borderRadius: 9, boxSizing: 'border-box',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                         }}>
                           {badge > 99 ? '99+' : badge}
@@ -300,50 +305,117 @@ export default function CRMSidebarV2() {
     </nav>
   )
 
+  const signOut = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    try {
+      const { createClient } = await import('@/lib/supabase')
+      await createClient().auth.signOut()
+    } catch { /* ignore */ }
+    window.location.href = '/login'
+  }
+
   if (isMobile) {
+    // Onglet « Menu » actif quand le menu est ouvert ou qu'aucun autre onglet ne correspond à la page
+    const tabActive = MOBILE_TABS.some(t => isActive(t.href))
+    const menuActive = mobileMenuOpen || !tabActive
+    const tabStyle = (active: boolean): React.CSSProperties => ({
+      flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center',
+      justifyContent: 'center', gap: 2, textDecoration: 'none', background: 'none', border: 'none',
+      padding: 0, cursor: 'pointer', fontFamily: 'inherit',
+      color: active ? NAVY.goldIcon : '#ffffff', fontSize: 10, fontWeight: active ? 700 : 600,
+    })
     return (
       <>
-        {mobileMenuOpen && (
-          <div
-            style={{
-              position: 'fixed', inset: 0, zIndex: 50,
-              background: 'rgba(45,62,80,0.4)',
-              display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
-            }}
-            onClick={e => { if (e.target === e.currentTarget) setMobileMenuOpen(false) }}
-          >
-            <div style={{
-              background: NAVY.solid, borderTopLeftRadius: 22, borderTopRightRadius: 22,
-              maxHeight: '85vh', overflow: 'hidden', display: 'flex', flexDirection: 'column',
-            }}>
-              <div style={{
-                padding: '14px 16px', borderBottom: `1px solid ${NAVY.border}`,
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: NAVY.text }}>Hub Diploma</div>
-                <button type="button" onClick={() => setMobileMenuOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: NAVY.muted }}>
-                  <X size={20} />
-                </button>
-              </div>
-              {renderNav(() => setMobileMenuOpen(false))}
+        <CrmV2BottomSheet
+          open={mobileMenuOpen}
+          onClose={() => setMobileMenuOpen(false)}
+          dark
+          maxHeight="92dvh"
+          header={
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: NAVY.text }}>Hub Diploma</div>
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen(false)}
+                aria-label="Fermer le menu"
+                style={{
+                  width: 40, height: 40, marginRight: -8, background: 'none', border: 'none', cursor: 'pointer',
+                  color: '#ffffff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >
+                <X size={20} />
+              </button>
             </div>
+          }
+        >
+          <div style={{ padding: '8px 8px 12px' }}>
+            {NAV_SECTIONS.map(section => (
+              <div key={section.title} style={{ marginBottom: 8 }}>
+                <div style={{
+                  fontSize: 10, fontWeight: 700, color: NAVY.faint, textTransform: 'uppercase',
+                  letterSpacing: 1, padding: '4px 10px 2px',
+                }}>
+                  {section.title}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: '0 2px' }}>
+                  {section.items.map(item => {
+                    const active = isActive(item.href)
+                    const Icon = item.icon
+                    const badge = badgeFor(item.badgeKey)
+                    return (
+                      <a
+                        key={item.key}
+                        href={item.href}
+                        onClick={() => setMobileMenuOpen(false)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 8, minHeight: 40, padding: '0 10px',
+                          borderRadius: crmV2.radiusPill, textDecoration: 'none', boxSizing: 'border-box',
+                          color: active ? NAVY.goldText : '#ffffff', background: active ? NAVY.goldBg : 'transparent',
+                          fontSize: 13, fontWeight: active ? 700 : 600, whiteSpace: 'nowrap', overflow: 'hidden', minWidth: 0,
+                        }}
+                      >
+                        <Icon size={16} strokeWidth={2} style={{ flexShrink: 0, color: active ? NAVY.goldIcon : NAVY.faint }} />
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flex: 1 }}>{item.label}</span>
+                        {item.external && <ExternalLink size={11} style={{ color: NAVY.faint, flexShrink: 0, opacity: 0.7 }} />}
+                        {badge > 0 && (
+                          <span style={{
+                            background: crmV2.danger, color: '#fff', fontSize: 10, fontWeight: 700,
+                            minWidth: 18, height: 18, padding: '0 6px', borderRadius: 9, boxSizing: 'border-box',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                          }}>
+                            {badge > 99 ? '99+' : badge}
+                          </span>
+                        )}
+                      </a>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+            <a
+              href="/login"
+              onClick={signOut}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8, minHeight: 40, padding: '0 10px', marginTop: 4,
+                borderTop: `1px solid ${NAVY.border}`, color: NAVY.logout, fontSize: 13, fontWeight: 600, textDecoration: 'none',
+              }}
+            >
+              <LogOut size={16} style={{ flexShrink: 0 }} /> Déconnexion
+            </a>
           </div>
-        )}
+        </CrmV2BottomSheet>
         <nav style={{
-          position: 'fixed', left: 0, right: 0, bottom: 0, height: 56,
+          position: 'fixed', left: 0, right: 0, bottom: 0, height: 56, boxSizing: 'content-box',
           background: NAVY.solid, borderTop: `1px solid ${NAVY.border}`,
           display: 'flex', zIndex: 40, paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+          fontFamily: crmV2.font,
         }}>
           {MOBILE_TABS.map(item => {
-            const active = isActive(item.href)
+            const active = !mobileMenuOpen && isActive(item.href)
             const Icon = item.icon
             return (
-              <a key={item.key} href={item.href} style={{
-                flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
-                justifyContent: 'center', gap: 2, textDecoration: 'none',
-                color: active ? NAVY.goldIcon : NAVY.muted, fontSize: 10, fontWeight: active ? 700 : 600,
-              }}>
-                <Icon size={18} strokeWidth={active ? 2.5 : 2} />
+              <a key={item.key} href={item.href} style={tabStyle(active)}>
+                <Icon size={18} strokeWidth={2} />
                 <span>{item.label}</span>
               </a>
             )
@@ -351,13 +423,10 @@ export default function CRMSidebarV2() {
           <button
             type="button"
             onClick={() => setMobileMenuOpen(true)}
-            style={{
-              flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
-              justifyContent: 'center', gap: 2, background: 'none', border: 'none',
-              color: NAVY.muted, fontSize: 10, cursor: 'pointer',
-            }}
+            aria-expanded={mobileMenuOpen}
+            style={tabStyle(menuActive)}
           >
-            <Menu size={18} />
+            <Menu size={18} strokeWidth={2} />
             <span>Menu</span>
           </button>
         </nav>
@@ -367,6 +436,11 @@ export default function CRMSidebarV2() {
 
   return (
     <>
+      {/* Survols (impossibles en style inline) */}
+      <style>{`
+        .crm-v2-nav-link:not([data-active="true"]):hover { background-color: rgba(255,255,255,0.07) !important; }
+        .crm-v2-nav-section:hover { color: #ffffff !important; }
+      `}</style>
       <aside style={{
         position: 'fixed', left: 12, top: 12, bottom: 12, width,
         background: NAVY.bg, border: `1px solid ${NAVY.border}`,
@@ -375,10 +449,10 @@ export default function CRMSidebarV2() {
         zIndex: 30, overflow: 'hidden', fontFamily: crmV2.font,
       }}>
         <div style={{
-          padding: collapsed ? '14px 10px' : '12px 14px',
+          padding: collapsed ? '12px 10px' : '12px 14px',
           borderBottom: `1px solid ${NAVY.border}`,
-          display: 'flex', alignItems: 'center', gap: 10,
-          height: collapsed ? 56 : 64, boxSizing: 'border-box',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+          height: 64, boxSizing: 'border-box',
         }}>
           {collapsed ? (
             <div style={{
@@ -410,15 +484,9 @@ export default function CRMSidebarV2() {
         <div style={{ padding: 8, borderTop: `1px solid ${NAVY.border}`, display: 'flex', flexDirection: 'column', gap: 4 }}>
           <a
             href="/login"
-            onClick={async e => {
-              e.preventDefault()
-              try {
-                const { createClient } = await import('@/lib/supabase')
-                await createClient().auth.signOut()
-              } catch { /* ignore */ }
-              window.location.href = '/login'
-            }}
-            style={{ ...linkStyle(false, collapsed), color: '#ff9298' }}
+            onClick={signOut}
+            className="crm-v2-nav-link"
+            style={{ ...linkStyle(false, collapsed), color: NAVY.logout }}
             title={collapsed ? 'Déconnexion' : undefined}
           >
             <LogOut size={15} style={{ flexShrink: 0 }} />
@@ -427,6 +495,8 @@ export default function CRMSidebarV2() {
           <button
             type="button"
             onClick={toggleCollapse}
+            className="crm-v2-nav-link"
+            title={collapsed ? 'Déplier la barre' : undefined}
             style={{
               display: 'flex', alignItems: 'center', gap: 10,
               padding: collapsed ? '10px' : '8px 12px',
