@@ -49,6 +49,17 @@ type StaffRow = {
   created_at?: string | null
 }
 
+const STAFF_DISPO_ALL = '__all__'
+const STAFF_DISPO_NONE = '__none__'
+
+// Note staff générée par la page publique : « Dispo : sam. 10 oct. » ou « Dispo : les deux jours (…) »
+function staffDispoKey(note: string | null | undefined): string {
+  if (!note?.startsWith('Dispo')) return STAFF_DISPO_NONE
+  const label = note.replace(/^Dispo\s*:\s*/, '').trim()
+  if (/^(les deux jours|tous les jours)/i.test(label)) return STAFF_DISPO_ALL
+  return label || STAFF_DISPO_NONE
+}
+
 function formatParisDateTime(iso: string | null | undefined): string {
   if (!iso) return ''
   return new Date(iso).toLocaleString('fr-FR', {
@@ -516,6 +527,30 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const [locationEdit, setLocationEdit] = useState('')
   const [capacityEdit, setCapacityEdit] = useState('')
   const [staffNeededEdit, setStaffNeededEdit] = useState('')
+  const [staffDispoFilter, setStaffDispoFilter] = useState<string | null>(null)
+  const staffDispoCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const s of data?.staff ?? []) {
+      const k = staffDispoKey(s.note)
+      counts.set(k, (counts.get(k) ?? 0) + 1)
+    }
+    const days = [...counts.keys()].filter((k) => k !== STAFF_DISPO_ALL && k !== STAFF_DISPO_NONE)
+    const allCount = counts.get(STAFF_DISPO_ALL) ?? 0
+    const chips = days.map((k) => ({
+      key: k,
+      label: k,
+      count: counts.get(k) ?? 0,
+      onSite: (counts.get(k) ?? 0) + allCount,
+    }))
+    if (allCount) chips.push({ key: STAFF_DISPO_ALL, label: 'Les deux jours', count: allCount, onSite: allCount })
+    const noneCount = counts.get(STAFF_DISPO_NONE) ?? 0
+    if (noneCount && chips.length) chips.push({ key: STAFF_DISPO_NONE, label: 'Non précisé', count: noneCount, onSite: noneCount })
+    return chips
+  }, [data?.staff])
+  const visibleStaff = useMemo(
+    () => (data?.staff ?? []).filter((s) => !staffDispoFilter || staffDispoKey(s.note) === staffDispoFilter),
+    [data?.staff, staffDispoFilter],
+  )
   const [dateEdit, setDateEdit] = useState('')
   const [timeStartEdit, setTimeStartEdit] = useState('')
   const [timeEndEdit, setTimeEndEdit] = useState('')
@@ -2172,13 +2207,52 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                       </CrmV2Button>
                     )}
                   </div>
+                  {staffDispoCounts.length > 1 && (
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+                      {staffDispoCounts.map((c) => {
+                        const active = staffDispoFilter === c.key
+                        return (
+                          <button
+                            key={c.key}
+                            type="button"
+                            onClick={() => setStaffDispoFilter(active ? null : c.key)}
+                            title={
+                              c.key === STAFF_DISPO_ALL || c.key === STAFF_DISPO_NONE
+                                ? undefined
+                                : `${c.onSite} staff sur place ce jour (dont ${c.onSite - c.count} dispo les deux jours)`
+                            }
+                            style={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'flex-start',
+                              padding: '6px 10px',
+                              borderRadius: 8,
+                              cursor: 'pointer',
+                              border: `1px solid ${active ? crmV2.gold : crmV2.border}`,
+                              background: active ? 'rgba(201,168,76,0.12)' : 'transparent',
+                              color: 'inherit',
+                              fontSize: 12,
+                              lineHeight: 1.3,
+                            }}
+                          >
+                            <span>
+                              <strong style={{ fontSize: 14 }}>{c.count}</strong> {c.label}
+                            </span>
+                            {c.key !== STAFF_DISPO_ALL && c.key !== STAFF_DISPO_NONE && c.onSite !== c.count ? (
+                              <span style={{ fontSize: 10, color: crmV2.textMuted }}>{c.onSite} sur place au total</span>
+                            ) : null}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
                   {data.staff.length === 0 ? (
                     <div style={{ fontSize: 13, color: crmV2.textMuted }}>
                       Personne n’a encore postulé. Partagez le lien ci-dessus.
                     </div>
                   ) : (
                     <div style={{ display: 'grid', gap: 6, maxHeight: 360, overflow: 'auto' }}>
-                      {data.staff.map((s) => (
+                      {visibleStaff.map((s) => (
                         <div
                           key={s.id}
                           style={{ fontSize: 13, borderBottom: `1px solid ${crmV2.border}`, paddingBottom: 6 }}
