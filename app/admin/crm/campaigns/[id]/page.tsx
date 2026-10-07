@@ -2,14 +2,20 @@
 
 import { useEffect, useState, useCallback, use, useRef } from 'react'
 import {
-  Mail, Send, Save, Eye, Users, X, ChevronLeft,
-  CheckCircle2, AlertCircle, Clock, FileText, TestTube2, Palette,
+  Mail, Send, Save, Eye, Users,
+  CheckCircle2, AlertCircle, AlertTriangle, Clock, FileText, TestTube2, Palette, Zap, Download, Tag,
+  Calendar, MousePointerClick, Inbox, UserMinus, Ban, Info,
 } from 'lucide-react'
-import LogoutButton from '@/components/LogoutButton'
 import EmailEditorVisual, { type EmailEditorVisualRef } from '@/components/EmailEditorVisual'
 import CampaignRecipientsTab from '@/components/crm/CampaignRecipientsTab'
 import { usePageTitle } from '@/components/DocumentTitle'
 import { useIsMobile } from '@/lib/useIsMobile'
+import { crmV2 } from '@/lib/crm-v2-theme'
+import {
+  CrmV2Page, CrmV2Header, CrmV2Tabs, CrmV2Body, CrmV2Button, CrmV2Card, CrmV2Spinner, CrmV2StatusPill,
+  CrmV2KpiGrid, CrmV2KpiCard, CrmV2Field, CrmV2Input, CrmV2Search, CrmV2CloseButton, CrmV2SectionLabel,
+} from '@/components/crm-v2/primitives'
+import { MKT_TONES, MktModal, MktNotice } from '@/components/crm-v2/marketing/ui'
 
 interface Campaign {
   id: string
@@ -84,7 +90,6 @@ const DEFAULT_HTML = `<!DOCTYPE html>
 
 export default function CampaignDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
-  const isMobile = useIsMobile()
   const [campaign, setCampaign] = useState<Campaign | null>(null)
   const [loading, setLoading] = useState(true)
   usePageTitle(campaign?.name)
@@ -93,7 +98,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const [tab, setTab] = useState<'content' | 'preview' | 'recipients' | 'stats'>('content')
   const [testEmail, setTestEmail] = useState('')
   const [testSending, setTestSending] = useState(false)
-  const [testResult, setTestResult] = useState<string | null>(null)
+  const [testResult, setTestResult] = useState<{ ok: boolean; text: string } | null>(null)
   const editorRef = useRef<EmailEditorVisualRef>(null)
   const [showSendModal, setShowSendModal] = useState(false)
   const [sending, setSending] = useState(false)
@@ -212,71 +217,67 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
       })
       const data = await res.json()
       if (res.ok) {
-        setTestResult(`✅ Email de test envoyé à ${testEmail}`)
+        setTestResult({ ok: true, text: `Email de test envoyé à ${testEmail}` })
       } else {
-        setTestResult(`❌ ${data.error || 'Erreur inconnue'}`)
+        setTestResult({ ok: false, text: data.error || 'Erreur inconnue' })
       }
     } catch (e) {
-      setTestResult(`❌ ${e instanceof Error ? e.message : 'Erreur réseau'}`)
+      setTestResult({ ok: false, text: e instanceof Error ? e.message : 'Erreur réseau' })
     } finally {
       setTestSending(false)
     }
   }
 
+  const back = { href: '/admin/crm/campaigns', label: 'Campagnes' }
   if (loading || !campaign) {
     return (
-      <div style={{ minHeight: '100vh', background: '#f7f4ee', color: '#4a6070', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        Chargement…
-      </div>
+      <CrmV2Page>
+        <CrmV2Header back={back} title="Campagne" />
+        <CrmV2Spinner />
+      </CrmV2Page>
     )
   }
 
   const statusMeta = STATUS_META[campaign.status] || STATUS_META.draft
+  const tabIcon = (Icon: typeof Mail, label: string) => (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon size={14} /> {label}</span>
+  )
 
   return (
-    <div style={{ minHeight: isMobile ? '100%' : '100vh', background: '#f7f4ee', color: '#0e1e35', fontFamily: 'Inter, system-ui, sans-serif' }}>
-      {/* Topbar — mobile : nom tronqué, déconnexion masquée (dispo dans le menu CRM) */}
-      <div style={{ padding: isMobile ? '0 12px' : '0 20px', height: 52, background: '#ffffff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 14, minWidth: 0 }}>
-          <a href="/admin/crm/campaigns" style={{ color: '#4a6070', textDecoration: 'none', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-            <ChevronLeft size={14} /> {!isMobile && 'Campagnes'}
-          </a>
-          <div style={{ width: 1, height: 22, background: '#e5ddc8', flexShrink: 0 }} />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-            <Mail size={16} style={{ color: '#C9A84C', flexShrink: 0 }} />
-            <span style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{campaign.name}</span>
-            <span style={{ fontSize: 10, fontWeight: 600, color: statusMeta.color, background: statusMeta.bg, padding: '3px 8px', borderRadius: 999, flexShrink: 0, whiteSpace: 'nowrap' }}>
-              {statusMeta.label}
-            </span>
-          </div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          {dirty && (
-            <span style={{ fontSize: 11, color: '#f59e0b' }}>{isMobile ? '●' : '● Modifié'}</span>
-          )}
-          <button
-            onClick={save}
-            disabled={!dirty || saving}
-            style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8, padding: '6px 14px', color: '#0e1e35', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'inherit', opacity: !dirty || saving ? 0.5 : 1 }}
-          >
-            <Save size={12} /> {saving ? 'Sauvegarde…' : 'Sauvegarder'}
-          </button>
-          {!isMobile && <LogoutButton />}
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div style={{ padding: isMobile ? '0 8px' : '0 24px', background: '#ffffff', borderBottom: '1px solid #e5ddc8', display: 'flex', gap: 4, ...(isMobile ? { overflowX: 'auto', whiteSpace: 'nowrap' } : {}) }}>
-        <Tab active={tab === 'content'} onClick={() => setTab('content')} icon={FileText} label="Contenu" />
-        <Tab active={tab === 'preview'} onClick={() => setTab('preview')} icon={Eye} label="Prévisualisation" />
-        <Tab active={tab === 'recipients'} onClick={() => setTab('recipients')} icon={Users} label="Destinataires" />
-        {campaign.status === 'sent' && (
-          <Tab active={tab === 'stats'} onClick={() => setTab('stats')} icon={CheckCircle2} label="Statistiques" />
-        )}
-      </div>
+    <CrmV2Page>
+      <CrmV2Header
+        back={back}
+        title={<span style={{ overflowWrap: 'anywhere' }}>{campaign.name}</span>}
+        subtitle={
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <CrmV2StatusPill label={statusMeta.label} color={statusMeta.color} bg={statusMeta.bg} />
+            <span style={{ overflowWrap: 'anywhere' }}>{campaign.subject || 'Sans objet'}</span>
+          </span>
+        }
+        actions={
+          <>
+            {dirty && <CrmV2StatusPill label="Modifié" color="#b45309" bg="rgba(201,168,76,0.18)" />}
+            <CrmV2Button variant="primary" icon={<Save size={14} />} onClick={save} disabled={!dirty || saving}>
+              {saving ? 'Sauvegarde…' : 'Sauvegarder'}
+            </CrmV2Button>
+          </>
+        }
+      >
+        <CrmV2Tabs
+          bordered={false}
+          value={tab}
+          onChange={id => setTab(id as typeof tab)}
+          items={[
+            { id: 'content', label: tabIcon(FileText, 'Contenu') },
+            { id: 'preview', label: tabIcon(Eye, 'Prévisualisation') },
+            { id: 'recipients', label: tabIcon(Users, 'Destinataires') },
+            ...(campaign.status === 'sent' ? [{ id: 'stats', label: tabIcon(CheckCircle2, 'Statistiques') }] : []),
+          ]}
+        />
+      </CrmV2Header>
 
       {/* Contenu */}
-      <div style={{ maxWidth: 1400, margin: '0 auto', padding: isMobile ? 12 : 24 }}>
+      <CrmV2Body>
         {tab === 'content' && (
           <ContentTab
             campaign={campaign}
@@ -315,7 +316,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         {tab === 'stats' && campaign.status === 'sent' && (
           <StatsTab campaign={campaign} />
         )}
-      </div>
+      </CrmV2Body>
 
       {showSendModal && (
         <SendConfirmModal
@@ -331,7 +332,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           sending={sending}
         />
       )}
-    </div>
+    </CrmV2Page>
   )
 }
 
@@ -367,82 +368,71 @@ function SendConfirmModal({
   const canConfirm = !sending && expected > 0 && confirmText.trim() === String(expected)
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 20 }} onClick={onClose}>
-      <div style={{ background: '#fff', borderRadius: 12, maxWidth: 480, width: '100%', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
-        <div style={{ padding: '16px 20px', background: 'linear-gradient(135deg,#0038f0,#2ea3f2)', color: '#fff' }}>
-          <div style={{ fontSize: 11, opacity: 0.85, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 1 }}>Envoyer la campagne</div>
-          <div style={{ fontSize: 16, fontWeight: 600 }}>{subject || '(sans sujet)'}</div>
-          <div style={{ fontSize: 11, opacity: 0.85, marginTop: 4 }}>De : {senderName} &lt;{senderEmail}&gt;</div>
-        </div>
-        <div style={{ padding: 20 }}>
-          {loading ? (
-            <div style={{ textAlign: 'center', color: '#4a6070', fontSize: 13, padding: '20px 0' }}>Calcul de l&apos;audience…</div>
+    <MktModal
+      open
+      onClose={onClose}
+      title={
+        <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Envoyer la campagne</span>
+          <span style={{ fontSize: 16, fontWeight: 700, color: crmV2.text, overflowWrap: 'anywhere' }}>{subject || '(sans sujet)'}</span>
+          <span style={{ fontSize: 12, fontWeight: 500, color: crmV2.textMuted, overflowWrap: 'anywhere' }}>De : {senderName} &lt;{senderEmail}&gt;</span>
+        </span>
+      }
+      footer={!loading ? (
+        <>
+          <CrmV2Button variant="secondary" onClick={onClose}>Annuler</CrmV2Button>
+          <CrmV2Button variant="primary" icon={<Send size={14} />} disabled={!canConfirm} onClick={onConfirm}>
+            {sending ? 'Envoi…' : 'Envoyer maintenant'}
+          </CrmV2Button>
+        </>
+      ) : undefined}
+    >
+      {loading ? (
+        <CrmV2Spinner />
+      ) : (
+        <>
+          <div style={{ background: crmV2.bgSoft, borderRadius: 12, padding: 14, textAlign: 'center' }}>
+            <CrmV2SectionLabel style={{ justifyContent: 'center', marginBottom: 4 }}>Destinataires uniques</CrmV2SectionLabel>
+            <div style={{ fontSize: 28, fontWeight: 700, color: crmV2.link, letterSpacing: '-0.02em' }}>{expected.toLocaleString('fr-FR')}</div>
+            {preview && preview.sample.length > 0 && (
+              <div style={{ fontSize: 12, color: crmV2.textMuted, marginTop: 8, overflowWrap: 'anywhere' }}>
+                Premiers : {preview.sample.map(s => s.email).slice(0, 3).join(', ')}{preview.sample.length > 3 && '…'}
+              </div>
+            )}
+          </div>
+          {expected === 0 ? (
+            <MktNotice tone="red" icon={<AlertCircle size={15} />}>
+              Aucun destinataire. Configure des segments ou filtres dans l’onglet Destinataires avant d’envoyer.
+            </MktNotice>
           ) : (
             <>
-              <div style={{ background: 'rgba(46,163,242,0.08)', border: '1px solid rgba(46,163,242,0.25)', borderRadius: 8, padding: 14, textAlign: 'center', marginBottom: 16 }}>
-                <div style={{ fontSize: 11, color: '#0038f0', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Destinataires uniques</div>
-                <div style={{ fontSize: 32, fontWeight: 700, color: '#0038f0' }}>{expected.toLocaleString('fr-FR')}</div>
-                {preview && preview.sample.length > 0 && (
-                  <div style={{ fontSize: 11, color: '#4a6070', marginTop: 8 }}>
-                    Premiers : {preview.sample.map(s => s.email).slice(0, 3).join(', ')}{preview.sample.length > 3 && '…'}
-                  </div>
-                )}
-              </div>
-              {expected === 0 ? (
-                <div style={{ background: 'rgba(239,68,68,0.08)', color: '#ef4444', padding: 12, borderRadius: 8, fontSize: 12 }}>
-                  Aucun destinataire. Configure des segments ou filtres dans l&apos;onglet Destinataires avant d&apos;envoyer.
-                </div>
-              ) : (
-                <>
-                  <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', color: '#a16207', padding: 12, borderRadius: 8, fontSize: 12, marginBottom: 14, lineHeight: 1.5 }}>
-                    ⚠️ Cette action est <strong>irréversible</strong>. La campagne sera envoyée par batches de 200 toutes les minutes via le cron.
-                  </div>
-                  <label style={{ display: 'block', fontSize: 11, color: '#4a6070', fontWeight: 600, marginBottom: 6 }}>
-                    Pour confirmer, tape le nombre de destinataires : <strong>{expected}</strong>
-                  </label>
-                  <input
-                    type="text"
-                    value={confirmText}
-                    onChange={e => setConfirmText(e.target.value)}
-                    placeholder={String(expected)}
-                    style={{ width: '100%', padding: '10px 12px', border: '1px solid #e5ddc8', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', marginBottom: 14 }}
-                  />
-                </>
-              )}
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  style={{ flex: 1, padding: 10, border: '1px solid #e5ddc8', background: '#fff', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', color: '#0e1e35' }}
-                >Annuler</button>
-                <button
-                  type="button"
-                  disabled={!canConfirm}
-                  onClick={onConfirm}
-                  style={{
-                    flex: 1, padding: 10, border: 'none',
-                    background: canConfirm ? 'linear-gradient(135deg,#0038f0,#2ea3f2)' : '#e5ddc8',
-                    color: '#fff', borderRadius: 8, fontSize: 13,
-                    cursor: canConfirm ? 'pointer' : 'not-allowed',
-                    fontFamily: 'inherit', fontWeight: 600,
-                  }}
-                >{sending ? 'Envoi…' : 'Envoyer maintenant'}</button>
-              </div>
+              <MktNotice icon={<AlertTriangle size={15} />}>
+                Cette action est <strong>irréversible</strong>. La campagne sera envoyée par batches de 200 toutes les minutes via le cron.
+              </MktNotice>
+              <CrmV2Field label={<>Pour confirmer, tape le nombre de destinataires : <strong style={{ color: crmV2.text }}>{expected}</strong></>}>
+                <CrmV2Input
+                  type="text"
+                  value={confirmText}
+                  onChange={e => setConfirmText(e.target.value)}
+                  placeholder={String(expected)}
+                />
+              </CrmV2Field>
             </>
           )}
-        </div>
-      </div>
-    </div>
+        </>
+      )}
+    </MktModal>
   )
 }
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
-  draft:     { label: 'Brouillon',  color: '#4a6070', bg: '#ffffff' },
-  scheduled: { label: 'Programmée', color: '#06b6d4', bg: 'rgba(6,182,212,0.15)' },
-  sending:   { label: 'Envoi…',     color: '#f59e0b', bg: 'rgba(245,158,11,0.15)' },
-  sent:      { label: 'Envoyée',    color: '#22c55e', bg: 'rgba(34,197,94,0.15)' },
-  failed:    { label: 'Échec',      color: '#ef4444', bg: 'rgba(239,68,68,0.15)' },
-  archived:  { label: 'Archivée',   color: '#4a6070', bg: 'rgba(139,143,168,0.15)' },
+  draft:     { label: 'Brouillon',  ...MKT_TONES.grey },
+  scheduled: { label: 'Programmée', ...MKT_TONES.blue },
+  sending:   { label: 'Envoi…',     ...MKT_TONES.gold },
+  sent:      { label: 'Envoyée',    ...MKT_TONES.green },
+  paused:    { label: 'En pause',   ...MKT_TONES.gold },
+  failed:    { label: 'Échec',      ...MKT_TONES.red },
+  archived:  { label: 'Archivée',   ...MKT_TONES.grey },
 }
 
 // ─── Tab : Contenu ───────────────────────────────────────────────────────
@@ -453,7 +443,7 @@ function ContentTab({ campaign, update, testEmail, setTestEmail, sendTest, testS
   setTestEmail: (e: string) => void
   sendTest: () => void
   testSending: boolean
-  testResult: string | null
+  testResult: { ok: boolean; text: string } | null
   editorRef: React.RefObject<EmailEditorVisualRef | null>
   setDirty: () => void
   openSendModal: () => void
@@ -464,7 +454,7 @@ function ContentTab({ campaign, update, testEmail, setTestEmail, sendTest, testS
   const isMobile = useIsMobile()
   return (
     // Mobile : éditeur puis panneau latéral empilés
-    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 360px', gap: isMobile ? 12 : 24 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) 340px', gap: isMobile ? 12 : 16, alignItems: 'start' }}>
       {/* Éditeur */}
       <div style={{ minWidth: 0 }}>
         <Card title="Informations">
@@ -473,8 +463,8 @@ function ContentTab({ campaign, update, testEmail, setTestEmail, sendTest, testS
           </Field>
           <Field label="Sujet de l'email">
             <input value={campaign.subject} onChange={e => update({ subject: e.target.value })} style={inputStyle} />
-            <div style={{ fontSize: 11, color: '#4a6070', marginTop: 4 }}>
-              Variables : <code style={{ color: '#C9A84C' }}>{'{{prenom}}'}</code> <code style={{ color: '#C9A84C' }}>{'{{nom}}'}</code>
+            <div style={{ fontSize: 11, color: crmV2.textFaint, marginTop: 4 }}>
+              Variables : <code style={{ color: crmV2.goldDark }}>{'{{prenom}}'}</code> <code style={{ color: crmV2.goldDark }}>{'{{nom}}'}</code>
             </div>
           </Field>
           <Field label="Preheader (aperçu dans la boîte mail)">
@@ -505,10 +495,10 @@ function ContentTab({ campaign, update, testEmail, setTestEmail, sendTest, testS
 
         <Card title="Design de l'email" icon={Palette}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 10, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
-            <div style={{ fontSize: 11, color: '#4a6070', lineHeight: 1.5, flex: isMobile ? '1 1 100%' : 1 }}>
+            <div style={{ fontSize: 12, color: crmV2.textMuted, lineHeight: 1.5, flex: isMobile ? '1 1 100%' : 1 }}>
               Drag & drop des blocs depuis la palette à gauche :
               <strong> Texte, Image, Bouton, Diviseur, Colonnes, Vidéo, Réseaux sociaux</strong>.
-              Utilise les <strong>Merge Tags</strong> pour insérer <code style={{ color: '#C9A84C' }}>{'{{prenom}}'}</code>, <code style={{ color: '#C9A84C' }}>{'{{nom}}'}</code>, <code style={{ color: '#C9A84C' }}>{'{{email}}'}</code>.
+              Utilise les <strong>Merge Tags</strong> pour insérer <code style={{ color: crmV2.goldDark }}>{'{{prenom}}'}</code>, <code style={{ color: crmV2.goldDark }}>{'{{nom}}'}</code>, <code style={{ color: crmV2.goldDark }}>{'{{email}}'}</code>.
             </div>
             <div style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
             <CrmTemplateButton
@@ -544,38 +534,42 @@ function ContentTab({ campaign, update, testEmail, setTestEmail, sendTest, testS
             />
             </div>
           </div>
-          <EmailEditorVisual
-            ref={editorRef}
-            initialDesign={campaign.design_json}
-            onChange={setDirty}
-            height={720}
-          />
+          <div style={{ border: `1px solid ${crmV2.border}`, borderRadius: 12, overflow: 'hidden' }}>
+            <EmailEditorVisual
+              ref={editorRef}
+              initialDesign={campaign.design_json}
+              onChange={setDirty}
+              height={720}
+            />
+          </div>
         </Card>
       </div>
 
       {/* Panneau droite */}
-      <div>
+      <div style={{ minWidth: 0, position: isMobile ? 'static' : 'sticky', top: 16 }}>
         <Card title="Envoi de test" icon={TestTube2}>
-          <div style={{ fontSize: 12, color: '#4a6070', marginBottom: 8 }}>
-            Envoie-toi un email de test avant d&apos;envoyer à tes prospects.
+          <div style={{ fontSize: 12, color: crmV2.textMuted, marginBottom: 8 }}>
+            Envoie-toi un email de test avant d’envoyer à tes prospects.
           </div>
-          <input
+          <CrmV2Input
             type="email"
             value={testEmail}
             onChange={e => setTestEmail(e.target.value)}
             placeholder="ton-email@exemple.com"
-            style={inputStyle}
           />
-          <button
+          <CrmV2Button
+            variant="gold"
+            icon={<Send size={14} />}
             onClick={sendTest}
             disabled={!testEmail.trim() || testSending}
-            style={{ marginTop: 10, width: '100%', background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', color: '#C9A84C', padding: '10px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13, fontFamily: 'inherit', opacity: !testEmail.trim() || testSending ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+            style={{ marginTop: 10, width: '100%', minHeight: 40 }}
           >
-            <Send size={13} /> {testSending ? 'Envoi…' : 'Envoyer le test'}
-          </button>
+            {testSending ? 'Envoi…' : 'Envoyer le test'}
+          </CrmV2Button>
           {testResult && (
-            <div style={{ marginTop: 10, padding: 10, borderRadius: 8, background: testResult.startsWith('✅') ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)', border: `1px solid ${testResult.startsWith('✅') ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`, fontSize: 12, color: testResult.startsWith('✅') ? '#22c55e' : '#ef4444' }}>
-              {testResult}
+            <div style={{ marginTop: 10, padding: '8px 12px', borderRadius: 10, display: 'flex', alignItems: 'flex-start', gap: 8, background: testResult.ok ? 'rgba(22,163,74,0.08)' : crmV2.dangerSoft, border: `1px solid ${testResult.ok ? 'rgba(22,163,74,0.25)' : 'rgba(242,84,91,0.30)'}`, fontSize: 12, fontWeight: 600, color: testResult.ok ? '#16a34a' : '#d13a41', overflowWrap: 'anywhere' }}>
+              {testResult.ok ? <CheckCircle2 size={14} style={{ flexShrink: 0, marginTop: 1 }} /> : <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 1 }} />}
+              <span>{testResult.text}</span>
             </div>
           )}
         </Card>
@@ -592,7 +586,7 @@ function ContentTab({ campaign, update, testEmail, setTestEmail, sendTest, testS
             const inProgress = campaign.status === 'sending'
             return (
               <>
-                <div style={{ fontSize: 12, color: '#4a6070', marginBottom: 12 }}>
+                <div style={{ fontSize: 12, color: crmV2.textMuted, marginBottom: 12 }}>
                   {sent ? 'Cette campagne a déjà été envoyée.' : inProgress ? 'Envoi en cours…' : 'Avant l\'envoi vérifie que :'}
                 </div>
                 {!sent && (
@@ -602,44 +596,34 @@ function ContentTab({ campaign, update, testEmail, setTestEmail, sendTest, testS
                     { done: hasAudience, text: 'Au moins un segment/filtre est défini' },
                   ]} />
                 )}
-                <button
+                <CrmV2Button
+                  variant={ready && !sent ? 'primary' : 'secondary'}
+                  icon={<Send size={14} />}
                   disabled={!ready || sending || sent}
                   onClick={openSendModal}
-                  style={{
-                    marginTop: 12,
-                    width: '100%',
-                    background: ready && !sent ? 'linear-gradient(135deg,#0038f0,#2ea3f2)' : '#ffffff',
-                    border: ready && !sent ? 'none' : '1px solid #e5ddc8',
-                    color: ready && !sent ? '#fff' : '#4a6070',
-                    padding: '10px',
-                    borderRadius: 8,
-                    cursor: ready && !sent ? 'pointer' : 'not-allowed',
-                    fontSize: 13,
-                    fontFamily: 'inherit',
-                    fontWeight: 600,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 6,
-                  }}
+                  style={{ marginTop: 12, width: '100%', minHeight: 40 }}
                 >
-                  <Send size={13} /> {sent ? 'Déjà envoyée' : inProgress ? 'Continuer l\'envoi' : 'Envoyer'}
-                </button>
+                  {sent ? 'Déjà envoyée' : inProgress ? 'Continuer l’envoi' : 'Envoyer'}
+                </CrmV2Button>
                 {sendStatus && (
                   <div style={{
                     marginTop: 10,
-                    padding: 10,
-                    borderRadius: 8,
-                    background: sendStatus.ok ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
-                    border: `1px solid ${sendStatus.ok ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)'}`,
-                    fontSize: 11,
-                    color: sendStatus.ok ? '#16a34a' : '#ef4444',
+                    padding: '8px 12px',
+                    borderRadius: 10,
+                    display: 'flex', alignItems: 'flex-start', gap: 8,
+                    background: sendStatus.ok ? 'rgba(22,163,74,0.08)' : crmV2.dangerSoft,
+                    border: `1px solid ${sendStatus.ok ? 'rgba(22,163,74,0.25)' : 'rgba(242,84,91,0.30)'}`,
+                    fontSize: 12,
+                    color: sendStatus.ok ? '#16a34a' : '#d13a41',
                   }}>
-                    {sendStatus.ok ? (
-                      <>✅ <strong>{sendStatus.sent}</strong> envoyés{sendStatus.failed > 0 && <>, {sendStatus.failed} échecs</>}{sendStatus.pending > 0 && <><br />⏳ {sendStatus.pending} en file (cron)</>}</>
-                    ) : (
-                      <>❌ {sendStatus.errors?.[0]?.error || 'Erreur'}</>
-                    )}
+                    {sendStatus.ok ? <CheckCircle2 size={14} style={{ flexShrink: 0, marginTop: 1 }} /> : <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 1 }} />}
+                    <span>
+                      {sendStatus.ok ? (
+                        <><strong>{sendStatus.sent}</strong> envoyés{sendStatus.failed > 0 && <>, {sendStatus.failed} échecs</>}{sendStatus.pending > 0 && <><br />{sendStatus.pending} en file (cron)</>}</>
+                      ) : (
+                        <>{sendStatus.errors?.[0]?.error || 'Erreur'}</>
+                      )}
+                    </span>
                   </div>
                 )}
               </>
@@ -648,12 +632,12 @@ function ContentTab({ campaign, update, testEmail, setTestEmail, sendTest, testS
         </Card>
 
         <Card title="Aide" icon={AlertCircle}>
-          <div style={{ fontSize: 12, color: '#4a6070', lineHeight: 1.5 }}>
-            💡 <strong>Variables disponibles :</strong><br />
-            <code style={{ color: '#C9A84C' }}>{'{{prenom}}'}</code> — prénom du destinataire<br />
-            <code style={{ color: '#C9A84C' }}>{'{{nom}}'}</code> — nom<br />
-            <code style={{ color: '#C9A84C' }}>{'{{email}}'}</code> — email<br /><br />
-            Les variables sont remplacées automatiquement à l&apos;envoi.
+          <div style={{ fontSize: 12, color: crmV2.textMuted, lineHeight: 1.6 }}>
+            <strong style={{ color: crmV2.text }}>Variables disponibles :</strong><br />
+            <code style={{ color: crmV2.goldDark }}>{'{{prenom}}'}</code> — prénom du destinataire<br />
+            <code style={{ color: crmV2.goldDark }}>{'{{nom}}'}</code> — nom<br />
+            <code style={{ color: crmV2.goldDark }}>{'{{email}}'}</code> — email<br /><br />
+            Les variables sont remplacées automatiquement à l’envoi.
           </div>
         </Card>
       </div>
@@ -664,12 +648,12 @@ function ContentTab({ campaign, update, testEmail, setTestEmail, sendTest, testS
 // ─── Tab : Preview ───────────────────────────────────────────────────────
 function PreviewTab({ html, subject, senderName, senderEmail }: { html: string; subject: string; senderName: string; senderEmail: string }) {
   return (
-    <div style={{ background: '#fff', borderRadius: 12, overflow: 'hidden', maxWidth: 680, margin: '0 auto', boxShadow: '0 10px 40px rgba(0,0,0,0.3)' }}>
-      <div style={{ padding: 16, borderBottom: '1px solid #eee', background: '#f9fafb' }}>
-        <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>De</div>
-        <div style={{ fontSize: 13, color: '#222', fontWeight: 600 }}>{senderName} &lt;{senderEmail}&gt;</div>
-        <div style={{ fontSize: 11, color: '#888', marginTop: 10, marginBottom: 4 }}>Sujet</div>
-        <div style={{ fontSize: 15, color: '#111', fontWeight: 600 }}>{subject || '(vide)'}</div>
+    <div style={{ background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: crmV2.radiusLg, overflow: 'hidden', maxWidth: 680, width: '100%', margin: '0 auto', boxShadow: crmV2.shadowRecord }}>
+      <div style={{ padding: 16, borderBottom: `1px solid ${crmV2.border}`, background: crmV2.thBg }}>
+        <CrmV2SectionLabel style={{ marginBottom: 4 }}>De</CrmV2SectionLabel>
+        <div style={{ fontSize: 13, color: crmV2.text, fontWeight: 600, overflowWrap: 'anywhere' }}>{senderName} &lt;{senderEmail}&gt;</div>
+        <CrmV2SectionLabel style={{ marginTop: 10, marginBottom: 4 }}>Objet</CrmV2SectionLabel>
+        <div style={{ fontSize: 15, color: crmV2.text, fontWeight: 600, overflowWrap: 'anywhere' }}>{subject || '(vide)'}</div>
       </div>
       <iframe
         srcDoc={html}
@@ -688,81 +672,60 @@ function StatsTab({ campaign }: { campaign: Campaign }) {
   const bounceRate = campaign.total_sent > 0 ? (campaign.total_bounces / campaign.total_sent * 100).toFixed(1) : '0.0'
   const isMobile = useIsMobile()
 
+  const rows: { icon: typeof Mail; label: string; value: string | number }[] = [
+    { icon: Calendar, label: 'Envoi', value: campaign.sent_at ? new Date(campaign.sent_at).toLocaleString('fr-FR') : '–' },
+    { icon: Users, label: 'Destinataires ciblés', value: campaign.total_recipients },
+    { icon: Send, label: 'Emails envoyés', value: campaign.total_sent },
+    { icon: Inbox, label: 'Livrés', value: campaign.total_delivered },
+    { icon: Eye, label: 'Ouvertures uniques', value: campaign.total_unique_opens },
+    { icon: MousePointerClick, label: 'Clics uniques', value: campaign.total_unique_clicks },
+    { icon: UserMinus, label: 'Désabonnements', value: campaign.total_unsubscribes },
+  ]
+
   return (
-    <div>
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(4, 1fr)', gap: isMobile ? 10 : 16, marginBottom: isMobile ? 16 : 24 }}>
-        <BigStat label="Envoyés" value={campaign.total_sent} color="#06b6d4" />
-        <BigStat label="Taux d'ouverture" value={`${openRate}%`} color="#a855f7" sub={`${campaign.total_unique_opens} uniques`} />
-        <BigStat label="Taux de clic" value={`${clickRate}%`} color="#22c55e" sub={`${campaign.total_unique_clicks} uniques`} />
-        <BigStat label="Taux de bounce" value={`${bounceRate}%`} color="#ef4444" sub={`${campaign.total_bounces} emails`} />
-      </div>
-      <Card title="Résumé">
-        <div style={{ fontSize: 13, color: '#4a6070', lineHeight: 1.8 }}>
-          📅 <strong>Envoi :</strong> {campaign.sent_at ? new Date(campaign.sent_at).toLocaleString('fr-FR') : '–'}<br />
-          👥 <strong>Destinataires ciblés :</strong> {campaign.total_recipients}<br />
-          ✉️ <strong>Emails envoyés :</strong> {campaign.total_sent}<br />
-          📬 <strong>Livrés :</strong> {campaign.total_delivered}<br />
-          👁 <strong>Ouvertures uniques :</strong> {campaign.total_unique_opens}<br />
-          🖱 <strong>Clics uniques :</strong> {campaign.total_unique_clicks}<br />
-          🚫 <strong>Désabonnements :</strong> {campaign.total_unsubscribes}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? 12 : 16 }}>
+      <CrmV2KpiGrid>
+        <CrmV2KpiCard label="Envoyés" value={campaign.total_sent.toLocaleString('fr-FR')} icon={<Send size={15} />} color={crmV2.link} />
+        <CrmV2KpiCard label="Taux d’ouverture" value={`${openRate} %`} icon={<Eye size={15} />} color="#7e22ce" detail={`${campaign.total_unique_opens} uniques`} />
+        <CrmV2KpiCard label="Taux de clic" value={`${clickRate} %`} icon={<MousePointerClick size={15} />} color={crmV2.successStrong} detail={`${campaign.total_unique_clicks} uniques`} />
+        <CrmV2KpiCard label="Taux de bounce" value={`${bounceRate} %`} icon={<Ban size={15} />} color="#dc2626" detail={`${campaign.total_bounces} emails`} />
+      </CrmV2KpiGrid>
+      <Card title="Résumé" icon={Info}>
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {rows.map(r => {
+            const Icon = r.icon
+            return (
+              <div key={r.label} style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 40, borderBottom: `1px solid ${crmV2.borderLight}`, fontSize: 13 }}>
+                <Icon size={14} color={crmV2.textFaint} />
+                <span style={{ color: crmV2.textMuted, flex: 1 }}>{r.label}</span>
+                <strong style={{ color: crmV2.text }}>{typeof r.value === 'number' ? r.value.toLocaleString('fr-FR') : r.value}</strong>
+              </div>
+            )
+          })}
         </div>
       </Card>
     </div>
   )
 }
 
-function BigStat({ label, value, color, sub }: { label: string; value: number | string; color: string; sub?: string }) {
-  return (
-    <div style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 20, minWidth: 0 }}>
-      <div style={{ fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10, overflowWrap: 'anywhere' }}>{label}</div>
-      <div style={{ fontSize: 28, fontWeight: 700, color }}>{value}</div>
-      {sub && <div style={{ fontSize: 11, color: '#4a6070', marginTop: 4 }}>{sub}</div>}
-    </div>
-  )
-}
-
 // ─── Helpers ─────────────────────────────────────────────────────────────
-function Tab({ active, onClick, icon: Icon, label }: { active: boolean; onClick: () => void; icon: typeof Mail; label: string }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        background: 'transparent',
-        border: 'none',
-        borderBottom: `2px solid ${active ? '#C9A84C' : 'transparent'}`,
-        padding: '12px 16px',
-        color: active ? '#C9A84C' : '#4a6070',
-        fontSize: 13,
-        fontWeight: 600,
-        cursor: 'pointer',
-        flexShrink: 0,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 6,
-        fontFamily: 'inherit',
-      }}
-    >
-      <Icon size={14} /> {label}
-    </button>
-  )
-}
-
+/** Carte de section V2 : icône or, titre en majuscules. */
 function Card({ title, icon: Icon, children }: { title: string; icon?: typeof Mail; children: React.ReactNode }) {
+  const isMobile = useIsMobile()
   return (
-    <div style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 20, marginBottom: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-        {Icon && <Icon size={14} style={{ color: '#C9A84C' }} />}
-        <h3 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#0e1e35', textTransform: 'uppercase', letterSpacing: 0.5 }}>{title}</h3>
-      </div>
+    <CrmV2Card style={{ padding: isMobile ? 14 : 20, marginBottom: 16, boxShadow: crmV2.shadowRecord, minWidth: 0 }}>
+      <CrmV2SectionLabel icon={Icon ? <Icon size={14} color={crmV2.gold} /> : undefined} style={{ color: crmV2.text, marginBottom: 14 }}>
+        {title}
+      </CrmV2SectionLabel>
       {children}
-    </div>
+    </CrmV2Card>
   )
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 12 }}>
-      <div style={{ fontSize: 11, color: '#4a6070', fontWeight: 600, marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 12, color: crmV2.textMuted, fontWeight: 700, marginBottom: 6 }}>{label}</div>
       {children}
     </div>
   )
@@ -772,8 +735,8 @@ function Checklist({ items }: { items: Array<{ done: boolean; text: string }> })
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       {items.map((it, i) => (
-        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: it.done ? '#0e1e35' : '#4a6070' }}>
-          {it.done ? <CheckCircle2 size={12} style={{ color: '#22c55e' }} /> : <Clock size={12} />}
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: it.done ? crmV2.text : crmV2.textMuted }}>
+          {it.done ? <CheckCircle2 size={14} style={{ color: '#16a34a' }} /> : <Clock size={14} color={crmV2.textFaint} />}
           {it.text}
         </div>
       ))}
@@ -783,11 +746,12 @@ function Checklist({ items }: { items: Array<{ done: boolean; text: string }> })
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
-  background: '#f7f4ee',
-  border: '1px solid #e5ddc8',
-  borderRadius: 8,
-  padding: '8px 12px',
-  color: '#0e1e35',
+  height: 38,
+  background: '#ffffff',
+  border: `1px solid ${crmV2.borderStrong}`,
+  borderRadius: crmV2.radius,
+  padding: '0 12px',
+  color: crmV2.text,
   fontSize: 13,
   outline: 'none',
   fontFamily: 'inherit',
@@ -835,66 +799,40 @@ function CrmTemplateButton({ onPick }: { onPick: (tpl: {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        style={{
-          background: '#ffffff',
-          border: '1px solid #e5ddc8',
-          borderRadius: 8,
-          padding: '6px 12px',
-          color: '#0e1e35',
-          fontSize: 12,
-          fontWeight: 600,
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          whiteSpace: 'nowrap',
-          fontFamily: 'inherit',
-          flexShrink: 0,
-        }}
-      >
+      <CrmV2Button variant="secondary" size="sm" icon={<FileText size={14} />} onClick={() => setOpen(true)}>
         Charger un modèle
-      </button>
-      {open && (
-        <>
-          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 70 }} />
-          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 'min(440px, calc(100vw - 24px))', maxHeight: '80vh', background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12, zIndex: 71, display: 'flex', flexDirection: 'column' }}>
-            <div style={{ padding: '14px 16px', borderBottom: '1px solid #e5ddc8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontSize: 14, fontWeight: 700 }}>Modèles CRM</div>
-              <button type="button" onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#4a6070' }}><X size={16} /></button>
-            </div>
-            <div style={{ overflow: 'auto', padding: 8 }}>
-              {loading ? (
-                <div style={{ padding: 20, fontSize: 12, color: '#4a6070', textAlign: 'center' }}>Chargement…</div>
-              ) : templates.length === 0 ? (
-                <div style={{ padding: 20, fontSize: 12, color: '#4a6070', textAlign: 'center' }}>Aucun modèle. Crée-en un dans Modèles email.</div>
-              ) : templates.map(t => (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => { onPick(t); setOpen(false) }}
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    textAlign: 'left',
-                    padding: '10px 12px',
-                    border: 'none',
-                    borderRadius: 8,
-                    background: 'transparent',
-                    cursor: 'pointer',
-                    fontFamily: 'inherit',
-                  }}
-                >
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#0e1e35' }}>{t.name}</div>
-                  {t.subject && <div style={{ fontSize: 11, color: '#4a6070', marginTop: 2 }}>{t.subject}</div>}
-                </button>
-              ))}
-            </div>
+      </CrmV2Button>
+      <MktModal open={open} onClose={() => setOpen(false)} title="Modèles CRM" width={440}>
+        {loading ? (
+          <CrmV2Spinner />
+        ) : templates.length === 0 ? (
+          <div style={{ padding: 12, fontSize: 13, color: crmV2.textMuted, textAlign: 'center' }}>Aucun modèle. Crée-en un dans Modèles email.</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', margin: '-8px -8px' }}>
+            {templates.map(t => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => { onPick(t); setOpen(false) }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left', padding: '10px 10px', minHeight: 44,
+                  border: 'none', borderRadius: 10, background: 'transparent', cursor: 'pointer', fontFamily: 'inherit',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = crmV2.bgHover }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+              >
+                <span style={{ width: 28, height: 28, borderRadius: 10, background: crmV2.bgSoft, color: crmV2.textMuted, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <FileText size={14} />
+                </span>
+                <span style={{ minWidth: 0 }}>
+                  <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: crmV2.text }}>{t.name}</span>
+                  {t.subject && <span style={{ display: 'block', fontSize: 12, color: crmV2.textMuted, marginTop: 2 }}>{t.subject}</span>}
+                </span>
+              </button>
+            ))}
           </div>
-        </>
-      )}
+        )}
+      </MktModal>
     </>
   )
 }
@@ -903,27 +841,9 @@ function BrevoImportButton({ onImport }: { onImport: (html: string) => void }) {
   const [open, setOpen] = useState(false)
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        style={{
-          background: '#ffffff',
-          border: '1px solid #e5ddc8',
-          borderRadius: 8,
-          padding: '6px 12px',
-          color: '#0e1e35',
-          fontSize: 12,
-          fontWeight: 600,
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          whiteSpace: 'nowrap',
-          fontFamily: 'inherit',
-          flexShrink: 0,
-        }}
-      >
-        ⚡ Importer depuis Brevo
-      </button>
+      <CrmV2Button variant="secondary" size="sm" icon={<Zap size={14} />} onClick={() => setOpen(true)}>
+        Importer depuis Brevo
+      </CrmV2Button>
       {open && (
         <BrevoTemplatesModal
           onClose={() => setOpen(false)}
@@ -981,47 +901,47 @@ function BrevoTemplatesModal({ onClose, onImport }: { onClose: () => void; onImp
     } finally { setImporting(false) }
   }
 
+  const border = `1px solid ${crmV2.border}`
   return (
     <>
-      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 80 }} />
-      <div style={{ position: 'fixed', top: isMobile ? 12 : '5vh', left: isMobile ? 12 : '5vw', right: isMobile ? 12 : '5vw', bottom: isMobile ? 12 : '5vh', background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, zIndex: 81, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {/* Header */}
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid #e5ddc8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0e1e35' }}>⚡ Templates Brevo</h3>
-            <div style={{ fontSize: 11, color: '#4a6070', marginTop: 2 }}>
-              Choisis un template depuis ton compte Brevo. Il sera importé dans l&apos;éditeur visuel ci-dessous.
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(15,31,61,0.28)', zIndex: 1000 }} />
+      <div role="dialog" aria-modal="true" className="crm-v2" style={{ position: 'fixed', top: isMobile ? 12 : '5vh', left: isMobile ? 12 : '5vw', right: isMobile ? 12 : '5vw', bottom: isMobile ? 12 : '5vh', background: crmV2.bg, border, borderRadius: crmV2.radiusLg, boxShadow: crmV2.shadowPanel, zIndex: 1001, display: 'flex', flexDirection: 'column', overflow: 'hidden', fontFamily: crmV2.font, color: crmV2.text }}>
+        {/* En-tête */}
+        <div style={{ padding: '16px 20px', borderBottom: border, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+          <div style={{ minWidth: 0 }}>
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: crmV2.text, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Zap size={16} color={crmV2.gold} /> Templates Brevo
+            </h3>
+            <div style={{ fontSize: 12, color: crmV2.textMuted, marginTop: 2 }}>
+              Choisis un template depuis ton compte Brevo. Il sera importé dans l’éditeur visuel ci-dessous.
             </div>
           </div>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#4a6070', cursor: 'pointer', padding: 6 }}>
-            <X size={18} />
-          </button>
+          <CrmV2CloseButton onClick={onClose} />
         </div>
 
-        {/* Body */}
-        {/* Mobile : liste en haut, aperçu en dessous */}
+        {/* Corps — mobile : liste en haut, aperçu en dessous */}
         <div style={{ flex: 1, display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '340px 1fr', gridTemplateRows: isMobile ? 'minmax(0, 45%) minmax(0, 1fr)' : undefined, minHeight: 0 }}>
           {/* Liste à gauche */}
-          <div style={{ borderRight: isMobile ? 'none' : '1px solid #e5ddc8', borderBottom: isMobile ? '1px solid #e5ddc8' : 'none', display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}>
-            <div style={{ padding: 12, borderBottom: '1px solid #e5ddc8' }}>
-              <input
+          <div style={{ borderRight: isMobile ? 'none' : border, borderBottom: isMobile ? border : 'none', display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}>
+            <div style={{ padding: 12, borderBottom: border }}>
+              <CrmV2Search
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Rechercher un template…"
-                style={{ ...inputStyle, fontSize: 12 }}
+                style={{ minWidth: 0 }}
               />
-              <div style={{ fontSize: 11, color: '#4a6070', marginTop: 6 }}>
+              <div style={{ fontSize: 12, color: crmV2.textMuted, marginTop: 6 }}>
                 {loading ? 'Chargement…' : `${filtered.length} template${filtered.length > 1 ? 's' : ''}`}
               </div>
             </div>
 
             <div style={{ flex: 1, overflowY: 'auto', padding: 8 }}>
               {error ? (
-                <div style={{ padding: 16, color: '#ef4444', fontSize: 12 }}>❌ {error}</div>
+                <div style={{ padding: 8 }}><MktNotice tone="red" icon={<AlertCircle size={15} />}>{error}</MktNotice></div>
               ) : loading ? (
-                <div style={{ padding: 20, color: '#4a6070', fontSize: 12, textAlign: 'center' }}>Chargement…</div>
+                <CrmV2Spinner />
               ) : filtered.length === 0 ? (
-                <div style={{ padding: 20, color: '#4a6070', fontSize: 12, textAlign: 'center' }}>Aucun template</div>
+                <div style={{ padding: 20, color: crmV2.textMuted, fontSize: 13, textAlign: 'center' }}>Aucun template</div>
               ) : (
                 filtered.map(t => {
                   const active = selectedId === t.id
@@ -1032,27 +952,29 @@ function BrevoTemplatesModal({ onClose, onImport }: { onClose: () => void; onImp
                       style={{
                         width: '100%',
                         textAlign: 'left',
-                        background: active ? 'rgba(204,172,113,0.15)' : 'transparent',
-                        border: active ? '1px solid rgba(204,172,113,0.5)' : '1px solid transparent',
-                        borderRadius: 8,
+                        background: active ? crmV2.goldSoft : 'transparent',
+                        border: active ? `1px solid ${crmV2.goldBorder}` : '1px solid transparent',
+                        borderRadius: 10,
                         padding: 10,
                         marginBottom: 4,
                         cursor: 'pointer',
                         fontFamily: 'inherit',
                       }}
-                      onMouseEnter={e => { if (!active) e.currentTarget.style.background = '#f7f4ee' }}
+                      onMouseEnter={e => { if (!active) e.currentTarget.style.background = crmV2.bgHover }}
                       onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}
                     >
-                      <div style={{ fontSize: 13, fontWeight: 600, color: '#0e1e35', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: crmV2.text, marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {t.name}
                       </div>
-                      <div style={{ fontSize: 11, color: '#4a6070', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div style={{ fontSize: 12, color: crmV2.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {t.subject || '(pas de sujet)'}
                       </div>
-                      <div style={{ fontSize: 10, color: '#4a6070', marginTop: 3, display: 'flex', gap: 8 }}>
-                        {t.isActive && <span style={{ color: '#22c55e' }}>● Actif</span>}
-                        {t.tag && <span>🏷 {t.tag}</span>}
-                      </div>
+                      {(t.isActive || t.tag) && (
+                        <div style={{ marginTop: 6, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          {t.isActive && <CrmV2StatusPill label="Actif" color={MKT_TONES.green.color} bg={MKT_TONES.green.bg} />}
+                          {t.tag && <CrmV2StatusPill label={<><Tag size={11} /> {t.tag}</>} color={MKT_TONES.grey.color} bg={MKT_TONES.grey.bg} dot={false} />}
+                        </div>
+                      )}
                     </button>
                   )
                 })
@@ -1060,36 +982,21 @@ function BrevoTemplatesModal({ onClose, onImport }: { onClose: () => void; onImp
             </div>
           </div>
 
-          {/* Preview à droite */}
+          {/* Aperçu à droite */}
           <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-            <div style={{ padding: '12px 20px', borderBottom: '1px solid #e5ddc8', background: '#f7f4ee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#0e1e35' }}>
+            <div style={{ padding: '10px 20px', borderBottom: border, background: crmV2.thBg, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: crmV2.text, minWidth: 0 }}>
                 {selectedId ? `Aperçu : ${templates.find(t => t.id === selectedId)?.name}` : 'Sélectionne un template pour le prévisualiser'}
               </div>
               {selectedId && previewHtml && (
-                <button
-                  onClick={doImport}
-                  disabled={importing}
-                  style={{
-                    background: 'rgba(204,172,113,0.15)',
-                    border: '1px solid rgba(204,172,113,0.3)',
-                    borderRadius: 8,
-                    padding: '8px 16px',
-                    color: '#C9A84C',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    fontFamily: 'inherit',
-                    opacity: importing ? 0.5 : 1,
-                  }}
-                >
-                  {importing ? 'Import…' : '⬇ Importer dans l\'éditeur'}
-                </button>
+                <CrmV2Button variant="primary" icon={<Download size={14} />} onClick={doImport} disabled={importing}>
+                  {importing ? 'Import…' : 'Importer dans l’éditeur'}
+                </CrmV2Button>
               )}
             </div>
-            <div style={{ flex: 1, minHeight: 0, overflow: 'auto', background: '#f7f4ee' }}>
+            <div style={{ flex: 1, minHeight: 0, overflow: 'auto', background: crmV2.bgSoft }}>
               {loadingPreview ? (
-                <div style={{ padding: 40, textAlign: 'center', color: '#4a6070' }}>Chargement du template…</div>
+                <CrmV2Spinner />
               ) : previewHtml ? (
                 <iframe
                   srcDoc={previewHtml}
@@ -1098,17 +1005,18 @@ function BrevoTemplatesModal({ onClose, onImport }: { onClose: () => void; onImp
                   style={{ width: '100%', height: '100%', border: 'none', background: '#ffffff' }}
                 />
               ) : (
-                <div style={{ padding: 40, textAlign: 'center', color: '#4a6070', fontSize: 13 }}>
-                  Clique sur un template dans la liste pour voir l&apos;aperçu
+                <div style={{ padding: 40, textAlign: 'center', color: crmV2.textMuted, fontSize: 13 }}>
+                  Clique sur un template dans la liste pour voir l’aperçu
                 </div>
               )}
             </div>
           </div>
         </div>
 
-        {/* Footer note */}
-        <div style={{ padding: '10px 20px', borderTop: '1px solid #e5ddc8', background: '#f7f4ee', fontSize: 11, color: '#4a6070' }}>
-          💡 Tu peux créer / modifier tes templates sur <a href="https://app.brevo.com/camp/lists/templates" target="_blank" rel="noreferrer" style={{ color: '#C9A84C' }}>app.brevo.com</a> puis cliquer ici pour les importer.
+        {/* Note de pied */}
+        <div style={{ padding: '10px 20px', borderTop: border, background: crmV2.thBg, fontSize: 12, color: crmV2.textMuted, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <Info size={14} color={crmV2.textFaint} />
+          Tu peux créer / modifier tes templates sur <a href="https://app.brevo.com/camp/lists/templates" target="_blank" rel="noreferrer" style={{ color: crmV2.link, fontWeight: 600 }}>app.brevo.com</a> puis cliquer ici pour les importer.
         </div>
       </div>
     </>

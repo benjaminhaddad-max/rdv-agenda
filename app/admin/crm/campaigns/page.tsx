@@ -2,11 +2,20 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import {
-  Mail, Plus, Search, Send, Clock, Pause, Check, AlertTriangle, Archive,
-  Eye, MousePointerClick, X, FileText, Users, Calendar, Trash2, Copy, Edit3, Repeat2, List, Palette, Presentation,
+  Mail, Plus, Send, Clock, Pause, Check, AlertTriangle, Archive,
+  Eye, FileText, Trash2, Copy,
 } from 'lucide-react'
-import LogoutButton from '@/components/LogoutButton'
 import { useIsMobile } from '@/lib/useIsMobile'
+import { crmV2 } from '@/lib/crm-v2-theme'
+import {
+  CrmV2Page, CrmV2Header, CrmV2Tabs, CrmV2Body, CrmV2KpiGrid, CrmV2KpiCard, CrmV2TableCard,
+  CrmV2Table, CrmV2Th, CrmV2Td, CrmV2Tr, CrmV2Search, CrmV2Button, CrmV2StatusPill, CrmV2Empty,
+  CrmV2Spinner, CrmV2Pagination, CrmV2Field, CrmV2Input,
+} from '@/components/crm-v2/primitives'
+import {
+  MKT_TONES, MktNameCell, MktBar, MktIconButton, MktSelectPill, MktMobileRow, MktIconBox, MktModal,
+  numCell, mutedCell, useCrmBase,
+} from '@/components/crm-v2/marketing/ui'
 
 // ─── Types ────────────────────────────────────────────────────────────────
 interface Campaign {
@@ -41,23 +50,27 @@ interface Campaign {
 }
 
 const STATUS_META: Record<Campaign['status'], { label: string; color: string; bg: string; icon: typeof Mail }> = {
-  draft:     { label: 'Brouillon',  color: '#4a6070', bg: '#ffffff', icon: FileText },
-  scheduled: { label: 'Programmée', color: '#06b6d4', bg: 'rgba(6,182,212,0.15)', icon: Clock },
-  sending:   { label: 'Envoi…',     color: '#f59e0b', bg: 'rgba(245,158,11,0.15)', icon: Send },
-  sent:      { label: 'Envoyée',    color: '#22c55e', bg: 'rgba(34,197,94,0.15)', icon: Check },
-  paused:    { label: 'En pause',   color: '#C9A84C', bg: 'rgba(204,172,113,0.15)', icon: Pause },
-  failed:    { label: 'Échec',      color: '#ef4444', bg: 'rgba(239,68,68,0.15)', icon: AlertTriangle },
-  archived:  { label: 'Archivée',   color: '#4a6070', bg: 'rgba(139,143,168,0.15)', icon: Archive },
+  draft:     { label: 'Brouillon',  ...MKT_TONES.grey,   icon: FileText },
+  scheduled: { label: 'Programmée', ...MKT_TONES.blue,   icon: Clock },
+  sending:   { label: 'Envoi…',     ...MKT_TONES.gold,   icon: Send },
+  sent:      { label: 'Envoyée',    ...MKT_TONES.green,  icon: Check },
+  paused:    { label: 'En pause',   ...MKT_TONES.gold,   icon: Pause },
+  failed:    { label: 'Échec',      ...MKT_TONES.red,    icon: AlertTriangle },
+  archived:  { label: 'Archivée',   ...MKT_TONES.grey,   icon: Archive },
 }
+
+const PAGE_SIZE = 25
 
 // ─── Page ─────────────────────────────────────────────────────────────────
 export default function CampaignsPage() {
   const isMobile = useIsMobile()
+  const base = useCrmBase()
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [showNewModal, setShowNewModal] = useState(false)
+  const [page, setPage] = useState(1)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -82,6 +95,9 @@ export default function CampaignsPage() {
     }
     return true
   })
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const currentPage = Math.min(page, pageCount)
+  const visible = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 
   const duplicate = async (c: Campaign) => {
     const res = await fetch('/api/campaigns', {
@@ -116,266 +132,187 @@ export default function CampaignsPage() {
   const stats = {
     total: campaigns.length,
     draft: campaigns.filter(c => c.status === 'draft').length,
+    scheduled: campaigns.filter(c => c.status === 'scheduled').length,
     sent: campaigns.filter(c => c.status === 'sent').length,
     totalSent: campaigns.reduce((s, c) => s + (c.total_sent || 0), 0),
     totalOpens: campaigns.reduce((s, c) => s + (c.total_unique_opens || 0), 0),
   }
+  const globalOpenRate = stats.totalSent > 0 ? Math.round((stats.totalOpens / stats.totalSent) * 100) : 0
+
+  const TAB_IDS = ['', 'draft', 'scheduled', 'sent']
+  const tabValue = TAB_IDS.includes(statusFilter) ? (statusFilter || 'all') : 'other'
+  const setFilter = (v: string) => { setStatusFilter(v); setPage(1) }
+  const openCampaign = (c: Campaign) => { window.location.href = `${base}/campaigns/${c.id}` }
 
   return (
-    // Mobile : pas de 100vh (la page vit dans le conteneur scrollable du layout,
-    // au-dessus de la nav basse fixe) — on se contente de remplir ce conteneur.
-    <div style={{ minHeight: isMobile ? '100%' : '100vh', background: '#f7f4ee', color: '#0e1e35', fontFamily: 'Inter, system-ui, sans-serif' }}>
-      {/* Topbar — mobile : titre sur une ligne, liens sur une rangée scrollable */}
-      <div style={{ padding: isMobile ? '8px 12px' : '0 20px', minHeight: 52, background: '#ffffff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: isMobile ? 8 : 12, overflowX: isMobile ? 'visible' : 'auto', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 14, flexShrink: 0 }}>
-          <a href="/admin/crm" style={{ color: '#4a6070', textDecoration: 'none', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-            {isMobile ? '← CRM' : '← Retour CRM'}
-          </a>
-          <div style={{ width: 1, height: 22, background: '#e5ddc8' }} />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Mail size={16} style={{ color: '#C9A84C' }} />
-            <span style={{ fontSize: 14, fontWeight: 600 }}>Campagnes Email</span>
-          </div>
-        </div>
-        <div style={isMobile
-          ? { display: 'flex', alignItems: 'center', gap: 6, width: '100%', overflowX: 'auto', whiteSpace: 'nowrap', paddingBottom: 2 }
-          : { display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          <a href="/admin/crm/campaigns/webinars" style={{ background: '#C9A84C', border: '1px solid #C9A84C', borderRadius: 8, padding: '5px 12px', color: '#0e1e35', fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0, fontWeight: 700 }}>
-            <Presentation size={12} /> Présentation
-          </a>
-          <a href="/admin/crm/campaigns/programs" style={{ background: '#0e1e35', border: '1px solid #0e1e35', borderRadius: 8, padding: '5px 12px', color: '#fff', fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0, fontWeight: 600 }}>
-            <Repeat2 size={12} /> Programmes J1–Jn
-          </a>
-          <a href="/admin/crm/campaigns/marketing-lists" style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8, padding: '5px 12px', color: '#4a6070', fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5 }}>
-            <List size={12} /> Listes marketing
-          </a>
-          <a href="/admin/crm/campaigns/brands" style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8, padding: '5px 12px', color: '#4a6070', fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5 }}>
-            <Palette size={12} /> Marques
-          </a>
-          <a href="/admin/crm/email-templates" style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8, padding: '5px 12px', color: '#4a6070', fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5 }}>
-            <FileText size={12} /> Templates
-          </a>
-          <a href="/admin/crm/campaigns/segments" style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8, padding: '5px 12px', color: '#4a6070', fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5 }}>
-            <Users size={12} /> Segments
-          </a>
-          <div style={{ flexShrink: 0 }}><LogoutButton /></div>
-        </div>
-      </div>
+    <CrmV2Page>
+      <CrmV2Header
+        title="Campagnes"
+        subtitle={`Emails marketing envoyés aux contacts · ${stats.total.toLocaleString('fr-FR')} campagne${stats.total > 1 ? 's' : ''}`}
+        actions={
+          <CrmV2Button variant="primary" icon={<Plus size={14} />} onClick={() => setShowNewModal(true)}>
+            Nouvelle campagne
+          </CrmV2Button>
+        }
+      >
+        <CrmV2Tabs
+          bordered={false}
+          value={tabValue}
+          onChange={id => setFilter(id === 'all' ? '' : id)}
+          items={[
+            { id: 'all', label: 'Toutes', count: stats.total },
+            { id: 'draft', label: 'Brouillons', count: stats.draft },
+            { id: 'scheduled', label: 'Programmées', count: stats.scheduled },
+            { id: 'sent', label: 'Envoyées', count: stats.sent },
+          ]}
+        />
+      </CrmV2Header>
 
-      {/* Accès présentation webinaire */}
-      <div style={{ padding: isMobile ? '12px 12px 0' : '16px 24px 0', maxWidth: 1400, margin: '0 auto' }}>
-        <a href="/admin/crm/campaigns/webinars" style={{
-          display: 'flex', alignItems: 'center', gap: 14, textDecoration: 'none',
-          background: 'linear-gradient(90deg, rgba(201,168,76,0.18), rgba(201,168,76,0.05))',
-          border: '1px solid #C9A84C', borderRadius: 12, padding: isMobile ? '12px 12px' : '14px 18px',
-        }}>
-          <Presentation size={22} style={{ color: '#C9A84C', flexShrink: 0 }} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#0e1e35' }}>Présentation webinaire</div>
-            <div style={{ fontSize: 13, color: '#4a6070', marginTop: 2 }}>Créer un deck interactif à partir d’un guide PDF ou Word</div>
-          </div>
-          <span style={{ fontSize: 13, fontWeight: 700, color: '#0e1e35', background: '#C9A84C', borderRadius: 8, padding: '6px 12px', flexShrink: 0 }}>Ouvrir</span>
-        </a>
-      </div>
+      <CrmV2Body>
+        <CrmV2KpiGrid>
+          <CrmV2KpiCard label="Campagnes" value={stats.total} icon={<Mail size={15} />} color={crmV2.gold}
+            detail={`${stats.draft} brouillon${stats.draft > 1 ? 's' : ''}`} />
+          <CrmV2KpiCard label="Envoyées" value={stats.sent} icon={<Check size={15} />} color={crmV2.successStrong}
+            detail={`${stats.scheduled} programmée${stats.scheduled > 1 ? 's' : ''}`} />
+          <CrmV2KpiCard label="Emails envoyés" value={stats.totalSent.toLocaleString('fr-FR')} icon={<Send size={15} />} color={crmV2.link}
+            detail="toutes campagnes" />
+          <CrmV2KpiCard label="Ouvertures uniques" value={stats.totalOpens.toLocaleString('fr-FR')} icon={<Eye size={15} />} color="#7e22ce"
+            detail={`${globalOpenRate} % d’ouverture`} />
+        </CrmV2KpiGrid>
 
-      {/* Stats */}
-      <div style={{ padding: isMobile ? '16px 12px 12px' : '24px 24px 16px', maxWidth: 1400, margin: '0 auto' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(5, 1fr)', gap: isMobile ? 10 : 16 }}>
-          <StatCard label="Total" value={stats.total} color="#C9A84C" icon={Mail} />
-          <StatCard label="Brouillons" value={stats.draft} color="#4a6070" icon={FileText} />
-          <StatCard label="Envoyées" value={stats.sent} color="#22c55e" icon={Check} />
-          <StatCard label="Emails envoyés" value={stats.totalSent.toLocaleString('fr-FR')} color="#06b6d4" icon={Send} />
-          <StatCard label="Ouvertures uniques" value={stats.totalOpens.toLocaleString('fr-FR')} color="#a855f7" icon={Eye} />
-        </div>
-      </div>
-
-      {/* Barre d'actions */}
-      <div style={{ padding: isMobile ? '0 12px 12px' : '0 24px 16px', maxWidth: 1400, margin: '0 auto' }}>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8, padding: '6px 12px', flex: isMobile ? '1 1 100%' : '1 1 280px', minWidth: 0 }}>
-            <Search size={14} style={{ color: '#4a6070' }} />
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Rechercher par nom ou sujet…"
-              style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', color: '#0e1e35', outline: 'none', fontSize: 13, fontFamily: 'inherit' }}
-            />
-          </div>
-          <select
-            value={statusFilter}
-            onChange={e => setStatusFilter(e.target.value)}
-            style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8, padding: '6px 12px', color: '#0e1e35', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}
-          >
-            <option value="">Tous les statuts</option>
-            {Object.entries(STATUS_META).map(([k, v]) => (
-              <option key={k} value={k}>{v.label}</option>
-            ))}
-          </select>
-          <div style={{ flex: 1 }} />
-          <button
-            onClick={() => setShowNewModal(true)}
-            style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 8, padding: '8px 16px', color: '#C9A84C', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit' }}
-          >
-            <Plus size={14} /> Nouvelle campagne
-          </button>
-        </div>
-      </div>
-
-      {/* Liste */}
-      <div style={{ padding: isMobile ? '0 12px 24px' : '0 24px 60px', maxWidth: 1400, margin: '0 auto' }}>
-        {loading ? (
-          <Empty message="Chargement…" />
-        ) : filtered.length === 0 ? (
-          campaigns.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 60, background: '#ffffff', border: '1px dashed #e5ddc8', borderRadius: 12 }}>
-              <Mail size={48} style={{ color: '#a89e8a', margin: '0 auto 16px' }} />
-              <div style={{ fontSize: 16, fontWeight: 600, color: '#0e1e35', marginBottom: 6 }}>Aucune campagne pour le moment</div>
-              <div style={{ fontSize: 13, color: '#4a6070', marginBottom: 20 }}>Créez votre première campagne email pour toucher vos prospects.</div>
-              <button
-                onClick={() => setShowNewModal(true)}
-                style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 8, padding: '10px 20px', color: '#C9A84C', fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit' }}
-              >
-                <Plus size={14} /> Créer ma première campagne
-              </button>
+        <CrmV2TableCard
+          toolbar={
+            <>
+              <CrmV2Search
+                value={search}
+                onChange={e => { setSearch(e.target.value); setPage(1) }}
+                placeholder="Rechercher une campagne…"
+                style={isMobile ? { flex: '1 1 100%' } : undefined}
+              />
+              <MktSelectPill value={statusFilter} active={!!statusFilter} onChange={e => setFilter(e.target.value)} aria-label="Statut">
+                <option value="">Statut</option>
+                {Object.entries(STATUS_META).map(([k, v]) => (
+                  <option key={k} value={k}>{v.label}</option>
+                ))}
+              </MktSelectPill>
+            </>
+          }
+          footer={filtered.length > 0 ? (
+            <CrmV2Pagination page={currentPage} pageSize={PAGE_SIZE} total={filtered.length} onChange={setPage} />
+          ) : undefined}
+        >
+          {loading ? (
+            <CrmV2Spinner />
+          ) : filtered.length === 0 ? (
+            campaigns.length === 0 ? (
+              <CrmV2Empty
+                icon={<Mail size={26} />}
+                title="Aucune campagne pour le moment"
+                description="Créez votre première campagne email pour toucher vos prospects."
+                action={<CrmV2Button variant="primary" icon={<Plus size={14} />} onClick={() => setShowNewModal(true)}>Créer ma première campagne</CrmV2Button>}
+              />
+            ) : (
+              <CrmV2Empty title="Aucune campagne ne correspond aux filtres." />
+            )
+          ) : isMobile ? (
+            <div>
+              {visible.map(c => {
+                const meta = STATUS_META[c.status]
+                const Icon = meta.icon
+                return (
+                  <MktMobileRow
+                    key={c.id}
+                    onClick={() => openCampaign(c)}
+                    icon={<MktIconBox size={36} color={meta.color} bg={meta.bg}><Icon size={16} /></MktIconBox>}
+                    title={c.name}
+                    subtitle={`${meta.label} · ${dateLine(c)}`}
+                    actions={
+                      <>
+                        <MktIconButton title="Dupliquer" onClick={() => duplicate(c)}><Copy size={14} /></MktIconButton>
+                        {c.status === 'draft' && (
+                          <MktIconButton title="Supprimer" danger onClick={() => remove(c)}><Trash2 size={14} /></MktIconButton>
+                        )}
+                      </>
+                    }
+                  />
+                )
+              })}
             </div>
           ) : (
-            <Empty message="Aucune campagne ne correspond aux filtres." />
-          )
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {filtered.map(c => (
-              <CampaignRow
-                key={c.id}
-                campaign={c}
-                isMobile={isMobile}
-                onOpen={() => window.location.href = `/admin/crm/campaigns/${c.id}`}
-                onDuplicate={() => duplicate(c)}
-                onDelete={() => remove(c)}
-              />
-            ))}
-          </div>
-        )}
-      </div>
+            <CrmV2Table>
+              <thead>
+                <tr>
+                  <CrmV2Th>Campagne</CrmV2Th>
+                  <CrmV2Th>Statut</CrmV2Th>
+                  <CrmV2Th style={{ textAlign: 'right' }}>Destinataires</CrmV2Th>
+                  <CrmV2Th>Ouverture</CrmV2Th>
+                  <CrmV2Th style={{ textAlign: 'right' }}>Clics</CrmV2Th>
+                  <CrmV2Th>Envoi</CrmV2Th>
+                  <CrmV2Th style={{ width: 90 }}>{''}</CrmV2Th>
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map(c => {
+                  const meta = STATUS_META[c.status]
+                  const openRate = c.total_sent > 0 ? Math.round((c.total_unique_opens / c.total_sent) * 100) : 0
+                  const clickRate = c.total_sent > 0 ? Math.round((c.total_unique_clicks / c.total_sent) * 100) : 0
+                  const sentLike = c.status === 'sent' || c.status === 'sending'
+                  return (
+                    <CrmV2Tr key={c.id} onClick={() => openCampaign(c)}>
+                      <CrmV2Td style={{ maxWidth: 420 }}>
+                        <MktNameCell icon={<Mail size={14} />} href={`/admin/crm/campaigns/${c.id}`} title={c.name} subtitle={c.subject} />
+                      </CrmV2Td>
+                      <CrmV2Td><CrmV2StatusPill label={meta.label} color={meta.color} bg={meta.bg} /></CrmV2Td>
+                      <CrmV2Td style={numCell}>
+                        {sentLike ? (c.total_sent || c.total_recipients || 0).toLocaleString('fr-FR') : (c.total_recipients ? c.total_recipients.toLocaleString('fr-FR') : '—')}
+                      </CrmV2Td>
+                      <CrmV2Td>
+                        {c.status === 'sent' ? <MktBar pct={openRate} color={openRate >= 40 ? crmV2.success : crmV2.link} /> : <span style={mutedCell}>—</span>}
+                      </CrmV2Td>
+                      <CrmV2Td style={numCell}>
+                        {c.status === 'sent' ? (
+                          <span title={`${clickRate} % de clics`}>{(c.total_unique_clicks || 0).toLocaleString('fr-FR')}</span>
+                        ) : '—'}
+                      </CrmV2Td>
+                      <CrmV2Td style={mutedCell}>{dateLine(c)}</CrmV2Td>
+                      <CrmV2Td>
+                        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                          <MktIconButton title="Dupliquer" onClick={() => duplicate(c)}><Copy size={14} /></MktIconButton>
+                          {c.status === 'draft' && (
+                            <MktIconButton title="Supprimer" danger onClick={() => remove(c)}><Trash2 size={14} /></MktIconButton>
+                          )}
+                        </div>
+                      </CrmV2Td>
+                    </CrmV2Tr>
+                  )
+                })}
+              </tbody>
+            </CrmV2Table>
+          )}
+        </CrmV2TableCard>
+      </CrmV2Body>
 
-      {showNewModal && (
-        <NewCampaignModal
-          onClose={() => setShowNewModal(false)}
-          onCreated={(id) => {
-            setShowNewModal(false)
-            window.location.href = `/admin/crm/campaigns/${id}`
-          }}
-        />
-      )}
-    </div>
+      {showNewModal && <NewCampaignModal
+        open
+        onClose={() => setShowNewModal(false)}
+        onCreated={(id) => {
+          setShowNewModal(false)
+          window.location.href = `${base}/campaigns/${id}`
+        }}
+      />}
+    </CrmV2Page>
   )
 }
 
-// ─── Composants ──────────────────────────────────────────────────────────
-function StatCard({ label, value, color, icon: Icon }: { label: string; value: number | string; color: string; icon: typeof Mail }) {
-  return (
-    <div style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 16, minWidth: 0 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, minWidth: 0 }}>
-        <Icon size={14} style={{ color, flexShrink: 0 }} />
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}>{label}</span>
-      </div>
-      <div style={{ fontSize: 24, fontWeight: 700, color }}>{value}</div>
-    </div>
-  )
-}
-
-function Empty({ message }: { message: string }) {
-  return (
-    <div style={{ textAlign: 'center', padding: 40, color: '#4a6070' }}>{message}</div>
-  )
-}
-
-function CampaignRow({ campaign: c, isMobile = false, onOpen, onDuplicate, onDelete }: {
-  campaign: Campaign
-  isMobile?: boolean
-  onOpen: () => void
-  onDuplicate: () => void
-  onDelete: () => void
-}) {
-  const meta = STATUS_META[c.status]
-  const Icon = meta.icon
-  const openRate = c.total_sent > 0 ? Math.round((c.total_unique_opens / c.total_sent) * 100) : 0
-  const clickRate = c.total_sent > 0 ? Math.round((c.total_unique_clicks / c.total_sent) * 100) : 0
-
-  return (
-    <div
-      onClick={onOpen}
-      style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 10, padding: isMobile ? '12px' : '14px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 14, flexWrap: isMobile ? 'wrap' : 'nowrap', transition: 'all .15s' }}
-    >
-      {/* Icône statut */}
-      <div style={{ width: 36, height: 36, borderRadius: 10, background: meta.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        <Icon size={16} style={{ color: meta.color }} />
-      </div>
-
-      {/* Nom + sujet — mobile : occupe toute la ligne à côté de l'icône */}
-      <div style={{ flex: isMobile ? '1 1 calc(100% - 46px)' : 1, minWidth: 0 }}>
-        <div style={{ fontSize: 14, fontWeight: 600, color: '#0e1e35', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</div>
-        <div style={{ fontSize: 12, color: '#4a6070', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.subject}</div>
-      </div>
-
-      {/* Stats (si envoyée) */}
-      {c.status === 'sent' && (
-        <>
-          <Metric label="Envoyés" value={c.total_sent} />
-          <Metric label="Ouverts" value={`${openRate}%`} color="#a855f7" />
-          <Metric label="Clics" value={`${clickRate}%`} color="#06b6d4" />
-        </>
-      )}
-
-      {/* Date */}
-      <div style={{ fontSize: 11, color: '#4a6070', textAlign: isMobile ? 'left' : 'right', minWidth: isMobile ? 0 : 100, flex: isMobile ? 1 : undefined }}>
-        {c.sent_at ? (
-          <>Envoyée le<br /><span style={{ color: '#0e1e35', fontWeight: 600 }}>{formatDate(c.sent_at)}</span></>
-        ) : c.scheduled_at ? (
-          <>Programmée<br /><span style={{ color: '#06b6d4', fontWeight: 600 }}>{formatDate(c.scheduled_at)}</span></>
-        ) : (
-          <>Modifiée<br /><span style={{ color: '#0e1e35', fontWeight: 600 }}>{formatDate(c.updated_at)}</span></>
-        )}
-      </div>
-
-      {/* Badge statut */}
-      <span style={{ fontSize: 10, fontWeight: 600, color: meta.color, background: meta.bg, padding: '4px 10px', borderRadius: 999, whiteSpace: 'nowrap' }}>
-        {meta.label}
-      </span>
-
-      {/* Actions */}
-      <div style={{ display: 'flex', gap: 4 }} onClick={e => e.stopPropagation()}>
-        <IconBtn title="Dupliquer" onClick={onDuplicate}><Copy size={13} /></IconBtn>
-        {c.status === 'draft' && (
-          <IconBtn title="Supprimer" onClick={onDelete} color="#ef4444"><Trash2 size={13} /></IconBtn>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function Metric({ label, value, color = '#0e1e35' }: { label: string; value: number | string; color?: string }) {
-  return (
-    <div style={{ minWidth: 70, textAlign: 'center' }}>
-      <div style={{ fontSize: 14, fontWeight: 700, color }}>{value}</div>
-      <div style={{ fontSize: 10, color: '#4a6070', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
-    </div>
-  )
-}
-
-function IconBtn({ children, onClick, title, color = '#4a6070' }: { children: React.ReactNode; onClick: () => void; title: string; color?: string }) {
-  return (
-    <button
-      onClick={onClick}
-      title={title}
-      style={{ background: 'transparent', border: '1px solid #e5ddc8', borderRadius: 6, padding: 6, color, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-    >
-      {children}
-    </button>
-  )
+/** Date affichée dans la colonne « Envoi » : envoi, programmation ou dernière modification. */
+function dateLine(c: Campaign): string {
+  if (c.sent_at) return `Envoyée le ${formatDate(c.sent_at)}`
+  if (c.scheduled_at) return `Programmée le ${formatDate(c.scheduled_at)}`
+  return `Modifiée le ${formatDate(c.updated_at)}`
 }
 
 // ─── Modal nouvelle campagne ─────────────────────────────────────────────
-function NewCampaignModal({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
+function NewCampaignModal({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: (id: string) => void }) {
   const [name, setName] = useState('')
   const [subject, setSubject] = useState('')
   const [loading, setLoading] = useState(false)
@@ -401,45 +338,34 @@ function NewCampaignModal({ onClose, onCreated }: { onClose: () => void; onCreat
   }
 
   return (
-    <>
-      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 60 }} />
-      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 'min(440px, calc(100vw - 72px))', background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 24, zIndex: 61 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0e1e35' }}>Nouvelle campagne</h3>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#4a6070', cursor: 'pointer' }}><X size={18} /></button>
-        </div>
-
-        <div style={{ fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4 }}>Nom interne *</div>
-        <input
-          value={name}
-          onChange={e => setName(e.target.value)}
-          placeholder="Ex: Relance PASS - Avril 2026"
-          autoFocus
-          style={inputStyle}
-        />
-        <div style={{ fontSize: 11, color: '#4a6070', marginTop: 4 }}>Visible uniquement en interne</div>
-
-        <div style={{ fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4, marginTop: 14 }}>Sujet de l&apos;email *</div>
-        <input
+    <MktModal
+      open={open}
+      onClose={onClose}
+      title="Nouvelle campagne"
+      footer={
+        <>
+          <CrmV2Button variant="secondary" onClick={onClose}>Annuler</CrmV2Button>
+          <CrmV2Button variant="primary" onClick={submit} disabled={!name.trim() || !subject.trim() || loading}>
+            {loading ? 'Création…' : 'Créer et continuer'}
+          </CrmV2Button>
+        </>
+      }
+    >
+      <CrmV2Field label="Nom interne *" hint="Visible uniquement en interne">
+        <CrmV2Input value={name} onChange={e => setName(e.target.value)} placeholder="Ex : Relance PASS - Avril 2026" autoFocus />
+      </CrmV2Field>
+      <CrmV2Field
+        label="Objet de l’email *"
+        hint={<>Tu peux utiliser <code style={{ color: crmV2.goldDark }}>{'{{prenom}}'}</code>, <code style={{ color: crmV2.goldDark }}>{'{{nom}}'}</code></>}
+      >
+        <CrmV2Input
           value={subject}
           onChange={e => setSubject(e.target.value)}
-          placeholder="Ex: Plus que 3 jours pour t'inscrire {{prenom}} 🎓"
-          style={inputStyle}
+          placeholder="Ex : Plus que 3 jours pour t'inscrire {{prenom}}"
+          onKeyDown={e => { if (e.key === 'Enter') submit() }}
         />
-        <div style={{ fontSize: 11, color: '#4a6070', marginTop: 4 }}>Tu peux utiliser <code style={{ color: '#C9A84C' }}>{'{{prenom}}'}</code>, <code style={{ color: '#C9A84C' }}>{'{{nom}}'}</code></div>
-
-        <div style={{ display: 'flex', gap: 8, marginTop: 24, justifyContent: 'flex-end' }}>
-          <button onClick={onClose} style={{ background: '#ffffff', border: '1px solid #e5ddc8', color: '#4a6070', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}>Annuler</button>
-          <button
-            onClick={submit}
-            disabled={!name.trim() || !subject.trim() || loading}
-            style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', color: '#C9A84C', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13, fontFamily: 'inherit', opacity: !name.trim() || !subject.trim() || loading ? 0.5 : 1 }}
-          >
-            {loading ? 'Création…' : 'Créer et continuer →'}
-          </button>
-        </div>
-      </div>
-    </>
+      </CrmV2Field>
+    </MktModal>
   )
 }
 
@@ -447,17 +373,4 @@ function NewCampaignModal({ onClose, onCreated }: { onClose: () => void; onCreat
 function formatDate(iso: string): string {
   const d = new Date(iso)
   return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
-}
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  background: '#f7f4ee',
-  border: '1px solid #e5ddc8',
-  borderRadius: 8,
-  padding: '8px 12px',
-  color: '#0e1e35',
-  fontSize: 13,
-  outline: 'none',
-  fontFamily: 'inherit',
-  boxSizing: 'border-box',
 }

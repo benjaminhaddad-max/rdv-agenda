@@ -1,10 +1,16 @@
 'use client'
 
 import { useEffect, useRef, useState, use } from 'react'
-import Link from 'next/link'
-import { ChevronLeft, Save, Send, Mail } from 'lucide-react'
+import { Save, Send, Mail, Braces } from 'lucide-react'
 import EmailEditorVisual, { type EmailEditorVisualRef } from '@/components/EmailEditorVisual'
 import { usePageTitle } from '@/components/DocumentTitle'
+import { useIsMobile } from '@/lib/useIsMobile'
+import { crmV2 } from '@/lib/crm-v2-theme'
+import {
+  CrmV2Page, CrmV2Header, CrmV2Body, CrmV2Button, CrmV2Card, CrmV2Field, CrmV2Input, CrmV2Select,
+  CrmV2Spinner, CrmV2StatusPill,
+} from '@/components/crm-v2/primitives'
+import { MktModal, MktNotice } from '@/components/crm-v2/marketing/ui'
 
 interface Template {
   id: string
@@ -28,6 +34,7 @@ const CATEGORIES = [
 
 export default function EmailTemplateEditorPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
+  const isMobile = useIsMobile()
   const [tpl, setTpl] = useState<Template | null>(null)
   const [loading, setLoading] = useState(true)
   usePageTitle(tpl?.name)
@@ -137,140 +144,134 @@ export default function EmailTemplateEditorPage({ params }: { params: Promise<{ 
     } finally { setSendingTest(false) }
   }
 
-  if (loading) return <div className="p-8 text-[#4a6070]">Chargement…</div>
-  if (!tpl) return <div className="p-8 text-red-600">Modèle introuvable.</div>
+  const back = { href: '/admin/crm/email-templates', label: 'Modèles email' }
+  if (loading) {
+    return (
+      <CrmV2Page>
+        <CrmV2Header back={back} title="Modèle email" />
+        <CrmV2Spinner />
+      </CrmV2Page>
+    )
+  }
+  if (!tpl) {
+    return (
+      <CrmV2Page>
+        <CrmV2Header back={back} title="Modèle email" />
+        <CrmV2Body><MktNotice tone="red">Modèle introuvable.</MktNotice></CrmV2Body>
+      </CrmV2Page>
+    )
+  }
 
   return (
-    <div className="min-h-full md:min-h-screen bg-[#f7f4ee] flex flex-col">
-      {/* Header — mobile : retour + nom sur une ligne, boutons qui passent à la ligne */}
-      <div className="bg-white border-b md:sticky md:top-0 z-10">
-        <div className="max-w-[1600px] mx-auto px-3 md:px-6 py-3 flex flex-wrap md:flex-nowrap items-center justify-between gap-2 md:gap-4">
-          <Link href="/admin/crm/email-templates" className="text-sm text-[#4a6070] hover:text-slate-700 flex items-center gap-1 shrink-0">
-            <ChevronLeft size={14} /> Modèles
-          </Link>
-          <div className="flex-1 min-w-0">
-            <input
-              value={tpl.name}
-              onChange={e => update({ name: e.target.value })}
-              className="text-lg font-bold text-[#0e1e35] bg-transparent border-0 outline-none focus:bg-[#f7f4ee] px-2 py-1 rounded w-full"
-            />
-          </div>
-          <div className="flex flex-wrap md:flex-nowrap items-center gap-2 w-full md:w-auto">
-            {dirty && <span className="text-xs text-amber-600">Non enregistré</span>}
-            <button
-              onClick={() => setShowTest(true)}
-              className="inline-flex items-center gap-1 px-3 py-1.5 text-sm border rounded-md hover:bg-[#f7f4ee]"
-            >
-              <Send size={14} /> Test
-            </button>
-            <button
-              onClick={createCampaign}
-              disabled={creatingCampaign}
-              className="inline-flex items-center gap-1 px-3 py-1.5 text-sm border rounded-md hover:bg-[#f7f4ee] disabled:opacity-50"
-            >
-              <Mail size={14} /> {creatingCampaign ? 'Création…' : 'Envoyer via une campagne'}
-            </button>
-            <button
-              onClick={save}
-              disabled={saving}
-              className="inline-flex items-center gap-1 px-4 py-1.5 text-sm text-white rounded-md disabled:opacity-50 bg-gradient-to-r from-[#2ea3f2] to-[#0038f0]"
-            >
-              <Save size={14} /> {saving ? 'Sauvegarde…' : 'Enregistrer'}
-            </button>
-          </div>
-        </div>
+    <CrmV2Page style={{ display: 'flex', flexDirection: 'column' }}>
+      <CrmV2Header
+        back={back}
+        title={
+          // Nom du modèle éditable directement dans le titre
+          <input
+            value={tpl.name}
+            onChange={e => update({ name: e.target.value })}
+            aria-label="Nom du modèle"
+            style={{
+              font: 'inherit', fontSize: isMobile ? 19 : 22, fontWeight: 600, letterSpacing: '-0.02em', color: crmV2.text,
+              background: 'transparent', border: '1px solid transparent', borderRadius: crmV2.radius, outline: 'none',
+              padding: '2px 8px', margin: '-3px -9px', width: isMobile ? 'calc(100vw - 40px)' : 'min(560px, 50vw)', maxWidth: '100%',
+            }}
+            onFocus={e => { e.currentTarget.style.borderColor = crmV2.borderStrong; e.currentTarget.style.background = crmV2.bg }}
+            onBlur={e => { e.currentTarget.style.borderColor = 'transparent'; e.currentTarget.style.background = 'transparent' }}
+          />
+        }
+        subtitle="Modèle réutilisable dans les campagnes et les e-mails unitaires"
+        actions={
+          <>
+            {dirty && <CrmV2StatusPill label="Non enregistré" color="#b45309" bg="rgba(201,168,76,0.18)" />}
+            <CrmV2Button variant="secondary" icon={<Send size={14} />} onClick={() => setShowTest(true)}>Test</CrmV2Button>
+            <CrmV2Button variant="secondary" icon={<Mail size={14} />} onClick={createCampaign} disabled={creatingCampaign}>
+              {creatingCampaign ? 'Création…' : 'Envoyer via une campagne'}
+            </CrmV2Button>
+            <CrmV2Button variant="primary" icon={<Save size={14} />} onClick={save} disabled={saving}>
+              {saving ? 'Sauvegarde…' : 'Enregistrer'}
+            </CrmV2Button>
+          </>
+        }
+      />
 
-        {/* Méta */}
-        <div className="max-w-[1600px] mx-auto px-3 md:px-6 pb-3 grid grid-cols-1 md:grid-cols-12 gap-3">
-          <div className="md:col-span-7">
-            <label className="block text-[10px] uppercase tracking-wide text-[#a89e8a] mb-0.5">Objet de l&apos;e-mail</label>
-            <input
-              value={tpl.subject}
-              onChange={e => update({ subject: e.target.value })}
-              placeholder="Ex : Bonjour {{prenom}}, votre RDV est confirmé"
-              className="w-full px-3 py-1.5 border rounded-md text-sm"
-            />
+      <CrmV2Body style={{ flex: 1 }}>
+        {/* Méta : objet, catégorie, description */}
+        <CrmV2Card style={{ padding: isMobile ? 14 : 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'minmax(0, 7fr) minmax(0, 2fr) minmax(0, 3fr)', gap: '12px 16px' }}>
+            <CrmV2Field label="Objet de l’e-mail">
+              <CrmV2Input
+                value={tpl.subject}
+                onChange={e => update({ subject: e.target.value })}
+                placeholder="Ex : Bonjour {{prenom}}, votre RDV est confirmé"
+              />
+            </CrmV2Field>
+            <CrmV2Field label="Catégorie">
+              <CrmV2Select value={tpl.category || 'general'} onChange={e => update({ category: e.target.value })}>
+                {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+              </CrmV2Select>
+            </CrmV2Field>
+            <CrmV2Field label="Description (interne)">
+              <CrmV2Input
+                value={tpl.description || ''}
+                onChange={e => update({ description: e.target.value })}
+                placeholder="Pour quoi ce modèle ?"
+              />
+            </CrmV2Field>
           </div>
-          <div className="md:col-span-2">
-            <label className="block text-[10px] uppercase tracking-wide text-[#a89e8a] mb-0.5">Catégorie</label>
-            <select
-              value={tpl.category || 'general'}
-              onChange={e => update({ category: e.target.value })}
-              className="w-full px-2 py-1.5 border rounded-md text-sm"
-            >
-              {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-            </select>
-          </div>
-          <div className="md:col-span-3">
-            <label className="block text-[10px] uppercase tracking-wide text-[#a89e8a] mb-0.5">Description (interne)</label>
-            <input
-              value={tpl.description || ''}
-              onChange={e => update({ description: e.target.value })}
-              placeholder="Pour quoi ce modèle ?"
-              className="w-full px-3 py-1.5 border rounded-md text-sm"
-            />
-          </div>
-        </div>
-      </div>
+        </CrmV2Card>
 
-      {/* Variables disponibles */}
-      <div className="bg-blue-50 border-b border-blue-100 px-3 md:px-6 py-1.5">
-        <div className="max-w-[1600px] mx-auto text-xs text-[#0038f0]">
+        {/* Variables disponibles */}
+        <MktNotice tone="blue" icon={<Braces size={15} />}>
           Variables : <code>{'{{prenom}}'}</code>{' '}
           <code>{'{{nom}}'}</code>{' '}
           <code>{'{{email}}'}</code>{' '}
           <code>{'{{classe}}'}</code>{' '}
           <code>{'{{phone}}'}</code>
-          {' — '}elles seront remplacées à l&apos;envoi.
-        </div>
-      </div>
+          {' — '}elles seront remplacées à l’envoi.
+        </MktNotice>
 
-      {/* Editor Unlayer */}
-      <div className="flex-1">
-        <EmailEditorVisual
-          ref={editorRef}
-          initialDesign={tpl.design_json}
-          onChange={() => { setDirty(true); if (!editorReady) setEditorReady(true) }}
-          height={750}
-        />
-      </div>
+        {/* Éditeur visuel */}
+        <CrmV2Card style={{ overflow: 'hidden', flex: 1 }}>
+          <EmailEditorVisual
+            ref={editorRef}
+            initialDesign={tpl.design_json}
+            onChange={() => { setDirty(true); if (!editorReady) setEditorReady(true) }}
+            height={750}
+          />
+        </CrmV2Card>
+      </CrmV2Body>
 
       {/* Modal test */}
-      {showTest && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowTest(false)}>
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
-            <div className="px-5 py-3 border-b flex items-center gap-2">
-              <Mail size={16} className="text-[#0038f0]" />
-              <h2 className="text-base font-semibold">Envoyer un e-mail de test</h2>
-            </div>
-            <div className="p-5 space-y-3">
-              <input
-                type="email"
-                value={testEmail}
-                onChange={e => setTestEmail(e.target.value)}
-                placeholder="ton@email.fr"
-                className="w-full px-3 py-2 border rounded-md text-sm"
-                autoFocus
-              />
-              {testMsg && (
-                <div className={`text-xs px-3 py-2 rounded ${testMsg.startsWith('Échec') ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
-                  {testMsg}
-                </div>
-              )}
-            </div>
-            <div className="flex justify-end gap-2 px-5 py-3 border-t bg-[#f7f4ee] rounded-b-xl">
-              <button onClick={() => setShowTest(false)} className="px-4 py-2 text-sm border rounded-md">Fermer</button>
-              <button
-                onClick={sendTest}
-                disabled={sendingTest || !testEmail.trim()}
-                className="px-4 py-2 text-sm text-white rounded-md disabled:opacity-50 bg-gradient-to-r from-[#2ea3f2] to-[#0038f0]"
-              >
-                {sendingTest ? 'Envoi…' : 'Envoyer'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+      <MktModal
+        open={showTest}
+        onClose={() => setShowTest(false)}
+        title="Envoyer un e-mail de test"
+        width={440}
+        footer={
+          <>
+            <CrmV2Button variant="secondary" onClick={() => setShowTest(false)}>Fermer</CrmV2Button>
+            <CrmV2Button variant="primary" icon={<Send size={14} />} onClick={sendTest} disabled={sendingTest || !testEmail.trim()}>
+              {sendingTest ? 'Envoi…' : 'Envoyer'}
+            </CrmV2Button>
+          </>
+        }
+      >
+        <CrmV2Field label="Adresse de réception">
+          <CrmV2Input
+            type="email"
+            value={testEmail}
+            onChange={e => setTestEmail(e.target.value)}
+            placeholder="ton@email.fr"
+            autoFocus
+            onKeyDown={e => { if (e.key === 'Enter') sendTest() }}
+          />
+        </CrmV2Field>
+        {testMsg && (
+          <MktNotice tone={testMsg.startsWith('Échec') ? 'red' : 'blue'}>{testMsg}</MktNotice>
+        )}
+      </MktModal>
+    </CrmV2Page>
   )
 }

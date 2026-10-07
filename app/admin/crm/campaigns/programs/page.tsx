@@ -1,9 +1,15 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
-import MarketingNav from '@/components/crm/MarketingNav'
-import { Calendar, Play } from 'lucide-react'
+import { RefreshCw, Repeat2 } from 'lucide-react'
+import { useIsMobile } from '@/lib/useIsMobile'
+import {
+  CrmV2Page, CrmV2Header, CrmV2Body, CrmV2TableCard, CrmV2Table, CrmV2Th, CrmV2Td, CrmV2Tr,
+  CrmV2Search, CrmV2Button, CrmV2StatusPill, CrmV2Empty,
+} from '@/components/crm-v2/primitives'
+import {
+  programStatusMeta, MktNameCell, MktSelectPill, MktMobileRow, MktIconBox, numCell, mutedCell, useCrmBase,
+} from '@/components/crm-v2/marketing/ui'
 
 interface Program {
   id: string
@@ -15,7 +21,11 @@ interface Program {
 }
 
 export default function ProgramsPage() {
+  const isMobile = useIsMobile()
+  const base = useCrmBase()
   const [programs, setPrograms] = useState<Program[]>([])
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
 
   useEffect(() => {
     fetch('/api/email-programs')
@@ -31,38 +41,98 @@ export default function ProgramsPage() {
     setPrograms(Array.isArray(d) ? d : [])
   }
 
+  const statuses = Array.from(new Set(programs.map(p => p.status).filter(Boolean)))
+  const q = search.trim().toLowerCase()
+  const filtered = programs.filter(p => {
+    if (statusFilter && p.status !== statusFilter) return false
+    if (q) return p.name.toLowerCase().includes(q) || p.slug.toLowerCase().includes(q)
+    return true
+  })
+  const totalEnrolled = programs.reduce((s, p) => s + (p.total_enrolled || 0), 0)
+
   return (
-    <div style={{ color: '#0e1e35' }}>
-      <MarketingNav title="Programmes email" />
-      <div style={{ maxWidth: 900, margin: '0 auto', padding: 24 }}>
-        <p style={{ color: '#5f6368', fontSize: 14, marginBottom: 16 }}>
-          Séquences automatiques J1, J3, J5… (ex. Last Chance Médecine). Chaque étape = marque + objet + template.
-        </p>
-        <button type="button" onClick={seed} style={{ marginBottom: 20, padding: '8px 14px', borderRadius: 8, border: '1px solid #e5ddc8', background: '#fff', color: '#0e1e35', cursor: 'pointer' }}>
-          Recharger la liste
-        </button>
-        {programs.map(p => (
-          <Link key={p.id} href={`/admin/crm/campaigns/programs/${p.id}`} style={{ textDecoration: 'none', display: 'block', marginBottom: 10 }}>
-            <div style={{ background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 16 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontWeight: 700, color: '#0e1e35', fontSize: 16 }}>{p.name}</div>
-                  <div style={{ fontSize: 12, color: '#888' }}>{p.slug} · tous les {p.interval_days} j</div>
-                </div>
-                <span style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, background: p.status === 'active' ? '#dcfce7' : '#f3f4f6', color: p.status === 'active' ? '#166534' : '#666' }}>
-                  {p.status}
-                </span>
-              </div>
-              <div style={{ marginTop: 8, fontSize: 13, color: '#0038f0' }}>{p.total_enrolled || 0} inscrits</div>
+    <CrmV2Page>
+      <CrmV2Header
+        title="Programmes"
+        subtitle={`Séquences d’emails automatiques (J1, J3, J5…) · ${programs.length} programme${programs.length > 1 ? 's' : ''} · ${totalEnrolled.toLocaleString('fr-FR')} inscrits`}
+        actions={
+          <CrmV2Button variant="secondary" icon={<RefreshCw size={14} />} onClick={seed}>
+            Recharger la liste
+          </CrmV2Button>
+        }
+      />
+      <CrmV2Body>
+        <CrmV2TableCard
+          toolbar={
+            <>
+              <CrmV2Search
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Rechercher un programme…"
+                style={isMobile ? { flex: '1 1 100%' } : undefined}
+              />
+              {statuses.length > 0 && (
+                <MktSelectPill value={statusFilter} active={!!statusFilter} onChange={e => setStatusFilter(e.target.value)} aria-label="Statut">
+                  <option value="">Statut</option>
+                  {statuses.map(s => <option key={s} value={s}>{programStatusMeta(s).label}</option>)}
+                </MktSelectPill>
+              )}
+            </>
+          }
+        >
+          {programs.length === 0 ? (
+            <CrmV2Empty
+              icon={<Repeat2 size={26} />}
+              title="Aucun programme"
+              description="Chaque étape d’un programme = marque + objet + modèle. Pour créer le programme Last Chance Médecine, lancez : bun run scripts/seed-last-chance-medecine-program.mjs"
+            />
+          ) : filtered.length === 0 ? (
+            <CrmV2Empty title="Aucun programme ne correspond aux filtres." />
+          ) : isMobile ? (
+            <div>
+              {filtered.map(p => {
+                const meta = programStatusMeta(p.status)
+                return (
+                  <MktMobileRow
+                    key={p.id}
+                    href={`${base}/campaigns/programs/${p.id}`}
+                    icon={<MktIconBox size={36}><Repeat2 size={16} /></MktIconBox>}
+                    title={p.name}
+                    subtitle={`${(p.total_enrolled || 0).toLocaleString('fr-FR')} inscrits · tous les ${p.interval_days} j`}
+                    right={<CrmV2StatusPill label={meta.label} color={meta.color} bg={meta.bg} />}
+                  />
+                )
+              })}
             </div>
-          </Link>
-        ))}
-        {programs.length === 0 && (
-          <p style={{ fontSize: 13, color: '#888' }}>
-            Aucun programme. Lancez : <code>bun run scripts/seed-last-chance-medecine-program.mjs</code>
-          </p>
-        )}
-      </div>
-    </div>
+          ) : (
+            <CrmV2Table>
+              <thead>
+                <tr>
+                  <CrmV2Th>Programme</CrmV2Th>
+                  <CrmV2Th>Rythme</CrmV2Th>
+                  <CrmV2Th style={{ textAlign: 'right' }}>Inscrits</CrmV2Th>
+                  <CrmV2Th>Statut</CrmV2Th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(p => {
+                  const meta = programStatusMeta(p.status)
+                  return (
+                    <CrmV2Tr key={p.id} onClick={() => { window.location.href = `${base}/campaigns/programs/${p.id}` }}>
+                      <CrmV2Td>
+                        <MktNameCell icon={<Repeat2 size={14} />} href={`/admin/crm/campaigns/programs/${p.id}`} title={p.name} subtitle={p.slug} />
+                      </CrmV2Td>
+                      <CrmV2Td style={mutedCell}>Un email tous les {p.interval_days} j</CrmV2Td>
+                      <CrmV2Td style={numCell}>{(p.total_enrolled || 0).toLocaleString('fr-FR')}</CrmV2Td>
+                      <CrmV2Td><CrmV2StatusPill label={meta.label} color={meta.color} bg={meta.bg} /></CrmV2Td>
+                    </CrmV2Tr>
+                  )
+                })}
+              </tbody>
+            </CrmV2Table>
+          )}
+        </CrmV2TableCard>
+      </CrmV2Body>
+    </CrmV2Page>
   )
 }

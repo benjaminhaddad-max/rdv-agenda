@@ -171,8 +171,8 @@ export default function CampaignRecipientsTab({
         {/* Segments enregistrés */}
         <Card title="Segments" icon={Users}>
           {segments.length === 0 ? (
-            <div style={{ fontSize: 12, color: '#4a6070', padding: '8px 0' }}>
-              Aucun segment enregistré. <a href="/admin/crm/campaigns/segments" style={{ color: '#0038f0' }}>Créer un segment</a> ou utilise les filtres ad-hoc ci-dessous.
+            <div style={{ fontSize: 12, color: '#516f90', padding: '8px 0' }}>
+              Aucun segment enregistré. <a href="/admin/crm/campaigns/segments" style={{ color: '#0091ae' }}>Créer un segment</a> ou utilise les filtres ad-hoc ci-dessous.
             </div>
           ) : (
             <div style={{ display: 'grid', gap: 6 }}>
@@ -187,8 +187,8 @@ export default function CampaignRecipientsTab({
                       textAlign: 'left',
                       padding: '10px 12px',
                       borderRadius: 8,
-                      border: `1px solid ${sel ? '#0038f0' : '#e5ddc8'}`,
-                      background: sel ? 'rgba(46,163,242,0.08)' : '#fff',
+                      border: `1px solid ${sel ? '#0091ae' : '#dfe3eb'}`,
+                      background: sel ? 'rgba(0,145,174,0.08)' : '#fff',
                       cursor: 'pointer',
                       fontFamily: 'inherit',
                       display: 'flex',
@@ -198,13 +198,13 @@ export default function CampaignRecipientsTab({
                     }}
                   >
                     <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: '#0e1e35' }}>{s.name}</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#2d3e50' }}>{s.name}</div>
                       {s.description && (
-                        <div style={{ fontSize: 11, color: '#4a6070', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.description}</div>
+                        <div style={{ fontSize: 11, color: '#516f90', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.description}</div>
                       )}
                     </div>
                     {typeof s.contact_count === 'number' && (
-                      <span style={{ fontSize: 11, color: '#4a6070', flexShrink: 0 }}>~{s.contact_count.toLocaleString('fr-FR')}</span>
+                      <span style={{ fontSize: 11, color: '#516f90', flexShrink: 0 }}>~{s.contact_count.toLocaleString('fr-FR')}</span>
                     )}
                   </button>
                 )
@@ -217,7 +217,7 @@ export default function CampaignRecipientsTab({
         <Card title="Filtres" icon={FilterIcon}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
             {activeFilterKeys.length === 0 && (
-              <div style={{ fontSize: 12, color: '#4a6070', padding: '4px 0' }}>
+              <div style={{ fontSize: 12, color: '#516f90', padding: '4px 0' }}>
                 Aucun filtre. Ajoute-en pour restreindre l&apos;audience.
               </div>
             )}
@@ -243,8 +243,8 @@ export default function CampaignRecipientsTab({
               style={{
                 fontSize: 12,
                 background: '#fff',
-                border: '1px dashed #e5ddc8',
-                color: '#0038f0',
+                border: '1px dashed #dfe3eb',
+                color: '#0091ae',
                 padding: '6px 12px',
                 borderRadius: 6,
                 cursor: 'pointer',
@@ -257,7 +257,7 @@ export default function CampaignRecipientsTab({
               <Plus size={11} /> Ajouter un filtre
             </button>
             {showFilterMenu && (
-              <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, background: '#fff', border: '1px solid #e5ddc8', borderRadius: 8, padding: 4, minWidth: 220, zIndex: 10, boxShadow: '0 8px 20px rgba(0,0,0,0.08)' }}>
+              <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, background: '#fff', border: '1px solid #dfe3eb', borderRadius: 8, padding: 4, minWidth: 220, zIndex: 10, boxShadow: '0 8px 20px rgba(0,0,0,0.08)' }}>
                 {FILTER_FIELDS.filter(f => !activeFilterKeys.includes(f.key as string)).map(f => (
                   <button
                     key={f.key as string}
@@ -272,7 +272,7 @@ export default function CampaignRecipientsTab({
                       border: 'none',
                       cursor: 'pointer',
                       fontSize: 12,
-                      color: '#0e1e35',
+                      color: '#2d3e50',
                       borderRadius: 4,
                     }}
                   >
@@ -293,10 +293,10 @@ export default function CampaignRecipientsTab({
             disabled={loadingPreview}
             style={{
               width: '100%',
-              background: '#0038f0',
+              background: '#2d3e50',
               color: '#fff',
               border: 'none',
-              borderRadius: 8,
+              borderRadius: 999,
               padding: '10px',
               cursor: loadingPreview ? 'wait' : 'pointer',
               fontSize: 13,
@@ -315,18 +315,18 @@ export default function CampaignRecipientsTab({
           </button>
           {preview ? (
             <>
-              <div style={{ background: 'rgba(46,163,242,0.08)', border: '1px solid rgba(46,163,242,0.25)', borderRadius: 8, padding: 14, textAlign: 'center', marginBottom: 12 }}>
-                <div style={{ fontSize: 11, color: '#0038f0', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Destinataires</div>
-                <div style={{ fontSize: 28, fontWeight: 700, color: '#0038f0' }}>{preview.total.toLocaleString('fr-FR')}</div>
+              <div style={{ background: 'rgba(0,145,174,0.08)', border: '1px solid rgba(0,145,174,0.25)', borderRadius: 8, padding: 14, textAlign: 'center', marginBottom: 12 }}>
+                <div style={{ fontSize: 11, color: '#0091ae', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Destinataires</div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: '#0091ae' }}>{preview.total.toLocaleString('fr-FR')}</div>
               </div>
               {preview.sample.length > 0 && (
                 <>
-                  <div style={{ fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Échantillon</div>
+                  <div style={{ fontSize: 11, color: '#516f90', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Échantillon</div>
                   <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {preview.sample.map(s => (
-                      <li key={s.contact_id} style={{ fontSize: 11, color: '#0e1e35', padding: '6px 8px', background: '#f7f4ee', borderRadius: 4 }}>
+                      <li key={s.contact_id} style={{ fontSize: 11, color: '#2d3e50', padding: '6px 8px', background: '#eef1f6', borderRadius: 4 }}>
                         <div style={{ fontWeight: 600 }}>{[s.first_name, s.last_name].filter(Boolean).join(' ') || '—'}</div>
-                        <div style={{ color: '#4a6070' }}>{s.email}</div>
+                        <div style={{ color: '#516f90' }}>{s.email}</div>
                       </li>
                     ))}
                   </ul>
@@ -334,13 +334,13 @@ export default function CampaignRecipientsTab({
               )}
             </>
           ) : (
-            <div style={{ fontSize: 12, color: '#4a6070', textAlign: 'center', padding: '12px 0' }}>
+            <div style={{ fontSize: 12, color: '#516f90', textAlign: 'center', padding: '12px 0' }}>
               Clique pour voir le nombre de destinataires.
             </div>
           )}
           {onSavedExternal && (
             <div style={{ fontSize: 10, color: '#888', marginTop: 12, lineHeight: 1.4 }}>
-              💡 N&apos;oublie pas de <strong>sauvegarder</strong> la campagne après avoir modifié l&apos;audience.
+              N&apos;oublie pas de <strong>sauvegarder</strong> la campagne après avoir modifié l&apos;audience.
             </div>
           )}
         </Card>
@@ -394,7 +394,7 @@ function FilterPill({
         style={{
           background: 'rgba(204,172,113,0.12)',
           border: '1px solid rgba(204,172,113,0.4)',
-          color: '#8a6e3a',
+          color: '#8a6d22',
           padding: '4px 10px',
           borderRadius: 999,
           fontSize: 11,
@@ -417,7 +417,7 @@ function FilterPill({
         ><X size={11} /></span>
       </button>
       {open && (
-        <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, background: '#fff', border: '1px solid #e5ddc8', borderRadius: 8, padding: 8, minWidth: 200, zIndex: 20, boxShadow: '0 8px 20px rgba(0,0,0,0.1)', maxHeight: 320, overflowY: 'auto' }}>
+        <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, background: '#fff', border: '1px solid #dfe3eb', borderRadius: 8, padding: 8, minWidth: 200, zIndex: 20, boxShadow: '0 8px 20px rgba(0,0,0,0.1)', maxHeight: 320, overflowY: 'auto' }}>
           {field.type === 'bool' && (
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: 4 }}>
               <input
@@ -434,7 +434,7 @@ function FilterPill({
               value={value || ''}
               onChange={e => onChange(e.target.value)}
               placeholder={field.label}
-              style={{ width: '100%', padding: '6px 8px', border: '1px solid #e5ddc8', borderRadius: 4, fontSize: 12, fontFamily: 'inherit' }}
+              style={{ width: '100%', padding: '6px 8px', border: '1px solid #dfe3eb', borderRadius: 4, fontSize: 12, fontFamily: 'inherit' }}
             />
           )}
           {field.type === 'date' && (
@@ -442,7 +442,7 @@ function FilterPill({
               type="date"
               value={value || ''}
               onChange={e => onChange(e.target.value)}
-              style={{ width: '100%', padding: '6px 8px', border: '1px solid #e5ddc8', borderRadius: 4, fontSize: 12, fontFamily: 'inherit' }}
+              style={{ width: '100%', padding: '6px 8px', border: '1px solid #dfe3eb', borderRadius: 4, fontSize: 12, fontFamily: 'inherit' }}
             />
           )}
           {field.type === 'enum' && options && (
@@ -482,8 +482,8 @@ function FilterPill({
 // ─── Card local (légère copie pour autonomie du composant) ──────────────
 function Card({ title, icon: Icon, children }: { title: string; icon?: typeof Users; children: React.ReactNode }) {
   return (
-    <div style={{ background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, fontSize: 12, fontWeight: 600, color: '#0e1e35', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+    <div style={{ background: '#fff', border: '1px solid #dfe3eb', borderRadius: 16, padding: 16, boxShadow: '0 2px 12px rgba(15,31,61,0.07)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, fontSize: 12, fontWeight: 600, color: '#2d3e50', textTransform: 'uppercase', letterSpacing: 0.5 }}>
         {Icon && <Icon size={13} style={{ color: '#C9A84C' }} />}
         {title}
       </div>

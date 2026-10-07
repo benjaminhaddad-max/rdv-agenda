@@ -1,15 +1,20 @@
 'use client'
 
-import { useState, type ReactNode } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import MarketingNav from '@/components/crm/MarketingNav'
-import { CrmV2Button, CrmV2Card, CrmV2Page } from '@/components/crm-v2/primitives'
+import { AlertTriangle } from 'lucide-react'
+import {
+  CrmV2Button, CrmV2Page, CrmV2Header, CrmV2Body, CrmV2FormSection, CrmV2Field, CrmV2Input,
+  CrmV2Select, CrmV2Textarea,
+} from '@/components/crm-v2/primitives'
+import { MktNotice, useCrmBase } from '@/components/crm-v2/marketing/ui'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import { WEBINAR_BRANDS, getDeckTheme } from '@/lib/webinar-presentations'
 import GuideFileDrop from '@/components/webinar-presentations/GuideFileDrop'
 
 export default function NewWebinarPresentationPage() {
   const router = useRouter()
+  const base = useCrmBase()
   const [title, setTitle] = useState('')
   const [subtitle, setSubtitle] = useState('')
   const [brand, setBrand] = useState('diploma')
@@ -41,7 +46,7 @@ export default function NewWebinarPresentationPage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Erreur')
-      router.push(`/admin/crm/campaigns/webinars/${data.id}`)
+      router.push(`${base}/campaigns/webinars/${data.id}`)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erreur')
       setSaving(false)
@@ -49,92 +54,71 @@ export default function NewWebinarPresentationPage() {
   }
 
   return (
-    <div>
-      <MarketingNav title="Nouvelle présentation webinaire" />
-      <CrmV2Page style={{ padding: 24 }}>
-        <div style={{ maxWidth: 860, margin: '0 auto' }}>
-          <h1 style={{ margin: '0 0 6px', fontSize: 22, fontWeight: 700, color: crmV2.text }}>Nouvelle présentation</h1>
-          <p style={{ margin: '0 0 22px', color: crmV2.textMuted, fontSize: 14 }}>
-            Uploade le guide du webinaire (PDF ou Word). Les slides interactives sont générées à partir du fichier. Tu pourras ensuite présenter et laisser des retours pour qu’on affine.
-          </p>
+    <CrmV2Page>
+      <CrmV2Header
+        back={{ href: '/admin/crm/campaigns/webinars', label: 'Présentations webinaires' }}
+        title="Nouvelle présentation"
+        subtitle="Uploade le guide du webinaire (PDF ou Word) : les slides interactives sont générées à partir du fichier. Tu pourras ensuite présenter et laisser des retours pour qu’on affine."
+      />
+      <CrmV2Body style={{ alignItems: 'center' }}>
+        <CrmV2FormSection title="Webinaire" description="Titre, marque et date affichés sur le deck.">
+          <CrmV2Field label="Titre du webinaire" span={2}>
+            <CrmV2Input value={title} onChange={e => setTitle(e.target.value)} placeholder="Ex. Réforme PASS / LAS 2026" />
+          </CrmV2Field>
+          <CrmV2Field label="Sous-titre" span={2}>
+            <CrmV2Input value={subtitle} onChange={e => setSubtitle(e.target.value)} placeholder="Ex. Ce qu’il faut retenir pour les familles" />
+          </CrmV2Field>
+          <CrmV2Field label="Marque">
+            <CrmV2Select value={brand} onChange={e => setBrand(e.target.value)}>
+              {WEBINAR_BRANDS.map(b => (
+                <option key={b} value={b}>{getDeckTheme(b).name}</option>
+              ))}
+            </CrmV2Select>
+          </CrmV2Field>
+          <CrmV2Field label="Date du webinaire">
+            <CrmV2Input type="date" value={webinarDate} onChange={e => setWebinarDate(e.target.value)} />
+          </CrmV2Field>
+        </CrmV2FormSection>
 
-          <CrmV2Card style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <Field label="Titre du webinaire">
-              <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Ex. Réforme PASS / LAS 2026" style={inputStyle} />
-            </Field>
-            <Field label="Sous-titre">
-              <input value={subtitle} onChange={e => setSubtitle(e.target.value)} placeholder="Ex. Ce qu’il faut retenir pour les familles" style={inputStyle} />
-            </Field>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <Field label="Marque">
-                <select value={brand} onChange={e => setBrand(e.target.value)} style={inputStyle}>
-                  {WEBINAR_BRANDS.map(b => (
-                    <option key={b} value={b}>{getDeckTheme(b).name}</option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Date du webinaire">
-                <input type="date" value={webinarDate} onChange={e => setWebinarDate(e.target.value)} style={inputStyle} />
-              </Field>
-            </div>
-            <Field label="Brief" hint="Intention, public, ton, ce qu’on veut que les gens retiennent.">
-              <textarea
-                value={brief}
-                onChange={e => setBrief(e.target.value)}
-                rows={5}
-                placeholder="Public, objectif, messages clés, ce qu’il ne faut pas oublier…"
-                style={{ ...inputStyle, resize: 'vertical', minHeight: 110 }}
-              />
-            </Field>
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: crmV2.text, marginBottom: 6 }}>Guide du webinaire</div>
-              <GuideFileDrop onExtracted={(text) => setGuide(text)} />
-              {guide.trim() && (
-                <div style={{ marginTop: 12 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: crmV2.textMuted, marginBottom: 6 }}>
-                    Texte extrait ({guide.trim().length.toLocaleString('fr-FR')} caractères) — tu peux le corriger
-                  </div>
-                  <textarea
-                    value={guide}
-                    onChange={e => setGuide(e.target.value)}
-                    rows={10}
-                    style={{ ...inputStyle, resize: 'vertical', minHeight: 160, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 13 }}
-                  />
+        <CrmV2FormSection title="Contenu" description="Le brief oriente la génération ; le guide fournit la matière des slides." columns={1}>
+          <CrmV2Field label="Brief" hint="Intention, public, ton, ce qu’on veut que les gens retiennent.">
+            <CrmV2Textarea
+              value={brief}
+              onChange={e => setBrief(e.target.value)}
+              rows={5}
+              placeholder="Public, objectif, messages clés, ce qu’il ne faut pas oublier…"
+              style={{ minHeight: 110 }}
+            />
+          </CrmV2Field>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: crmV2.textMuted, marginBottom: 6 }}>Guide du webinaire</div>
+            <GuideFileDrop onExtracted={(text) => setGuide(text)} />
+            {guide.trim() && (
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: crmV2.textMuted, marginBottom: 6 }}>
+                  Texte extrait ({guide.trim().length.toLocaleString('fr-FR')} caractères) — tu peux le corriger
                 </div>
-              )}
-            </div>
-            {error && <div style={{ color: crmV2.danger, fontSize: 13 }}>{error}</div>}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-              <CrmV2Button onClick={() => router.push('/admin/crm/campaigns/webinars')}>Annuler</CrmV2Button>
-              <CrmV2Button variant="primary" disabled={saving} onClick={create}>
-                {saving ? 'Création…' : 'Créer la présentation'}
-              </CrmV2Button>
-            </div>
-          </CrmV2Card>
+                <CrmV2Textarea
+                  value={guide}
+                  onChange={e => setGuide(e.target.value)}
+                  rows={10}
+                  style={{ minHeight: 160, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 13 }}
+                />
+              </div>
+            )}
+          </div>
+        </CrmV2FormSection>
+
+        <div style={{ maxWidth: 880, width: '100%', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {error && <MktNotice tone="red" icon={<AlertTriangle size={15} />}>{error}</MktNotice>}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <CrmV2Button onClick={() => router.push(`${base}/campaigns/webinars`)}>Annuler</CrmV2Button>
+            <CrmV2Button variant="primary" disabled={saving} onClick={create}>
+              {saving ? 'Création…' : 'Créer la présentation'}
+            </CrmV2Button>
+          </div>
         </div>
-      </CrmV2Page>
-    </div>
+      </CrmV2Body>
+    </CrmV2Page>
   )
-}
-
-function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
-  return (
-    <label style={{ display: 'block' }}>
-      <div style={{ fontSize: 12, fontWeight: 700, color: crmV2.text, marginBottom: 6 }}>{label}</div>
-      {children}
-      {hint && <div style={{ marginTop: 6, fontSize: 12, color: crmV2.textFaint }}>{hint}</div>}
-    </label>
-  )
-}
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  boxSizing: 'border-box',
-  padding: '10px 12px',
-  borderRadius: 10,
-  border: `1px solid ${crmV2.borderStrong}`,
-  background: '#fff',
-  color: crmV2.text,
-  fontSize: 14,
-  fontFamily: 'inherit',
 }

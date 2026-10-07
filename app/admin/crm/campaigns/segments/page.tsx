@@ -1,14 +1,20 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import Link from 'next/link'
 import {
-  Users, Plus, Trash2, Copy, Search, Filter, List, RefreshCw,
+  Users, Plus, Trash2, Copy, Filter, List, RefreshCw,
 } from 'lucide-react'
-import LogoutButton from '@/components/LogoutButton'
 import { useIsMobile } from '@/lib/useIsMobile'
+import { crmV2 } from '@/lib/crm-v2-theme'
 import { formatDistanceToNow } from 'date-fns'
 import { fr } from 'date-fns/locale'
+import {
+  CrmV2Page, CrmV2Header, CrmV2Tabs, CrmV2Body, CrmV2TableCard, CrmV2Table, CrmV2Th, CrmV2Td, CrmV2Tr,
+  CrmV2Search, CrmV2Button, CrmV2StatusPill, CrmV2Empty, CrmV2Spinner, CrmV2Field, CrmV2Input, CrmV2Segmented,
+} from '@/components/crm-v2/primitives'
+import {
+  MKT_TONES, MktNameCell, MktMobileRow, MktIconBox, MktIconButton, MktModal, numCell, mutedCell, useCrmBase,
+} from '@/components/crm-v2/marketing/ui'
 
 interface Segment {
   id: string
@@ -21,12 +27,13 @@ interface Segment {
 }
 
 const TYPE_META = {
-  dynamic: { label: 'Segment dynamique', color: '#0038f0', icon: Filter },
-  static:  { label: 'Liste statique', color: '#a855f7', icon: List },
+  dynamic: { label: 'Segment dynamique', ...MKT_TONES.blue, icon: Filter },
+  static:  { label: 'Liste statique', ...MKT_TONES.purple, icon: List },
 }
 
 export default function SegmentsPage() {
   const isMobile = useIsMobile()
+  const base = useCrmBase()
   const [segments, setSegments] = useState<Segment[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -79,161 +86,126 @@ export default function SegmentsPage() {
     })
     if (res.ok) {
       const created = await res.json()
-      window.location.href = `/admin/crm/campaigns/segments/${created.id}`
+      window.location.href = `${base}/campaigns/segments/${created.id}`
     }
   }
 
+  const countDyn = segments.filter(s => s.segment_type !== 'static').length
+  const countStatic = segments.filter(s => s.segment_type === 'static').length
+  const ago = (iso: string) => formatDistanceToNow(new Date(iso), { addSuffix: true, locale: fr })
+
   return (
-    <div style={{ minHeight: isMobile ? '100%' : '100vh', background: '#f7f4ee', color: '#0e1e35', fontFamily: 'Inter, system-ui, sans-serif' }}>
-      <div style={{ padding: isMobile ? '0 12px' : '0 20px', height: 52, background: '#ffffff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 14, minWidth: 0 }}>
-          <a href="/admin/crm/campaigns" style={{ color: '#4a6070', textDecoration: 'none', fontSize: 12, flexShrink: 0 }}>← Campagnes</a>
-          <div style={{ width: 1, height: 22, background: '#e5ddc8', flexShrink: 0 }} />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-            <Users size={16} style={{ color: '#0038f0', flexShrink: 0 }} />
-            <span style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Segments & listes</span>
-          </div>
-        </div>
-        {!isMobile && <LogoutButton />}
-      </div>
+    <CrmV2Page>
+      <CrmV2Header
+        title="Segments"
+        subtitle="Audiences réutilisables pour vos campagnes email et SMS — segments dynamiques ou listes statiques"
+        actions={
+          <>
+            <CrmV2Button variant="secondary" icon={<RefreshCw size={14} />} onClick={load}>Actualiser</CrmV2Button>
+            <CrmV2Button variant="primary" icon={<Plus size={14} />} onClick={() => setShowNew(true)}>Nouveau segment</CrmV2Button>
+          </>
+        }
+      >
+        <CrmV2Tabs
+          bordered={false}
+          value={typeFilter}
+          onChange={id => setTypeFilter(id as typeof typeFilter)}
+          items={[
+            { id: 'all', label: 'Tous', count: segments.length },
+            { id: 'dynamic', label: 'Segments dynamiques', count: countDyn },
+            { id: 'static', label: 'Listes statiques', count: countStatic },
+          ]}
+        />
+      </CrmV2Header>
 
-      <div style={{ padding: isMobile ? '12px 12px 16px' : '24px 24px 16px', maxWidth: 1100, margin: '0 auto' }}>
-        <p style={{ fontSize: 13, color: '#4a6070', margin: '0 0 16px', lineHeight: 1.5 }}>
-          Créez des audiences réutilisables pour vos campagnes email et SMS — segments dynamiques ou listes statiques.
-        </p>
-
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff', border: '1px solid #e5ddc8', borderRadius: 8, padding: '6px 12px', flex: isMobile ? '1 1 100%' : '1 1 240px', minWidth: 0 }}>
-            <Search size={14} style={{ color: '#4a6070' }} />
-            <input
+      <CrmV2Body>
+        <CrmV2TableCard
+          toolbar={
+            <CrmV2Search
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Rechercher…"
-              style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', outline: 'none', fontSize: 13, fontFamily: 'inherit' }}
+              placeholder="Rechercher un segment…"
+              style={isMobile ? { flex: '1 1 100%' } : undefined}
             />
-          </div>
-          <select
-            value={typeFilter}
-            onChange={e => setTypeFilter(e.target.value as typeof typeFilter)}
-            style={{ background: '#fff', border: '1px solid #e5ddc8', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontFamily: 'inherit' }}
-          >
-            <option value="all">Tous les types</option>
-            <option value="dynamic">Segments dynamiques</option>
-            <option value="static">Listes statiques</option>
-          </select>
-          <button
-            onClick={load}
-            style={{ background: '#fff', border: '1px solid #e5ddc8', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#4a6070', fontFamily: 'inherit' }}
-          >
-            <RefreshCw size={13} /> Actualiser
-          </button>
-          <button
-            onClick={() => setShowNew(true)}
-            style={{ background: 'rgba(46,163,242,0.12)', border: '1px solid rgba(46,163,242,0.3)', borderRadius: 8, padding: '8px 16px', color: '#0038f0', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit' }}
-          >
-            <Plus size={14} /> Nouveau
-          </button>
-        </div>
-
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: 40, color: '#4a6070' }}>Chargement…</div>
-        ) : filtered.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 60, background: '#fff', border: '1px dashed #e5ddc8', borderRadius: 12 }}>
-            <Users size={40} style={{ color: '#a89e8a', margin: '0 auto 12px' }} />
-            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Aucun segment pour le moment</div>
-            <div style={{ fontSize: 13, color: '#4a6070', marginBottom: 16 }}>Créez un segment dynamique (filtres CRM) ou une liste statique (contacts figés).</div>
-            <button onClick={() => setShowNew(true)} style={{ background: 'rgba(46,163,242,0.12)', border: '1px solid rgba(46,163,242,0.3)', borderRadius: 8, padding: '10px 18px', color: '#0038f0', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-              Créer un segment
-            </button>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {filtered.map(s => {
-              const meta = TYPE_META[s.segment_type] ?? TYPE_META.dynamic
-              const Icon = meta.icon
-              // Mobile : carte empilée — nom pleine ligne + actions, puis compteur / type / date
-              if (isMobile) {
+          }
+        >
+          {loading ? (
+            <CrmV2Spinner />
+          ) : filtered.length === 0 ? (
+            <CrmV2Empty
+              icon={<Users size={26} />}
+              title="Aucun segment pour le moment"
+              description="Créez un segment dynamique (filtres CRM) ou une liste statique (contacts figés)."
+              action={<CrmV2Button variant="primary" icon={<Plus size={14} />} onClick={() => setShowNew(true)}>Créer un segment</CrmV2Button>}
+            />
+          ) : isMobile ? (
+            <div>
+              {filtered.map(s => {
+                const meta = TYPE_META[s.segment_type] ?? TYPE_META.dynamic
+                const Icon = meta.icon
                 return (
-                  <div key={s.id} style={{ background: '#fff', border: '1px solid #e5ddc8', borderRadius: 10, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                      <div style={{ width: 32, height: 32, borderRadius: 8, background: `${meta.color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <Icon size={15} style={{ color: meta.color }} />
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <Link href={`/admin/crm/campaigns/segments/${s.id}`} style={{ fontSize: 14, fontWeight: 600, color: '#0e1e35', textDecoration: 'none', overflowWrap: 'anywhere' }}>
-                          {s.name}
-                        </Link>
-                        {s.description && (
-                          <div style={{ fontSize: 12, color: '#4a6070', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.description}</div>
-                        )}
-                      </div>
-                      <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-                        <button onClick={() => duplicate(s)} title="Dupliquer" style={{ ...iconBtnStyle, width: 36, height: 36, justifyContent: 'center' }}><Copy size={14} /></button>
-                        <button onClick={() => remove(s)} title="Supprimer" style={{ ...iconBtnStyle, width: 36, height: 36, justifyContent: 'center', color: '#ef4444' }}><Trash2 size={14} /></button>
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 11, color: '#4a6070' }}>
-                      <span><strong style={{ fontSize: 14, color: '#0038f0' }}>{(s.contact_count ?? 0).toLocaleString('fr-FR')}</strong> contacts</span>
-                      <span style={{ fontSize: 10, fontWeight: 600, color: meta.color, background: `${meta.color}15`, padding: '3px 8px', borderRadius: 999 }}>
-                        {meta.label}
-                      </span>
-                      <span style={{ marginLeft: 'auto' }}>
-                        {formatDistanceToNow(new Date(s.updated_at), { addSuffix: true, locale: fr })}
-                      </span>
-                    </div>
-                  </div>
+                  <MktMobileRow
+                    key={s.id}
+                    href={`${base}/campaigns/segments/${s.id}`}
+                    icon={<MktIconBox size={36} color={meta.color} bg={meta.bg}><Icon size={16} /></MktIconBox>}
+                    title={s.name}
+                    subtitle={`${(s.contact_count ?? 0).toLocaleString('fr-FR')} contacts · ${ago(s.updated_at)}`}
+                    actions={
+                      <>
+                        <MktIconButton title="Dupliquer" onClick={() => duplicate(s)}><Copy size={14} /></MktIconButton>
+                        <MktIconButton title="Supprimer" danger onClick={() => remove(s)}><Trash2 size={14} /></MktIconButton>
+                      </>
+                    }
+                  />
                 )
-              }
-              return (
-                <div
-                  key={s.id}
-                  style={{ background: '#fff', border: '1px solid #e5ddc8', borderRadius: 10, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 14 }}
-                >
-                  <div style={{ width: 36, height: 36, borderRadius: 10, background: `${meta.color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Icon size={16} style={{ color: meta.color }} />
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <Link href={`/admin/crm/campaigns/segments/${s.id}`} style={{ fontSize: 14, fontWeight: 600, color: '#0e1e35', textDecoration: 'none' }}>
-                      {s.name}
-                    </Link>
-                    {s.description && (
-                      <div style={{ fontSize: 12, color: '#4a6070', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.description}</div>
-                    )}
-                  </div>
-                  <div style={{ textAlign: 'right', minWidth: 90 }}>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: '#0038f0' }}>{(s.contact_count ?? 0).toLocaleString('fr-FR')}</div>
-                    <div style={{ fontSize: 10, color: '#4a6070' }}>contacts</div>
-                  </div>
-                  <span style={{ fontSize: 10, fontWeight: 600, color: meta.color, background: `${meta.color}15`, padding: '4px 8px', borderRadius: 999 }}>
-                    {meta.label}
-                  </span>
-                  <div style={{ fontSize: 11, color: '#4a6070', minWidth: 100, textAlign: 'right' }}>
-                    {formatDistanceToNow(new Date(s.updated_at), { addSuffix: true, locale: fr })}
-                  </div>
-                  <div style={{ display: 'flex', gap: 4 }}>
-                    <button onClick={() => duplicate(s)} title="Dupliquer" style={iconBtnStyle}><Copy size={13} /></button>
-                    <button onClick={() => remove(s)} title="Supprimer" style={{ ...iconBtnStyle, color: '#ef4444' }}><Trash2 size={13} /></button>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
+              })}
+            </div>
+          ) : (
+            <CrmV2Table>
+              <thead>
+                <tr>
+                  <CrmV2Th>Segment</CrmV2Th>
+                  <CrmV2Th>Type</CrmV2Th>
+                  <CrmV2Th style={{ textAlign: 'right' }}>Contacts</CrmV2Th>
+                  <CrmV2Th>Mis à jour</CrmV2Th>
+                  <CrmV2Th style={{ width: 90 }}>{''}</CrmV2Th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(s => {
+                  const meta = TYPE_META[s.segment_type] ?? TYPE_META.dynamic
+                  const Icon = meta.icon
+                  return (
+                    <CrmV2Tr key={s.id} onClick={() => { window.location.href = `${base}/campaigns/segments/${s.id}` }}>
+                      <CrmV2Td style={{ maxWidth: 460 }}>
+                        <MktNameCell icon={<Icon size={14} />} href={`/admin/crm/campaigns/segments/${s.id}`} title={s.name} subtitle={s.description || undefined} />
+                      </CrmV2Td>
+                      <CrmV2Td><CrmV2StatusPill label={meta.label} color={meta.color} bg={meta.bg} /></CrmV2Td>
+                      <CrmV2Td style={numCell}>{(s.contact_count ?? 0).toLocaleString('fr-FR')}</CrmV2Td>
+                      <CrmV2Td style={mutedCell}>{ago(s.updated_at)}</CrmV2Td>
+                      <CrmV2Td>
+                        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                          <MktIconButton title="Dupliquer" onClick={() => duplicate(s)}><Copy size={14} /></MktIconButton>
+                          <MktIconButton title="Supprimer" danger onClick={() => remove(s)}><Trash2 size={14} /></MktIconButton>
+                        </div>
+                      </CrmV2Td>
+                    </CrmV2Tr>
+                  )
+                })}
+              </tbody>
+            </CrmV2Table>
+          )}
+        </CrmV2TableCard>
+      </CrmV2Body>
 
       {showNew && (
         <NewSegmentModal
           onClose={() => setShowNew(false)}
-          onCreated={(id) => { window.location.href = `/admin/crm/campaigns/segments/${id}` }}
+          onCreated={(id) => { window.location.href = `${base}/campaigns/segments/${id}` }}
         />
       )}
-    </div>
+    </CrmV2Page>
   )
-}
-
-const iconBtnStyle: React.CSSProperties = {
-  background: 'transparent', border: '1px solid #e5ddc8', borderRadius: 6,
-  padding: 6, cursor: 'pointer', color: '#4a6070', display: 'flex', alignItems: 'center',
 }
 
 function NewSegmentModal({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
@@ -260,42 +232,35 @@ function NewSegmentModal({ onClose, onCreated }: { onClose: () => void; onCreate
   }
 
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: 24, width: '100%', maxWidth: 420, boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
-        <h2 style={{ margin: '0 0 16px', fontSize: 16 }}>Nouveau segment ou liste</h2>
-        <label style={{ fontSize: 12, color: '#4a6070', display: 'block', marginBottom: 6 }}>Nom</label>
-        <input
-          value={name}
-          onChange={e => setName(e.target.value)}
-          placeholder="Ex: Terminale IDF — NRP2"
-          style={{ width: '100%', padding: '8px 10px', border: '1px solid #e5ddc8', borderRadius: 8, fontSize: 13, marginBottom: 14, fontFamily: 'inherit', boxSizing: 'border-box' }}
-          autoFocus
-        />
-        <label style={{ fontSize: 12, color: '#4a6070', display: 'block', marginBottom: 6 }}>Type</label>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-          {(['dynamic', 'static'] as const).map(t => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => setSegmentType(t)}
-              style={{
-                flex: 1, padding: '10px', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 600,
-                border: `1px solid ${segmentType === t ? '#0038f0' : '#e5ddc8'}`,
-                background: segmentType === t ? 'rgba(46,163,242,0.08)' : '#fff',
-                color: segmentType === t ? '#0038f0' : '#4a6070',
-              }}
-            >
-              {t === 'dynamic' ? 'Segment dynamique' : 'Liste statique'}
-            </button>
-          ))}
-        </div>
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button onClick={onClose} style={{ padding: '8px 14px', border: '1px solid #e5ddc8', borderRadius: 8, background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>Annuler</button>
-          <button onClick={create} disabled={creating || !name.trim()} style={{ padding: '8px 14px', border: 'none', borderRadius: 8, background: '#0038f0', color: '#fff', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', opacity: creating ? 0.6 : 1 }}>
+    <MktModal
+      open
+      onClose={onClose}
+      title="Nouveau segment ou liste"
+      width={440}
+      footer={
+        <>
+          <CrmV2Button variant="secondary" onClick={onClose}>Annuler</CrmV2Button>
+          <CrmV2Button variant="primary" onClick={create} disabled={creating || !name.trim()}>
             {creating ? 'Création…' : 'Créer'}
-          </button>
-        </div>
+          </CrmV2Button>
+        </>
+      }
+    >
+      <CrmV2Field label="Nom">
+        <CrmV2Input value={name} onChange={e => setName(e.target.value)} placeholder="Ex : Terminale IDF — NRP2" autoFocus />
+      </CrmV2Field>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: crmV2.textMuted }}>Type</span>
+        <CrmV2Segmented
+          stretch
+          value={segmentType}
+          onChange={setSegmentType}
+          items={[
+            { id: 'dynamic', label: 'Segment dynamique' },
+            { id: 'static', label: 'Liste statique' },
+          ]}
+        />
       </div>
-    </div>
+    </MktModal>
   )
 }

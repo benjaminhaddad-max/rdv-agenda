@@ -1,10 +1,18 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
-import { Mail, Plus, Trash2, Copy, Calendar } from 'lucide-react'
-import { format, formatDistanceToNow } from 'date-fns'
+import { FileText, Plus, Trash2, Copy, Send } from 'lucide-react'
+import { formatDistanceToNow } from 'date-fns'
 import { fr } from 'date-fns/locale'
+import { useIsMobile } from '@/lib/useIsMobile'
+import {
+  CrmV2Page, CrmV2Header, CrmV2Body, CrmV2TableCard, CrmV2Table, CrmV2Th, CrmV2Td, CrmV2Tr,
+  CrmV2Search, CrmV2Button, CrmV2StatusPill, CrmV2Empty, CrmV2Spinner, CrmV2Field, CrmV2Input, CrmV2Select,
+} from '@/components/crm-v2/primitives'
+import {
+  MKT_TONES, type MktTone, MktNameCell, MktMobileRow, MktIconBox, MktIconButton, MktMenu, MktModal, MktSelectPill,
+  mutedCell, useCrmBase,
+} from '@/components/crm-v2/marketing/ui'
 
 interface Template {
   id: string
@@ -17,21 +25,42 @@ interface Template {
   updated_at: string
 }
 
-const CATEGORIES = [
-  { value: 'general',       label: 'Général' },
-  { value: 'nurturing',     label: 'Nurturing' },
-  { value: 'promo',         label: 'Promo' },
-  { value: 'transactional', label: 'Transactionnel' },
-  { value: 'newsletter',    label: 'Newsletter' },
+const CATEGORIES: { value: string; label: string; tone: MktTone }[] = [
+  { value: 'general',       label: 'Général',        tone: 'grey' },
+  { value: 'nurturing',     label: 'Nurturing',      tone: 'purple' },
+  { value: 'promo',         label: 'Promo',          tone: 'gold' },
+  { value: 'transactional', label: 'Transactionnel', tone: 'blue' },
+  { value: 'newsletter',    label: 'Newsletter',     tone: 'green' },
 ]
 
+function categoryMeta(cat: string | null) {
+  const c = CATEGORIES.find(x => x.value === cat)
+  return { label: c?.label ?? cat ?? '—', ...MKT_TONES[c?.tone ?? 'grey'] }
+}
+
+/** Vignette 28 px (ou 36 px sur mobile) : miniature du modèle si elle existe. */
+function Thumb({ t, size = 28 }: { t: Template; size?: number }) {
+  return (
+    <MktIconBox size={size}>
+      {t.thumbnail_url
+        // eslint-disable-next-line @next/next/no-img-element
+        ? <img src={t.thumbnail_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        : <FileText size={size > 30 ? 16 : 14} />}
+    </MktIconBox>
+  )
+}
+
 export default function EmailTemplatesPage() {
+  const isMobile = useIsMobile()
+  const base = useCrmBase()
   const [templates, setTemplates] = useState<Template[]>([])
   const [loading, setLoading] = useState(true)
   const [showNew, setShowNew] = useState(false)
   const [newName, setNewName] = useState('')
   const [newCategory, setNewCategory] = useState('general')
   const [creating, setCreating] = useState(false)
+  const [search, setSearch] = useState('')
+  const [catFilter, setCatFilter] = useState('')
 
   const load = async () => {
     setLoading(true)
@@ -54,7 +83,7 @@ export default function EmailTemplatesPage() {
       })
       if (!r.ok) throw new Error(await r.text())
       const tpl = await r.json()
-      window.location.href = `/admin/crm/email-templates/${tpl.id}`
+      window.location.href = `${base}/email-templates/${tpl.id}`
     } finally { setCreating(false) }
   }
 
@@ -94,7 +123,6 @@ export default function EmailTemplatesPage() {
       })
       if (!r.ok) throw new Error(await r.text())
       const campaign = await r.json()
-      const base = window.location.pathname.includes('/crm-v2/') ? '/admin/crm-v2' : '/admin/crm'
       window.location.href = `${base}/campaigns/${campaign.id}`
     } catch (e) {
       alert(`Échec : ${e instanceof Error ? e.message : String(e)}`)
@@ -107,130 +135,155 @@ export default function EmailTemplatesPage() {
     if (r.ok) setTemplates(prev => prev.filter(x => x.id !== id))
   }
 
+  const q = search.trim().toLowerCase()
+  const filtered = templates.filter(t => {
+    if (catFilter && t.category !== catFilter) return false
+    if (q) return t.name.toLowerCase().includes(q) || (t.subject ?? '').toLowerCase().includes(q)
+    return true
+  })
+  const ago = (iso: string) => formatDistanceToNow(new Date(iso), { locale: fr, addSuffix: true })
+  const open = (t: Template) => { window.location.href = `${base}/email-templates/${t.id}` }
+
   return (
-    <div className="min-h-screen bg-[#f7f4ee]">
-      <div className="bg-white border-b">
-        <div className="max-w-[1400px] mx-auto px-6 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-[#0e1e35] flex items-center gap-2">
-              <Mail size={22} className="text-[#2ea3f2]" />
-              Modèles d&apos;e-mail
-            </h1>
-            <p className="text-sm text-[#4a6070] mt-0.5">
-              {templates.length} modèle{templates.length > 1 ? 's' : ''} — réutilisables dans les campagnes et les e-mails unitaires
-            </p>
-          </div>
-          <button
-            onClick={() => setShowNew(true)}
-            className="inline-flex items-center gap-1 px-4 py-2 bg-gradient-to-r from-[#2ea3f2] to-[#0038f0] text-white rounded-md hover:opacity-90 text-sm"
-          >
-            <Plus size={14} /> Nouveau modèle
-          </button>
-        </div>
-      </div>
-
-      <div className="max-w-[1400px] mx-auto px-6 py-6">
-        {loading ? (
-          <div className="text-center py-20 text-[#a89e8a]">Chargement…</div>
-        ) : templates.length === 0 ? (
-          <div className="text-center py-20">
-            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-[#2ea3f2]/10 text-[#2ea3f2] mb-4">
-              <Mail size={36} />
-            </div>
-            <h2 className="text-lg font-semibold text-slate-700">Aucun modèle</h2>
-            <p className="text-sm text-[#4a6070] mt-1">Crée ton premier modèle d&apos;e-mail réutilisable.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {templates.map(t => (
-              <div key={t.id} className="bg-white border rounded-lg overflow-hidden hover:shadow-md transition-shadow group">
-                <Link href={`/admin/crm/email-templates/${t.id}`} className="block">
-                  <div className="aspect-[4/3] bg-slate-100 flex items-center justify-center text-slate-300">
-                    {t.thumbnail_url ? (
-                      <img src={t.thumbnail_url} alt={t.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <Mail size={48} />
-                    )}
-                  </div>
-                  <div className="p-4">
-                    <div className="flex items-start justify-between gap-2">
-                      <h3 className="text-sm font-semibold text-[#0e1e35] truncate">{t.name}</h3>
-                      <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-[#4a6070] rounded uppercase tracking-wide whitespace-nowrap">
-                        {CATEGORIES.find(c => c.value === t.category)?.label ?? t.category}
-                      </span>
-                    </div>
-                    {t.subject && (
-                      <p className="text-xs text-[#4a6070] mt-1 line-clamp-2">Objet : {t.subject}</p>
-                    )}
-                    <div className="flex items-center gap-1 text-[11px] text-[#a89e8a] mt-2">
-                      <Calendar size={10} />
-                      Modifié {formatDistanceToNow(new Date(t.updated_at), { locale: fr, addSuffix: true })}
-                    </div>
-                  </div>
-                </Link>
-                <div className="px-4 py-2 border-t flex items-center justify-end gap-1 bg-[#f7f4ee]">
-                  <button
-                    onClick={() => sendViaCampaign(t)}
-                    disabled={creating}
-                    className="mr-auto text-xs font-medium text-[#0038f0] hover:underline disabled:opacity-50"
-                  >
-                    Envoyer via une campagne
-                  </button>
-                  <button onClick={() => duplicate(t)} title="Dupliquer" className="p-1.5 text-[#4a6070] hover:text-[#0038f0]">
-                    <Copy size={14} />
-                  </button>
-                  <button onClick={() => remove(t.id)} title="Supprimer" className="p-1.5 text-[#4a6070] hover:text-red-600">
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {showNew && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowNew(false)}>
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
-            <div className="px-5 py-3 border-b">
-              <h2 className="text-base font-semibold">Nouveau modèle</h2>
-            </div>
-            <div className="p-5 space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-[#4a6070] mb-1">Nom du modèle</label>
-                <input
-                  value={newName}
-                  onChange={e => setNewName(e.target.value)}
-                  placeholder="Ex : Relance après RDV no-show"
-                  className="w-full px-3 py-2 border rounded-md text-sm"
-                  autoFocus
-                  onKeyDown={e => { if (e.key === 'Enter') createTemplate() }}
+    <CrmV2Page>
+      <CrmV2Header
+        title="Modèles email"
+        subtitle={`${templates.length} modèle${templates.length > 1 ? 's' : ''} — réutilisables dans les campagnes et les e-mails unitaires`}
+        actions={
+          <CrmV2Button variant="primary" icon={<Plus size={14} />} onClick={() => setShowNew(true)}>
+            Nouveau modèle
+          </CrmV2Button>
+        }
+      />
+      <CrmV2Body>
+        <CrmV2TableCard
+          toolbar={
+            <>
+              <CrmV2Search
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Rechercher un modèle…"
+                style={isMobile ? { flex: '1 1 100%' } : undefined}
+              />
+              <MktSelectPill value={catFilter} active={!!catFilter} onChange={e => setCatFilter(e.target.value)} aria-label="Catégorie">
+                <option value="">Catégorie</option>
+                {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+              </MktSelectPill>
+            </>
+          }
+        >
+          {loading ? (
+            <CrmV2Spinner />
+          ) : templates.length === 0 ? (
+            <CrmV2Empty
+              icon={<FileText size={26} />}
+              title="Aucun modèle"
+              description="Crée ton premier modèle d’e-mail réutilisable."
+              action={<CrmV2Button variant="primary" icon={<Plus size={14} />} onClick={() => setShowNew(true)}>Nouveau modèle</CrmV2Button>}
+            />
+          ) : filtered.length === 0 ? (
+            <CrmV2Empty title="Aucun modèle ne correspond aux filtres." />
+          ) : isMobile ? (
+            <div>
+              {filtered.map(t => (
+                <MktMobileRow
+                  key={t.id}
+                  href={`${base}/email-templates/${t.id}`}
+                  icon={<Thumb t={t} size={36} />}
+                  title={t.name}
+                  subtitle={t.subject ? `Objet : ${t.subject}` : `Modifié ${ago(t.updated_at)}`}
+                  actions={
+                    <MktMenu items={[
+                      { label: 'Envoyer via une campagne', icon: <Send size={14} />, onClick: () => sendViaCampaign(t), disabled: creating },
+                      { label: 'Dupliquer', icon: <Copy size={14} />, onClick: () => duplicate(t) },
+                      { label: 'Supprimer', icon: <Trash2 size={14} />, onClick: () => remove(t.id), danger: true },
+                    ]} />
+                  }
                 />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-[#4a6070] mb-1">Catégorie</label>
-                <select
-                  value={newCategory}
-                  onChange={e => setNewCategory(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-md text-sm"
-                >
-                  {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-                </select>
-              </div>
+              ))}
             </div>
-            <div className="flex justify-end gap-2 px-5 py-3 border-t bg-[#f7f4ee] rounded-b-xl">
-              <button onClick={() => setShowNew(false)} className="px-4 py-2 text-sm border rounded-md">Annuler</button>
-              <button
-                onClick={createTemplate}
-                disabled={creating || !newName.trim()}
-                className="px-4 py-2 text-sm text-white rounded-md disabled:opacity-50 bg-gradient-to-r from-[#2ea3f2] to-[#0038f0]"
-              >
-                {creating ? 'Création…' : 'Créer'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+          ) : (
+            <CrmV2Table>
+              <thead>
+                <tr>
+                  <CrmV2Th>Modèle</CrmV2Th>
+                  <CrmV2Th>Objet</CrmV2Th>
+                  <CrmV2Th>Catégorie</CrmV2Th>
+                  <CrmV2Th>Modifié</CrmV2Th>
+                  <CrmV2Th style={{ width: 130 }}>{''}</CrmV2Th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(t => {
+                  const cat = categoryMeta(t.category)
+                  return (
+                    <CrmV2Tr key={t.id} onClick={() => open(t)}>
+                      <CrmV2Td style={{ maxWidth: 340 }}>
+                        <MktNameCellThumb t={t} />
+                      </CrmV2Td>
+                      <CrmV2Td style={{ ...mutedCell, maxWidth: 360, overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.subject || '—'}</CrmV2Td>
+                      <CrmV2Td><CrmV2StatusPill label={cat.label} color={cat.color} bg={cat.bg} /></CrmV2Td>
+                      <CrmV2Td style={mutedCell}>{ago(t.updated_at)}</CrmV2Td>
+                      <CrmV2Td>
+                        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                          <MktIconButton title="Envoyer via une campagne" onClick={() => sendViaCampaign(t)} disabled={creating}><Send size={14} /></MktIconButton>
+                          <MktIconButton title="Dupliquer" onClick={() => duplicate(t)}><Copy size={14} /></MktIconButton>
+                          <MktIconButton title="Supprimer" danger onClick={() => remove(t.id)}><Trash2 size={14} /></MktIconButton>
+                        </div>
+                      </CrmV2Td>
+                    </CrmV2Tr>
+                  )
+                })}
+              </tbody>
+            </CrmV2Table>
+          )}
+        </CrmV2TableCard>
+      </CrmV2Body>
+
+      <MktModal
+        open={showNew}
+        onClose={() => setShowNew(false)}
+        title="Nouveau modèle"
+        width={440}
+        footer={
+          <>
+            <CrmV2Button variant="secondary" onClick={() => setShowNew(false)}>Annuler</CrmV2Button>
+            <CrmV2Button variant="primary" onClick={createTemplate} disabled={creating || !newName.trim()}>
+              {creating ? 'Création…' : 'Créer'}
+            </CrmV2Button>
+          </>
+        }
+      >
+        <CrmV2Field label="Nom du modèle">
+          <CrmV2Input
+            value={newName}
+            onChange={e => setNewName(e.target.value)}
+            placeholder="Ex : Relance après RDV no-show"
+            autoFocus
+            onKeyDown={e => { if (e.key === 'Enter') createTemplate() }}
+          />
+        </CrmV2Field>
+        <CrmV2Field label="Catégorie">
+          <CrmV2Select value={newCategory} onChange={e => setNewCategory(e.target.value)}>
+            {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+          </CrmV2Select>
+        </CrmV2Field>
+      </MktModal>
+    </CrmV2Page>
+  )
+}
+
+/** Cellule « Modèle » : miniature + lien vers l'éditeur + description. */
+function MktNameCellThumb({ t }: { t: Template }) {
+  return (
+    <MktNameCell
+      icon={t.thumbnail_url
+        // eslint-disable-next-line @next/next/no-img-element
+        ? <img src={t.thumbnail_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        : <FileText size={14} />}
+      href={`/admin/crm/email-templates/${t.id}`}
+      title={t.name}
+      subtitle={t.description || undefined}
+    />
   )
 }

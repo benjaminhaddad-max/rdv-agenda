@@ -1,7 +1,6 @@
 'use client'
 
 import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import MarketingNav from '@/components/crm/MarketingNav'
 import { getBrandCharter, wrapCharterEmailHtml } from '@/lib/brand-charter'
 import {
   buildHtmlFromContent,
@@ -13,6 +12,11 @@ import { getBrandFormUrl } from '@/lib/marketing/brand-form-links'
 import { ChevronDown, ChevronUp, Code, Eye, Pencil, Play, Plus, Save, Trash2 } from 'lucide-react'
 import { usePageTitle } from '@/components/DocumentTitle'
 import { useIsMobile } from '@/lib/useIsMobile'
+import { crmV2 } from '@/lib/crm-v2-theme'
+import {
+  CrmV2Page, CrmV2Header, CrmV2Body, CrmV2Button, CrmV2Card, CrmV2Spinner, CrmV2StatusPill, CrmV2SectionLabel,
+} from '@/components/crm-v2/primitives'
+import { MktNotice, programStatusMeta } from '@/components/crm-v2/marketing/ui'
 
 interface Step {
   id: string
@@ -37,14 +41,18 @@ interface Program {
   steps: Step[]
 }
 
-const PAGE_TEXT = '#0e1e35'
-const PAGE_MUTED = '#4a6070'
+const PAGE_TEXT = crmV2.text
+const PAGE_MUTED = crmV2.textMuted
 const FIELD: React.CSSProperties = {
   width: '100%',
-  padding: '10px 12px',
-  borderRadius: 8,
-  border: '1px solid #c5b89a',
+  boxSizing: 'border-box',
+  minHeight: 38,
+  padding: '8px 12px',
+  borderRadius: crmV2.radius,
+  border: `1px solid ${crmV2.borderStrong}`,
   background: '#fff',
+  fontFamily: 'inherit',
+  outline: 'none',
   color: PAGE_TEXT,
   fontSize: 14,
   lineHeight: 1.5,
@@ -114,30 +122,42 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
     await load()
   }
 
+  const back = { href: '/admin/crm/campaigns/programs', label: 'Programmes' }
   if (!program) {
-    return <div style={{ padding: 40, color: PAGE_TEXT }}>Chargement…</div>
+    return (
+      <CrmV2Page>
+        <CrmV2Header back={back} title="Programme" />
+        <CrmV2Spinner />
+      </CrmV2Page>
+    )
   }
 
+  const status = programStatusMeta(program.status)
+
   return (
-    <div style={{ color: PAGE_TEXT }}>
-      <MarketingNav title={program.name} />
-      <div style={{ maxWidth: 1280, margin: '0 auto', padding: isMobile ? 12 : 24 }}>
-        <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
-          <button type="button" onClick={enroll} style={btn}>
-            <Play size={14} /> Inscrire l&apos;audience
-          </button>
-          <button type="button" onClick={activate} style={btnPrimary}>
-            Activer l&apos;envoi
-          </button>
-          <span style={{ fontSize: 13, color: PAGE_MUTED, alignSelf: 'center' }}>
-            {program.enrolled} inscrits · {program.status} · un mail tous les {program.interval_days} j
+    <CrmV2Page>
+      <CrmV2Header
+        back={back}
+        title={<span style={{ overflowWrap: 'anywhere' }}>{program.name}</span>}
+        subtitle={
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <CrmV2StatusPill label={status.label} color={status.color} bg={status.bg} />
+            <span>{program.enrolled} inscrits · un mail tous les {program.interval_days} j · {program.steps.length} étape{program.steps.length > 1 ? 's' : ''}</span>
           </span>
-        </div>
-        {msg && (
-          <p style={{ fontSize: 13, marginBottom: 12, padding: '8px 12px', background: '#e8f5e9', borderRadius: 8, color: '#1b5e20' }}>
-            {msg}
-          </p>
-        )}
+        }
+        actions={
+          <>
+            <CrmV2Button variant="secondary" icon={<Play size={14} />} onClick={enroll}>
+              Inscrire l’audience
+            </CrmV2Button>
+            <CrmV2Button variant="primary" onClick={activate}>
+              Activer l’envoi
+            </CrmV2Button>
+          </>
+        }
+      />
+      <CrmV2Body style={isMobile ? undefined : { maxWidth: 1280, width: '100%', boxSizing: 'border-box' }}>
+        {msg && <MktNotice tone="blue">{msg}</MktNotice>}
 
         {program.steps.map(step => (
           <StepEditor
@@ -150,8 +170,8 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
             saving={saving}
           />
         ))}
-      </div>
-    </div>
+      </CrmV2Body>
+    </CrmV2Page>
   )
 }
 
@@ -205,13 +225,15 @@ function StepEditor({
     : previewInner
 
   return (
-    <div style={{ background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12, padding: isMobile ? 12 : 18, marginBottom: 16 }}>
+    <CrmV2Card style={{ padding: isMobile ? 14 : 20, boxShadow: crmV2.shadowRecord }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14, gap: 12, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <strong style={{ fontSize: 16, color: PAGE_TEXT }}>{step.label}</strong>
-          <span style={{ marginLeft: 8, fontSize: 12, color: PAGE_MUTED }}>J+{step.day_offset}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <strong style={{ fontSize: 15, fontWeight: 700, color: PAGE_TEXT }}>{step.label}</strong>
+            <CrmV2StatusPill label={`J+${step.day_offset}`} color={crmV2.goldDark} bg="rgba(204,172,113,0.16)" dot={false} />
+          </div>
           {brand && (
-            <span style={{ marginLeft: isMobile ? 0 : 8, marginTop: isMobile ? 6 : 0, display: isMobile ? 'block' : 'inline', overflowWrap: 'anywhere', fontSize: 11, background: '#f0f4ff', color: PAGE_TEXT, padding: '3px 8px', borderRadius: 4 }}>
+            <span style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 6, overflowWrap: 'anywhere', fontSize: 12, fontWeight: 600, background: crmV2.chipBg, border: `1px solid ${crmV2.chipBorder}`, color: PAGE_TEXT, padding: '2px 10px', borderRadius: 999, maxWidth: '100%' }}>
               {brand.name} · expéditeur : {brand.sender_email}
               {!brand.active && ' (inactif)'}
             </span>
@@ -220,24 +242,23 @@ function StepEditor({
             <span style={{ fontWeight: 600, color: PAGE_TEXT }}>Objet :</span> {step.subject || '—'}
           </p>
         </div>
-        <button type="button" onClick={() => onSave(step)} disabled={saving} style={{ ...btnPrimary, flexShrink: 0 }}>
-          <Save size={14} /> {saving ? '…' : 'Enregistrer'}
-        </button>
+        <CrmV2Button variant="primary" icon={<Save size={14} />} onClick={() => onSave(step)} disabled={saving} style={{ flexShrink: 0 }}>
+          {saving ? '…' : 'Enregistrer'}
+        </CrmV2Button>
       </div>
 
       {/* ── Aperçu en premier ── */}
       <div style={{ marginBottom: 14 }}>
-        <label style={{ ...labelStyle, marginBottom: 8 }}>
-          <Eye size={12} style={{ verticalAlign: -2, marginRight: 4 }} />
+        <CrmV2SectionLabel icon={<Eye size={13} />} style={{ marginBottom: 8 }}>
           Aperçu du mail
-        </label>
+        </CrmV2SectionLabel>
         <div
           style={{
-            border: '1px solid #e5ddc8',
-            borderRadius: 10,
+            border: `1px solid ${crmV2.border}`,
+            borderRadius: 12,
             overflow: 'auto',
             maxHeight: 'min(70vh, 720px)',
-            background: '#f7f4ee',
+            background: crmV2.bgSoft,
           }}
         >
           <EmailPreviewFrame html={previewHtml} title={`Aperçu ${step.label}`} />
@@ -245,7 +266,7 @@ function StepEditor({
       </div>
 
       {/* ── Bloc édition repliable ── */}
-      <div style={{ border: '1px solid #e5ddc8', borderRadius: 10, overflow: 'hidden' }}>
+      <div style={{ border: `1px solid ${crmV2.border}`, borderRadius: 12, overflow: 'hidden' }}>
         <button
           type="button"
           onClick={() => setContentOpen(v => !v)}
@@ -255,25 +276,27 @@ function StepEditor({
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: 12,
-            padding: '14px 16px',
+            padding: '12px 16px',
+            minHeight: 44,
             border: 'none',
-            background: contentOpen ? '#faf8f4' : '#fff',
+            background: contentOpen ? crmV2.bgHover : '#fff',
             color: PAGE_TEXT,
             cursor: 'pointer',
             textAlign: 'left',
             fontSize: 14,
             fontWeight: 600,
+            fontFamily: 'inherit',
           }}
         >
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-            <Pencil size={15} />
+            <Pencil size={15} color={crmV2.gold} />
             Modifier le contenu, les liens et l&apos;objet
           </span>
-          {contentOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+          {contentOpen ? <ChevronUp size={16} color={crmV2.textFaint} /> : <ChevronDown size={16} color={crmV2.textFaint} />}
         </button>
 
         {contentOpen && (
-          <div style={{ padding: '0 16px 16px', background: '#faf8f4', borderTop: '1px solid #e5ddc8' }}>
+          <div style={{ padding: '0 16px 16px', background: crmV2.bgHover, borderTop: `1px solid ${crmV2.border}` }}>
             <p style={{ fontSize: 12, color: PAGE_MUTED, margin: '12px 0 16px', lineHeight: 1.5 }}>
               Les changements se reflètent dans l&apos;aperçu ci-dessus. Pensez à cliquer sur{' '}
               <strong>Enregistrer</strong>.
@@ -327,7 +350,7 @@ function StepEditor({
               <Plus size={12} /> Ajouter un paragraphe
             </button>
 
-            <div style={{ background: '#fff', borderRadius: 10, padding: 14, marginBottom: 14, border: '1px solid #e5ddc8' }}>
+            <div style={{ background: '#fff', borderRadius: 12, padding: 14, marginBottom: 14, border: `1px solid ${crmV2.border}` }}>
               <label style={labelStyle}>Bouton principal (CTA)</label>
               <label style={subLabel}>Texte du bouton</label>
               <input
@@ -337,12 +360,12 @@ function StepEditor({
               />
               <p style={{ fontSize: 11, color: PAGE_MUTED, margin: 0 }}>
                 Destination fixe (CTA) :{' '}
-                <code style={{ background: '#f7f4ee', padding: '2px 6px', borderRadius: 4 }}>{'{{lien_formulaire}}'}</code>
+                <code style={{ background: crmV2.bgSoft, padding: '2px 6px', borderRadius: 6 }}>{'{{lien_formulaire}}'}</code>
                 {formUrlPreview ? (
                   <>
                     {' '}
                     →{' '}
-                    <a href={formUrlPreview} target="_blank" rel="noreferrer" style={{ color: '#2563eb' }}>
+                    <a href={formUrlPreview} target="_blank" rel="noreferrer" style={{ color: crmV2.link, fontWeight: 600 }}>
                       {formUrlPreview.replace(/^https:\/\//, '')}
                     </a>
                   </>
@@ -371,7 +394,7 @@ function StepEditor({
           </div>
         )}
       </div>
-    </div>
+    </CrmV2Card>
   )
 }
 
@@ -419,7 +442,7 @@ const labelStyle: React.CSSProperties = {
   color: PAGE_MUTED,
   marginBottom: 6,
   textTransform: 'uppercase',
-  letterSpacing: '0.04em',
+  letterSpacing: '0.4px',
 }
 
 const subLabel: React.CSSProperties = {
@@ -435,23 +458,20 @@ const btn: React.CSSProperties = {
   alignItems: 'center',
   gap: 6,
   padding: '8px 14px',
-  borderRadius: 8,
-  border: '1px solid #e5ddc8',
+  borderRadius: 999,
+  border: `1px solid ${crmV2.borderStrong}`,
   background: '#fff',
   color: PAGE_TEXT,
   cursor: 'pointer',
   fontSize: 13,
+  fontWeight: 600,
+  fontFamily: 'inherit',
 }
 
 const btnIcon: React.CSSProperties = {
   ...btn,
-  padding: '8px 10px',
-}
-
-const btnPrimary: React.CSSProperties = {
-  ...btn,
-  background: '#0e1e35',
-  color: '#fff',
-  border: 'none',
-  fontWeight: 600,
+  width: 38,
+  height: 38,
+  padding: 0,
+  justifyContent: 'center',
 }

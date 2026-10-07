@@ -3,10 +3,13 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
-  ArrowLeft, Play, Check, Save, Trash2, Plus, ChevronUp, ChevronDown, Sparkles,
+  Play, Check, Save, Trash2, Plus, ChevronUp, ChevronDown, Sparkles,
 } from 'lucide-react'
-import MarketingNav from '@/components/crm/MarketingNav'
-import { CrmV2Button, CrmV2Card, CrmV2Page, CrmV2PillTabs } from '@/components/crm-v2/primitives'
+import {
+  CrmV2Button, CrmV2Card, CrmV2Page, CrmV2Header, CrmV2Tabs, CrmV2Body, CrmV2Spinner,
+  CrmV2StatusPill, CrmV2Toggle, CrmV2SectionLabel,
+} from '@/components/crm-v2/primitives'
+import { MktNotice, useCrmBase } from '@/components/crm-v2/marketing/ui'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import { usePageTitle } from '@/components/DocumentTitle'
 import { useIsMobile } from '@/lib/useIsMobile'
@@ -45,6 +48,7 @@ export default function WebinarPresentationDetailPage() {
   const isMobile = useIsMobile()
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
+  const base = useCrmBase()
   const [data, setData] = useState<Detail | null>(null)
   const [loading, setLoading] = useState(true)
   usePageTitle(data?.title)
@@ -171,23 +175,24 @@ export default function WebinarPresentationDetailPage() {
   const remove = async () => {
     if (!confirm('Supprimer cette présentation ?')) return
     await fetch(`/api/webinar-presentations/${id}`, { method: 'DELETE' })
-    router.push('/admin/crm/campaigns/webinars')
+    router.push(`${base}/campaigns/webinars`)
   }
 
+  const backLink = { href: '/admin/crm/campaigns/webinars', label: 'Présentations webinaires' }
   if (loading) {
     return (
-      <div>
-        <MarketingNav title="Présentation webinaire" />
-        <CrmV2Page style={{ padding: 24 }}><p style={{ color: crmV2.textMuted }}>Chargement…</p></CrmV2Page>
-      </div>
+      <CrmV2Page>
+        <CrmV2Header back={backLink} title="Présentation webinaire" />
+        <CrmV2Spinner />
+      </CrmV2Page>
     )
   }
   if (error || !data) {
     return (
-      <div>
-        <MarketingNav title="Présentation webinaire" />
-        <CrmV2Page style={{ padding: 24 }}><p style={{ color: crmV2.danger }}>{error || 'Introuvable'}</p></CrmV2Page>
-      </div>
+      <CrmV2Page>
+        <CrmV2Header back={backLink} title="Présentation webinaire" />
+        <CrmV2Body><MktNotice tone="red">{error || 'Introuvable'}</MktNotice></CrmV2Body>
+      </CrmV2Page>
     )
   }
 
@@ -198,80 +203,71 @@ export default function WebinarPresentationDetailPage() {
   const htmlSrc = htmlDeckSrc(data.slides)
 
   return (
-    <div>
-      <MarketingNav title={data.title} />
-      <CrmV2Page style={{ padding: isMobile ? 12 : 24 }}>
-        <div style={{ maxWidth: 1220, margin: '0 auto' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 18, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
-            <div style={{ minWidth: 0 }}>
-              <button
-                type="button"
-                onClick={() => router.push('/admin/crm/campaigns/webinars')}
-                style={{ background: 'none', border: 'none', color: crmV2.link, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, padding: 0, fontSize: 13, fontFamily: 'inherit' }}
-              >
-                <ArrowLeft size={14} /> Toutes les présentations
-              </button>
-              <h1 style={{ margin: '8px 0 6px', fontSize: isMobile ? 21 : 26, overflowWrap: 'anywhere', fontWeight: 700, letterSpacing: '-0.03em', color: crmV2.text }}>{data.title}</h1>
-              {data.subtitle && (
-                <p style={{ margin: '0 0 10px', fontSize: 14, color: crmV2.textMuted, lineHeight: 1.45, maxWidth: 720 }}>
-                  {data.subtitle}
-                </p>
-              )}
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: theme.primary }}>{theme.name}</span>
-                <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 999, background: st.bg, color: st.color }}>{st.label}</span>
-                <span style={{ fontSize: 12, color: crmV2.textFaint }}>{htmlSrc ? '23 slides · 45 min' : `${data.slides.length} slides`}</span>
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: isMobile ? 'flex-start' : 'flex-end' }}>
-              {!htmlSrc && (
-                <CrmV2Button onClick={() => patch({ slides: data.slides, brief: data.brief, source_guide: data.source_guide, title: data.title, subtitle: data.subtitle, brand: data.brand, webinar_date: data.webinar_date }, 'Sauvegardé')} disabled={saving}>
-                  <Save size={14} /> Sauver
-                </CrmV2Button>
-              )}
-              {!htmlSrc && !presented && (
-                <CrmV2Button onClick={async () => {
-                  await patch({ action: 'mark_presented' }, 'Marquée comme présentée')
-                  setTab('feedback')
-                }} disabled={saving}>
-                  <Check size={14} /> Marquer présentée
-                </CrmV2Button>
-              )}
-              <CrmV2Button variant="gold" onClick={() => router.push(`/admin/crm/campaigns/webinars/${id}/present`)}>
-                <Play size={14} /> Présenter
+    <CrmV2Page>
+      <CrmV2Header
+        back={backLink}
+        title={<span style={{ overflowWrap: 'anywhere' }}>{data.title}</span>}
+        subtitle={
+          <span style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {data.subtitle && <span style={{ maxWidth: 720, lineHeight: 1.45 }}>{data.subtitle}</span>}
+            <span style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: theme.primary }}>{theme.name}</span>
+              <CrmV2StatusPill label={st.label} color={st.color} bg={st.bg} />
+              <span style={{ fontSize: 12, color: crmV2.textFaint }}>{htmlSrc ? '23 slides · 45 min' : `${data.slides.length} slides`}</span>
+            </span>
+          </span>
+        }
+        actions={
+          <>
+            {!htmlSrc && (
+              <CrmV2Button icon={<Save size={14} />} onClick={() => patch({ slides: data.slides, brief: data.brief, source_guide: data.source_guide, title: data.title, subtitle: data.subtitle, brand: data.brand, webinar_date: data.webinar_date }, 'Sauvegardé')} disabled={saving}>
+                Sauver
               </CrmV2Button>
-              {!htmlSrc && (
-                <CrmV2Button onClick={remove} style={{ color: crmV2.danger }}>
-                  <Trash2 size={14} />
-                </CrmV2Button>
-              )}
-            </div>
-          </div>
+            )}
+            {!htmlSrc && !presented && (
+              <CrmV2Button icon={<Check size={14} />} onClick={async () => {
+                await patch({ action: 'mark_presented' }, 'Marquée comme présentée')
+                setTab('feedback')
+              }} disabled={saving}>
+                Marquer présentée
+              </CrmV2Button>
+            )}
+            {!htmlSrc && (
+              <CrmV2Button variant="danger" icon={<Trash2 size={14} />} onClick={remove} title="Supprimer la présentation" aria-label="Supprimer la présentation" />
+            )}
+            <CrmV2Button variant="accent" icon={<Play size={14} />} onClick={() => router.push(`${base}/campaigns/webinars/${id}/present`)}>
+              Présenter
+            </CrmV2Button>
+          </>
+        }
+      >
+        <CrmV2Tabs
+          bordered={false}
+          value={tab}
+          onChange={setTab}
+          items={[
+            { id: 'slides', label: 'Slides' },
+            { id: 'brief', label: 'Brief & guide' },
+            { id: 'feedback', label: 'Retours', count: openFeedback },
+          ]}
+        />
+      </CrmV2Header>
 
-          <CrmV2PillTabs
-            value={tab}
-            onChange={setTab}
-            items={[
-              { id: 'slides', label: 'Slides' },
-              { id: 'brief', label: 'Brief & guide' },
-              { id: 'feedback', label: 'Retours', count: openFeedback },
-            ]}
-          />
-
+      <CrmV2Body>
           {tab === 'slides' && htmlSrc && (
             <HtmlDeckPreview
               src={htmlSrc}
               title={data.title}
-              presentHref={`/admin/crm/campaigns/webinars/${id}/present`}
+              presentHref={`${base}/campaigns/webinars/${id}/present`}
             />
           )}
 
           {tab === 'slides' && slide && !htmlSrc && (
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '220px minmax(280px, 1fr) 320px', gap: 14, marginTop: 16, overflowX: 'auto' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '220px minmax(280px, 1fr) 320px', gap: 14, overflowX: 'auto' }}>
               <CrmV2Card style={{ padding: 10, maxHeight: '72vh', overflow: 'auto' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: crmV2.textMuted }}>Slides</span>
-                  <button type="button" onClick={addSlide} style={{ border: 'none', background: 'none', cursor: 'pointer', color: crmV2.link }}>
+                  <CrmV2SectionLabel>Slides</CrmV2SectionLabel>
+                  <button type="button" onClick={addSlide} title="Ajouter une slide" aria-label="Ajouter une slide" style={{ border: 'none', background: 'none', cursor: 'pointer', color: crmV2.link, minWidth: 32, minHeight: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
                     <Plus size={14} />
                   </button>
                 </div>
@@ -309,7 +305,7 @@ export default function WebinarPresentationDetailPage() {
                 <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
                   <CrmV2Button onClick={() => moveSlide(selected, -1)} disabled={selected === 0}><ChevronUp size={14} /></CrmV2Button>
                   <CrmV2Button onClick={() => moveSlide(selected, 1)} disabled={selected === data.slides.length - 1}><ChevronDown size={14} /></CrmV2Button>
-                  <CrmV2Button onClick={() => removeSlide(selected)} style={{ marginLeft: 'auto', color: crmV2.danger }}>Supprimer</CrmV2Button>
+                  <CrmV2Button variant="danger" onClick={() => removeSlide(selected)} style={{ marginLeft: 'auto' }}>Supprimer</CrmV2Button>
                 </div>
                 <Field label="Mise en page">
                   <select value={slide.layout} onChange={e => updateSlide(selected, { layout: e.target.value as SlideLayout })} style={inputStyle}>
@@ -389,17 +385,16 @@ export default function WebinarPresentationDetailPage() {
                 <Field label="Notes orateur">
                   <textarea value={slide.notes || ''} onChange={e => updateSlide(selected, { notes: e.target.value })} rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
                 </Field>
-                <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: crmV2.text, marginTop: 8 }}>
-                  <input type="checkbox" checked={slide.reveal !== false} onChange={e => updateSlide(selected, { reveal: e.target.checked })} />
-                  Révélation progressive (clic / flèches)
-                </label>
+                <div style={{ marginTop: 8 }}>
+                  <CrmV2Toggle checked={slide.reveal !== false} onChange={v => updateSlide(selected, { reveal: v })} label="Révélation progressive (clic / flèches)" />
+                </div>
               </CrmV2Card>
             </div>
           )}
 
           {tab === 'brief' && (
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 1fr', gap: 14, marginTop: 16 }}>
-              <CrmV2Card style={{ padding: 18 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 1fr', gap: 14 }}>
+              <CrmV2Card style={{ padding: 20 }}>
                 <div style={{ display: 'grid', gap: 12 }}>
                   <Field label="Titre">
                     <input value={data.title} onChange={e => setData({ ...data, title: e.target.value })} style={inputStyle} />
@@ -428,8 +423,8 @@ export default function WebinarPresentationDetailPage() {
                   </Field>
                 </div>
               </CrmV2Card>
-              <CrmV2Card style={{ padding: 18 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: crmV2.text, marginBottom: 8 }}>Guide source</div>
+              <CrmV2Card style={{ padding: 20 }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: crmV2.text, marginBottom: 10 }}>Guide source</div>
                 <GuideFileDrop onExtracted={(text) => setData({ ...data, source_guide: text })} />
                 <div style={{ marginTop: 12 }}>
                   <textarea
@@ -454,8 +449,8 @@ export default function WebinarPresentationDetailPage() {
           )}
 
           {tab === 'feedback' && (
-            <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 1fr', gap: 14 }}>
-              <CrmV2Card style={{ padding: 18, border: presented ? `1px solid ${crmV2.goldBorder}` : undefined, background: presented ? '#fffdf6' : undefined }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 1fr', gap: 14 }}>
+              <CrmV2Card style={{ padding: 20, border: presented ? `1px solid ${crmV2.goldBorder}` : undefined, background: presented ? '#fffdf6' : undefined }}>
                 <h2 style={{ margin: '0 0 8px', fontSize: 16, color: crmV2.text }}>
                   {presented ? 'La présentation a été faite — tes retours' : 'Retours pour ajuster le deck'}
                 </h2>
@@ -484,13 +479,11 @@ export default function WebinarPresentationDetailPage() {
                 {(data.feedback || []).map(f => (
                   <CrmV2Card key={f.id} style={{ padding: 14 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
-                      <span style={{
-                        fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 99,
-                        background: f.status === 'open' ? 'rgba(201,168,76,0.18)' : f.status === 'applied' ? 'rgba(0,189,165,0.14)' : crmV2.bgSoft,
-                        color: f.status === 'open' ? '#b45309' : f.status === 'applied' ? '#0f766e' : crmV2.textMuted,
-                      }}>
-                        {f.status === 'open' ? 'Ouvert' : f.status === 'applied' ? 'Pris en compte' : 'Ignoré'}
-                      </span>
+                      <CrmV2StatusPill
+                        label={f.status === 'open' ? 'Ouvert' : f.status === 'applied' ? 'Pris en compte' : 'Ignoré'}
+                        color={f.status === 'open' ? '#b45309' : f.status === 'applied' ? '#0f766e' : crmV2.textMuted}
+                        bg={f.status === 'open' ? 'rgba(201,168,76,0.18)' : f.status === 'applied' ? 'rgba(0,189,165,0.14)' : crmV2.bgSoft}
+                      />
                       <span style={{ fontSize: 11, color: crmV2.textFaint }}>
                         {new Date(f.created_at).toLocaleString('fr-FR')}
                       </span>
@@ -498,8 +491,8 @@ export default function WebinarPresentationDetailPage() {
                     <p style={{ margin: 0, fontSize: 14, color: crmV2.text, whiteSpace: 'pre-wrap', lineHeight: 1.45 }}>{f.body}</p>
                     {f.status === 'open' && (
                       <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                        <CrmV2Button onClick={() => setFeedbackStatus(f.id, 'applied')}>Marquer pris en compte</CrmV2Button>
-                        <CrmV2Button onClick={() => setFeedbackStatus(f.id, 'dismissed')}>Ignorer</CrmV2Button>
+                        <CrmV2Button size="sm" onClick={() => setFeedbackStatus(f.id, 'applied')}>Marquer pris en compte</CrmV2Button>
+                        <CrmV2Button size="sm" variant="ghost" onClick={() => setFeedbackStatus(f.id, 'dismissed')}>Ignorer</CrmV2Button>
                       </div>
                     )}
                   </CrmV2Card>
@@ -507,24 +500,23 @@ export default function WebinarPresentationDetailPage() {
               </div>
             </div>
           )}
-        </div>
-      </CrmV2Page>
+      </CrmV2Body>
       {toast && (
         <div style={{
           position: 'fixed', bottom: isMobile ? 72 : 24, right: isMobile ? 12 : 24, background: crmV2.text, color: '#fff',
-          padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 600, zIndex: 40,
+          padding: '10px 16px', borderRadius: 999, fontSize: 13, fontWeight: 600, zIndex: 40, boxShadow: crmV2.shadowPanel,
         }}>
           {toast}
         </div>
       )}
-    </div>
+    </CrmV2Page>
   )
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label style={{ display: 'block', marginBottom: 10 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: crmV2.textMuted, marginBottom: 5 }}>{label}</div>
+    <label style={{ display: 'block', marginBottom: 12 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: crmV2.textMuted, marginBottom: 6 }}>{label}</div>
       {children}
     </label>
   )
@@ -533,8 +525,9 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 const inputStyle: React.CSSProperties = {
   width: '100%',
   boxSizing: 'border-box',
-  padding: '8px 10px',
-  borderRadius: 8,
+  minHeight: 38,
+  padding: '8px 12px',
+  borderRadius: crmV2.radius,
   border: `1px solid ${crmV2.borderStrong}`,
   background: '#fff',
   color: crmV2.text,

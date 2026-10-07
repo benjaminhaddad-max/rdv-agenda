@@ -1,13 +1,19 @@
 'use client'
 
 import { use, useCallback, useEffect, useState } from 'react'
-import { Save, RefreshCw, Users, Filter, List, Mail, MessageSquare } from 'lucide-react'
-import LogoutButton from '@/components/LogoutButton'
+import Link from 'next/link'
+import { Save, RefreshCw, Users, Filter, List, Mail, MessageSquare, Check } from 'lucide-react'
 import CRMFilterBuilder from '@/components/crm/CRMFilterBuilder'
 import type { CRMFilterGroup } from '@/lib/crm-constants'
 import { normalizeFilterGroups } from '@/lib/crm-constants'
 import { usePageTitle } from '@/components/DocumentTitle'
 import { useIsMobile } from '@/lib/useIsMobile'
+import { crmV2 } from '@/lib/crm-v2-theme'
+import {
+  CrmV2Page, CrmV2Header, CrmV2Body, CrmV2Button, CrmV2Card, CrmV2Field, CrmV2Input, CrmV2Textarea,
+  CrmV2Spinner, CrmV2StatusPill, CrmV2Segmented, CrmV2SectionLabel, CrmV2Avatar,
+} from '@/components/crm-v2/primitives'
+import { MktNotice } from '@/components/crm-v2/marketing/ui'
 
 interface Segment {
   id: string
@@ -138,155 +144,160 @@ export default function SegmentDetailPage({ params }: { params: Promise<{ id: st
     }
   }
 
+  const back = { href: '/admin/crm/campaigns/segments', label: 'Segments' }
   if (loading) {
-    return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4a6070' }}>Chargement…</div>
+    return (
+      <CrmV2Page>
+        <CrmV2Header back={back} title="Segment" />
+        <CrmV2Spinner />
+      </CrmV2Page>
+    )
   }
 
   if (!segment) {
-    return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444' }}>Segment introuvable</div>
+    return (
+      <CrmV2Page>
+        <CrmV2Header back={back} title="Segment" />
+        <CrmV2Body><MktNotice tone="red">Segment introuvable</MktNotice></CrmV2Body>
+      </CrmV2Page>
+    )
   }
 
+  const idsCount = contactIdsText.split(/[\s,;\n\r]+/).filter(Boolean).length
+
   return (
-    <div style={{ minHeight: isMobile ? '100%' : '100vh', background: '#f7f4ee', color: '#0e1e35', fontFamily: 'Inter, system-ui, sans-serif' }}>
-      {/* En-tête — mobile : nom tronqué + Sauvegarder, déconnexion masquée (dispo dans le menu CRM) */}
-      <div style={{ padding: isMobile ? '0 12px' : '0 20px', height: 52, background: '#fff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 14, minWidth: 0 }}>
-          <a href="/admin/crm/campaigns/segments" style={{ color: '#4a6070', textDecoration: 'none', fontSize: 12, flexShrink: 0 }}>{isMobile ? '←' : '← Segments'}</a>
-          <div style={{ width: 1, height: 22, background: '#e5ddc8', flexShrink: 0 }} />
-          <span style={{ fontSize: 14, fontWeight: 600, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{segment.name}</span>
-          {dirty && <span style={{ fontSize: 10, color: '#f59e0b', fontWeight: 600, flexShrink: 0 }}>{isMobile ? '●' : 'non sauvegardé'}</span>}
-          {saveMsg && <span style={{ fontSize: 10, color: '#166534', fontWeight: 600, flexShrink: 0 }}>{saveMsg}</span>}
-        </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
-          <button
-            onClick={save}
-            disabled={saving || !dirty}
-            style={{ background: dirty ? '#0038f0' : '#e5ddc8', color: dirty ? '#fff' : '#4a6070', border: 'none', borderRadius: 8, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: dirty ? 'pointer' : 'default', display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'inherit' }}
-          >
-            <Save size={13} /> {saving ? 'Sauvegarde…' : 'Sauvegarder'}
-          </button>
-          {!isMobile && <LogoutButton />}
-        </div>
-      </div>
+    <CrmV2Page>
+      <CrmV2Header
+        back={back}
+        title={<span style={{ overflowWrap: 'anywhere' }}>{segment.name}</span>}
+        subtitle={segment.segment_type === 'static' ? 'Liste statique — contacts figés par ID' : 'Segment dynamique — filtres CRM mis à jour automatiquement'}
+        actions={
+          <>
+            {dirty && <CrmV2StatusPill label="Non sauvegardé" color="#b45309" bg="rgba(201,168,76,0.18)" />}
+            {saveMsg && <CrmV2StatusPill label={<><Check size={12} /> {saveMsg}</>} color="#16a34a" bg="rgba(22,163,74,0.10)" dot={false} />}
+            <CrmV2Button variant="primary" icon={<Save size={14} />} onClick={save} disabled={saving || !dirty}>
+              {saving ? 'Sauvegarde…' : 'Sauvegarder'}
+            </CrmV2Button>
+          </>
+        }
+      />
 
-      <div style={{ padding: isMobile ? 12 : 24, maxWidth: 1200, margin: '0 auto', display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 320px', gap: isMobile ? 12 : 20, alignItems: 'start' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? 12 : 16, minWidth: 0 }}>
-          <Card>
-            <label style={labelStyle}>Nom</label>
-            <input value={segment.name} onChange={e => patch({ name: e.target.value })} style={inputStyle} />
-            <label style={{ ...labelStyle, marginTop: 12 }}>Description (optionnel)</label>
-            <input value={segment.description ?? ''} onChange={e => patch({ description: e.target.value || null })} style={inputStyle} placeholder="Usage interne…" />
-          </Card>
+      <CrmV2Body>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) 320px', gap: isMobile ? 12 : 16, alignItems: 'start' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? 12 : 16, minWidth: 0 }}>
+            <Section title="Informations" description="Nom et description visibles en interne.">
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))', gap: '14px 16px' }}>
+                <CrmV2Field label="Nom">
+                  <CrmV2Input value={segment.name} onChange={e => patch({ name: e.target.value })} />
+                </CrmV2Field>
+                <CrmV2Field label="Description (optionnel)">
+                  <CrmV2Input value={segment.description ?? ''} onChange={e => patch({ description: e.target.value || null })} placeholder="Usage interne…" />
+                </CrmV2Field>
+              </div>
+            </Section>
 
-          <Card>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#4a6070', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 1 }}>Type d&apos;audience</div>
-            <div style={{ display: 'flex', gap: 8, flexDirection: isMobile ? 'column' : 'row' }}>
-              <TypeBtn active={segment.segment_type === 'dynamic'} onClick={() => patch({ segment_type: 'dynamic' })} icon={Filter} label="Segment dynamique" sub="Filtres CRM — se met à jour automatiquement" />
-              <TypeBtn active={segment.segment_type === 'static'} onClick={() => patch({ segment_type: 'static' })} icon={List} label="Liste statique" sub="Contacts figés par ID" />
-            </div>
-          </Card>
+            <Section title="Type d’audience">
+              <div style={{ display: 'flex', gap: 10, flexDirection: isMobile ? 'column' : 'row' }}>
+                <TypeBtn active={segment.segment_type === 'dynamic'} onClick={() => patch({ segment_type: 'dynamic' })} icon={Filter} label="Segment dynamique" sub="Filtres CRM — se met à jour automatiquement" />
+                <TypeBtn active={segment.segment_type === 'static'} onClick={() => patch({ segment_type: 'static' })} icon={List} label="Liste statique" sub="Contacts figés par ID" />
+              </div>
+            </Section>
 
-          {segment.segment_type === 'dynamic' ? (
-            <Card>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#4a6070', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 1 }}>Filtres CRM</div>
-              <div style={{ minWidth: 0, overflowX: isMobile ? 'auto' : undefined }}>
-                <CRMFilterBuilder
-                  groups={segment.filter_groups}
-                  onChange={groups => patch({ filter_groups: groups })}
+            {segment.segment_type === 'dynamic' ? (
+              <Section title="Filtres CRM" description="Les contacts qui répondent à ces critères font partie du segment.">
+                <div style={{ minWidth: 0, overflowX: isMobile ? 'auto' : undefined }}>
+                  <CRMFilterBuilder
+                    groups={segment.filter_groups}
+                    onChange={groups => patch({ filter_groups: groups })}
+                  />
+                </div>
+              </Section>
+            ) : (
+              <Section title="IDs contacts" description="Un ID par ligne (identifiant du contact). Collez depuis un export CSV ou la fiche contact.">
+                <CrmV2Textarea
+                  value={contactIdsText}
+                  onChange={e => { setContactIdsText(e.target.value); setDirty(true) }}
+                  rows={12}
+                  placeholder={'12345678901\n98765432109'}
+                  style={{ fontFamily: 'ui-monospace, monospace', fontSize: 12 }}
+                />
+                <div style={{ fontSize: 12, color: crmV2.textMuted, marginTop: 6 }}>
+                  {idsCount} ID(s) saisi(s)
+                </div>
+              </Section>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, position: isMobile ? 'static' : 'sticky', top: 16, minWidth: 0 }}>
+            <CrmV2Card style={{ padding: 16, boxShadow: crmV2.shadowRecord }}>
+              <CrmV2SectionLabel icon={<Users size={14} color={crmV2.gold} />} style={{ color: crmV2.text, marginBottom: 12 }}>
+                Aperçu audience
+              </CrmV2SectionLabel>
+              <div style={{ marginBottom: 12 }}>
+                <CrmV2Segmented
+                  stretch
+                  size="sm"
+                  value={previewChannel}
+                  onChange={setPreviewChannel}
+                  items={[
+                    { id: 'any', label: <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Users size={12} /> Tous</span> },
+                    { id: 'email', label: <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Mail size={12} /> Email</span> },
+                    { id: 'sms', label: <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><MessageSquare size={12} /> SMS</span> },
+                  ]}
                 />
               </div>
-            </Card>
-          ) : (
-            <Card>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#4a6070', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 }}>IDs contacts</div>
-              <p style={{ fontSize: 12, color: '#4a6070', margin: '0 0 10px', lineHeight: 1.5 }}>
-                Un ID par ligne (hubspot_contact_id). Collez depuis un export CSV ou la fiche contact.
-              </p>
-              <textarea
-                value={contactIdsText}
-                onChange={e => { setContactIdsText(e.target.value); setDirty(true) }}
-                rows={12}
-                placeholder={'12345678901\n98765432109'}
-                style={{ ...inputStyle, fontFamily: 'ui-monospace, monospace', fontSize: 12, resize: 'vertical' }}
-              />
-              <div style={{ fontSize: 11, color: '#4a6070', marginTop: 6 }}>
-                {contactIdsText.split(/[\s,;\n\r]+/).filter(Boolean).length} ID(s) saisi(s)
-              </div>
-            </Card>
-          )}
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, position: isMobile ? 'static' : 'sticky', top: 16, minWidth: 0 }}>
-          <Card>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
-              <Users size={14} style={{ color: '#0038f0' }} />
-              <span style={{ fontSize: 13, fontWeight: 600 }}>Aperçu audience</span>
-            </div>
-            <div style={{ display: 'flex', gap: 4, marginBottom: 12 }}>
-              {([
-                { k: 'any', label: 'Tous', icon: Users },
-                { k: 'email', label: 'Email', icon: Mail },
-                { k: 'sms', label: 'SMS', icon: MessageSquare },
-              ] as const).map(({ k, label, icon: Icon }) => (
-                <button
-                  key={k}
-                  type="button"
-                  onClick={() => setPreviewChannel(k)}
-                  style={{
-                    flex: 1, padding: '6px 4px', fontSize: 10, fontWeight: 600, borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit',
-                    border: `1px solid ${previewChannel === k ? '#0038f0' : '#e5ddc8'}`,
-                    background: previewChannel === k ? 'rgba(46,163,242,0.08)' : '#fff',
-                    color: previewChannel === k ? '#0038f0' : '#4a6070',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3,
-                  }}
-                >
-                  <Icon size={11} /> {label}
-                </button>
-              ))}
-            </div>
-            <button
-              onClick={runPreview}
-              disabled={previewLoading}
-              style={{ width: '100%', background: '#0038f0', color: '#fff', border: 'none', borderRadius: 8, padding: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: previewLoading ? 0.6 : 1 }}
-            >
-              <RefreshCw size={13} /> {previewLoading ? 'Calcul…' : 'Calculer'}
-            </button>
-            {preview && (
-              <div style={{ marginTop: 12 }}>
-                <div style={{ textAlign: 'center', padding: 14, background: 'rgba(46,163,242,0.08)', borderRadius: 8, marginBottom: 10 }}>
-                  <div style={{ fontSize: 28, fontWeight: 700, color: '#0038f0' }}>{preview.total.toLocaleString('fr-FR')}</div>
-                  <div style={{ fontSize: 11, color: '#4a6070' }}>contacts éligibles</div>
-                </div>
-                {preview.sample.map(c => (
-                  <div key={c.contact_id} style={{ fontSize: 11, padding: '6px 8px', background: '#f7f4ee', borderRadius: 4, marginBottom: 4 }}>
-                    <div style={{ fontWeight: 600 }}>{[c.first_name, c.last_name].filter(Boolean).join(' ') || c.contact_id}</div>
-                    {c.email && <div style={{ color: '#4a6070', overflowWrap: 'anywhere' }}>{c.email}</div>}
-                    {c.phone && <div style={{ color: '#4a6070' }}>{c.phone}</div>}
+              <CrmV2Button variant="primary" icon={<RefreshCw size={14} />} onClick={runPreview} disabled={previewLoading} style={{ width: '100%', minHeight: 40 }}>
+                {previewLoading ? 'Calcul…' : 'Calculer'}
+              </CrmV2Button>
+              {preview && (
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ textAlign: 'center', padding: 14, background: crmV2.bgSoft, borderRadius: 12, marginBottom: 10 }}>
+                    <div style={{ fontSize: 28, fontWeight: 700, color: crmV2.link, letterSpacing: '-0.02em' }}>{preview.total.toLocaleString('fr-FR')}</div>
+                    <div style={{ fontSize: 12, color: crmV2.textMuted }}>contacts éligibles</div>
                   </div>
-                ))}
-              </div>
-            )}
-            {typeof segment.contact_count === 'number' && !preview && (
-              <div style={{ marginTop: 12, fontSize: 11, color: '#4a6070', textAlign: 'center' }}>
-                Dernier décompte enregistré : <strong>{segment.contact_count.toLocaleString('fr-FR')}</strong>
-              </div>
-            )}
-          </Card>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    {preview.sample.map(c => {
+                      const label = [c.first_name, c.last_name].filter(Boolean).join(' ') || c.contact_id
+                      return (
+                        <div key={c.contact_id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0', borderBottom: `1px solid ${crmV2.borderLight}`, minWidth: 0 }}>
+                          <CrmV2Avatar name={label} size={24} radius="36%" color={crmV2.goldGradient} />
+                          <div style={{ minWidth: 0, fontSize: 12 }}>
+                            <div style={{ fontWeight: 600, color: crmV2.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</div>
+                            {c.email && <div style={{ color: crmV2.textMuted, overflowWrap: 'anywhere' }}>{c.email}</div>}
+                            {c.phone && <div style={{ color: crmV2.textMuted }}>{c.phone}</div>}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+              {typeof segment.contact_count === 'number' && !preview && (
+                <div style={{ marginTop: 12, fontSize: 12, color: crmV2.textMuted, textAlign: 'center' }}>
+                  Dernier décompte enregistré : <strong style={{ color: crmV2.text }}>{segment.contact_count.toLocaleString('fr-FR')}</strong>
+                </div>
+              )}
+            </CrmV2Card>
 
-          <div style={{ fontSize: 11, color: '#4a6070', lineHeight: 1.5, padding: '0 4px' }}>
-            Utilisez ce segment dans une <a href="/admin/crm/campaigns" style={{ color: '#0038f0' }}>campagne email</a> ou <a href="/admin/crm/sms-factor" style={{ color: '#0038f0' }}>campagne SMS</a>.
+            <div style={{ fontSize: 12, color: crmV2.textMuted, lineHeight: 1.5, padding: '0 4px' }}>
+              Utilisez ce segment dans une <Link href="/admin/crm/campaigns" style={{ color: crmV2.link, fontWeight: 600 }}>campagne email</Link> ou <Link href="/admin/crm/sms-factor" style={{ color: crmV2.link, fontWeight: 600 }}>campagne SMS</Link>.
+            </div>
           </div>
         </div>
-      </div>
-    </div>
+      </CrmV2Body>
+    </CrmV2Page>
   )
 }
 
-function Card({ children }: { children: React.ReactNode }) {
+/** Carte de section (gabarit E) : titre 15 px, description, contenu. */
+function Section({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
+  const isMobile = useIsMobile()
   return (
-    <div style={{ background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 16, minWidth: 0 }}>
-      {children}
-    </div>
+    <CrmV2Card style={{ padding: isMobile ? 14 : 20, minWidth: 0 }}>
+      <div style={{ fontSize: 15, fontWeight: 700, color: crmV2.text }}>{title}</div>
+      {description && <div style={{ fontSize: 13, color: crmV2.textMuted, marginTop: 4 }}>{description}</div>}
+      <div style={{ marginTop: 14 }}>{children}</div>
+    </CrmV2Card>
   )
 }
 
@@ -298,22 +309,17 @@ function TypeBtn({ active, onClick, icon: Icon, label, sub }: {
       type="button"
       onClick={onClick}
       style={{
-        flex: 1, minWidth: 0, textAlign: 'left', padding: 12, borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit',
-        border: `1px solid ${active ? '#0038f0' : '#e5ddc8'}`,
-        background: active ? 'rgba(46,163,242,0.06)' : '#fff',
+        flex: 1, minWidth: 0, textAlign: 'left', padding: 14, borderRadius: 12, cursor: 'pointer', fontFamily: 'inherit',
+        border: `1px solid ${active ? crmV2.gold : crmV2.border}`,
+        background: active ? crmV2.goldSoft : crmV2.bg,
+        boxShadow: active ? `0 0 0 1px ${crmV2.gold}` : 'none',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-        <Icon size={14} style={{ color: active ? '#0038f0' : '#4a6070' }} />
-        <span style={{ fontSize: 13, fontWeight: 600, color: active ? '#0038f0' : '#0e1e35' }}>{label}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+        <Icon size={15} style={{ color: active ? crmV2.goldDark : crmV2.textMuted }} />
+        <span style={{ fontSize: 13, fontWeight: 700, color: active ? crmV2.goldDark : crmV2.text }}>{label}</span>
       </div>
-      <div style={{ fontSize: 11, color: '#4a6070' }}>{sub}</div>
+      <div style={{ fontSize: 12, color: crmV2.textMuted }}>{sub}</div>
     </button>
   )
-}
-
-const labelStyle: React.CSSProperties = { fontSize: 12, color: '#4a6070', display: 'block', marginBottom: 6 }
-const inputStyle: React.CSSProperties = {
-  width: '100%', padding: '8px 10px', border: '1px solid #e5ddc8', borderRadius: 8,
-  fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box',
 }
