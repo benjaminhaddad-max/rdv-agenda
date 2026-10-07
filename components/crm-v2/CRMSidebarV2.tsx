@@ -7,7 +7,7 @@ import {
   ChevronLeft, ChevronRight, ChevronDown, LogOut, Calendar, CalendarDays,
   BarChart3, CheckSquare, Workflow, Upload, GitMerge, Settings as SettingsIcon,
   Database, Facebook, AlertTriangle, MessageSquare, Search, Menu, X, List,
-  Palette, Repeat2, FileSignature, Phone, ExternalLink, Presentation, PhoneCall, LifeBuoy,
+  Palette, Repeat2, FileSignature, Phone, ExternalLink, Presentation, PhoneCall, LifeBuoy, Star, ChevronsDownUp, ChevronsUpDown,
 } from 'lucide-react'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { crmV2 } from '@/lib/crm-v2-theme'
@@ -135,6 +135,8 @@ export default function CRMSidebarV2() {
   const [supportCount, setSupportCount] = useState(0)
   // Rubriques repliées (mémorisées dans le navigateur)
   const [foldedSections, setFoldedSections] = useState<string[]>([])
+  // Onglets favoris (remontés en haut de la sidebar), mémorisés dans le navigateur
+  const [favorites, setFavorites] = useState<string[]>([])
 
   // Service technique : demandes à valider par un admin + réponses non lues
   useEffect(() => {
@@ -161,7 +163,27 @@ export default function CRMSidebarV2() {
       const folded = JSON.parse(localStorage.getItem('crm-v2-sidebar-folded-sections') || '[]')
       if (Array.isArray(folded)) setFoldedSections(folded.filter((t): t is string => typeof t === 'string'))
     } catch { /* ignore */ }
+    try {
+      const favs = JSON.parse(localStorage.getItem('crm-v2-sidebar-favorites') || '[]')
+      if (Array.isArray(favs)) setFavorites(favs.filter((k): k is string => typeof k === 'string'))
+    } catch { /* ignore */ }
   }, [])
+
+  const toggleFavorite = (key: string) => {
+    setFavorites(prev => {
+      const next = prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
+      try { localStorage.setItem('crm-v2-sidebar-favorites', JSON.stringify(next)) } catch { /* ignore */ }
+      return next
+    })
+  }
+
+  /** Replie (ou déplie) d'un clic toutes les rubriques sous les favoris. */
+  const allFolded = NAV_SECTIONS.every(sec => foldedSections.includes(sec.title))
+  const toggleFoldAll = () => {
+    const next = allFolded ? [] : NAV_SECTIONS.map(sec => sec.title)
+    setFoldedSections(next)
+    try { localStorage.setItem('crm-v2-sidebar-folded-sections', JSON.stringify(next)) } catch { /* ignore */ }
+  }
 
   const toggleSection = (title: string) => {
     setFoldedSections(prev => {
@@ -228,11 +250,103 @@ export default function CRMSidebarV2() {
     transition: 'background .12s ease',
   })
 
+  const renderNavItem = (item: NavItem, active: boolean, onNavigate?: () => void) => {
+    const Icon = item.icon
+    const badge = badgeFor(item.badgeKey)
+    const ready = item.ready ?? READY.has(item.key)
+    return (
+      <a
+        key={item.key}
+        href={item.href}
+        onClick={onNavigate}
+        title={collapsed ? item.label : undefined}
+        className="crm-v2-nav-link"
+        data-active={active ? 'true' : undefined}
+        style={linkStyle(active, collapsed)}
+      >
+        <Icon size={16} strokeWidth={2} style={{ color: active ? NAVY.goldIcon : NAVY.faint, flexShrink: 0 }} />
+        {!collapsed && (
+          <>
+            <span style={{ flex: 1, whiteSpace: 'nowrap' }}>{item.label}</span>
+            {item.external && (
+              <ExternalLink size={11} style={{ color: NAVY.faint, flexShrink: 0, opacity: 0.7 }} />
+            )}
+            {!ready && (
+              <span style={{
+                fontSize: 9, fontWeight: 700, color: NAVY.faint,
+                background: 'rgba(255,255,255,0.08)', borderRadius: 999, padding: '1px 6px',
+              }}>
+                bientôt
+              </span>
+            )}
+            {badge > 0 && (
+              <span style={{
+                background: crmV2.danger, color: '#fff', fontSize: 10, fontWeight: 700,
+                minWidth: 18, height: 18, padding: '0 6px', borderRadius: 9, boxSizing: 'border-box',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                {badge > 99 ? '99+' : badge}
+              </span>
+            )}
+            <button
+              type="button"
+              className="crm-v2-fav-star"
+              title={favorites.includes(item.key) ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+              aria-label={favorites.includes(item.key) ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+              onClick={e => { e.preventDefault(); e.stopPropagation(); toggleFavorite(item.key) }}
+              style={{
+                background: 'none', border: 'none', padding: 2, margin: '-2px -4px -2px 0', cursor: 'pointer',
+                display: 'inline-flex', color: favorites.includes(item.key) ? NAVY.goldIcon : NAVY.faint, flexShrink: 0,
+              }}
+            >
+              <Star size={13} fill={favorites.includes(item.key) ? NAVY.goldIcon : 'none'} />
+            </button>
+          </>
+        )}
+      </a>
+    )
+  }
+
   const renderNav = (onNavigate?: () => void) => (
     <nav style={{ flex: 1, overflowY: 'auto', padding: '12px 8px' }}>
+      {(() => {
+        const favItems = favorites
+          .map(k => NAV_SECTIONS.flatMap(sec => sec.items).find(i => i.key === k))
+          .filter((i): i is NavItem => !!i)
+        if (favItems.length === 0 || collapsed) return null
+        return (
+          <div style={{ marginBottom: 18, paddingBottom: 12, borderBottom: `1px solid ${NAVY.border}` }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              fontSize: 10, fontWeight: 700, color: NAVY.goldText, textTransform: 'uppercase', letterSpacing: 1, padding: '0 12px 8px',
+            }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                <Star size={11} fill={NAVY.goldText} /> Favoris
+              </span>
+              <button
+                type="button"
+                onClick={toggleFoldAll}
+                title={allFolded ? 'Déplier toutes les rubriques' : 'Replier toutes les rubriques'}
+                className="crm-v2-nav-section"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer',
+                  fontFamily: 'inherit', fontSize: 10, fontWeight: 700, color: NAVY.faint, textTransform: 'none', letterSpacing: 0, padding: 0,
+                }}
+              >
+                {allFolded ? <ChevronsUpDown size={12} /> : <ChevronsDownUp size={12} />}
+                {allFolded ? 'Tout déplier' : 'Tout replier'}
+              </button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {favItems.map(item => renderNavItem(item, isActive(item.href), onNavigate))}
+            </div>
+          </div>
+        )
+      })()}
       {NAV_SECTIONS.map(section => {
         // En mode réduit (icônes), on affiche toujours tout. Rubrique repliée : seule la page active reste visible.
         const folded = !collapsed && foldedSections.includes(section.title)
+        if (!collapsed && section.items.every(i => favorites.includes(i.key))) return null
         return (
         <div key={section.title} style={{ marginBottom: folded ? 8 : 18 }}>
           {!collapsed && (
@@ -256,47 +370,9 @@ export default function CRMSidebarV2() {
             {section.items.map(item => {
               const active = isActive(item.href)
               if (folded && !active) return null
-              const Icon = item.icon
-              const badge = badgeFor(item.badgeKey)
-              const ready = item.ready ?? READY.has(item.key)
-              return (
-                <a
-                  key={item.key}
-                  href={item.href}
-                  onClick={onNavigate}
-                  title={collapsed ? item.label : undefined}
-                  className="crm-v2-nav-link"
-                  data-active={active ? 'true' : undefined}
-                  style={linkStyle(active, collapsed)}
-                >
-                  <Icon size={16} strokeWidth={2} style={{ color: active ? NAVY.goldIcon : NAVY.faint, flexShrink: 0 }} />
-                  {!collapsed && (
-                    <>
-                      <span style={{ flex: 1, whiteSpace: 'nowrap' }}>{item.label}</span>
-                      {item.external && (
-                        <ExternalLink size={11} style={{ color: NAVY.faint, flexShrink: 0, opacity: 0.7 }} />
-                      )}
-                      {!ready && (
-                        <span style={{
-                          fontSize: 9, fontWeight: 700, color: NAVY.faint,
-                          background: 'rgba(255,255,255,0.08)', borderRadius: 999, padding: '1px 6px',
-                        }}>
-                          bientôt
-                        </span>
-                      )}
-                      {badge > 0 && (
-                        <span style={{
-                          background: crmV2.danger, color: '#fff', fontSize: 10, fontWeight: 700,
-                          minWidth: 18, height: 18, padding: '0 6px', borderRadius: 9, boxSizing: 'border-box',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        }}>
-                          {badge > 99 ? '99+' : badge}
-                        </span>
-                      )}
-                    </>
-                  )}
-                </a>
-              )
+              // Un favori est remonté dans la rubrique « Favoris »
+              if (favorites.includes(item.key) && !collapsed) return null
+              return renderNavItem(item, active, onNavigate)
             })}
           </div>
         </div>
@@ -349,49 +425,76 @@ export default function CRMSidebarV2() {
           }
         >
           <div style={{ padding: '8px 8px 12px' }}>
-            {NAV_SECTIONS.map(section => (
-              <div key={section.title} style={{ marginBottom: 8 }}>
-                <div style={{
-                  fontSize: 10, fontWeight: 700, color: NAVY.faint, textTransform: 'uppercase',
-                  letterSpacing: 1, padding: '4px 10px 2px',
-                }}>
-                  {section.title}
+            {(() => {
+              // Favoris en tête du menu, puis les rubriques (sans les favoris)
+              const favItems = favorites
+                .map(k => NAV_SECTIONS.flatMap(sec => sec.items).find(i => i.key === k))
+                .filter((i): i is NavItem => !!i)
+              const groups = [
+                ...(favItems.length ? [{ title: 'Favoris', items: favItems, fav: true }] : []),
+                ...NAV_SECTIONS.map(sec => ({ title: sec.title, items: sec.items.filter(i => !favorites.includes(i.key)), fav: false })),
+              ].filter(g => g.items.length > 0)
+              return groups.map(group => (
+                <div key={group.title} style={{ marginBottom: 8, ...(group.fav ? { paddingBottom: 8, borderBottom: `1px solid ${NAVY.border}` } : {}) }}>
+                  <div style={{
+                    fontSize: 10, fontWeight: 700, color: group.fav ? NAVY.goldText : NAVY.faint, textTransform: 'uppercase',
+                    letterSpacing: 1, padding: '4px 10px 2px', display: 'flex', alignItems: 'center', gap: 5,
+                  }}>
+                    {group.fav && <Star size={11} fill={NAVY.goldText} />}
+                    {group.title}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: '0 2px' }}>
+                    {group.items.map(item => {
+                      const active = isActive(item.href)
+                      const Icon = item.icon
+                      const badge = badgeFor(item.badgeKey)
+                      const isFav = favorites.includes(item.key)
+                      return (
+                        <div key={item.key} style={{
+                          display: 'flex', alignItems: 'center', minWidth: 0, minHeight: 40,
+                          borderRadius: crmV2.radiusPill, background: active ? NAVY.goldBg : 'transparent',
+                        }}>
+                          <a
+                            href={item.href}
+                            onClick={() => setMobileMenuOpen(false)}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 8, minHeight: 40, padding: '0 0 0 10px', flex: 1,
+                              textDecoration: 'none', boxSizing: 'border-box',
+                              color: active ? NAVY.goldText : '#ffffff',
+                              fontSize: 13, fontWeight: active ? 700 : 600, whiteSpace: 'nowrap', overflow: 'hidden', minWidth: 0,
+                            }}
+                          >
+                            <Icon size={16} strokeWidth={2} style={{ flexShrink: 0, color: active ? NAVY.goldIcon : NAVY.faint }} />
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flex: 1 }}>{item.label}</span>
+                            {badge > 0 && (
+                              <span style={{
+                                background: crmV2.danger, color: '#fff', fontSize: 10, fontWeight: 700,
+                                minWidth: 18, height: 18, padding: '0 6px', borderRadius: 9, boxSizing: 'border-box',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                              }}>
+                                {badge > 99 ? '99+' : badge}
+                              </span>
+                            )}
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => toggleFavorite(item.key)}
+                            aria-label={isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+                            style={{
+                              width: 32, height: 40, flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                              color: isFav ? NAVY.goldIcon : 'rgba(255,255,255,0.35)',
+                            }}
+                          >
+                            <Star size={14} fill={isFav ? NAVY.goldIcon : 'none'} />
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: '0 2px' }}>
-                  {section.items.map(item => {
-                    const active = isActive(item.href)
-                    const Icon = item.icon
-                    const badge = badgeFor(item.badgeKey)
-                    return (
-                      <a
-                        key={item.key}
-                        href={item.href}
-                        onClick={() => setMobileMenuOpen(false)}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 8, minHeight: 40, padding: '0 10px',
-                          borderRadius: crmV2.radiusPill, textDecoration: 'none', boxSizing: 'border-box',
-                          color: active ? NAVY.goldText : '#ffffff', background: active ? NAVY.goldBg : 'transparent',
-                          fontSize: 13, fontWeight: active ? 700 : 600, whiteSpace: 'nowrap', overflow: 'hidden', minWidth: 0,
-                        }}
-                      >
-                        <Icon size={16} strokeWidth={2} style={{ flexShrink: 0, color: active ? NAVY.goldIcon : NAVY.faint }} />
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flex: 1 }}>{item.label}</span>
-                        {item.external && <ExternalLink size={11} style={{ color: NAVY.faint, flexShrink: 0, opacity: 0.7 }} />}
-                        {badge > 0 && (
-                          <span style={{
-                            background: crmV2.danger, color: '#fff', fontSize: 10, fontWeight: 700,
-                            minWidth: 18, height: 18, padding: '0 6px', borderRadius: 9, boxSizing: 'border-box',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                          }}>
-                            {badge > 99 ? '99+' : badge}
-                          </span>
-                        )}
-                      </a>
-                    )
-                  })}
-                </div>
-              </div>
-            ))}
+              ))
+            })()}
             <a
               href="/login"
               onClick={signOut}
@@ -440,6 +543,8 @@ export default function CRMSidebarV2() {
       <style>{`
         .crm-v2-nav-link:not([data-active="true"]):hover { background-color: rgba(255,255,255,0.07) !important; }
         .crm-v2-nav-section:hover { color: #ffffff !important; }
+        .crm-v2-fav-star { opacity: 0; transition: opacity .12s ease; }
+        .crm-v2-nav-link:hover .crm-v2-fav-star, .crm-v2-fav-star:focus-visible { opacity: 1; }
       `}</style>
       <aside style={{
         position: 'fixed', left: 12, top: 12, bottom: 12, width,
