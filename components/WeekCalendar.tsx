@@ -675,13 +675,14 @@ export default function WeekCalendar({
           left: `calc(${leftPct}% + ${lay.col === 0 ? (compact ? 1 : 5) : gap / 2}px)`,
           width: `calc(${widthPct}% - ${lay.cols === 1 ? (compact ? 2 : 10) : (compact ? 2 : 7)}px - ${rightReserve / lay.cols}px)`,
           // Hauteur = durée exacte du RDV (pas de hauteur mini : sinon les cartes se chevauchent)
-          top: `calc(${top}% + ${compact ? 1 : 2}px)`,
-          height: `calc(${height}% - ${compact ? 2 : 4}px)`,
+          top: `calc(${top}% + 1px)`,
+          height: `calc(${height}% - 2px)`,
           // Style maquette : fond pastel selon l'issue, point = couleur du closer
           background: palette.bg,
           border: `1px solid ${palette.border}`,
-          borderRadius: compact ? 6 : 10,
-          padding: isDay && !isMobile ? '6px 12px' : compact ? '1px 3px' : inline ? '0 10px' : (sideBySide ? '5px 7px' : '6px 10px'),
+          // Carré à peine arrondi (5 px : hors des règles d'arrondi de la skin V2)
+          borderRadius: compact ? 4 : 5,
+          padding: isDay && !isMobile ? '5px 10px' : compact ? '1px 3px' : inline ? '0 8px' : (sideBySide ? '2px 6px' : '2px 8px'),
           display: 'flex',
           flexDirection: inline ? 'row' : 'column',
           alignItems: inline ? 'center' : 'stretch',
@@ -711,7 +712,7 @@ export default function WeekCalendar({
         <div style={{
           display: 'flex', alignItems: 'center', gap: compact ? 2 : 4, minWidth: 0,
           flex: inline ? 1 : undefined, flexShrink: 0,
-          lineHeight: compact ? '12px' : isDay && !isMobile ? '18px' : '15px',
+          lineHeight: compact ? '12px' : isDay && !isMobile ? '18px' : '14px',
         }}>
           <span
             title={appt.users?.name ? `Closer : ${appt.users.name}` : 'Non assigné'}
@@ -749,7 +750,7 @@ export default function WeekCalendar({
           <div style={{
             display: 'flex', alignItems: 'center', gap: 4, minWidth: 0, flexShrink: 0,
             fontSize: metaSize, fontWeight: 600, color: timeColor, whiteSpace: 'nowrap', overflow: 'hidden',
-            lineHeight: isDay && !isMobile ? '16px' : '13px',
+            lineHeight: isDay && !isMobile ? '16px' : '12px',
           }}>
             <span style={{ flexShrink: 0 }}>{rangeTime}</span>
             {isDay && meetingIcon}
