@@ -46,10 +46,11 @@ type Commercial = {
   role: string
 }
 
-const GRID_START_HOUR = 10
-const GRID_END_HOUR = 22
-const HOURS = Array.from({ length: GRID_END_HOUR - GRID_START_HOUR + 1 }, (_, i) => i + GRID_START_HOUR) // 10h → 22h
-const HOUR_HEIGHT = 54       // hauteur d'une ligne d'heure en vue semaine
+// Vue semaine 9 h → 21 h : 12 tranches d'1/12, tout visible sans défiler
+const GRID_START_HOUR = 9
+const GRID_END_HOUR = 21
+const HOURS = Array.from({ length: GRID_END_HOUR - GRID_START_HOUR }, (_, i) => i + GRID_START_HOUR) // 9h … 20h
+const HOUR_HEIGHT = 40       // hauteur min d'une tranche en vue semaine (la grille prend toute la hauteur)
 const HOUR_HEIGHT_DAY = 76   // hauteur d'une ligne d'heure en vue jour
 const MOBILE_TIME_COL = 40   // colonne heures en vue semaine mobile (scroll horizontal)
 
@@ -374,8 +375,8 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
   }
 
   function statusFillTextColor(fill: string | null): string {
-    if (!fill) return '#0e1e35'
-    if (POST_RDV_LIGHT_FILL.has(fill)) return '#0e1e35'
+    if (!fill) return '#2d3e50'
+    if (POST_RDV_LIGHT_FILL.has(fill)) return '#2d3e50'
     if (fill.startsWith('rgba')) return '#6b7280'
     return '#ffffff'
   }
@@ -482,8 +483,9 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
     scale: 'week' | 'day',
   ) {
     const isDay = scale === 'day'
-    const top = timeToPercent(appt.start_at, day)
     const height = durationToPercent(appt.start_at, appt.end_at, day)
+    // RDV hors plage (avant 9 h / après 21 h) : collé au bord plutôt que hors grille
+    const top = Math.min(timeToPercent(appt.start_at, day), 100 - Math.min(height, 100))
     const closerColor = getColorForCommercial(appt.users?.id || '')
     const statusFill = getStatusFill(appt)
     const isCancelled = appt.status === 'annule'
@@ -548,7 +550,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
           background: statusFill || '#fff',
           border: `1px solid ${isCancelled ? 'rgba(107,114,128,0.35)' : `${closerColor}66`}`,
           borderLeft: `${isDay ? 6 : 5}px solid ${isCancelled ? '#6b7280' : closerColor}`,
-          borderRadius: 5,
+          borderRadius: 8,
           padding: isDay ? '6px 10px' : (sideBySide ? '2px 4px' : '3px 5px'),
           cursor: isCancelled ? 'pointer' : 'grab',
           overflow: 'hidden',
@@ -698,7 +700,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
           height: `${durationToPercent(block.start_at, block.end_at, day)}%`,
           minHeight: 24,
           width: 32,
-          background: '#0e1e35',
+          background: '#2d3e50',
           color: '#fff',
           border: 'none',
           borderRadius: 6,
@@ -721,7 +723,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
     <div
       role="group"
       aria-label="Filtrer par marque"
-      style={{ display: 'flex', background: '#f0e9da', borderRadius: 8, padding: 2, border: '1px solid #e5ddc8', flexShrink: 0 }}
+      style={{ display: 'flex', background: '#f0e9da', borderRadius: 8, padding: 2, border: '1px solid #dfe3eb', flexShrink: 0 }}
     >
       {(['all', 'diploma', 'medibox'] as const).map(b => {
         const active = brandFilter === b
@@ -731,9 +733,9 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
             onClick={() => setBrandFilter(b)}
             aria-pressed={active}
             style={{
-              background: active ? (b === 'all' ? '#0e1e35' : RDV_BRANDS[b].color) : 'transparent',
+              background: active ? (b === 'all' ? '#2d3e50' : RDV_BRANDS[b].color) : 'transparent',
               border: 'none', borderRadius: 6, padding: '4px 10px',
-              color: active ? 'white' : '#4a6070',
+              color: active ? 'white' : '#516f90',
               fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
               display: 'inline-flex', alignItems: 'center', gap: 5,
             }}
@@ -750,14 +752,14 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
   )
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#f7f4ee' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#f5f8fa' }}>
       {/* Top bar — masquée en mode admin et en mode closer (le parent gère le header) */}
       {!adminMode && !closerId && (
         <div style={{
           padding: '0 24px',
           height: 64,
           background: '#ffffff',
-          borderBottom: '1px solid #e5ddc8',
+          borderBottom: '1px solid #dfe3eb',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           flexShrink: 0,
         }}>
@@ -770,8 +772,8 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
               <Calendar size={18} style={{ color: '#C9A84C' }} />
             </div>
             <div>
-              <div style={{ fontWeight: 700, fontSize: 15, color: '#0e1e35' }}>Agenda RDV</div>
-              <div style={{ fontSize: 12, color: '#4a6070' }}>Diploma Santé</div>
+              <div style={{ fontWeight: 700, fontSize: 15, color: '#2d3e50' }}>Agenda RDV</div>
+              <div style={{ fontSize: 12, color: '#516f90' }}>Diploma Santé</div>
             </div>
           </div>
 
@@ -782,14 +784,14 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
               borderRadius: 10, padding: '6px 16px', textAlign: 'center',
             }}>
               <div style={{ fontSize: 22, fontWeight: 800, color: '#C9A84C', lineHeight: 1 }}>{rdvCount}</div>
-              <div style={{ fontSize: 11, color: '#4a6070', marginTop: 2 }}>RDV cette semaine</div>
+              <div style={{ fontSize: 11, color: '#516f90', marginTop: 2 }}>RDV cette semaine</div>
             </div>
             <div style={{
               background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)',
               borderRadius: 10, padding: '6px 16px', textAlign: 'center',
             }}>
               <div style={{ fontSize: 22, fontWeight: 800, color: '#22c55e', lineHeight: 1 }}>{rdvEffectues}</div>
-              <div style={{ fontSize: 11, color: '#4a6070', marginTop: 2 }}>Avancés</div>
+              <div style={{ fontSize: 11, color: '#516f90', marginTop: 2 }}>Avancés</div>
             </div>
           </div>
 
@@ -812,13 +814,13 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
 
             {/* Sélecteur closer */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Users size={14} style={{ color: '#4a6070' }} />
+              <Users size={14} style={{ color: '#516f90' }} />
               <select
                 value={selectedCommercial}
                 onChange={e => handleSelectCommercial(e.target.value)}
                 style={{
-                  background: '#f0e9da', border: '1px solid #e5ddc8',
-                  borderRadius: 8, padding: '6px 10px', color: '#0e1e35',
+                  background: '#f0e9da', border: '1px solid #dfe3eb',
+                  borderRadius: 8, padding: '6px 10px', color: '#2d3e50',
                   fontSize: 13, cursor: 'pointer', outline: 'none',
                 }}
               >
@@ -830,7 +832,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
             </div>
 
             {/* View toggle */}
-            <div style={{ display: 'flex', background: '#f0e9da', borderRadius: 8, padding: 3, border: '1px solid #e5ddc8' }}>
+            <div style={{ display: 'flex', background: '#f0e9da', borderRadius: 8, padding: 3, border: '1px solid #dfe3eb' }}>
               {(['day', 'week', 'list'] as const).map(v => (
                 <button
                   key={v}
@@ -838,7 +840,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                   style={{
                     background: view === v ? '#C9A84C' : 'transparent',
                     border: 'none', borderRadius: 6, padding: '5px 14px',
-                    color: view === v ? 'white' : '#4a6070',
+                    color: view === v ? 'white' : '#516f90',
                     fontSize: 12, fontWeight: 600, cursor: 'pointer',
                   }}
                 >
@@ -855,7 +857,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
         <div style={{
           padding: `6px ${padX}px`,
           background: '#ffffff',
-          borderBottom: '1px solid #e5ddc8',
+          borderBottom: '1px solid #dfe3eb',
           display: 'flex', alignItems: 'center', gap: 12,
           flexShrink: 0, flexWrap: 'wrap',
         }}>
@@ -864,23 +866,23 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
             <span style={{ fontSize: 12, color: '#22c55e', fontWeight: 700 }}>{rdvEffectues} avancés</span>
           </div>
 
-          <div style={{ width: 1, height: 20, background: '#e5ddc8', flexShrink: 0 }} />
+          <div style={{ width: 1, height: 20, background: '#dfe3eb', flexShrink: 0 }} />
 
           <button
             onClick={() => view === 'day'
               ? setSelectedDay(d => addDays(d, -1))
               : setCurrentWeekStart(subWeeks(currentWeekStart, 1))}
             style={{
-              background: '#f0e9da', border: '1px solid #e5ddc8',
+              background: '#f0e9da', border: '1px solid #dfe3eb',
               borderRadius: 8, width: 28, height: 28,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', color: '#4a6070', flexShrink: 0,
+              cursor: 'pointer', color: '#516f90', flexShrink: 0,
             }}
           >
             <ChevronLeft size={15} />
           </button>
 
-          <div style={{ fontWeight: 700, fontSize: 13, color: '#0e1e35', textTransform: 'capitalize', flexShrink: 0 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, color: '#2d3e50', textTransform: 'capitalize', flexShrink: 0 }}>
             {view === 'day' ? (
               format(selectedDay, 'EEEE d MMMM yyyy', { locale: fr })
             ) : (
@@ -897,10 +899,10 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
               ? setSelectedDay(d => addDays(d, 1))
               : setCurrentWeekStart(addWeeks(currentWeekStart, 1))}
             style={{
-              background: '#f0e9da', border: '1px solid #e5ddc8',
+              background: '#f0e9da', border: '1px solid #dfe3eb',
               borderRadius: 8, width: 28, height: 28,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', color: '#4a6070', flexShrink: 0,
+              cursor: 'pointer', color: '#516f90', flexShrink: 0,
             }}
           >
             <ChevronRight size={15} />
@@ -911,27 +913,27 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
               ? setSelectedDay(new Date())
               : setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}
             style={{
-              background: 'transparent', border: '1px solid #e5ddc8',
+              background: 'transparent', border: '1px solid #dfe3eb',
               borderRadius: 8, padding: '4px 10px',
-              color: '#4a6070', fontSize: 11, cursor: 'pointer', flexShrink: 0,
+              color: '#516f90', fontSize: 11, cursor: 'pointer', flexShrink: 0,
             }}
           >
             Aujourd&apos;hui
           </button>
 
           {loading && (
-            <div style={{ fontSize: 11, color: '#4a6070', flexShrink: 0 }}>Chargement…</div>
+            <div style={{ fontSize: 11, color: '#516f90', flexShrink: 0 }}>Chargement…</div>
           )}
 
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
             {brandToggle}
-            <Users size={13} style={{ color: '#4a6070' }} />
+            <Users size={13} style={{ color: '#516f90' }} />
             <select
               value={selectedCommercial}
               onChange={e => setSelectedCommercial(e.target.value)}
               style={{
-                background: '#f0e9da', border: '1px solid #e5ddc8',
-                borderRadius: 8, padding: '4px 8px', color: '#0e1e35',
+                background: '#f0e9da', border: '1px solid #dfe3eb',
+                borderRadius: 8, padding: '4px 8px', color: '#2d3e50',
                 fontSize: 11, cursor: 'pointer', outline: 'none',
               }}
             >
@@ -941,7 +943,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
               ))}
             </select>
 
-            <div style={{ display: 'flex', background: '#f0e9da', borderRadius: 8, padding: 2, border: '1px solid #e5ddc8' }}>
+            <div style={{ display: 'flex', background: '#f0e9da', borderRadius: 8, padding: 2, border: '1px solid #dfe3eb' }}>
               {(['day', 'week', 'list'] as const).map(v => (
                 <button
                   key={v}
@@ -949,7 +951,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                   style={{
                     background: view === v ? '#C9A84C' : 'transparent',
                     border: 'none', borderRadius: 6, padding: '3px 10px',
-                    color: view === v ? 'white' : '#4a6070',
+                    color: view === v ? 'white' : '#516f90',
                     fontSize: 11, fontWeight: 600, cursor: 'pointer',
                   }}
                 >
@@ -966,7 +968,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
       <div style={{
         padding: '10px 24px',
         background: '#ffffff',
-        borderBottom: '1px solid #e5ddc8',
+        borderBottom: '1px solid #dfe3eb',
         display: 'flex', alignItems: 'center', gap: 12,
         flexShrink: 0,
       }}>
@@ -975,16 +977,16 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
             ? setSelectedDay(d => addDays(d, -1))
             : setCurrentWeekStart(subWeeks(currentWeekStart, 1))}
           style={{
-            background: '#f0e9da', border: '1px solid #e5ddc8',
+            background: '#f0e9da', border: '1px solid #dfe3eb',
             borderRadius: 8, width: 32, height: 32,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', color: '#4a6070',
+            cursor: 'pointer', color: '#516f90',
           }}
         >
           <ChevronLeft size={16} />
         </button>
 
-        <div style={{ fontWeight: 700, fontSize: 14, color: '#0e1e35', minWidth: 200, textTransform: 'capitalize' }}>
+        <div style={{ fontWeight: 700, fontSize: 14, color: '#2d3e50', minWidth: 200, textTransform: 'capitalize' }}>
           {view === 'day' ? (
             format(selectedDay, 'EEEE d MMMM yyyy', { locale: fr })
           ) : (
@@ -1001,10 +1003,10 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
             ? setSelectedDay(d => addDays(d, 1))
             : setCurrentWeekStart(addWeeks(currentWeekStart, 1))}
           style={{
-            background: '#f0e9da', border: '1px solid #e5ddc8',
+            background: '#f0e9da', border: '1px solid #dfe3eb',
             borderRadius: 8, width: 32, height: 32,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', color: '#4a6070',
+            cursor: 'pointer', color: '#516f90',
           }}
         >
           <ChevronRight size={16} />
@@ -1015,9 +1017,9 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
             ? setSelectedDay(new Date())
             : setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}
           style={{
-            background: 'transparent', border: '1px solid #e5ddc8',
+            background: 'transparent', border: '1px solid #dfe3eb',
             borderRadius: 8, padding: '5px 14px',
-            color: '#4a6070', fontSize: 12, cursor: 'pointer',
+            color: '#516f90', fontSize: 12, cursor: 'pointer',
           }}
         >
           Aujourd&apos;hui
@@ -1032,13 +1034,13 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                 repérer où il reste de la place avant de placer un RDV. */}
             {teamView && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Users size={14} style={{ color: '#4a6070' }} />
+                <Users size={14} style={{ color: '#516f90' }} />
                 <select
                   value={selectedCommercial}
                   onChange={e => handleSelectCommercial(e.target.value)}
                   style={{
-                    background: '#f0e9da', border: '1px solid #e5ddc8',
-                    borderRadius: 8, padding: '6px 10px', color: '#0e1e35',
+                    background: '#f0e9da', border: '1px solid #dfe3eb',
+                    borderRadius: 8, padding: '6px 10px', color: '#2d3e50',
                     fontSize: 12, cursor: 'pointer', outline: 'none',
                   }}
                 >
@@ -1070,7 +1072,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
               Nouveau RDV
             </button>
 
-            <div style={{ display: 'flex', background: '#f0e9da', borderRadius: 8, padding: 3, border: '1px solid #e5ddc8' }}>
+            <div style={{ display: 'flex', background: '#f0e9da', borderRadius: 8, padding: 3, border: '1px solid #dfe3eb' }}>
               {(['day', 'week', 'list'] as const).map(v => (
                 <button
                   key={v}
@@ -1078,7 +1080,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                   style={{
                     background: view === v ? '#C9A84C' : 'transparent',
                     border: 'none', borderRadius: 6, padding: '4px 12px',
-                    color: view === v ? 'white' : '#4a6070',
+                    color: view === v ? 'white' : '#516f90',
                     fontSize: 11, fontWeight: 600, cursor: 'pointer',
                   }}
                 >
@@ -1090,7 +1092,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
         )}
 
         {loading && (
-          <div style={{ fontSize: 12, color: '#4a6070', marginLeft: 8 }}>Chargement…</div>
+          <div style={{ fontSize: 12, color: '#516f90', marginLeft: 8 }}>Chargement…</div>
         )}
       </div>
       )}
@@ -1100,17 +1102,17 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
         <div style={{
           padding: isMobile ? '6px 12px' : '6px 24px',
           background: '#ffffff',
-          borderBottom: '1px solid #e5ddc8',
+          borderBottom: '1px solid #dfe3eb',
           display: 'flex',
           alignItems: 'center',
           gap: isMobile ? 10 : 16,
           flexWrap: 'wrap',
           flexShrink: 0,
         }}>
-          <span style={{ fontSize: 11, color: '#4a6070', fontWeight: 600 }}>
+          <span style={{ fontSize: 11, color: '#516f90', fontWeight: 600 }}>
             Fond = statut · Contour = closer
           </span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#0e1e35', fontWeight: 500 }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#2d3e50', fontWeight: 500 }}>
             <MediboxBadge brand="medibox" compact /> RDV Medibox
           </span>
           {POST_RDV_LEGEND.map(item => (
@@ -1121,7 +1123,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                 alignItems: 'center',
                 gap: 5,
                 fontSize: 11,
-                color: '#0e1e35',
+                color: '#2d3e50',
                 fontWeight: 500,
               }}
             >
@@ -1225,12 +1227,12 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
           <div style={{
             display: 'grid',
             gridTemplateColumns: weekGridCols,
-            borderBottom: '1px solid #e5ddc8',
+            borderBottom: '1px solid #dfe3eb',
             background: '#ffffff',
             flexShrink: 0,
             zIndex: 2,
           }}>
-            <div style={{ borderRight: '1px solid #e5ddc8' }} />
+            <div style={{ borderRight: '1px solid #dfe3eb' }} />
             {weekDays.map(day => {
               const dayAppts = getAppointmentsForDay(day)
               const today = isToday(day)
@@ -1246,17 +1248,17 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                   style={{
                     padding: '6px 4px',
                     textAlign: 'center',
-                    borderRight: '1px solid #e5ddc8',
-                    background: today ? 'rgba(204,172,113,0.06)' : 'transparent',
+                    borderRight: '1px solid #dfe3eb',
+                    background: today ? 'rgba(201,168,76,0.06)' : 'transparent',
                     cursor: busyDay ? 'pointer' : 'default',
                   }}
                 >
-                  <div style={{ fontSize: 10, color: '#4a6070', textTransform: 'uppercase', fontWeight: 600 }}>
+                  <div style={{ fontSize: 10, color: '#516f90', textTransform: 'uppercase', fontWeight: 600 }}>
                     {format(day, 'EEE', { locale: fr })}
                   </div>
                   <div style={{
                     fontSize: 15, fontWeight: 700,
-                    color: today ? '#C9A84C' : '#0e1e35',
+                    color: today ? '#C9A84C' : '#2d3e50',
                     lineHeight: 1.2, marginTop: 1,
                   }}>
                     {format(day, 'd')}
@@ -1282,7 +1284,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
           <div style={{ flex: 1, overflow: 'auto', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'grid', gridTemplateColumns: weekGridCols, position: 'relative', flex: '1 0 auto', minHeight: `${HOURS.length * HOUR_HEIGHT}px` }}>
             {/* Hour labels */}
-            <div style={{ borderRight: '1px solid #e5ddc8', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ borderRight: '1px solid #dfe3eb', display: 'flex', flexDirection: 'column' }}>
               {HOURS.map(h => (
                 <div
                   key={h}
@@ -1290,7 +1292,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                     flex: 1, minHeight: 0,
                     display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end',
                     paddingRight: 8, paddingTop: 4,
-                    fontSize: 12, color: '#4a6070', fontWeight: 600,
+                    fontSize: 12, color: '#516f90', fontWeight: 600,
                   }}
                 >
                   {h}h
@@ -1310,17 +1312,17 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                   key={day.toISOString()}
                   {...columnDragProps(day)}
                   style={{
-                    borderRight: '1px solid #e5ddc8',
+                    borderRight: '1px solid #dfe3eb',
                     position: 'relative',
                     background: dragOverDay === day.toISOString()
                       ? 'rgba(204,172,113,0.12)'
-                      : (today ? 'rgba(204,172,113,0.02)' : 'transparent'),
+                      : (today ? 'rgba(201,168,76,0.04)' : 'transparent'),
                     minWidth: 0,
                     display: 'flex', flexDirection: 'column',
                   }}
                 >
                   {HOURS.map(h => (
-                    <div key={h} style={{ flex: 1, minHeight: 0, borderBottom: '1px solid #e5ddc8' }} />
+                    <div key={h} style={{ flex: 1, minHeight: 0, borderBottom: '1px solid #eef1f6' }} />
                   ))}
 
                   {dayAppts.filter(a => !hiddenIds.has(a.id)).map(appt =>
@@ -1371,11 +1373,11 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 10,
                 padding: '10px 24px',
-                borderBottom: '1px solid #e5ddc8',
+                borderBottom: '1px solid #dfe3eb',
                 background: today ? 'rgba(204,172,113,0.06)' : '#ffffff',
                 flexShrink: 0,
               }}>
-                <span style={{ fontSize: 15, fontWeight: 700, color: today ? '#C9A84C' : '#0e1e35', textTransform: 'capitalize' }}>
+                <span style={{ fontSize: 15, fontWeight: 700, color: today ? '#C9A84C' : '#2d3e50', textTransform: 'capitalize' }}>
                   {format(selectedDay, 'EEEE d MMMM', { locale: fr })}
                 </span>
                 <span style={{
@@ -1386,14 +1388,14 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                 }}>
                   {activeCount}
                 </span>
-                <span style={{ fontSize: 12, color: '#4a6070' }}>RDV</span>
+                <span style={{ fontSize: 12, color: '#516f90' }}>RDV</span>
               </div>
 
               {/* Grille horaire — remplit toute la hauteur dispo */}
               <div style={{ flex: 1, overflow: 'auto', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '64px 1fr', position: 'relative', flex: '1 0 auto', minHeight: `${HOURS.length * HOUR_HEIGHT_DAY}px` }}>
                   {/* Libellés des heures */}
-                  <div style={{ borderRight: '1px solid #e5ddc8', display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ borderRight: '1px solid #dfe3eb', display: 'flex', flexDirection: 'column' }}>
                     {HOURS.map(h => (
                       <div
                         key={h}
@@ -1401,7 +1403,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                           flex: 1, minHeight: 0,
                           display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end',
                           paddingRight: 10, paddingTop: 4,
-                          fontSize: 13, color: '#4a6070', fontWeight: 600,
+                          fontSize: 13, color: '#516f90', fontWeight: 600,
                         }}
                       >
                         {h}h
@@ -1412,10 +1414,10 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                   {/* Colonne du jour */}
                   <div
                     {...columnDragProps(selectedDay)}
-                    style={{ position: 'relative', minWidth: 0, background: dragOverDay === selectedDay.toISOString() ? 'rgba(204,172,113,0.12)' : (today ? 'rgba(204,172,113,0.02)' : 'transparent'), display: 'flex', flexDirection: 'column' }}
+                    style={{ position: 'relative', minWidth: 0, background: dragOverDay === selectedDay.toISOString() ? 'rgba(204,172,113,0.12)' : (today ? 'rgba(201,168,76,0.04)' : 'transparent'), display: 'flex', flexDirection: 'column' }}
                   >
                     {HOURS.map(h => (
-                      <div key={h} style={{ flex: 1, minHeight: 0, borderBottom: '1px solid #e5ddc8' }} />
+                      <div key={h} style={{ flex: 1, minHeight: 0, borderBottom: '1px solid #eef1f6' }} />
                     ))}
 
                     {dayAppts.length === 0 && (
@@ -1463,7 +1465,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
         /* List view */
         <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? 12 : 24 }}>
           {activeAppointments.length === 0 ? (
-            <div style={{ textAlign: 'center', color: '#4a6070', paddingTop: 60 }}>
+            <div style={{ textAlign: 'center', color: '#516f90', paddingTop: 60 }}>
               Aucun RDV assigné cette semaine
             </div>
           ) : (
@@ -1475,7 +1477,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                   key={appt.id}
                   onClick={() => setSelectedAppointment(appt)}
                   style={{
-                    background: getStatusFill(appt) || '#e5ddc8',
+                    background: getStatusFill(appt) || '#dfe3eb',
                     border: `1px solid ${getColorForCommercial(appt.users?.id || '')}66`,
                     borderLeft: `6px solid ${getColorForCommercial(appt.users?.id || '')}`,
                     borderRadius: 12, padding: isMobile ? '12px 14px' : '14px 18px',
@@ -1511,7 +1513,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                       fontSize: 12, marginTop: 2,
                       color: getStatusFill(appt) && !POST_RDV_LIGHT_FILL.has(getStatusFill(appt)!)
                         ? 'rgba(255,255,255,0.8)'
-                        : '#4a6070',
+                        : '#516f90',
                     }}>
                       {format(new Date(appt.start_at), 'EEEE d MMMM · HH:mm', { locale: fr })} – {format(new Date(appt.end_at), 'HH:mm')}
                       {appt.users && <span> · {appt.users.name}</span>}
@@ -1551,12 +1553,12 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
           }}>
             <div style={{
               padding: '14px 18px',
-              borderBottom: '1px solid #e5ddc8',
+              borderBottom: '1px solid #dfe3eb',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
             }}>
-              <span style={{ fontWeight: 700, fontSize: 15, color: '#0e1e35' }}>
+              <span style={{ fontWeight: 700, fontSize: 15, color: '#2d3e50' }}>
                 {format(dayListModal.day, 'EEEE d MMMM', { locale: fr })}
                 {' '}
                 <span style={{ color: '#C9A84C' }}>({dayListModal.appts.length} RDV)</span>
@@ -1592,7 +1594,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                     }}
                     style={{
                       textAlign: 'left',
-                      background: getStatusFill(appt) || '#f7f4ee',
+                      background: getStatusFill(appt) || '#f5f8fa',
                       border: `1px solid ${getColorForCommercial(appt.users?.id || '')}55`,
                       borderLeft: `4px solid ${getColorForCommercial(appt.users?.id || '')}`,
                       borderRadius: 10,
@@ -1721,7 +1723,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
             left: '50%',
             transform: 'translateX(-50%)',
             zIndex: 80,
-            background: moveToast.kind === 'ok' ? '#0e1e35' : '#b91c1c',
+            background: moveToast.kind === 'ok' ? '#2d3e50' : '#b91c1c',
             color: '#fff',
             padding: '10px 18px',
             borderRadius: 10,
