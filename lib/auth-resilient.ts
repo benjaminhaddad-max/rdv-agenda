@@ -53,6 +53,23 @@ export function decodeSessionUserId(cookies: CookieStore): string | null {
   }
 }
 
+type ClaimsClient = {
+  auth: { getClaims(): Promise<{ data: { claims: { sub?: unknown } } | null }> }
+}
+
+/**
+ * Vérifie le JWT localement (clé ES256 publique du projet, mise en cache)
+ * au lieu d'un aller-retour réseau vers Supabase Auth à chaque requête.
+ * Le réseau n'est sollicité que pour rafraîchir un token expiré.
+ */
+export function claimsGetter(client: ClaimsClient): GetUserFn {
+  return async () => {
+    const { data } = await client.auth.getClaims()
+    const sub = data?.claims?.sub
+    return { data: { user: typeof sub === 'string' && sub ? { id: sub } : null } }
+  }
+}
+
 /**
  * Retourne l'auth user id, via Supabase Auth si disponible, sinon via
  * décodage local du cookie (mode dégradé).

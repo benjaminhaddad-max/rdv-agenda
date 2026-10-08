@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createServerSupabase, createServiceClient } from '@/lib/supabase'
-import { getAuthUserIdResilient } from '@/lib/auth-resilient'
+import { claimsGetter, getAuthUserIdResilient } from '@/lib/auth-resilient'
 
 async function getUserId(): Promise<string | null> {
   const auth = await createServerSupabase()
   const cookieStore = await cookies()
-  return getAuthUserIdResilient(() => auth.auth.getUser(), cookieStore)
+  return getAuthUserIdResilient(claimsGetter(auth), cookieStore)
 }
 
 export async function GET() {

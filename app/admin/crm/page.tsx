@@ -189,6 +189,9 @@ export default function CRMPage() {
   const [total, setTotal]         = useState(0)
   const [page, setPage]           = useState(0)
   const [loading, setLoading]     = useState(true)
+  // Échec du dernier chargement (lenteur / erreur serveur) : affiché comme tel
+  // au lieu de « les filtres masquent tous les résultats ».
+  const [fetchError, setFetchError] = useState(false)
   const [ingestionHealth, setIngestionHealth] = useState<IngestionHealth | null>(null)
 
   // Saved views
@@ -1141,7 +1144,9 @@ export default function CRMPage() {
       let response = await fetchWithTimeout(url, timeoutForStep(CONTACTS_FETCH_TIMEOUT_MS), { signal: requestAbort.signal })
       // Fallback robuste: si l'URL avec `cf` casse (URL trop longue / proxy),
       // on retente automatiquement sans `cf` en conservant la vue active.
-      if (!response.ok && activeViewId && activeViewId !== 'all' && customFilterParam) {
+      // Uniquement sur URL refusée : sur un 500 / timeout, relancer la même
+      // requête lourde (le serveur relit les filtres via view_id) doublait la charge.
+      if ((response.status === 414 || response.status === 431) && activeViewId && activeViewId !== 'all' && customFilterParam) {
         response = await fetchWithTimeout(retryUrlWithoutCf, timeoutForStep(5000), { signal: requestAbort.signal })
       }
       if (!response.ok) throw new Error(`HTTP ${response.status} on ${url}`)
@@ -1235,6 +1240,7 @@ export default function CRMPage() {
         return
       }
       if (requestSeq === contactsFetchSeqRef.current) {
+        setFetchError(false)
         applyContactsRows(cachedPayload.data ?? [])
         const nextTotal = cachedPayload.total ?? 0
         setTotal(nextTotal)
@@ -1296,10 +1302,13 @@ export default function CRMPage() {
       setTotalEstimated(payload.total_estimated === true)
       setLastFetchClientMs(clientMs)
       setLastFetchServerMs(serverMs)
+      setFetchError(false)
       hasLoadedOnceRef.current = true
       if (payload.total_estimated === true) void refreshExactTotal()
     } catch {
-      // garde le state precedent en cas d'erreur reseau
+      // garde le state precedent en cas d'erreur reseau ; signale l'échec
+      // sauf si la requête a été remplacée par une plus récente.
+      if (requestSeq === contactsFetchSeqRef.current && !requestAbort.signal.aborted) setFetchError(true)
     } finally {
       if (requestSeq === contactsFetchSeqRef.current) setLoading(false)
     }
@@ -2737,18 +2746,26 @@ export default function CRMPage() {
 
           {!isMobile && bulkBar}
 
-          {!loading && displayed.length === 0 && totalFilterRules > 0 && (
+          {!loading && displayed.length === 0 && (fetchError || totalFilterRules > 0) && (
             <div style={{
               margin: isMobile ? '0 0 8px' : '12px 14px 0', flexShrink: 0,
               background: crmV2.goldSoft, border: `1px solid ${crmV2.goldBorder}`, borderRadius: 12,
               padding: '10px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap',
             }}>
               <span style={{ fontSize: 13, color: crmV2.goldDark }}>
-                Les filtres avancés actifs masquent tous les résultats.
+                {fetchError
+                  ? 'Le chargement des contacts a échoué ou a pris trop de temps.'
+                  : 'Les filtres avancés actifs masquent tous les résultats.'}
               </span>
-              <CrmV2Button size="sm" onClick={clearAdvancedFilters}>
-                Retirer les filtres avancés
-              </CrmV2Button>
+              {fetchError ? (
+                <CrmV2Button size="sm" onClick={() => fetchContacts()}>
+                  Réessayer
+                </CrmV2Button>
+              ) : (
+                <CrmV2Button size="sm" onClick={clearAdvancedFilters}>
+                  Retirer les filtres avancés
+                </CrmV2Button>
+              )}
             </div>
           )}
 

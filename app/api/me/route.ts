@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createServerSupabase, createServiceClient } from '@/lib/supabase'
-import { getAuthUserIdResilient } from '@/lib/auth-resilient'
+import { claimsGetter, getAuthUserIdResilient } from '@/lib/auth-resilient'
 
 // GET /api/me — Retourne l'utilisateur connecté (rdv_users)
 export async function GET() {
   const supabase = await createServerSupabase()
   const cookieStore = await cookies()
   const userId = await getAuthUserIdResilient(
-    () => supabase.auth.getUser(),
+    claimsGetter(supabase),
     cookieStore
   )
 

@@ -259,6 +259,20 @@ export async function fetchLabAppLeadAggregates(db: SupabaseClient): Promise<Map
   return byContact
 }
 
+// L'agrégat Lab parcourt toute la table des contacts (ILIKE non indexé) :
+// une liste + ses compteurs d'onglets le demandaient 5 à 10 fois de suite.
+// Gardé 2 min par instance, requête en cours partagée.
+const LAB_APP_AGG_TTL_MS = 120_000
+let labAppAggCache: { at: number; value: Promise<Map<string, LabAppAgg>> } | null = null
+
+export function fetchLabAppLeadAggregatesCached(db: SupabaseClient): Promise<Map<string, LabAppAgg>> {
+  if (labAppAggCache && Date.now() - labAppAggCache.at < LAB_APP_AGG_TTL_MS) return labAppAggCache.value
+  const value = fetchLabAppLeadAggregates(db)
+  labAppAggCache = { at: Date.now(), value }
+  value.catch(() => { if (labAppAggCache?.value === value) labAppAggCache = null })
+  return value
+}
+
 /**
  * Résout le filtre « Lead app Lab » (téléchargements / leads des apps
  * Diplomalab et Medibox Lab) en liste de contact_id.

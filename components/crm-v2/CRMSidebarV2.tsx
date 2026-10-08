@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import {
@@ -133,6 +134,7 @@ export default function CRMSidebarV2() {
   useEffect(() => {
     let cancelled = false
     async function fetchSupport() {
+      if (document.hidden) return
       try {
         const res = await fetch('/api/support/tickets?scope=all', { cache: 'no-store' })
         if (!res.ok) return
@@ -187,15 +189,16 @@ export default function CRMSidebarV2() {
   useEffect(() => {
     let cancelled = false
     async function fetchCount() {
+      if (document.hidden) return
       try {
-        const res = await fetch('/api/admin/errors?resolved=0&limit=1', { cache: 'no-store' })
+        const res = await fetch('/api/admin/errors?resolved=0&count_only=1', { cache: 'no-store' })
         if (!res.ok) return
         const j = await res.json()
         if (!cancelled) setErrorCount(typeof j.total === 'number' ? j.total : 0)
       } catch { /* ignore */ }
     }
     fetchCount()
-    const id = setInterval(fetchCount, 60_000)
+    const id = setInterval(fetchCount, 180_000)
     return () => { cancelled = true; clearInterval(id) }
   }, [])
 
@@ -246,9 +249,10 @@ export default function CRMSidebarV2() {
     const badge = badgeFor(item.badgeKey)
     const ready = item.ready ?? READY.has(item.key)
     return (
-      <a
+      <Link
         key={item.key}
         href={item.href}
+        prefetch={false}
         onClick={onNavigate}
         title={collapsed ? item.label : undefined}
         className="crm-v2-nav-link"
@@ -294,7 +298,7 @@ export default function CRMSidebarV2() {
             </button>
           </>
         )}
-      </a>
+      </Link>
     )
   }
 
@@ -445,8 +449,9 @@ export default function CRMSidebarV2() {
                           display: 'flex', alignItems: 'center', minWidth: 0, minHeight: 40,
                           borderRadius: crmV2.radiusPill, background: active ? NAVY.goldBg : 'transparent',
                         }}>
-                          <a
+                          <Link
                             href={item.href}
+                            prefetch={false}
                             onClick={() => setMobileMenuOpen(false)}
                             style={{
                               display: 'flex', alignItems: 'center', gap: 8, minHeight: 40, padding: '0 0 0 10px', flex: 1,
@@ -466,7 +471,7 @@ export default function CRMSidebarV2() {
                                 {badge > 99 ? '99+' : badge}
                               </span>
                             )}
-                          </a>
+                          </Link>
                           <button
                             type="button"
                             onClick={() => toggleFavorite(item.key)}
@@ -508,10 +513,10 @@ export default function CRMSidebarV2() {
             const active = !mobileMenuOpen && isActive(item.href)
             const Icon = item.icon
             return (
-              <a key={item.key} href={item.href} style={tabStyle(active)}>
+              <Link key={item.key} href={item.href} prefetch={false} style={tabStyle(active)}>
                 <Icon size={18} strokeWidth={2} />
                 <span>{item.label}</span>
-              </a>
+              </Link>
             )
           })}
           <button

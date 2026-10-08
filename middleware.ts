@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
-import { getAuthUserIdResilient } from '@/lib/auth-resilient'
+import { claimsGetter, getAuthUserIdResilient } from '@/lib/auth-resilient'
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -80,7 +80,7 @@ export async function middleware(request: NextRequest) {
   // Refresh session for page routes only (API auth is enforced in route handlers).
   // Résilient aux pannes Supabase Auth : timeout court + fallback cookie JWT.
   const userId = await getAuthUserIdResilient(
-    () => supabase.auth.getUser(),
+    claimsGetter(supabase),
     request.cookies
   )
 
@@ -151,7 +151,14 @@ export async function middleware(request: NextRequest) {
 
 // ── Helpers ────────────────────────────────────────────────────────
 
+// Rôle gardé 60 s par instance : évite une requête base à chaque navigation.
+const DB_USER_TTL_MS = 60_000
+type MiddlewareDbUser = { role: string; slug: string; id: string }
+const dbUserCache = new Map<string, { row: MiddlewareDbUser; at: number }>()
+
 async function getUserFromDb(authId: string) {
+  const hit = dbUserCache.get(authId)
+  if (hit && Date.now() - hit.at < DB_USER_TTL_MS) return hit.row
   const db = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -161,6 +168,10 @@ async function getUserFromDb(authId: string) {
     .select('role, slug, id')
     .eq('auth_id', authId)
     .single()
+  if (data) {
+    if (dbUserCache.size > 500) dbUserCache.clear()
+    dbUserCache.set(authId, { row: data as MiddlewareDbUser, at: Date.now() })
+  }
   return data
 }
 

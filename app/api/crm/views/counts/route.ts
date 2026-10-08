@@ -99,9 +99,13 @@ export async function POST(req: NextRequest) {
 
   const db = createServiceClient()
   const apiUser = await getApiUserContext()
-  const userScopeKey = apiUser
-    ? `${apiUser.appUserId}:${apiUser.role}:${apiUser.crmScope ?? ''}:${apiUser.crmBrand ?? ''}`
-    : 'anonymous'
+  if (!apiUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // Les admins sans périmètre voient les mêmes chiffres : cache partagé entre
+  // eux au lieu d'un recalcul complet par personne.
+  const sharedAdmin = apiUser.role === 'admin' && !apiUser.crmScope && !apiUser.crmBrand && !apiUser.isDemo
+  const userScopeKey = sharedAdmin
+    ? 'admin'
+    : `${apiUser.appUserId}:${apiUser.role}:${apiUser.crmScope ?? ''}:${apiUser.crmBrand ?? ''}:${apiUser.isDemo ? 'demo' : ''}`
   // Seules les vues GLOBALES admin (owner_id NULL, scope contacts) sont
   // comptées ici : les vues privées télépro/closer ne doivent jamais
   // apparaître dans la barre d'onglets de l'admin.

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabase, createServiceClient } from '@/lib/supabase'
-import { getAuthUserIdResilient } from '@/lib/auth-resilient'
+import { claimsGetter, getAuthUserIdResilient } from '@/lib/auth-resilient'
 
 export type ApiRole = 'admin' | 'telepro' | 'closer' | 'manager'
 
@@ -24,23 +24,50 @@ const roleAliases: Record<string, ApiRole> = {
   manager: 'manager',
 }
 
+type DbUserRow = {
+  id: string
+  role: string | null
+  slug: string | null
+  hubspot_owner_id: string | null
+  crm_brand: string | null
+  crm_scope: string | null
+  is_default_brand_telepro: boolean | null
+  is_demo: boolean | null
+}
+
+// Profil rdv_users gardé 60 s par instance : évite une requête base à chaque
+// appel API (un changement de rôle met au plus 60 s à s'appliquer).
+const DB_USER_TTL_MS = 60_000
+const dbUserCache = new Map<string, { row: DbUserRow | null; at: number }>()
+
+async function loadDbUser(authUserId: string): Promise<DbUserRow | null> {
+  const hit = dbUserCache.get(authUserId)
+  if (hit && Date.now() - hit.at < DB_USER_TTL_MS) return hit.row
+  const db = createServiceClient()
+  const { data, error } = await db
+    .from('rdv_users')
+    .select('id, role, slug, hubspot_owner_id, crm_brand, crm_scope, is_default_brand_telepro, is_demo')
+    .eq('auth_id', authUserId)
+    .maybeSingle()
+  if (error) return null
+  const row = (data as DbUserRow | null) ?? null
+  if (dbUserCache.size > 500) dbUserCache.clear()
+  dbUserCache.set(authUserId, { row, at: Date.now() })
+  return row
+}
+
 export async function getApiUserContext(): Promise<ApiUserContext | null> {
   const auth = await createServerSupabase()
   const { cookies } = await import('next/headers')
   const cookieStore = await cookies()
   // Résilient aux pannes Supabase Auth : timeout court + fallback cookie JWT.
   const authUserId = await getAuthUserIdResilient(
-    () => auth.auth.getUser(),
+    claimsGetter(auth),
     cookieStore
   )
   if (!authUserId) return null
 
-  const db = createServiceClient()
-  const { data: dbUser } = await db
-    .from('rdv_users')
-    .select('id, role, slug, hubspot_owner_id, crm_brand, crm_scope, is_default_brand_telepro, is_demo')
-    .eq('auth_id', authUserId)
-    .maybeSingle()
+  const dbUser = await loadDbUser(authUserId)
 
   if (!dbUser || !dbUser.role) return null
 

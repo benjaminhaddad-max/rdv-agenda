@@ -12,7 +12,7 @@ import { fetchParcoursupVerdictsByContactId, fetchContactIdsByParcoursupVerdict 
 import { expandOrigineFilterValues } from '@/lib/origine-normalization'
 import { META_BACKFILL_TERM_IDF_VIEW_ID, resolveMetaBackfillTermIdfContactIds } from '@/lib/meta-backfill-view'
 import { overlaySavedViewParams, type CRMSavedView } from '@/lib/crm-views'
-import { resolveLabCallbackContactIds, fetchLabAppLeadAggregates, filterLabAppLeads } from '@/lib/crm-lab-callbacks'
+import { resolveLabCallbackContactIds, fetchLabAppLeadAggregatesCached, filterLabAppLeads } from '@/lib/crm-lab-callbacks'
 
 // Classes prioritaires — filtre SQL via .in()
 const PRIORITY_CLASSES = ['Seconde', 'Première', 'Terminale']
@@ -748,7 +748,7 @@ export async function GET(req: NextRequest) {
   {
     const labAppRules = customFilters.filter(r => r.field === 'lab_app')
     if (labAppRules.length > 0) {
-      const byContact = await fetchLabAppLeadAggregates(db)
+      const byContact = await fetchLabAppLeadAggregatesCached(db)
       for (const rule of labAppRules) {
         const ids = filterLabAppLeads(byContact, rule.value)
         if (rule.operator === 'is_not' || rule.operator === 'is_none') {
@@ -844,7 +844,20 @@ export async function GET(req: NextRequest) {
     !teleproNot &&
     !leadStatusNot &&
     !hasDealHeavyFilter &&
-    !hasFormHeavyFilter
+    !hasFormHeavyFilter &&
+    // Le chemin rapide n'applique pas ces filtres : sans ces gardes, une vue
+    // filtrée (ex. « Leads apps Lab ») affichait le total de toute la base.
+    customFilters.length === 0 &&
+    labCallbackContactIds === null &&
+    labCallbackExcludedIds === null &&
+    emptyFields.length === 0 &&
+    notEmptyFields.length === 0 &&
+    !closerContactHsId &&
+    !closerContactNot &&
+    !metaLeadAdsOnly &&
+    effectiveRecentFormMonths <= 0 &&
+    effectiveRecentFormDays <= 0 &&
+    effectiveCreatedBeforeDays <= 0
 
   if (canFastCountOnly) {
     const fastSplit = (v: string) => v.split(',').filter(Boolean)

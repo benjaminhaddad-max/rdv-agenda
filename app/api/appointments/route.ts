@@ -220,8 +220,8 @@ async function createAppointment(req: NextRequest, forcedBrand: 'medibox' | null
     const auth = await createServerSupabase()
     const { cookies } = await import('next/headers')
     const cookieStore = await cookies()
-    const { getAuthUserIdResilient } = await import('@/lib/auth-resilient')
-    const userId = await getAuthUserIdResilient(() => auth.auth.getUser(), cookieStore)
+    const { claimsGetter, getAuthUserIdResilient } = await import('@/lib/auth-resilient')
+    const userId = await getAuthUserIdResilient(claimsGetter(auth), cookieStore)
     if (userId) {
       const dbCheck = createServiceClient()
       const { data: rdvUser } = await dbCheck
