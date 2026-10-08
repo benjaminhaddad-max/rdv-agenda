@@ -28,7 +28,7 @@ import { crmV2 } from '@/lib/crm-v2-theme'
 import { useIsMobile } from '@/lib/useIsMobile'
 import {
   CrmV2Avatar, CrmV2Body, CrmV2Button, CrmV2Field, CrmV2Header, CrmV2Input, CrmV2KpiCard, CrmV2KpiGrid, CrmV2Page,
-  CrmV2Search, CrmV2Segmented, CrmV2Select, CrmV2StatusPill, CrmV2Table, CrmV2TableCard, CrmV2Tabs, CrmV2Td, CrmV2Th, CrmV2Tr,
+  CrmV2Search, CrmV2Segmented, CrmV2Select, CrmV2Table, CrmV2TableCard, CrmV2Tabs, CrmV2Td, CrmV2Th, CrmV2Tr,
 } from '@/components/crm-v2/primitives'
 import { AdminIconButton, AdminNotice, AdminSpin } from '@/components/crm-v2/admin/AdminUi'
 import { PanelCard } from '@/components/crm-v2/panels/PanelUi'
@@ -739,16 +739,38 @@ function BrandChips({ b }: { b: BrandBreakdown | undefined }) {
   )
 }
 
-/** Casquettes du compte autres que celle de l'onglet (double rôle). */
-function otherRoles(tab: Tab, m: EquipeMember | null): string[] {
-  if (!m) return []
-  const all = teamRolesOf(m)
-  if (tab === 'telepros') return all.filter(r => r !== 'telepro')
-  if (tab === 'closers') return all.filter(r => r !== 'closer')
-  return all.filter(r => r !== 'admin')
+/**
+ * Badge double rôle : affiché dans chaque onglet où le compte apparaît
+ * (« Télépro + Closer », « Admin + Closer »), une couleur par casquette.
+ */
+function DualRoleBadge({ m }: { m: EquipeMember | null }) {
+  if (!m) return null
+  const roles = teamRolesOf(m)
+  if (roles.length < 2) return null
+  return (
+    <span
+      title={`Double rôle : ${roles.map(r => TEAM_ROLE_LABELS[r] ?? r).join(' et ')}`}
+      style={{
+        display: 'inline-flex', alignItems: 'stretch', borderRadius: 999, overflow: 'hidden', flexShrink: 0,
+        fontSize: 11, fontWeight: 700, lineHeight: '18px', border: `1px solid ${crmV2.border}`,
+      }}
+    >
+      {roles.map((r, i) => {
+        const c = ROLE_COLOR[r] ?? crmV2.goldDark
+        return (
+          <span key={r} style={{
+            padding: '0 8px', color: c, background: `${c}14`,
+            borderLeft: i > 0 ? `1px solid ${crmV2.border}` : 'none', whiteSpace: 'nowrap',
+          }}>
+            {TEAM_ROLE_LABELS[r] ?? r}
+          </span>
+        )
+      })}
+    </span>
+  )
 }
 
-function NameCell({ tab, row, open }: { tab: Tab; row: Row; open: boolean }) {
+function NameCell({ row, open }: { tab: Tab; row: Row; open: boolean }) {
   const banned = !!row.member?.is_banned
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 0, flexWrap: 'wrap' }}>
@@ -757,9 +779,7 @@ function NameCell({ tab, row, open }: { tab: Tab; row: Row; open: boolean }) {
         <CrmV2Avatar name={row.name} color={banned ? crmV2.borderStrong : (row.color ?? crmV2.gold)} size={24} radius="36%" />
       </span>
       <span style={{ fontWeight: 600, color: banned ? crmV2.textMuted : crmV2.text, whiteSpace: 'nowrap' }}>{row.name}</span>
-      {otherRoles(tab, row.member).map(r => (
-        <CrmV2StatusPill key={r} label={`+ ${TEAM_ROLE_LABELS[r] ?? r}`} color={ROLE_COLOR[r] ?? crmV2.goldDark} dot={false} />
-      ))}
+      <DualRoleBadge m={row.member} />
     </span>
   )
 }
