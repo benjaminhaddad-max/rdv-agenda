@@ -4,6 +4,7 @@ import { createServiceClient } from '@/lib/supabase'
 import { cached } from '@/lib/cache'
 import { isTypesenseEnabled, searchTypesenseCrmContacts } from '@/lib/typesense'
 import { getApiUserContext, requireApiRole } from '@/lib/api-auth'
+import { demoContactsPayload } from '@/lib/demo-mode'
 import { normalizeClasseActuelle } from '@/lib/classe-actuelle'
 import { resolveFormEventFilter } from '@/lib/form-event-resolver'
 import { recordCrmPerfSample } from '@/lib/crm-perf'
@@ -47,6 +48,13 @@ export async function GET(req: NextRequest) {
   const db = createServiceClient()
   const searchParams = new URLSearchParams(req.nextUrl.searchParams)
   const apiUser = await getApiUserContext()
+
+  // Compte démo (review Apple) : uniquement les fiches DEMO_, jamais le cache partagé.
+  if (apiUser?.isDemo) {
+    return withPerfHeader(NextResponse.json(await demoContactsPayload(db, apiUser, searchParams), {
+      headers: { 'Cache-Control': 'no-store' },
+    }))
+  }
 
   // Les vues télépro n'envoient que `view_id` (pas les filtres dépliés de l'admin).
   // On hydrate ici pour appliquer formulaire / classe / statut, tout en ignorant

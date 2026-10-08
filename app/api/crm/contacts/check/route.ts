@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { getApiUserContext } from '@/lib/api-auth'
+import { DEMO_CONTACT_PREFIX } from '@/lib/demo-mode'
 
 /**
  * GET /api/crm/contacts/check?email=xxx
@@ -18,12 +20,13 @@ export async function GET(req: NextRequest) {
   }
 
   const db = createServiceClient()
-  const { data } = await db
+  let query = db
     .from('crm_contacts')
     .select('hubspot_contact_id, firstname, lastname, email')
     .ilike('email', email)
-    .limit(1)
-    .maybeSingle()
+  // Compte démo (review Apple) : ne révèle jamais l'existence d'un vrai contact.
+  if ((await getApiUserContext())?.isDemo) query = query.like('hubspot_contact_id', `${DEMO_CONTACT_PREFIX}%`)
+  const { data } = await query.limit(1).maybeSingle()
 
   if (!data) return NextResponse.json({ exists: false })
 

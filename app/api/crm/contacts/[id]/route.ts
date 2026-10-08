@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { getApiUserContext } from '@/lib/api-auth'
+import { isDemoContactId } from '@/lib/demo-mode'
 import { normalizeClasseActuelle } from '@/lib/classe-actuelle'
 import {
   CONTACT_IDENTITY_COLUMNS,
@@ -34,6 +36,10 @@ const COLUMN_TO_HUBSPOT_PROP: Record<string, string> = Object.fromEntries(
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const db = createServiceClient()
   const { id: contactId } = await params
+  // Compte démo (review Apple) : modification limitée aux fiches DEMO_.
+  if (!isDemoContactId(contactId) && (await getApiUserContext())?.isDemo) {
+    return NextResponse.json({ error: 'Contact introuvable' }, { status: 404 })
+  }
   const body = await req.json()
 
   const { telepro_user_id, closer_du_contact_owner_id, ...contactFields } = body

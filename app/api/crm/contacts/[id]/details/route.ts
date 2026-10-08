@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { getApiUserContext } from '@/lib/api-auth'
+import { isDemoContactId } from '@/lib/demo-mode'
 
 /**
  * GET /api/crm/contacts/[id]/details
@@ -18,6 +20,11 @@ export async function GET(
 ) {
   const db = createServiceClient()
   const { id: contactId } = await params
+
+  // Compte démo (review Apple) : seules les fiches DEMO_ sont accessibles.
+  if (!isDemoContactId(contactId) && (await getApiUserContext())?.isDemo) {
+    return NextResponse.json({ error: 'Contact introuvable' }, { status: 404 })
+  }
 
   // ?phase=core    → renvoie uniquement les donnees critiques pour le 1er
   //                  paint (contact, deals, tasks, formSubmissions,

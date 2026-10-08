@@ -10,6 +10,8 @@ import { STAGES, PIPELINE_2026_2027, formatDealName } from '@/lib/hubspot'
 import { createMeetEvent, isGoogleMeetConfigured } from '@/lib/google-meet'
 import { APPOINTMENT_LIST_SELECT, enrichAppointmentsTelepro } from '@/lib/appointment-display'
 import { CAMPUS_OPTIONS, isValidCampus } from '@/lib/campus'
+import { getApiUserContext } from '@/lib/api-auth'
+import { getDemoUserIds, excludeDemoTeleproFilter } from '@/lib/demo-mode'
 
 const QUEUE_ALERT_EMAIL = 'pascal@diploma-sante.fr'
 
@@ -63,10 +65,18 @@ async function notifyQueueAlert(appointment: any, source: string): Promise<void>
 export async function GET(req: NextRequest) {
   const startedAt = Date.now()
   const { searchParams } = new URL(req.url)
-  const commercialId = (searchParams.get('commercial_id') || '').trim()
+  let commercialId = (searchParams.get('commercial_id') || '').trim()
   const week = searchParams.get('week') // e.g. "2025-03-10" (Monday of week)
-  const unassigned = searchParams.get('unassigned') === 'true'
-  const teleproId = (searchParams.get('telepro_id') || '').trim()
+  let unassigned = searchParams.get('unassigned') === 'true'
+  let teleproId = (searchParams.get('telepro_id') || '').trim()
+
+  // Compte démo (review Apple) : ne voit que ses propres RDV (agenda équipe compris).
+  const apiUser = await getApiUserContext()
+  if (apiUser?.isDemo) {
+    teleproId = apiUser.appUserId
+    commercialId = ''
+    unassigned = false
+  }
   const scopedLimit = Math.min(Math.max(parseInt(searchParams.get('limit') || '2000', 10) || 2000, 1), 5000)
 
   // Safety net: avoid accidental full-table scans that can stall the UI.
@@ -87,10 +97,15 @@ export async function GET(req: NextRequest) {
 
   if (teleproId) {
     query = query.eq('telepro_id', teleproId)
-  } else if (unassigned) {
-    query = query.is('commercial_id', null)
-  } else if (commercialId) {
-    query = query.eq('commercial_id', commercialId)
+  } else {
+    // Les RDV fictifs des comptes démo n'apparaissent dans aucun agenda réel.
+    const demoFilter = excludeDemoTeleproFilter(await getDemoUserIds(db))
+    if (demoFilter) query = query.or(demoFilter)
+    if (unassigned) {
+      query = query.is('commercial_id', null)
+    } else if (commercialId) {
+      query = query.eq('commercial_id', commercialId)
+    }
   }
 
   if (week) {
@@ -200,7 +215,7 @@ async function createAppointment(req: NextRequest, forcedBrand: 'medibox' | null
 
   // Utilisateur CRM connecte — null pour les prises de RDV publiques (widget web,
   // liens /book). Sert au verrou LINOVA et a la tracabilite du placeur du RDV.
-  let sessionUser: { id: string; role: string | null; crm_brand: string | null } | null = null
+  let sessionUser: { id: string; role: string | null; crm_brand: string | null; is_demo?: boolean | null } | null = null
   try {
     const auth = await createServerSupabase()
     const { cookies } = await import('next/headers')
@@ -211,13 +226,41 @@ async function createAppointment(req: NextRequest, forcedBrand: 'medibox' | null
       const dbCheck = createServiceClient()
       const { data: rdvUser } = await dbCheck
         .from('rdv_users')
-        .select('id, role, crm_brand')
+        .select('id, role, crm_brand, is_demo')
         .eq('auth_id', userId)
         .maybeSingle()
       sessionUser = rdvUser ?? null
     }
   } catch {
     // Best-effort: si l'auth server-side echoue, on laisse le flux historique.
+  }
+
+  // Compte démo (review Apple) : le RDV est enregistré pour l'agenda du compte
+  // démo uniquement — aucun SMS, e-mail, deal HubSpot, closer ni file d'attente.
+  if (sessionUser?.is_demo) {
+    const db = createServiceClient()
+    const { data: demoAppt, error: demoErr } = await db
+      .from('rdv_appointments')
+      .insert({
+        prospect_name,
+        prospect_email,
+        prospect_phone: null,
+        start_at,
+        end_at,
+        status: 'confirme',
+        source: 'telepro',
+        formation_type: formation_type ?? null,
+        hubspot_contact_id: hubspot_contact_id ?? null,
+        classe_actuelle: classe_actuelle ?? null,
+        departement: departement ?? null,
+        meeting_type: meeting_type ?? null,
+        telepro_id: sessionUser.id,
+        commercial_id: null,
+      })
+      .select()
+      .single()
+    if (demoErr) return NextResponse.json({ error: demoErr.message }, { status: 500 })
+    return NextResponse.json(demoAppt, { status: 201 })
   }
 
   // Verrou metier: les utilisateurs CRM de marque LINOVA ne doivent pas pouvoir

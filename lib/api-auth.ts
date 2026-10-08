@@ -13,6 +13,8 @@ export type ApiUserContext = {
   crmBrand: string | null
   crmScope: string | null
   isDefaultBrandTelepro: boolean
+  /** Compte de démonstration (review Apple) — voir lib/demo-mode.ts */
+  isDemo: boolean
 }
 
 const roleAliases: Record<string, ApiRole> = {
@@ -36,7 +38,7 @@ export async function getApiUserContext(): Promise<ApiUserContext | null> {
   const db = createServiceClient()
   const { data: dbUser } = await db
     .from('rdv_users')
-    .select('id, role, slug, hubspot_owner_id, crm_brand, crm_scope, is_default_brand_telepro')
+    .select('id, role, slug, hubspot_owner_id, crm_brand, crm_scope, is_default_brand_telepro, is_demo')
     .eq('auth_id', authUserId)
     .maybeSingle()
 
@@ -51,6 +53,7 @@ export async function getApiUserContext(): Promise<ApiUserContext | null> {
     crmBrand: dbUser.crm_brand ?? null,
     crmScope: dbUser.crm_scope ?? null,
     isDefaultBrandTelepro: !!dbUser.is_default_brand_telepro,
+    isDemo: !!dbUser.is_demo,
   }
 }
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { getApiUserContext } from '@/lib/api-auth'
 const STAGE_BY_STATUS: Record<string, { label: string; color: string }> = {
   non_assigne: { label: 'Non assigné', color: '#64748b' },
   confirme: { label: 'RDV Pris', color: '#ccac71' },
@@ -16,8 +17,11 @@ const STAGE_BY_STATUS: Record<string, { label: string; color: string }> = {
 
 // GET /api/appointments/historique?telepro_id=xxx
 export async function GET(req: NextRequest) {
-  const teleproId = req.nextUrl.searchParams.get('telepro_id')
+  let teleproId = req.nextUrl.searchParams.get('telepro_id')
   if (!teleproId) return NextResponse.json([])
+  // Compte démo (review Apple) : uniquement son propre historique.
+  const apiUser = await getApiUserContext()
+  if (apiUser?.isDemo) teleproId = apiUser.appUserId
 
   const db = createServiceClient()
   const now = new Date().toISOString()

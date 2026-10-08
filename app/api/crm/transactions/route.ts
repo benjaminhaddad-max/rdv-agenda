@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { getApiUserContext } from '@/lib/api-auth'
 import { fetchParcoursupVerdictsByContactId, type ParcoursupVerdictCell } from '@/lib/parcoursup-verdict'
 import { isTypesenseEnabled, searchTypesenseCrmContacts } from '@/lib/typesense'
 
@@ -41,6 +42,11 @@ export async function GET(req: NextRequest) {
   ])
   const STALE_THRESHOLD_MS = 90 * 24 * 60 * 60 * 1000  // 90 jours
   const staleCutoff = Date.now() - STALE_THRESHOLD_MS
+
+  // Compte démo (review Apple) : aucune transaction réelle.
+  if ((await getApiUserContext())?.isDemo) {
+    return NextResponse.json({ data: [], total: 0, page, limit, stats: { stages: {}, formations: {} } })
+  }
 
   // ── Fast path recherche (barre globale) ───────────────────────────────────
   const quick = searchParams.get('quick') === '1'
