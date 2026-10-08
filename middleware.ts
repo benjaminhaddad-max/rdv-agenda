@@ -47,6 +47,8 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/inscription-salons') || // hub public choix salon + places
     pathname.startsWith('/inscription-staff') || // inscription staff (sous-ensemble d’événements)
     pathname === '/podcast' || // candidature publique au podcast « Première année »
+    pathname === '/confidentialite' || // politique de confidentialité (app Hub Diploma — App Store)
+    pathname === '/assistance' || // page d'assistance (app Hub Diploma — App Store)
     pathname.startsWith('/webinars/') // decks HTML webinaires (Cloud Design)
   if (isPublicPath) {
     return NextResponse.next()

@@ -1,0 +1,26 @@
+{
+  "name": "hub-diploma-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Coque native (Capacitor) de l'app Hub Diploma — charge https://hub.diploma-sante.fr",
+  "scripts": {
+    "assets": "capacitor-assets generate --ios --android --iconBackgroundColor '#12314D' --splashBackgroundColor '#12314D'",
+    "sync": "cap sync",
+    "ios": "cap open ios",
+    "android": "cap open android"
+  },
+  "dependencies": {
+    "@capacitor/app": "^7.1.2",
+    "@capacitor/core": "^7.6.6",
+    "@capacitor/haptics": "^7.0.5",
+    "@capacitor/ios": "^7.6.6",
+    "@capacitor/android": "^7.6.6",
+    "@capacitor/keyboard": "^7.0.6",
+    "@capacitor/splash-screen": "^7.0.5",
+    "@capacitor/status-bar": "^7.0.6"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^7.6.6"
+  }
+}

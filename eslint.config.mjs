@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Coque native Capacitor (projets Xcode / Gradle, dépendances propres).
+    "mobile/**",
   ]),
 ]);
 
