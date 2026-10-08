@@ -59,7 +59,6 @@ const NAV_SECTIONS: NavSection[] = [
   {
     title: 'Équipe',
     items: [
-      { key: 'espace-telepro', label: 'Espace télépro', href: '/telepro', icon: Phone, ready: true, external: true },
       { key: 'manage-telepros', label: 'Télépros', href: '/admin/crm-v2/agenda?open=telepros', icon: Users, ready: true },
       { key: 'manage-closers', label: 'Closers', href: '/admin/crm-v2/agenda?open=closers', icon: Briefcase, ready: true },
     ],
