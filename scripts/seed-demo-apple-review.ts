@@ -89,7 +89,7 @@ const contacts = PEOPLE.map(([firstname, lastname, classe, dept, formation], i) 
     contact_createdate: created,
     recent_conversion_date: created,
     recent_conversion_event: 'Demande de documentation',
-    telepro_user_id: userId,
+    telepro_user_id: null, // bigint (id HubSpot) — inutile : le mode démo liste les DEMO_* directement
     synced_at: new Date().toISOString(),
   }
 })

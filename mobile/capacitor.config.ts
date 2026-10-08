@@ -14,15 +14,21 @@ import type { CapacitorConfig } from '@capacitor/cli'
  */
 const BG = '#12314D' // marine Hub Diploma (fond splash / status bar / safe-areas)
 
+// CAP_SERVER_URL (dev uniquement) : pointe la coque vers un serveur local, ex.
+// `CAP_SERVER_URL=http://localhost:3001 bunx cap sync ios` pour tester dans le
+// simulateur ou faire les captures App Store. Toujours re-synchroniser SANS
+// la variable avant une archive de prod.
+const SERVER_URL = process.env.CAP_SERVER_URL?.trim() || 'https://hub.diploma-sante.fr'
+
 const config: CapacitorConfig = {
   appId: 'fr.diplomasante.hub',
   appName: 'Hub Diploma',
   webDir: 'www', // page de secours (hors ligne) — jamais affichée si le réseau répond
   server: {
-    url: 'https://hub.diploma-sante.fr',
-    cleartext: false,
+    url: SERVER_URL,
+    cleartext: SERVER_URL.startsWith('http://'),
     // Domaines autorisés à s'ouvrir DANS l'app (le reste part dans Safari).
-    allowNavigation: ['hub.diploma-sante.fr', '*.supabase.co'],
+    allowNavigation: ['hub.diploma-sante.fr', '*.supabase.co', 'localhost'],
     errorPath: 'offline.html',
   },
   ios: {
