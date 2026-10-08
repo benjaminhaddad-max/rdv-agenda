@@ -22,6 +22,7 @@
     { "path": "/api/cron/sms-campaigns-scheduled",    "schedule": "* * * * *" },
     { "path": "/api/cron/timeslot-survey-relance",    "schedule": "* * * * *" },
     { "path": "/api/cron/timeslot-survey-nouveaux",   "schedule": "* * * * *" },
-    { "path": "/api/cron/email-programs-process",     "schedule": "*/15 * * * *" }
+    { "path": "/api/cron/email-programs-process",     "schedule": "*/15 * * * *" },
+    { "path": "/api/cron/competitor-events-scan",     "schedule": "0 5 * * *" }
   ]
 }

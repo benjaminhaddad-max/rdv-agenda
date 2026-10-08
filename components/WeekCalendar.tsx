@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo, type ReactNode } from 'react'
-import { ChevronLeft, ChevronRight, Users, LayoutDashboard, Plus, Check, MapPin, Video, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Users, LayoutDashboard, Plus, Check, MapPin, Video, X, Pin } from 'lucide-react'
 import { format, startOfWeek, addDays, addWeeks, subWeeks, isSameDay, isToday } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import StatusBadge, { AppointmentStatus } from './StatusBadge'
@@ -15,6 +15,22 @@ import MediboxBadge from './MediboxBadge'
 import { CrmV2Button, CrmV2Segmented } from '@/components/crm-v2/primitives'
 import { AgendaLegendChip, AgendaRoundButton, AgendaSelectPill } from '@/components/crm-v2/agenda/AgendaControls'
 import { crmV2, crmV2AgendaCards } from '@/lib/crm-v2-theme'
+import { EVENT_TYPE_COLORS } from '@/components/crm/EventsAgendaCalendar'
+
+/** Nos événements (JPO, salons, webinaires) — rappel épinglé en haut des jours. */
+type AgendaEvent = {
+  id: string
+  name: string
+  brand: string
+  event_type: string
+  start_day: string
+  end_day: string
+  time_start: string
+  time_end: string | null
+  location: string | null
+}
+
+const AGENDA_EVENT_SHORT: Record<string, string> = { jpo: 'JPO', salon: 'Salon', webinaire: 'Webinaire', autre: 'Événement' }
 
 type Appointment = {
   id: string
@@ -354,6 +370,23 @@ export default function WeekCalendar({
     : view === '2days'
       ? [selectedDay, addDays(selectedDay, 1)]
       : weekDays
+
+  // Nos événements sur la période affichée (rappel épinglé, n'affecte pas la grille RDV)
+  const [agendaEvents, setAgendaEvents] = useState<AgendaEvent[]>([])
+  const eventsFrom = format(visibleDays[0], 'yyyy-MM-dd')
+  const eventsTo = format(visibleDays[visibleDays.length - 1], 'yyyy-MM-dd')
+  useEffect(() => {
+    let cancelled = false
+    fetch(`/api/events-studio/agenda?from=${eventsFrom}&to=${eventsTo}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(j => { if (!cancelled && j) setAgendaEvents(Array.isArray(j.events) ? j.events : []) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [eventsFrom, eventsTo])
+  const eventsForDay = (day: Date) => {
+    const k = format(day, 'yyyy-MM-dd')
+    return agendaEvents.filter(e => e.start_day <= k && e.end_day >= k)
+  }
 
   // Closers uniquement (pas managers, pas télépros) + admin (Pascal)
   const closers = commerciaux.filter(
@@ -864,6 +897,35 @@ export default function WeekCalendar({
     )
   }
 
+  function eventPinTitle(ev: AgendaEvent) {
+    const short = AGENDA_EVENT_SHORT[ev.event_type] || 'Événement'
+    const hours = ev.time_end ? `${ev.time_start}–${ev.time_end}` : ev.time_start
+    return `${short} · ${ev.name} · ${hours}${ev.location ? ` · ${ev.location}` : ''}`
+  }
+
+  function renderEventPin(ev: AgendaEvent, compact: boolean) {
+    const c = EVENT_TYPE_COLORS[ev.event_type] || EVENT_TYPE_COLORS.autre
+    const short = AGENDA_EVENT_SHORT[ev.event_type] || 'Événement'
+    const style = {
+      display: 'flex', alignItems: 'center', gap: 4, minWidth: 0, boxSizing: 'border-box' as const,
+      fontSize: compact ? 9 : 11, fontWeight: 700, lineHeight: 1.3, padding: compact ? '1px 3px' : '2px 6px',
+      borderRadius: 6, background: c.soft, border: `1px solid ${c.solid}4d`, color: crmV2.text,
+      whiteSpace: 'nowrap' as const, overflow: 'hidden', textDecoration: 'none',
+    }
+    const inner = (
+      <>
+        <span style={{ width: 6, height: 6, borderRadius: '50%', background: c.solid, flexShrink: 0 }} />
+        <span style={{ color: c.text, flexShrink: 0 }}>{compact ? short : `${short} ${ev.time_start}`}</span>
+        {!compact && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{ev.name}</span>}
+      </>
+    )
+    return adminMode ? (
+      <a key={ev.id} href={`/admin/crm/events/${ev.id}`} title={eventPinTitle(ev)} style={style}>{inner}</a>
+    ) : (
+      <div key={ev.id} title={eventPinTitle(ev)} style={style}>{inner}</div>
+    )
+  }
+
   /** Grille horaire 9 h–21 h pour 1, 2 ou 7 jours : prend toute la hauteur disponible. */
   function renderTimeGrid(days: Date[]) {
     const single = days.length === 1
@@ -941,6 +1003,35 @@ export default function WeekCalendar({
             )
           })}
         </div>
+
+        {/* Rappel épinglé : nos événements du jour (JPO, salons, webinaires), hors grille horaire */}
+        {days.some(d => eventsForDay(d).length > 0) && (
+          <div style={{
+            display: 'grid', gridTemplateColumns: gridCols, flexShrink: 0,
+            borderBottom: `1px solid ${crmV2.border}`, background: crmV2.bg,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: crmV2.textFaint }} title="Événements Diploma du jour">
+              <Pin size={12} />
+            </div>
+            {days.map(day => {
+              const evs = eventsForDay(day)
+              const shown = evs.slice(0, compact ? 1 : 2)
+              return (
+                <div key={day.toISOString()} style={{
+                  borderLeft: `1px solid ${crmV2.border}`, padding: compact ? 2 : '3px 4px',
+                  display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0,
+                }}>
+                  {shown.map(ev => renderEventPin(ev, compact))}
+                  {evs.length > shown.length && (
+                    <span title={evs.slice(shown.length).map(eventPinTitle).join('\n')} style={{ fontSize: 10, fontWeight: 600, color: crmV2.textMuted, paddingLeft: 4 }}>
+                      +{evs.length - shown.length}
+                    </span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
 
         {/* Grille — remplit toute la hauteur dispo (défile seulement si l'écran est trop court) */}
         <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minHeight: 0, display: 'flex', flexDirection: 'column', paddingTop: 8 }}>
@@ -1290,6 +1381,25 @@ export default function WeekCalendar({
       ) : (
         /* Vue liste */
         <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? 12 : '16px 28px 20px' }}>
+          {agendaEvents.length > 0 && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 12,
+              padding: '8px 10px', borderRadius: 12, border: `1px solid ${crmV2.border}`, background: crmV2.bg,
+            }}>
+              <Pin size={12} color={crmV2.textFaint} />
+              <span style={{ fontSize: 11, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase', letterSpacing: '0.04em', marginRight: 4 }}>
+                Événements de la semaine
+              </span>
+              {agendaEvents.map(ev => (
+                <span key={ev.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, maxWidth: '100%' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: crmV2.textMuted }}>
+                    {format(new Date(`${ev.start_day}T12:00:00`), 'EEE d', { locale: fr })}
+                  </span>
+                  {renderEventPin(ev, false)}
+                </span>
+              ))}
+            </div>
+          )}
           {activeAppointments.length === 0 ? (
             <div style={{ textAlign: 'center', color: crmV2.textMuted, paddingTop: 60, fontSize: 13 }}>
               Aucun RDV assigné cette semaine

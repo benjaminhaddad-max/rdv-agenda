@@ -99,6 +99,8 @@ Statuts deal mappés :
 | 2026-03-12 | `CONTEXT.md` | Création initiale du fichier de contexte |
 | 2026-03-12 | `app/telepro/TeleproClient.tsx` | Ajout vue chronologique (toggle "Chronologique / Par semaine") dans l'onglet Mon Planning — vue chrono par défaut, groupée par jour avec badge PASSÉ/AUJOURD'HUI, bouton "Reprendre" intégré |
 | 2026-03-12 | `app/telepro/TeleproClient.tsx` | Fix : onglet par défaut changé de "Nouveau RDV" → "Mon Planning" pour que les télépros voient directement leur planning |
+| 2026-10-08 | `lib/competitor-events.ts`, `components/crm/EventsAgendaCalendar.tsx`, `app/api/crm/competitor-events/*`, `app/api/cron/competitor-events-scan` | Veille concurrents (Antémed Epsilon, Médisup, CPCM) : table `competitor_events` (v55), bot quotidien (Claude + recherche web), affichage violet pointillé dans l'agenda Événements, ajout manuel / masquage |
+| 2026-10-08 | `components/WeekCalendar.tsx`, `app/api/events-studio/agenda` | Rappel épinglé de nos événements (JPO, salons, webinaires) en haut des jours de l'agenda RDV (télépro, closer, admin), hors grille horaire |
 
 ---
 

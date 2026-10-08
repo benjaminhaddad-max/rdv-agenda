@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import Link from 'next/link'
 import {
   addDays,
@@ -19,8 +19,20 @@ import {
   subWeeks,
 } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { CrmV2Button, CrmV2Card, CrmV2Segmented, CrmV2StatusPill, hexA } from '@/components/crm-v2/primitives'
+import { ChevronLeft, ChevronRight, EyeOff, ExternalLink, Plus, Radar } from 'lucide-react'
+import {
+  CrmV2Button,
+  CrmV2Card,
+  CrmV2CloseButton,
+  CrmV2Drawer,
+  CrmV2Field,
+  CrmV2Input,
+  CrmV2Segmented,
+  CrmV2Select,
+  CrmV2StatusPill,
+  CrmV2Textarea,
+  hexA,
+} from '@/components/crm-v2/primitives'
 import { crmV2, crmV2AgendaCards } from '@/lib/crm-v2-theme'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { BRAND_CONFIG, eventTypeOf, type EventBrand } from '@/lib/events-studio/config'
@@ -80,12 +92,28 @@ export const EVENT_TYPE_COLORS: Record<
   },
 }
 
-const CALENDAR_LEGEND_TYPES = ['webinaire', 'salon', 'jpo'] as const
-
-function eventTypeColor(ev: CalendarEventRow) {
-  const typeId = eventTypeOf(ev).id
-  return EVENT_TYPE_COLORS[typeId] || EVENT_TYPE_COLORS.autre
+/** Événements des prépas concurrentes (veille) — violet, bordure en pointillés. */
+export const COMPETITOR_COLOR = {
+  solid: '#7c3aed',
+  soft: 'rgba(124, 58, 237, 0.13)',
+  text: '#6d28d9',
+  label: 'Concurrents',
 }
+
+const COMPETITOR_NAMES: Record<string, string> = {
+  antemed: 'Antémed Epsilon',
+  medisup: 'Médisup',
+  cpcm: 'CPCM',
+}
+
+const TYPE_SHORT: Record<string, string> = {
+  jpo: 'JPO',
+  webinaire: 'Webinaire',
+  salon: 'Salon',
+  autre: 'Autre',
+}
+
+const CALENDAR_LEGEND_TYPES = ['webinaire', 'salon', 'jpo'] as const
 
 export type CalendarEventRow = {
   id: string
@@ -97,6 +125,51 @@ export type CalendarEventRow = {
   location: string | null
   status: string
   description?: string | null
+}
+
+export type CompetitorEvent = {
+  id: string
+  competitor: string
+  name: string
+  event_type: string
+  start_date: string
+  end_date: string | null
+  time_start: string | null
+  time_end: string | null
+  location: string | null
+  source_url: string | null
+  notes: string | null
+  found_by: 'bot' | 'manual'
+  hidden: boolean
+  last_seen_at: string
+}
+
+type LastScan = {
+  started_at: string
+  finished_at: string | null
+  found: number
+  inserted: number
+  updated: number
+  errors: string | null
+} | null
+
+/** Élément affiché dans le calendrier : un de nos événements ou un événement concurrent. */
+type CalItem = {
+  key: string
+  kind: 'ours' | 'competitor'
+  name: string
+  /** Libellé court devant le nom (concurrent) */
+  prefix: string | null
+  dayKeys: string[]
+  /** 'HH:MM' ou null (horaires inconnus) */
+  time: string | null
+  timeEnd: string | null
+  startIso: number
+  color: { solid: string; soft: string; text: string }
+  typeShort: string
+  sub: string
+  href: string | null
+  competitor: CompetitorEvent | null
 }
 
 type ViewMode = 'month' | 'week' | 'agenda'
@@ -120,33 +193,72 @@ function parisParts(iso: string) {
     hour12: false,
     timeZone: 'Europe/Paris',
   })
-  const [hh, mm] = time.split(':').map((x) => parseInt(x, 10))
-  return { dayKey, hh: hh || 0, mm: mm || 0, time }
+  return { dayKey, time }
 }
 
-/** Jours couverts (inclus) pour un événement multi-jours via [date_end=YYYY-MM-DD]. */
-function dayKeysForEvent(ev: CalendarEventRow): string[] {
-  const { dayKey: startKey } = parisParts(ev.event_date)
-  const m = (ev.description || '').match(DATE_END_RE)
-  if (!m) return [startKey]
-  const endKey = m[1]
-  if (endKey <= startKey) return [startKey]
+function daysBetween(startKey: string, endKey: string | null): string[] {
+  if (!endKey || endKey <= startKey) return [startKey]
   const keys: string[] = []
   let cur = parseISO(`${startKey}T12:00:00`)
   const end = parseISO(`${endKey}T12:00:00`)
-  while (cur <= end) {
+  while (cur <= end && keys.length < 62) {
     keys.push(format(cur, 'yyyy-MM-dd'))
     cur = addDays(cur, 1)
   }
   return keys.length ? keys : [startKey]
 }
 
-function endMinutes(ev: CalendarEventRow, startMin: number): number {
-  if (ev.event_time_end && /^\d{1,2}:\d{2}$/.test(ev.event_time_end)) {
-    const [h, m] = ev.event_time_end.split(':').map((x) => parseInt(x, 10))
-    return h * 60 + m
+function toMinutes(t: string | null): number | null {
+  if (!t || !/^\d{1,2}:\d{2}$/.test(t)) return null
+  const [h, m] = t.split(':').map((x) => parseInt(x, 10))
+  return h * 60 + m
+}
+
+function ourItem(ev: CalendarEventRow): CalItem {
+  const { dayKey, time } = parisParts(ev.event_date)
+  const m = (ev.description || '').match(DATE_END_RE)
+  const typeId = eventTypeOf(ev).id
+  const type = eventTypeOf(ev)
+  return {
+    key: `o:${ev.id}`,
+    kind: 'ours',
+    name: ev.name,
+    prefix: null,
+    dayKeys: daysBetween(dayKey, m ? m[1] : null),
+    time,
+    timeEnd: ev.event_time_end && /^\d{1,2}:\d{2}$/.test(ev.event_time_end) ? ev.event_time_end : null,
+    startIso: new Date(ev.event_date).getTime(),
+    color: EVENT_TYPE_COLORS[typeId] || EVENT_TYPE_COLORS.autre,
+    typeShort: type.short,
+    sub: `${BRAND_CONFIG[brandOf(ev)].name} · ${type.short}${ev.location ? ` · ${ev.location}` : ''}`,
+    href: `/admin/crm/events/${ev.id}`,
+    competitor: null,
   }
-  return startMin + 60
+}
+
+function competitorItem(ev: CompetitorEvent): CalItem {
+  const who = COMPETITOR_NAMES[ev.competitor] || ev.competitor
+  const typeShort = TYPE_SHORT[ev.event_type] || 'Autre'
+  return {
+    key: `c:${ev.id}`,
+    kind: 'competitor',
+    name: ev.name,
+    prefix: who,
+    dayKeys: daysBetween(ev.start_date, ev.end_date),
+    time: ev.time_start,
+    timeEnd: ev.time_end,
+    startIso: new Date(`${ev.start_date}T${ev.time_start || '00:00'}:00`).getTime(),
+    color: COMPETITOR_COLOR,
+    typeShort,
+    sub: `${who} · ${typeShort}${ev.location ? ` · ${ev.location}` : ''}`,
+    href: null,
+    competitor: ev,
+  }
+}
+
+function timeLabel(it: CalItem): string {
+  if (!it.time) return 'Horaires ?'
+  return it.timeEnd ? `${it.time}–${it.timeEnd}` : it.time
 }
 
 function startOfTodayParis(): Date {
@@ -154,9 +266,63 @@ function startOfTodayParis(): Date {
   return new Date(`${key}T00:00:00`)
 }
 
+function formatDayFr(key: string): string {
+  return parseISO(`${key}T12:00:00`).toLocaleDateString('fr-FR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
+}
+
+/** Lien (nos événements) ou bouton (concurrent → panneau de détail). */
+function ItemShell({
+  it,
+  style,
+  children,
+  onSelect,
+}: {
+  it: CalItem
+  style: CSSProperties
+  children: ReactNode
+  onSelect: (ev: CompetitorEvent | null) => void
+}) {
+  const tooltip = it.prefix ? `${it.prefix} — ${it.name} (${timeLabel(it)})` : it.name
+  if (it.href) {
+    return (
+      <Link href={it.href} title={tooltip} style={{ textDecoration: 'none', ...style }}>
+        {children}
+      </Link>
+    )
+  }
+  return (
+    <button
+      type="button"
+      title={tooltip}
+      onClick={() => onSelect(it.competitor)}
+      style={{ font: 'inherit', textAlign: 'left', cursor: 'pointer', ...style }}
+    >
+      {children}
+    </button>
+  )
+}
+
 type Props = {
   events: CalendarEventRow[]
   loading?: boolean
+}
+
+const EMPTY_DRAFT = {
+  competitor: 'cpcm',
+  name: '',
+  event_type: 'jpo',
+  start_date: '',
+  end_date: '',
+  time_start: '',
+  time_end: '',
+  location: '',
+  source_url: '',
+  notes: '',
 }
 
 export default function EventsAgendaCalendar({ events, loading }: Props) {
@@ -164,36 +330,135 @@ export default function EventsAgendaCalendar({ events, loading }: Props) {
   const [view, setView] = useState<ViewMode>('month')
   const [cursor, setCursor] = useState(() => new Date())
 
-  const active = useMemo(
-    () => events.filter((e) => e.status !== 'cancelled'),
-    [events],
-  )
+  // ── Veille concurrents ──
+  const [competitorEvents, setCompetitorEvents] = useState<CompetitorEvent[]>([])
+  const [lastScan, setLastScan] = useState<LastScan>(null)
+  const [showCompetitors, setShowCompetitors] = useState(true)
+  const [scanning, setScanning] = useState(false)
+  const [scanMsg, setScanMsg] = useState<string | null>(null)
+  const [selected, setSelected] = useState<CompetitorEvent | null>(null)
+  const [adding, setAdding] = useState(false)
+  const [draft, setDraft] = useState(EMPTY_DRAFT)
+  const [saving, setSaving] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
+
+  const loadCompetitors = useCallback(async () => {
+    try {
+      const res = await fetch('/api/crm/competitor-events', { credentials: 'include' })
+      if (!res.ok) return
+      const j = await res.json()
+      setCompetitorEvents(Array.isArray(j.events) ? j.events : [])
+      setLastScan(j.last_scan || null)
+    } catch {
+      /* table pas encore créée / réseau : on affiche juste nos événements */
+    }
+  }, [])
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('events-cal-hide-competitors') === '1') setShowCompetitors(false)
+    } catch {
+      /* stockage indisponible */
+    }
+    loadCompetitors()
+  }, [loadCompetitors])
+
+  function toggleCompetitors() {
+    setShowCompetitors((v) => {
+      try {
+        localStorage.setItem('events-cal-hide-competitors', v ? '1' : '0')
+      } catch {
+        /* stockage indisponible */
+      }
+      return !v
+    })
+  }
+
+  async function runScan() {
+    setScanning(true)
+    setScanMsg('Veille en cours (1 à 3 min)…')
+    try {
+      const res = await fetch('/api/crm/competitor-events/scan', { method: 'POST', credentials: 'include' })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(j.error || 'Erreur veille')
+      setScanMsg(
+        `Veille terminée : ${j.inserted} nouveau${j.inserted > 1 ? 'x' : ''}, ${j.updated} mis à jour` +
+          (j.errors?.length ? ` · ${j.errors.length} erreur(s)` : ''),
+      )
+      await loadCompetitors()
+    } catch (e) {
+      setScanMsg(e instanceof Error ? e.message : 'Erreur veille')
+    } finally {
+      setScanning(false)
+    }
+  }
+
+  async function hideCompetitorEvent(ev: CompetitorEvent) {
+    const res = await fetch(`/api/crm/competitor-events/${ev.id}`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hidden: true }),
+    })
+    if (res.ok) {
+      setCompetitorEvents((list) => list.filter((e) => e.id !== ev.id))
+      setSelected(null)
+    }
+  }
+
+  async function saveDraft() {
+    setSaving(true)
+    setFormError(null)
+    try {
+      const res = await fetch('/api/crm/competitor-events', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(draft),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(j.error || 'Erreur enregistrement')
+      setAdding(false)
+      setDraft(EMPTY_DRAFT)
+      await loadCompetitors()
+    } catch (e) {
+      setFormError(e instanceof Error ? e.message : 'Erreur enregistrement')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // ── Éléments affichés ──
+  const items = useMemo(() => {
+    const ours = events.filter((e) => e.status !== 'cancelled').map(ourItem)
+    const theirs = showCompetitors ? competitorEvents.filter((e) => !e.hidden).map(competitorItem) : []
+    return [...ours, ...theirs]
+  }, [events, competitorEvents, showCompetitors])
 
   const byDay = useMemo(() => {
-    const map = new Map<string, CalendarEventRow[]>()
-    for (const ev of active) {
-      for (const dayKey of dayKeysForEvent(ev)) {
+    const map = new Map<string, CalItem[]>()
+    for (const it of items) {
+      for (const dayKey of it.dayKeys) {
         const list = map.get(dayKey) || []
-        list.push(ev)
+        list.push(it)
         map.set(dayKey, list)
       }
     }
     for (const list of map.values()) {
-      list.sort((a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime())
+      // Nos événements d'abord, puis les concurrents ; chacun par heure.
+      list.sort((a, b) =>
+        a.kind !== b.kind ? (a.kind === 'ours' ? -1 : 1) : (toMinutes(a.time) ?? 0) - (toMinutes(b.time) ?? 0),
+      )
     }
     return map
-  }, [active])
+  }, [items])
 
   const upcoming = useMemo(() => {
-    const start = startOfTodayParis().getTime()
-    return active
-      .filter((e) => {
-        const keys = dayKeysForEvent(e)
-        const last = keys[keys.length - 1]
-        return parseISO(`${last}T23:59:59`).getTime() >= start
-      })
-      .sort((a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime())
-  }, [active])
+    const start = format(startOfTodayParis(), 'yyyy-MM-dd')
+    return items
+      .filter((it) => it.dayKeys[it.dayKeys.length - 1] >= start)
+      .sort((a, b) => a.startIso - b.startIso)
+  }, [items])
 
   const weekDays = useMemo(() => {
     const start = startOfWeek(cursor, { weekStartsOn: 1 })
@@ -236,6 +501,23 @@ export default function EventsAgendaCalendar({ events, loading }: Props) {
     cursor: 'pointer',
     padding: 0,
   }
+
+  /** Style commun d'une puce : nos événements en trait plein, concurrents en pointillés. */
+  function chipBorder(it: CalItem, alpha = 0.3) {
+    return it.kind === 'competitor'
+      ? `1px dashed ${hexA(it.color.solid, 0.6)}`
+      : `1px solid ${hexA(it.color.solid, alpha)}`
+  }
+
+  const lastScanLabel = lastScan
+    ? `Veille : ${new Date(lastScan.finished_at || lastScan.started_at).toLocaleString('fr-FR', {
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Europe/Paris',
+      })}`
+    : 'Veille : jamais lancée'
 
   return (
     <CrmV2Card style={{ padding: 0, overflow: 'hidden' }}>
@@ -287,6 +569,19 @@ export default function EventsAgendaCalendar({ events, loading }: Props) {
               bg={EVENT_TYPE_COLORS[typeId].soft}
             />
           ))}
+          <button
+            type="button"
+            onClick={toggleCompetitors}
+            title={showCompetitors ? 'Masquer les événements concurrents' : 'Afficher les événements concurrents'}
+            style={{ border: 'none', background: 'none', padding: 0, cursor: 'pointer', opacity: showCompetitors ? 1 : 0.45 }}
+          >
+            <CrmV2StatusPill
+              label={`${COMPETITOR_COLOR.label}${showCompetitors ? '' : ' (masqués)'}`}
+              color={COMPETITOR_COLOR.text}
+              bg={COMPETITOR_COLOR.soft}
+              style={{ border: `1px dashed ${hexA(COMPETITOR_COLOR.solid, 0.6)}` }}
+            />
+          </button>
           <CrmV2Segmented<ViewMode>
             value={view}
             onChange={setView}
@@ -297,6 +592,36 @@ export default function EventsAgendaCalendar({ events, loading }: Props) {
             ]}
           />
         </div>
+      </div>
+
+      {/* Bandeau veille concurrents */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          flexWrap: 'wrap',
+          padding: isMobile ? '8px 12px' : '8px 14px',
+          borderBottom: `1px solid ${crmV2.border}`,
+          background: hexA(COMPETITOR_COLOR.solid, 0.04),
+          fontSize: 12,
+          color: crmV2.textMuted,
+        }}
+      >
+        <Radar size={14} color={COMPETITOR_COLOR.text} />
+        <span style={{ fontWeight: 600, color: COMPETITOR_COLOR.text }}>
+          Veille Antémed Epsilon · Médisup · CPCM
+        </span>
+        <span title={lastScan?.errors || undefined}>
+          {scanMsg || `${lastScanLabel} · bot automatique chaque matin`}
+        </span>
+        <span style={{ flex: 1 }} />
+        <CrmV2Button size="sm" variant="secondary" icon={<Plus size={13} />} onClick={() => { setFormError(null); setAdding(true) }}>
+          Ajouter
+        </CrmV2Button>
+        <CrmV2Button size="sm" variant="secondary" icon={<Radar size={13} />} onClick={runScan} disabled={scanning}>
+          {scanning ? 'Recherche…' : 'Relancer la veille'}
+        </CrmV2Button>
       </div>
 
       {loading ? (
@@ -338,7 +663,7 @@ export default function EventsAgendaCalendar({ events, loading }: Props) {
             >
               {monthDays.map((day, idx) => {
                 const key = format(day, 'yyyy-MM-dd')
-                const dayEvents = byDay.get(key) || []
+                const dayItems = byDay.get(key) || []
                 const inMonth = isSameMonth(day, cursor)
                 const today = isToday(day)
                 return (
@@ -372,41 +697,40 @@ export default function EventsAgendaCalendar({ events, loading }: Props) {
                       </span>
                     </div>
                     <div style={{ display: 'grid', gap: 3 }}>
-                      {dayEvents.slice(0, 4).map((ev) => {
-                        const c = eventTypeColor(ev)
-                        const { time } = parisParts(ev.event_date)
-                        return (
-                          <Link
-                            key={ev.id}
-                            href={`/admin/crm/events/${ev.id}`}
-                            title={ev.name}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 5,
-                              minWidth: 0,
-                              fontSize: 11,
-                              fontWeight: 700,
-                              lineHeight: 1.3,
-                              padding: '2px 6px',
-                              borderRadius: 6,
-                              background: c.soft,
-                              border: `1px solid ${hexA(c.solid, 0.3)}`,
-                              color: crmV2.text,
-                              textDecoration: 'none',
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                            }}
-                          >
-                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: c.solid, flexShrink: 0 }} />
-                            <span style={{ color: c.text, flexShrink: 0 }}>{time}</span>
-                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{ev.name}</span>
-                          </Link>
-                        )
-                      })}
-                      {dayEvents.length > 4 && (
+                      {dayItems.slice(0, 4).map((it) => (
+                        <ItemShell
+                          key={it.key}
+                          it={it}
+                          onSelect={setSelected}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 5,
+                            minWidth: 0,
+                            width: '100%',
+                            boxSizing: 'border-box',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            lineHeight: 1.3,
+                            padding: '2px 6px',
+                            borderRadius: 6,
+                            background: it.color.soft,
+                            border: chipBorder(it),
+                            color: crmV2.text,
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                          }}
+                        >
+                          <span style={{ width: 6, height: 6, borderRadius: '50%', background: it.color.solid, flexShrink: 0 }} />
+                          <span style={{ color: it.color.text, flexShrink: 0 }}>
+                            {it.kind === 'competitor' ? it.prefix : it.time}
+                          </span>
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{it.name}</span>
+                        </ItemShell>
+                      ))}
+                      {dayItems.length > 4 && (
                         <div style={{ fontSize: 11, fontWeight: 600, color: crmV2.textMuted, paddingLeft: 4 }}>
-                          +{dayEvents.length - 4} de plus
+                          +{dayItems.length - 4} de plus
                         </div>
                       )}
                     </div>
@@ -476,6 +800,54 @@ export default function EventsAgendaCalendar({ events, loading }: Props) {
               })}
             </div>
 
+            {/* Événements sans horaires connus : bandeau « journée » au-dessus de la grille */}
+            {weekDays.some((d) => (byDay.get(format(d, 'yyyy-MM-dd')) || []).some((it) => toMinutes(it.time) == null)) && (
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: `52px repeat(7, minmax(0, 1fr))`,
+                  borderBottom: `1px solid ${crmV2.border}`,
+                }}
+              >
+                <div style={{ fontSize: 10, fontWeight: 700, color: crmV2.textFaint, padding: '6px 4px', textAlign: 'right' }}>
+                  Journée
+                </div>
+                {weekDays.map((day) => {
+                  const key = format(day, 'yyyy-MM-dd')
+                  const allDay = (byDay.get(key) || []).filter((it) => toMinutes(it.time) == null)
+                  return (
+                    <div key={key} style={{ borderLeft: `1px solid ${crmV2.border}`, padding: 3, display: 'grid', gap: 3, alignContent: 'start' }}>
+                      {allDay.map((it) => (
+                        <ItemShell
+                          key={it.key}
+                          it={it}
+                          onSelect={setSelected}
+                          style={{
+                            display: 'block',
+                            width: '100%',
+                            boxSizing: 'border-box',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            padding: '2px 6px',
+                            borderRadius: 6,
+                            background: it.color.soft,
+                            border: chipBorder(it),
+                            color: crmV2.text,
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}
+                        >
+                          {it.prefix ? `${it.prefix} · ` : ''}
+                          {it.name}
+                        </ItemShell>
+                      ))}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
             <div
               style={{
                 display: 'grid',
@@ -505,7 +877,7 @@ export default function EventsAgendaCalendar({ events, loading }: Props) {
 
               {weekDays.map((day) => {
                 const key = format(day, 'yyyy-MM-dd')
-                const dayEvents = byDay.get(key) || []
+                const timed = (byDay.get(key) || []).filter((it) => toMinutes(it.time) != null)
                 const today = isToday(day)
                 return (
                   <div
@@ -520,39 +892,44 @@ export default function EventsAgendaCalendar({ events, loading }: Props) {
                       backgroundImage: `repeating-linear-gradient(to bottom, transparent, transparent ${PX_PER_HOUR - 1}px, ${gridLine} ${PX_PER_HOUR - 1}px, ${gridLine} ${PX_PER_HOUR}px)`,
                     }}
                   >
-                    {dayEvents.map((ev) => {
-                      const { hh, mm } = parisParts(ev.event_date)
-                      const startMin = hh * 60 + mm
-                      const endMin = endMinutes(ev, startMin)
+                    {timed.map((it, idx) => {
+                      const startMin = toMinutes(it.time) as number
+                      const endMin = toMinutes(it.timeEnd) ?? startMin + 60
+                      if (endMin <= HOUR_START * 60 || startMin >= HOUR_END * 60) return null
                       const top = ((startMin - HOUR_START * 60) / 60) * PX_PER_HOUR
                       const height = Math.max(((endMin - startMin) / 60) * PX_PER_HOUR, 22)
-                      if (endMin <= HOUR_START * 60 || startMin >= HOUR_END * 60) return null
-                      const c = eventTypeColor(ev)
-                      const type = eventTypeOf(ev)
+                      // Chevauchement simple : les concurrents se décalent à droite de nos événements.
+                      const overlaps = timed.filter((o) => {
+                        const s = toMinutes(o.time) as number
+                        const e = toMinutes(o.timeEnd) ?? s + 60
+                        return s < endMin && e > startMin
+                      })
+                      const col = overlaps.indexOf(it)
+                      const n = overlaps.length
                       return (
-                        <Link
-                          key={ev.id}
-                          href={`/admin/crm/events/${ev.id}`}
-                          title={ev.name}
+                        <ItemShell
+                          key={`${it.key}-${idx}`}
+                          it={it}
+                          onSelect={setSelected}
                           style={{
                             position: 'absolute',
-                            left: 3,
-                            right: 3,
+                            left: `calc(${(col / n) * 100}% + 3px)`,
+                            width: `calc(${100 / n}% - 6px)`,
                             top: Math.max(top, 0),
                             height,
-                            border: `1px solid ${hexA(c.solid, 0.35)}`,
+                            border: chipBorder(it, 0.35),
                             borderRadius: 8,
                             padding: '2px 7px',
                             boxSizing: 'border-box',
-                            textDecoration: 'none',
                             overflow: 'hidden',
                             zIndex: 1,
                             backgroundColor: crmV2.bg,
-                            backgroundImage: `linear-gradient(${c.soft}, ${c.soft})`,
+                            backgroundImage: `linear-gradient(${it.color.soft}, ${it.color.soft})`,
+                            display: 'block',
                           }}
                         >
                           <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0, lineHeight: '15px' }}>
-                            <span style={{ width: 7, height: 7, borderRadius: '50%', background: c.solid, flexShrink: 0 }} />
+                            <span style={{ width: 7, height: 7, borderRadius: '50%', background: it.color.solid, flexShrink: 0 }} />
                             <span
                               style={{
                                 fontSize: 12,
@@ -564,24 +941,23 @@ export default function EventsAgendaCalendar({ events, loading }: Props) {
                                 minWidth: 0,
                               }}
                             >
-                              {ev.name}
+                              {it.name}
                             </span>
                           </div>
                           <div
                             style={{
                               fontSize: 11,
                               fontWeight: 600,
-                              color: c.text,
+                              color: it.color.text,
                               lineHeight: '13px',
                               whiteSpace: 'nowrap',
                               overflow: 'hidden',
                               textOverflow: 'ellipsis',
                             }}
                           >
-                            {parisParts(ev.event_date).time}
-                            {ev.event_time_end ? `–${ev.event_time_end}` : ''} · {type.short}
+                            {timeLabel(it)} · {it.prefix || it.typeShort}
                           </div>
-                        </Link>
+                        </ItemShell>
                       )
                     })}
                   </div>
@@ -598,22 +974,15 @@ export default function EventsAgendaCalendar({ events, loading }: Props) {
             </div>
           ) : (
             (() => {
-              const groups: { label: string; items: CalendarEventRow[] }[] = []
+              const groups: { label: string; items: CalItem[] }[] = []
               let current = ''
-              for (const ev of upcoming.slice(0, 40)) {
-                const d = new Date(ev.event_date)
-                const label = d.toLocaleDateString('fr-FR', {
-                  weekday: 'long',
-                  day: 'numeric',
-                  month: 'long',
-                  year: 'numeric',
-                  timeZone: 'Europe/Paris',
-                })
+              for (const it of upcoming.slice(0, 60)) {
+                const label = formatDayFr(it.dayKeys[0])
                 if (label !== current) {
                   current = label
                   groups.push({ label, items: [] })
                 }
-                groups[groups.length - 1].items.push(ev)
+                groups[groups.length - 1].items.push(it)
               }
               return (
                 <div style={{ display: 'grid', gap: 4 }}>
@@ -632,67 +1001,63 @@ export default function EventsAgendaCalendar({ events, loading }: Props) {
                         {g.label}
                       </div>
                       <div style={{ display: 'grid', gap: 6 }}>
-                        {g.items.map((ev) => {
-                          const b = brandOf(ev)
-                          const c = eventTypeColor(ev)
-                          const type = eventTypeOf(ev)
-                          const { time } = parisParts(ev.event_date)
-                          return (
-                            <Link
-                              key={ev.id}
-                              href={`/admin/crm/events/${ev.id}`}
-                              style={{
-                                display: 'grid',
-                                gridTemplateColumns: isMobile ? '48px minmax(0, 1fr)' : '64px minmax(0, 1fr)',
-                                gap: 10,
-                                alignItems: 'center',
-                                padding: '8px 12px',
-                                minHeight: 44,
-                                boxSizing: 'border-box',
-                                textDecoration: 'none',
-                                color: 'inherit',
-                                background: crmV2.bg,
-                                border: `1px solid ${crmV2.border}`,
-                                borderLeft: `3px solid ${c.solid}`,
-                                borderRadius: 12,
-                              }}
-                            >
-                              <div style={{ fontSize: 12, color: c.text, fontWeight: 700, lineHeight: 1.3 }}>
-                                {time}
-                                {ev.event_time_end ? (
-                                  <div style={{ fontWeight: 600, color: crmV2.textFaint }}>{ev.event_time_end}</div>
-                                ) : null}
+                        {g.items.map((it) => (
+                          <ItemShell
+                            key={it.key}
+                            it={it}
+                          onSelect={setSelected}
+                            style={{
+                              display: 'grid',
+                              gridTemplateColumns: isMobile ? '48px minmax(0, 1fr)' : '64px minmax(0, 1fr)',
+                              gap: 10,
+                              alignItems: 'center',
+                              padding: '8px 12px',
+                              minHeight: 44,
+                              width: '100%',
+                              boxSizing: 'border-box',
+                              color: 'inherit',
+                              background: it.kind === 'competitor' ? hexA(COMPETITOR_COLOR.solid, 0.04) : crmV2.bg,
+                              border: it.kind === 'competitor' ? `1px dashed ${hexA(COMPETITOR_COLOR.solid, 0.45)}` : `1px solid ${crmV2.border}`,
+                              borderLeft: `3px solid ${it.color.solid}`,
+                              borderRadius: 12,
+                            }}
+                          >
+                            <div style={{ fontSize: 12, color: it.color.text, fontWeight: 700, lineHeight: 1.3 }}>
+                              {it.time || '—'}
+                              {it.timeEnd ? (
+                                <div style={{ fontWeight: 600, color: crmV2.textFaint }}>{it.timeEnd}</div>
+                              ) : null}
+                            </div>
+                            <div style={{ minWidth: 0 }}>
+                              <div
+                                style={{
+                                  fontWeight: 600,
+                                  fontSize: 14,
+                                  color: crmV2.text,
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                }}
+                              >
+                                {it.name}
                               </div>
-                              <div style={{ minWidth: 0 }}>
-                                <div
-                                  style={{
-                                    fontWeight: 600,
-                                    fontSize: 14,
-                                    color: crmV2.text,
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    whiteSpace: 'nowrap',
-                                  }}
-                                >
-                                  {ev.name}
-                                </div>
-                                <div
-                                  style={{
-                                    fontSize: 12,
-                                    color: crmV2.textMuted,
-                                    marginTop: 2,
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    whiteSpace: 'nowrap',
-                                  }}
-                                >
-                                  {BRAND_CONFIG[b].name} · {type.short}
-                                  {ev.location ? ` · ${ev.location}` : ''}
-                                </div>
+                              <div
+                                style={{
+                                  fontSize: 12,
+                                  color: it.kind === 'competitor' ? COMPETITOR_COLOR.text : crmV2.textMuted,
+                                  marginTop: 2,
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                }}
+                              >
+                                {it.kind === 'competitor' ? 'Concurrent · ' : ''}
+                                {it.sub}
+                                {it.dayKeys.length > 1 ? ` · jusqu’au ${format(parseISO(`${it.dayKeys[it.dayKeys.length - 1]}T12:00:00`), 'd MMM', { locale: fr })}` : ''}
                               </div>
-                            </Link>
-                          )
-                        })}
+                            </div>
+                          </ItemShell>
+                        ))}
                       </div>
                     </div>
                   ))}
@@ -702,6 +1067,150 @@ export default function EventsAgendaCalendar({ events, loading }: Props) {
           )}
         </div>
       )}
+
+      {/* Détail d'un événement concurrent */}
+      <CrmV2Drawer
+        open={!!selected}
+        onClose={() => setSelected(null)}
+        header={
+          selected && (
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <CrmV2StatusPill
+                  label={`Concurrent · ${COMPETITOR_NAMES[selected.competitor] || selected.competitor}`}
+                  color={COMPETITOR_COLOR.text}
+                  bg={COMPETITOR_COLOR.soft}
+                />
+                <div style={{ fontSize: 17, fontWeight: 700, marginTop: 8, lineHeight: 1.3 }}>{selected.name}</div>
+              </div>
+              <CrmV2CloseButton onClick={() => setSelected(null)} />
+            </div>
+          )
+        }
+        footer={
+          selected && (
+            <>
+              {selected.source_url && (
+                <a href={selected.source_url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
+                  <CrmV2Button variant="secondary" icon={<ExternalLink size={14} />}>
+                    Voir la source
+                  </CrmV2Button>
+                </a>
+              )}
+              <span style={{ flex: 1 }} />
+              <CrmV2Button variant="danger" icon={<EyeOff size={14} />} onClick={() => hideCompetitorEvent(selected)}>
+                Masquer
+              </CrmV2Button>
+            </>
+          )
+        }
+      >
+        {selected && (
+          <div style={{ padding: 18, display: 'grid', gap: 14, fontSize: 13 }}>
+            {[
+              ['Type', TYPE_SHORT[selected.event_type] || 'Autre'],
+              [
+                'Date',
+                selected.end_date
+                  ? `Du ${formatDayFr(selected.start_date)} au ${formatDayFr(selected.end_date)}`
+                  : formatDayFr(selected.start_date),
+              ],
+              [
+                'Horaires',
+                selected.time_start
+                  ? `${selected.time_start}${selected.time_end ? ` – ${selected.time_end}` : ''}`
+                  : 'Non trouvés',
+              ],
+              ['Lieu', selected.location || '—'],
+              ['Détails', selected.notes || '—'],
+              [
+                'Source',
+                selected.found_by === 'manual'
+                  ? 'Ajouté à la main'
+                  : `Bot de veille · vu le ${new Date(selected.last_seen_at).toLocaleDateString('fr-FR', { timeZone: 'Europe/Paris' })}`,
+              ],
+            ].map(([label, value]) => (
+              <div key={label}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  {label}
+                </div>
+                <div style={{ marginTop: 3, color: crmV2.text, lineHeight: 1.5, textTransform: label === 'Date' ? 'none' : undefined }}>
+                  {value}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CrmV2Drawer>
+
+      {/* Ajout manuel d'un événement concurrent */}
+      <CrmV2Drawer
+        open={adding}
+        onClose={() => setAdding(false)}
+        header={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ flex: 1, fontSize: 16, fontWeight: 700 }}>Ajouter un événement concurrent</div>
+            <CrmV2CloseButton onClick={() => setAdding(false)} />
+          </div>
+        }
+        footer={
+          <>
+            {formError && <span style={{ fontSize: 12, color: crmV2.danger, alignSelf: 'center' }}>{formError}</span>}
+            <span style={{ flex: 1 }} />
+            <CrmV2Button variant="secondary" onClick={() => setAdding(false)}>
+              Annuler
+            </CrmV2Button>
+            <CrmV2Button variant="primary" onClick={saveDraft} disabled={saving || !draft.name || !draft.start_date}>
+              {saving ? 'Enregistrement…' : 'Enregistrer'}
+            </CrmV2Button>
+          </>
+        }
+      >
+        <div style={{ padding: 18, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <CrmV2Field label="Concurrent">
+            <CrmV2Select value={draft.competitor} onChange={(e) => setDraft({ ...draft, competitor: e.target.value })}>
+              {Object.entries(COMPETITOR_NAMES).map(([id, n]) => (
+                <option key={id} value={id}>
+                  {n}
+                </option>
+              ))}
+            </CrmV2Select>
+          </CrmV2Field>
+          <CrmV2Field label="Type">
+            <CrmV2Select value={draft.event_type} onChange={(e) => setDraft({ ...draft, event_type: e.target.value })}>
+              {Object.entries(TYPE_SHORT).map(([id, n]) => (
+                <option key={id} value={id}>
+                  {n}
+                </option>
+              ))}
+            </CrmV2Select>
+          </CrmV2Field>
+          <CrmV2Field label="Nom" span={2}>
+            <CrmV2Input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="JPO Paris 6e" />
+          </CrmV2Field>
+          <CrmV2Field label="Date">
+            <CrmV2Input type="date" value={draft.start_date} onChange={(e) => setDraft({ ...draft, start_date: e.target.value })} />
+          </CrmV2Field>
+          <CrmV2Field label="Fin (si plusieurs jours)">
+            <CrmV2Input type="date" value={draft.end_date} onChange={(e) => setDraft({ ...draft, end_date: e.target.value })} />
+          </CrmV2Field>
+          <CrmV2Field label="Début">
+            <CrmV2Input type="time" value={draft.time_start} onChange={(e) => setDraft({ ...draft, time_start: e.target.value })} />
+          </CrmV2Field>
+          <CrmV2Field label="Fin">
+            <CrmV2Input type="time" value={draft.time_end} onChange={(e) => setDraft({ ...draft, time_end: e.target.value })} />
+          </CrmV2Field>
+          <CrmV2Field label="Lieu" span={2}>
+            <CrmV2Input value={draft.location} onChange={(e) => setDraft({ ...draft, location: e.target.value })} placeholder="Adresse, ville ou « En ligne »" />
+          </CrmV2Field>
+          <CrmV2Field label="Lien source" span={2}>
+            <CrmV2Input value={draft.source_url} onChange={(e) => setDraft({ ...draft, source_url: e.target.value })} placeholder="https://…" />
+          </CrmV2Field>
+          <CrmV2Field label="Notes" span={2}>
+            <CrmV2Textarea value={draft.notes} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} />
+          </CrmV2Field>
+        </div>
+      </CrmV2Drawer>
     </CrmV2Card>
   )
 }
