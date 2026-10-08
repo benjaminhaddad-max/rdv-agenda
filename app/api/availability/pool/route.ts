@@ -1,191 +1,58 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
-import { weekStartISO } from '@/lib/week'
-import { clampBookingWindowEnd, isBookableSlotStart } from '@/lib/rdv-slots'
+import { parisMidnightUtc, addParisDays } from '@/lib/date-paris'
+import { isUserUnavailable, isTeamBlocked, loadCloserPool, loadUnavailability, openSlotsForDay } from '@/lib/unavailability'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function isMissingWeeklyTable(err: any): boolean {
-  if (!err) return false
-  const code = (err.code || '').toString().toUpperCase()
-  const text = [err.message, err.details, err.hint]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase()
-  return (
-    code === 'PGRST205' ||
-    text.includes('could not find the table') ||
-    text.includes('schema cache') ||
-    text.includes('does not exist') ||
-    (text.includes('relation') && text.includes('weekly'))
-  )
-}
-
-// GET /api/availability/pool?date=2025-03-10
-// Returns aggregated available 30-min slots across ALL closers for a given date.
-// The télépro sees a pool of slots without knowing which closer is behind each one.
+// GET /api/availability/pool?date=2025-03-10[&closerId=…]
+//
+// Créneaux de 30 min proposés à la prise de RDV (télépros, replanification
+// prospect, CRM). Tous les créneaux de 9h à 21h (Paris) sont ouverts : plus
+// de règles de disponibilité hebdomadaires. Un créneau n'est fermé que si
+// toute l'équipe closers est indisponible (rdv_unavailability, cf.
+// lib/unavailability.ts). `count` = nombre de closers disponibles.
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const date = searchParams.get('date') // "2025-03-10"
   const closerId = searchParams.get('closerId')
 
-  if (!date) {
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return NextResponse.json({ error: 'date requis' }, { status: 400 })
   }
 
+  const slots = openSlotsForDay(date)
+  if (slots.length === 0) return NextResponse.json([])
+
   const db = createServiceClient()
-  const targetDate = new Date(date)
-  const dayOfWeek = targetDate.getDay() // 0=Sun, 1=Mon...
-
-  // 1. Get ALL active closers (role=closer or admin)
-  const { data: closers } = await db
-    .from('rdv_users')
-    .select('id')
-    .in('role', ['closer', 'admin'])
-
-  if (!closers || closers.length === 0) {
-    return NextResponse.json([])
+  let blocks: Awaited<ReturnType<typeof loadUnavailability>> = []
+  try {
+    blocks = await loadUnavailability(
+      db,
+      parisMidnightUtc(date).toISOString(),
+      parisMidnightUtc(addParisDays(date, 1)).toISOString(),
+    )
+  } catch {
+    blocks = [] // en cas de souci, on garde les créneaux ouverts
   }
 
-  const closerIds = closers.map(c => c.id)
-
-  // 2. Get blocked dates for this date — exclude these closers
-  const { data: blocked } = await db
-    .from('rdv_blocked_dates')
-    .select('user_id')
-    .eq('blocked_date', date)
-    .in('user_id', closerIds)
-
-  const blockedIds = new Set((blocked || []).map(b => b.user_id))
-  const availableCloserIds = closerIds.filter(id => {
-    if (blockedIds.has(id)) return false
-    if (closerId) return id === closerId
-    return true
-  })
-
-  if (availableCloserIds.length === 0) {
-    return NextResponse.json([])
+  // Sans aucune indisponibilité ce jour-là, pas besoin de charger l'équipe.
+  let poolIds: string[] | null = null
+  if (blocks.some(b => b.user_id !== null) || closerId) {
+    const pool = await loadCloserPool(db)
+    poolIds = closerId ? pool.filter(p => p.id === closerId).map(p => p.id) : pool.map(p => p.id)
+    if (closerId && poolIds.length === 0) poolIds = [closerId]
+    if (poolIds.length === 0) poolIds = null // aucune équipe connue : on reste ouvert
   }
 
-  // 3. Get availability rules for this day & week for available closers
-  //    (table hebdomadaire). Fallback sur l'ancienne table recurrente si
-  //    la migration v26 n'est pas appliquee.
-  const weekStart = weekStartISO(targetDate)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let rules: any[] | null = null
-  const weeklyRes = await db
-    .from('rdv_availability_weekly')
-    .select('*')
-    .eq('week_start', weekStart)
-    .eq('day_of_week', dayOfWeek)
-    .eq('is_active', true)
-    .in('user_id', availableCloserIds)
-
-  const loadLegacyRules = async () => {
-    const fb = await db
-      .from('rdv_availability')
-      .select('*')
-      .eq('day_of_week', dayOfWeek)
-      .eq('is_active', true)
-      .in('user_id', availableCloserIds)
-    return fb.data ?? []
-  }
-
-  if (weeklyRes.error) {
-    if (isMissingWeeklyTable(weeklyRes.error)) {
-      rules = await loadLegacyRules()
-    } else {
-      rules = []
+  const out: Array<{ start: string; end: string; available: boolean; count: number }> = []
+  for (const s of slots) {
+    if (isTeamBlocked(blocks, s.start, s.end)) continue
+    let count = 1
+    if (poolIds) {
+      count = poolIds.filter(id => !isUserUnavailable(blocks, id, s.start, s.end)).length
+      if (count === 0) continue
     }
-  } else {
-    rules = weeklyRes.data ?? []
-    // Weekly table exists but may be empty for this week; keep pool usable via legacy rules.
-    if (rules.length === 0) {
-      rules = await loadLegacyRules()
-    }
-  }
-  if (!rules || rules.length === 0) {
-    return NextResponse.json([])
+    out.push({ start: s.start.toISOString(), end: s.end.toISOString(), available: true, count })
   }
 
-  // 4. Get all booked appointments for this date (non-cancelled)
-  const dayStart = new Date(date)
-  dayStart.setHours(0, 0, 0, 0)
-  const dayEnd = new Date(date)
-  dayEnd.setHours(23, 59, 59, 999)
-
-  const { data: booked } = await db
-    .from('rdv_appointments')
-    .select('commercial_id, start_at, end_at')
-    .neq('status', 'annule')
-    .gte('start_at', dayStart.toISOString())
-    .lte('start_at', dayEnd.toISOString())
-    .in('commercial_id', availableCloserIds)
-
-  // 5. For each closer, generate their slots and track availability
-  // Use a Map: slot_key (start ISO) → count of available closers
-  const slotMap = new Map<string, { start: string; end: string; count: number }>()
-
-  const now = new Date()
-
-  for (const rule of rules) {
-    const closerId = rule.user_id
-    const [startH, startM] = rule.start_time.split(':').map(Number)
-    const [endH, endM] = rule.end_time.split(':').map(Number)
-
-    const slotStart = new Date(date)
-    slotStart.setHours(startH, startM, 0, 0)
-    const ruleEnd = new Date(date)
-    ruleEnd.setHours(endH, endM, 0, 0)
-    const slotEnd = clampBookingWindowEnd(date, ruleEnd)
-
-    const current = new Date(slotStart)
-    while (current < slotEnd) {
-      if (!isBookableSlotStart(current)) break
-      const slotEndTime = new Date(current)
-      slotEndTime.setMinutes(slotEndTime.getMinutes() + 30)
-
-      if (slotEndTime > slotEnd) break
-
-      // Skip past slots
-      if (current <= now) {
-        current.setMinutes(current.getMinutes() + 30)
-        continue
-      }
-
-      // Check how many bookings this closer has at this time (max 3 simultaneous)
-      const bookingCount = booked?.filter(b =>
-        b.commercial_id === closerId &&
-        new Date(b.start_at) < slotEndTime &&
-        new Date(b.end_at) > current
-      ).length || 0
-
-      if (bookingCount < (closerId ? 1 : 3)) {
-        const key = current.toISOString()
-        const existing = slotMap.get(key)
-        if (existing) {
-          existing.count++
-        } else {
-          slotMap.set(key, {
-            start: current.toISOString(),
-            end: slotEndTime.toISOString(),
-            count: 1,
-          })
-        }
-      }
-
-      current.setMinutes(current.getMinutes() + 30)
-    }
-  }
-
-  // 6. Return sorted slots
-  const slots = Array.from(slotMap.values())
-    .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
-    .map(s => ({
-      start: s.start,
-      end: s.end,
-      available: true,
-      count: s.count,
-    }))
-
-  return NextResponse.json(slots)
+  return NextResponse.json(out)
 }

@@ -11,6 +11,9 @@
 //   → Judith Diploma (owner_id 798051044) pour tout RDV dont la date
 //     (start_at, Europe/Paris) est ≤ 2026-08-17. Après cette date → Pascal.
 //
+// INDISPONIBILITÉS (v56) : si Pascal a bloqué le créneau pour lui, le RDV
+// va au closer disponible le moins chargé ce jour-là (lib/unavailability.ts).
+//
 // Si Pascal n'existe pas dans rdv_users (cas exceptionnel) → file
 // d'attente (commercial_id = null) et alerte email.
 //
@@ -20,6 +23,8 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { weekStartISO } from '@/lib/week'
+import { addParisDays, parisMidnightUtc } from '@/lib/date-paris'
+import { isUserUnavailable, loadCloserPool, loadUnavailability } from '@/lib/unavailability'
 
 export const PASCAL_OWNER_ID = '76299546'
 export const JUDITH_OWNER_ID = '798051044'
@@ -53,7 +58,6 @@ function parisDateISO(iso: string): string {
 export async function assignCloserForSlot(
   db: SupabaseClient,
   start_at: string,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _end_at: string,
 ): Promise<AssignedCloser | null> {
   // Override temporaire : RDV dont la date (Paris) ≤ 17 août 2026 → Judith
@@ -80,12 +84,67 @@ export async function assignCloserForSlot(
     .eq('hubspot_owner_id', PASCAL_OWNER_ID)
     .maybeSingle()
   if (!pascal) return null
+
+  // Pascal a bloqué ce créneau pour lui (indisponibilités v56) → closer
+  // disponible le moins chargé ce jour-là. Sinon Pascal, comme avant.
+  const fallback = await availableCloserIfPascalBlocked(db, pascal.id as string, start_at, _end_at)
+  if (fallback) return fallback
+
   return {
     id: pascal.id as string,
     name: pascal.name as string | null,
     hubspot_owner_id: pascal.hubspot_owner_id as string | null,
     role: pascal.role as string,
     isPascal: true,
+  }
+}
+
+async function availableCloserIfPascalBlocked(
+  db: SupabaseClient,
+  pascalId: string,
+  start_at: string,
+  end_at: string,
+): Promise<AssignedCloser | null> {
+  try {
+    const start = new Date(start_at)
+    const end = new Date(end_at && !Number.isNaN(Date.parse(end_at)) ? end_at : start.getTime() + 30 * 60_000)
+    const blocks = await loadUnavailability(db, start.toISOString(), end.toISOString())
+    if (!isUserUnavailable(blocks, pascalId, start, end)) return null
+
+    const pool = (await loadCloserPool(db)).filter(c => c.id !== pascalId)
+    const free = pool.filter(c => !isUserUnavailable(blocks, c.id, start, end))
+    if (!free.length) return null
+
+    // Moins de RDV ce jour-là (Paris) en premier
+    const day = parisDateISO(start_at)
+    const dayStart = parisMidnightUtc(day).toISOString()
+    const dayEnd = parisMidnightUtc(addParisDays(day, 1)).toISOString()
+    const { data: appts } = await db
+      .from('rdv_appointments')
+      .select('commercial_id')
+      .in('commercial_id', free.map(c => c.id))
+      .neq('status', 'annule')
+      .gte('start_at', dayStart)
+      .lt('start_at', dayEnd)
+    const load = new Map<string, number>()
+    for (const a of appts ?? []) load.set(a.commercial_id as string, (load.get(a.commercial_id as string) ?? 0) + 1)
+    free.sort((a, b) => (load.get(a.id) ?? 0) - (load.get(b.id) ?? 0) || a.name.localeCompare(b.name, 'fr'))
+
+    const { data: chosen } = await db
+      .from('rdv_users')
+      .select('id, name, hubspot_owner_id, role')
+      .eq('id', free[0].id)
+      .maybeSingle()
+    if (!chosen) return null
+    return {
+      id: chosen.id as string,
+      name: chosen.name as string | null,
+      hubspot_owner_id: chosen.hubspot_owner_id as string | null,
+      role: chosen.role as string,
+      isPascal: false,
+    }
+  } catch {
+    return null
   }
 }
 

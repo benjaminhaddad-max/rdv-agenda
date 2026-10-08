@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo, type ReactNode } from 'react'
-import { ChevronLeft, ChevronRight, Users, LayoutDashboard, Plus, Check, MapPin, Video, Phone, X, Pin } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Users, LayoutDashboard, Plus, Check, MapPin, Video, Phone, X, Pin, Ban } from 'lucide-react'
 import { format, startOfWeek, addDays, addWeeks, subWeeks, isSameDay, isToday } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import StatusBadge, { AppointmentStatus } from './StatusBadge'
@@ -16,6 +16,10 @@ import { CrmV2Button, CrmV2Segmented } from '@/components/crm-v2/primitives'
 import { AgendaLegendChip, AgendaRoundButton, AgendaSelectPill } from '@/components/crm-v2/agenda/AgendaControls'
 import { crmV2, crmV2AgendaCards } from '@/lib/crm-v2-theme'
 import { EVENT_TYPE_COLORS } from '@/components/crm/EventsAgendaCalendar'
+import {
+  UnavailabilityCreateDialog, UnavailabilityDetailDialog, UnavailabilityLayer, useRangeSelect, useUnavailability,
+  type UnavailabilityBlock,
+} from '@/components/agenda/Unavailability'
 
 /** Nos événements (JPO, salons, webinaires) — rappel épinglé en haut des jours. */
 type AgendaEvent = {
@@ -383,6 +387,27 @@ export default function WeekCalendar({
       .catch(() => {})
     return () => { cancelled = true }
   }, [eventsFrom, eventsTo])
+  // Indisponibilités closers (plages grisées + sélection à la souris)
+  const unavFrom = useMemo(() => { const d = new Date(visibleDays[0]); d.setHours(0, 0, 0, 0); return d }, [eventsFrom]) // eslint-disable-line react-hooks/exhaustive-deps
+  const unavTo = useMemo(() => { const d = addDays(visibleDays[visibleDays.length - 1], 1); d.setHours(0, 0, 0, 0); return d }, [eventsTo]) // eslint-disable-line react-hooks/exhaustive-deps
+  const unav = useUnavailability(unavFrom, unavTo)
+  const [unavCreate, setUnavCreate] = useState<{ start: Date; end: Date } | null>(null)
+  const [unavDetail, setUnavDetail] = useState<UnavailabilityBlock[] | null>(null)
+  const canBlock = unav.canManageSelf && (adminMode || !!closerId)
+  const rangeSelect = useRangeSelect({
+    enabled: canBlock && !isMobile,
+    startHour: GRID_START_HOUR,
+    endHour: GRID_END_HOUR,
+    onSelect: (start, end) => setUnavCreate({ start, end }),
+  })
+  function openBlankUnavailability() {
+    const start = new Date()
+    start.setMinutes(0, 0, 0)
+    start.setHours(Math.min(Math.max(start.getHours() + 1, GRID_START_HOUR), GRID_END_HOUR - 1))
+    if (dayBased && !isSameDay(selectedDay, new Date())) start.setFullYear(selectedDay.getFullYear(), selectedDay.getMonth(), selectedDay.getDate())
+    setUnavCreate({ start, end: new Date(start.getTime() + 3600_000) })
+  }
+
   const eventsForDay = (day: Date) => {
     const k = format(day, 'yyyy-MM-dd')
     return agendaEvents.filter(e => e.start_day <= k && e.end_day >= k)
@@ -1073,7 +1098,9 @@ export default function WeekCalendar({
                 <div
                   key={day.toISOString()}
                   {...columnDragProps(day)}
+                  onMouseDown={rangeSelect.columnProps(day).onMouseDown}
                   style={{
+                    ...rangeSelect.columnProps(day).style,
                     position: 'relative', minWidth: 0, boxSizing: 'border-box',
                     borderLeft: `1px solid ${crmV2.border}`,
                     borderTop: `1px solid ${lineColor}`,
@@ -1092,6 +1119,17 @@ export default function WeekCalendar({
                       Aucun RDV ce jour
                     </div>
                   )}
+
+                  <UnavailabilityLayer
+                    state={unav}
+                    selected={closerId && !teamView ? closerId : selectedCommercial}
+                    day={day}
+                    startHour={GRID_START_HOUR}
+                    endHour={GRID_END_HOUR}
+                    compact={compact}
+                    onOpen={setUnavDetail}
+                  />
+                  {rangeSelect.preview(day)}
 
                   {dayAppts.filter(a => !hiddenIds.has(a.id)).map(appt =>
                     renderApptCard(appt, day, dayLayout, scale),
@@ -1336,6 +1374,21 @@ export default function WeekCalendar({
           )}
           {loading && (
             <span style={{ fontSize: 12, color: crmV2.textFaint, whiteSpace: 'nowrap', flexShrink: 0 }}>Chargement…</span>
+          )}
+          {canBlock && (
+            <button
+              type="button"
+              onClick={openBlankUnavailability}
+              title="Bloquer une plage où tu n'es pas disponible (ou glisse directement sur la grille)"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6, borderRadius: 999, height: 32, padding: '0 12px',
+                fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0, cursor: 'pointer', fontFamily: 'inherit',
+                background: crmV2.bg, border: `1px solid ${crmV2.border}`, color: crmV2.textMuted,
+                marginLeft: !toolbarExtra && !isMobile ? 'auto' : undefined,
+              }}
+            >
+              <Ban size={13} /> Indispo
+            </button>
           )}
           {toolbarExtra && (
             <div style={{
@@ -1674,6 +1727,20 @@ export default function WeekCalendar({
           }}
         />
       )}
+
+      {/* Indisponibilités : création (glisser sur la grille / bouton) et détail */}
+      <UnavailabilityCreateDialog
+        state={unav}
+        initial={unavCreate}
+        onClose={() => setUnavCreate(null)}
+        onSaved={() => { setUnavCreate(null); unav.reload(); setMoveToast({ kind: 'ok', msg: 'Indisponibilité enregistrée' }) }}
+      />
+      <UnavailabilityDetailDialog
+        state={unav}
+        blocks={unavDetail}
+        onClose={() => setUnavDetail(null)}
+        onChanged={() => { setUnavDetail(null); unav.reload(); setMoveToast({ kind: 'ok', msg: 'Indisponibilité retirée' }) }}
+      />
 
       {/* CloserNewRdvModal (création) */}
       {showNewRdvModal && closerId && (

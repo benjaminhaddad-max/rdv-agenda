@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { addParisDays, parisMidnightUtc } from '@/lib/date-paris'
+import { isUserUnavailable, loadUnavailability, openSlotsForDay } from '@/lib/unavailability'
 import { weekStartISO } from '@/lib/week'
-import { clampBookingWindowEnd, isBookableSlotStart } from '@/lib/rdv-slots'
 
 /**
  * /api/availability — disponibilites des closers PAR SEMAINE.
  *
  * Modes :
  *  - GET ?commercial_id=X&date=YYYY-MM-DD
- *      Slots dispos (tranches 30min) pour ce closer ce jour-la, en utilisant
- *      les regles de la semaine du jour donne.
+ *      Slots (tranches 30min) de 9h a 21h pour ce closer ce jour-la, moins ses
+ *      indisponibilites (lib/unavailability.ts). Les regles hebdo ne servent plus.
  *  - GET ?mode=rules&user_id=X&week_start=YYYY-MM-DD
  *      Regles brutes du closer pour la semaine indiquee. Si pas de
  *      week_start, on prend la semaine courante.
@@ -97,41 +98,6 @@ async function overwriteLegacyRules(
     .select('user_id, day_of_week, start_time, end_time, is_active')
 }
 
-function buildSlotsFromRules(
-  date: string,
-  rules: Array<{ start_time: string; end_time: string }>,
-  booked: Array<{ start_at: string; end_at: string }> | null,
-) {
-  const slots: { start: string; end: string; available: boolean }[] = []
-  for (const rule of rules) {
-    const [sH, sM] = (rule.start_time as string).split(':').map(Number)
-    const [eH, eM] = (rule.end_time as string).split(':').map(Number)
-    const slotStart = new Date(date); slotStart.setHours(sH, sM, 0, 0)
-    const ruleEnd = new Date(date);   ruleEnd.setHours(eH, eM, 0, 0)
-    const slotEnd = clampBookingWindowEnd(date, ruleEnd)
-    const current = new Date(slotStart)
-    while (current < slotEnd) {
-      if (!isBookableSlotStart(current)) break
-      const slotEndTime = new Date(current); slotEndTime.setMinutes(slotEndTime.getMinutes() + 30)
-      if (slotEndTime > slotEnd) break
-      const bookingCount = booked?.filter(b => {
-        const bStart = new Date(b.start_at as string)
-        const bEnd = new Date(b.end_at as string)
-        return bStart < slotEndTime && bEnd > current
-      }).length || 0
-      if (current > new Date()) {
-        slots.push({
-          start: current.toISOString(),
-          end: slotEndTime.toISOString(),
-          available: bookingCount < 3,
-        })
-      }
-      current.setMinutes(current.getMinutes() + 30)
-    }
-  }
-  return slots
-}
-
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const mode = searchParams.get('mode')
@@ -188,98 +154,31 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'commercial_id et date requis' }, { status: 400 })
   }
 
-  const targetDate = new Date(date)
-  const dayOfWeek = targetDate.getDay()
-  const weekStart = weekStartISO(targetDate)
-
-  const { data: blockedCheck } = await db
-    .from('rdv_blocked_dates')
-    .select('id')
-    .eq('user_id', commercialId)
-    .eq('blocked_date', date)
-    .limit(1)
-  if (blockedCheck && blockedCheck.length > 0) {
-    return NextResponse.json([])
+  // Nouveau fonctionnement (v56) : 9h-21h ouverts, moins les indisponibilités
+  // du closer (perso ou équipe). Les règles hebdomadaires ne servent plus.
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return NextResponse.json({ error: 'date invalide' }, { status: 400 })
   }
+  const dayStartIso = parisMidnightUtc(date).toISOString()
+  const dayEndIso = parisMidnightUtc(addParisDays(date, 1)).toISOString()
+  const [blocks, { data: booked }] = await Promise.all([
+    loadUnavailability(db, dayStartIso, dayEndIso).catch(() => []),
+    db.from('rdv_appointments')
+      .select('start_at, end_at')
+      .eq('commercial_id', commercialId)
+      .neq('status', 'annule')
+      .gte('start_at', dayStartIso)
+      .lt('start_at', dayEndIso),
+  ])
 
-  const { data: rules, error: rulesErr } = await db
-    .from('rdv_availability_weekly')
-    .select('start_time, end_time, is_active')
-    .eq('user_id', commercialId)
-    .eq('week_start', weekStart)
-    .eq('day_of_week', dayOfWeek)
-    .eq('is_active', true)
-  if (rulesErr) {
-    if (isMissingTable(rulesErr)) {
-      const fallback = await db
-        .from('rdv_availability')
-        .select('start_time, end_time, is_active')
-        .eq('user_id', commercialId)
-        .eq('day_of_week', dayOfWeek)
-        .eq('is_active', true)
-      if (fallback.error) return NextResponse.json({ error: fallback.error.message }, { status: 500 })
-      if (!fallback.data || fallback.data.length === 0) return NextResponse.json([])
-      const legacyRules = fallback.data
-      const dayStart = new Date(date); dayStart.setHours(0, 0, 0, 0)
-      const dayEnd = new Date(date); dayEnd.setHours(23, 59, 59, 999)
-      const { data: bookedLegacy } = await db
-        .from('rdv_appointments')
-        .select('start_at, end_at')
-        .eq('commercial_id', commercialId)
-        .neq('status', 'annule')
-        .gte('start_at', dayStart.toISOString())
-        .lte('start_at', dayEnd.toISOString())
-      const slots = buildSlotsFromRules(date, legacyRules, bookedLegacy ?? null)
-      return NextResponse.json(slots)
-    }
-    return NextResponse.json({ error: rulesErr.message }, { status: 500 })
-  }
-  if (!rules || rules.length === 0) {
-    const weeklyPresence = await db
-      .from('rdv_availability_weekly')
-      .select('id')
-      .eq('user_id', commercialId)
-      .eq('week_start', weekStart)
-      .eq('day_of_week', dayOfWeek)
-      .limit(1)
-    if (weeklyPresence.error) {
-      return NextResponse.json({ error: weeklyPresence.error.message }, { status: 500 })
-    }
-    if (!weeklyPresence.data || weeklyPresence.data.length === 0) {
-      const fallback = await db
-        .from('rdv_availability')
-        .select('start_time, end_time, is_active')
-        .eq('user_id', commercialId)
-        .eq('day_of_week', dayOfWeek)
-        .eq('is_active', true)
-      if (fallback.error) return NextResponse.json({ error: fallback.error.message }, { status: 500 })
-      if (!fallback.data || fallback.data.length === 0) return NextResponse.json([])
-      const dayStart = new Date(date); dayStart.setHours(0, 0, 0, 0)
-      const dayEnd = new Date(date); dayEnd.setHours(23, 59, 59, 999)
-      const { data: bookedLegacy } = await db
-        .from('rdv_appointments')
-        .select('start_at, end_at')
-        .eq('commercial_id', commercialId)
-        .neq('status', 'annule')
-        .gte('start_at', dayStart.toISOString())
-        .lte('start_at', dayEnd.toISOString())
-      const slots = buildSlotsFromRules(date, fallback.data, bookedLegacy ?? null)
-      return NextResponse.json(slots)
-    }
-  }
-  if (!rules || rules.length === 0) return NextResponse.json([])
-
-  const dayStart = new Date(date); dayStart.setHours(0, 0, 0, 0)
-  const dayEnd = new Date(date); dayEnd.setHours(23, 59, 59, 999)
-  const { data: booked } = await db
-    .from('rdv_appointments')
-    .select('start_at, end_at')
-    .eq('commercial_id', commercialId)
-    .neq('status', 'annule')
-    .gte('start_at', dayStart.toISOString())
-    .lte('start_at', dayEnd.toISOString())
-
-  const slots = buildSlotsFromRules(date, rules, booked ?? null)
+  const slots = openSlotsForDay(date)
+    .filter(s => !isUserUnavailable(blocks, commercialId, s.start, s.end))
+    .map(s => {
+      const bookingCount = (booked ?? []).filter(b =>
+        new Date(b.start_at as string) < s.end && new Date(b.end_at as string) > s.start,
+      ).length
+      return { start: s.start.toISOString(), end: s.end.toISOString(), available: bookingCount < 3 }
+    })
   return NextResponse.json(slots)
 }
 
