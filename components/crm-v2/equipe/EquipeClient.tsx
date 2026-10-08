@@ -33,7 +33,7 @@ import {
 import { AdminIconButton, AdminNotice, AdminSpin } from '@/components/crm-v2/admin/AdminUi'
 import { PanelCard } from '@/components/crm-v2/panels/PanelUi'
 import { CredentialBox, type TeamMember } from '@/components/crm-v2/panels/TeamMemberManager'
-import PlanningWeek from '@/components/crm-v2/equipe/PlanningWeek'
+import { PlanningDayCell, PlanningDayHeader, PlanningLegend, PlanningWeekSummary, usePlanningWeek, type PlanningData } from '@/components/crm-v2/equipe/PlanningWeek'
 import { DayScheduleEditor, SlotChip, VERDICTS, VerdictPill, WEEKDAYS, fmtMinutes as fmtPlannedMinutes, type DayReport } from '@/components/planning/PlanningUi'
 import { addParisDays, parisDateKey, parisMonthEndKey, parisWeekStartKey } from '@/lib/date-paris'
 import { RDV_BRANDS, RDV_BRAND_IDS, type RdvBrand } from '@/lib/rdv-brand'
@@ -42,6 +42,15 @@ import type { AgentMetrics, BrandBreakdown, SuiviCommercialResponse } from '@/li
 
 type Tab = 'telepros' | 'closers' | 'admins'
 type Period = 'day' | 'week' | 'month'
+/** Mode d'affichage de la liste : mêmes lignes, colonnes différentes. */
+type Mode = 'planning' | 'stats' | 'acces'
+
+const MODES: Record<Tab, Mode[]> = {
+  telepros: ['planning', 'stats', 'acces'],
+  closers: ['stats', 'acces'],
+  admins: ['acces'],
+}
+const MODE_LABELS: Record<Mode, string> = { planning: 'Planning', stats: 'Stats', acces: 'Accès' }
 
 type EquipeMember = TeamMember & {
   role: string
@@ -243,6 +252,8 @@ export default function EquipeClient() {
   const [expanded, setExpanded] = useState<string | null>(null)
   const [showBanned, setShowBanned] = useState(false)
   const [presenceTick, setPresenceTick] = useState(0)
+  const [mode, setMode] = useState<Mode>('planning')
+  const [editingDay, setEditingDay] = useState<{ row: Row; day: DayReport } | null>(null)
 
   const team = TEAMS[tab]
   const isAdmins = tab === 'admins'
@@ -267,20 +278,37 @@ export default function EquipeClient() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const t = params.get('tab')
-    if (t === 'closers' || t === 'telepros' || t === 'admins') {
-      setTab(t)
-      if (t === 'admins') setSort({ key: 'name', dir: 'asc' })
-    }
+    const tabNow: Tab = t === 'closers' || t === 'telepros' || t === 'admins' ? t : 'telepros'
+    setTab(tabNow)
+    if (tabNow === 'admins') setSort({ key: 'name', dir: 'asc' })
+    const m = params.get('mode') as Mode | null
+    setMode(m && MODES[tabNow].includes(m) ? m : MODES[tabNow][0])
   }, [])
+
+  function syncUrl(t: Tab, m: Mode) {
+    const url = new URL(window.location.href)
+    url.searchParams.set('tab', t)
+    url.searchParams.set('mode', m)
+    url.searchParams.delete('view')
+    window.history.replaceState(null, '', url.toString())
+  }
 
   function changeTab(t: Tab) {
     setTab(t)
     setExpanded(null)
     setSearch('')
     setSort(t === 'admins' ? { key: 'name', dir: 'asc' } : { key: 'rdv', dir: 'desc' })
-    const url = new URL(window.location.href)
-    url.searchParams.set('tab', t)
-    window.history.replaceState(null, '', url.toString())
+    const m = MODES[t].includes(mode) ? mode : MODES[t][0]
+    setMode(m)
+    if (m === 'planning') setPeriod('week')
+    syncUrl(t, m)
+  }
+
+  function changeMode(m: Mode) {
+    setMode(m)
+    setExpanded(null)
+    if (m === 'planning') setPeriod('week')
+    syncUrl(tab, m)
   }
 
   // Comptes : chargés une fois par onglet (et à l'actualisation)
@@ -324,6 +352,24 @@ export default function EquipeClient() {
   }, [team.role, from, to, refreshTick, wantedKey])
 
   const statsReady = !!team.role && statsKey === wantedKey && stats?.role === team.role
+
+  // Mode Planning : semaine (lundi → dimanche) contenant la période affichée
+  const planningWeekStart = parisWeekStartKey(new Date(`${from}T12:00:00Z`))
+  const planning = usePlanningWeek(planningWeekStart, refreshTick + presenceTick, tab === 'telepros' && mode === 'planning')
+
+  async function saveDay(slots: Array<{ start: string; end: string; locked: boolean }>, applyTo: string[]): Promise<string | null> {
+    if (!editingDay) return null
+    const res = await fetch('/api/admin/planning', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: editingDay.row.id, date: editingDay.day.date, slots, apply_to: applyTo }),
+    })
+    const j = await res.json().catch(() => ({}))
+    if (!res.ok) return j.error || 'Enregistrement impossible'
+    setEditingDay(null)
+    setPresenceTick(t => t + 1)
+    return null
+  }
 
   // Présence (planning d'appel) sur la période — onglet Télépros
   const [presence, setPresence] = useState<Record<string, DayReport[]> | null>(null)
@@ -433,6 +479,16 @@ export default function EquipeClient() {
     onPatch: patchMember, onAdd: addMember, onRolesChanged: reloadAllMembers, extraRolesReady,
     presence, cols: visibleCols, allCols, hiddenCols: hidden, onToggleCol: toggleCol,
     onPresenceChanged: () => setPresenceTick(t => t + 1),
+    mode, planning: planning.data, planningCounts: planning.dayCounts,
+    onEditDay: (row: Row, day: DayReport) => setEditingDay({ row, day }),
+    modeSwitch: MODES[tab].length > 1 ? (
+      <CrmV2Segmented<Mode>
+        size="sm"
+        items={MODES[tab].map(m => ({ id: m, label: MODE_LABELS[m] }))}
+        value={mode}
+        onChange={changeMode}
+      />
+    ) : null,
   }
 
   return (
@@ -441,17 +497,23 @@ export default function EquipeClient() {
         title="Équipe"
         subtitle={isAdmins
           ? 'Comptes admin et manager · accès complet au CRM'
-          : `${formatRange(period, from, to)} · comptes, présence et performance`}
+          : mode === 'acces'
+            ? 'Comptes, rôles et accès'
+            : mode === 'planning'
+              ? `${formatRange('week', planningWeekStart, addParisDays(planningWeekStart, 6))} · horaires d'appel et présence`
+              : `${formatRange(period, from, to)} · performance`}
         actions={
           <>
-            {!isAdmins && (
+            {!isAdmins && mode !== 'acces' && (
               <>
-                <CrmV2Segmented<Period>
-                  size="sm"
-                  items={[{ id: 'day', label: 'Jour' }, { id: 'week', label: 'Semaine' }, { id: 'month', label: 'Mois' }]}
-                  value={period}
-                  onChange={setPeriod}
-                />
+                {mode === 'stats' && (
+                  <CrmV2Segmented<Period>
+                    size="sm"
+                    items={[{ id: 'day', label: 'Jour' }, { id: 'week', label: 'Semaine' }, { id: 'month', label: 'Mois' }]}
+                    value={period}
+                    onChange={setPeriod}
+                  />
+                )}
                 <div style={{ display: 'inline-flex', gap: 4 }}>
                   <AdminIconButton icon={<ChevronLeft size={15} />} title="Période précédente" onClick={() => setAnchor(a => shiftAnchor(period, a, -1))} />
                   <CrmV2Button size="sm" onClick={() => setAnchor(parisDateKey(new Date()))}>Aujourd&apos;hui</CrmV2Button>
@@ -480,22 +542,19 @@ export default function EquipeClient() {
       </CrmV2Header>
 
       <CrmV2Body>
-        {tab === 'telepros' && (
-          <PlanningWeek
-            weekStart={parisWeekStartKey(new Date(`${from}T12:00:00Z`))}
-            refreshKey={refreshTick + presenceTick}
-            onSaved={() => setPresenceTick(t => t + 1)}
-          />
+        {mode === 'stats' && statsError && <AdminNotice tone="error">{statsError}</AdminNotice>}
+        {mode === 'planning' && planning.error && <AdminNotice tone="error">{planning.error}</AdminNotice>}
+        {mode === 'planning' && planning.data && !planning.data.ready && (
+          <AdminNotice tone="warning">Planning pas encore activé : la migration BDD v57 est à lancer dans Supabase.</AdminNotice>
         )}
-        {!isAdmins && statsError && <AdminNotice tone="error">{statsError}</AdminNotice>}
-        {!isAdmins && statsReady && stats?.needs_lines && tab === 'telepros' && (
+        {mode === 'stats' && statsReady && stats?.needs_lines && tab === 'telepros' && (
           <AdminNotice tone="warning" icon={<AlertTriangle size={15} />}>
             Aucune ligne Aircall suivie : les appels ne sont pas comptés. Choisis les lignes dans{' '}
             <a href="/admin/crm-v2/reports/suivi-commercial" style={{ color: 'inherit', fontWeight: 700 }}>Suivi commercial</a>.
           </AdminNotice>
         )}
 
-        {!isAdmins && <TeamKpis tab={tab} totals={totals ?? null} loading={statsLoading} />}
+        {mode === 'stats' && <TeamKpis tab={tab} totals={totals ?? null} loading={statsLoading} />}
 
         <MembersTable
           {...tableProps}
@@ -538,6 +597,15 @@ export default function EquipeClient() {
             )}
           </div>
         )}
+        <DayScheduleEditor
+          open={!!editingDay}
+          title={editingDay ? `Horaires d'appel · ${editingDay.row.name}` : ''}
+          day={editingDay?.day ?? null}
+          weekDates={planning.data?.dates}
+          canImpose
+          onClose={() => setEditingDay(null)}
+          onSave={saveDay}
+        />
       </CrmV2Body>
     </CrmV2Page>
   )
@@ -652,6 +720,11 @@ type TableCommon = {
   allCols: Col[]
   hiddenCols: string[]
   onToggleCol: (key: string) => void
+  mode: Mode
+  planning: PlanningData | null
+  planningCounts: Array<{ present: number; planned: number }>
+  onEditDay: (row: Row, day: DayReport) => void
+  modeSwitch: ReactNode
 }
 
 function MembersTable({
@@ -663,9 +736,11 @@ function MembersTable({
   onSearch?: (v: string) => void
   footer?: ReactNode
 }) {
-  const { tab, isMobile, sort, onSort, cols } = common
+  const { tab, isMobile, sort, onSort, mode } = common
+  const cols = mode === 'stats' ? common.cols : []
   const team = TEAMS[tab]
-  const isAdmins = tab === 'admins'
+  const today = parisDateKey(new Date())
+  const planningDates = mode === 'planning' ? (common.planning?.dates ?? []) : []
   const [showAdd, setShowAdd] = useState(false)
   const [created, setCreated] = useState<{ name: string; email: string; password: string | null; emailSent?: boolean } | null>(null)
 
@@ -673,13 +748,15 @@ function MembersTable({
 
   const toolbar = onSearch ? (
     <>
+      {common.modeSwitch}
       <CrmV2Search
         value={search ?? ''}
         onChange={e => onSearch(e.target.value)}
         placeholder={`Rechercher un ${team.noun}…`}
         style={{ flex: '1 1 220px', height: isMobile ? 40 : 36 }}
       />
-      {!isAdmins && !isMobile && <ColumnPicker cols={common.allCols} hidden={common.hiddenCols} onToggle={common.onToggleCol} />}
+      {mode === 'stats' && !isMobile && <ColumnPicker cols={common.allCols} hidden={common.hiddenCols} onToggle={common.onToggleCol} />}
+      {mode === 'planning' && !isMobile && <PlanningLegend />}
       {!showAdd && (
         <CrmV2Button variant="primary" icon={<UserPlus size={14} />} onClick={() => { setShowAdd(true); setCreated(null) }}>
           Ajouter un {team.noun}
@@ -739,7 +816,7 @@ function MembersTable({
     )
   }
 
-  const colSpan = cols.length + 2 + (isAdmins ? 1 : 0)
+  const colSpan = 2 + (mode === 'stats' ? cols.length : mode === 'planning' ? planningDates.length + 1 : ACCES_COLS.length)
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {extras}
@@ -753,13 +830,22 @@ function MembersTable({
                   <span title={c.title}>{c.label}</span>
                 </CrmV2Th>
               ))}
-              {isAdmins && (
-                <CrmV2Th sorted={sort.key === 'lastSignIn' ? sort.dir : false} onClick={() => onSort('lastSignIn')}>Dernière connexion</CrmV2Th>
-              )}
+              {planningDates.map((d, i) => (
+                <CrmV2Th key={d} style={{ minWidth: 112, borderLeft: `1px solid ${crmV2.borderLight}` }}>
+                  <PlanningDayHeader date={d} index={i} counts={common.planningCounts[i]} today={today} />
+                </CrmV2Th>
+              ))}
+              {mode === 'planning' && <CrmV2Th style={{ textAlign: 'right' }}>Semaine</CrmV2Th>}
+              {mode === 'acces' && ACCES_COLS.map(c => (
+                <CrmV2Th key={c.key} sorted={sort.key === c.key ? sort.dir : false} onClick={c.sortable ? () => onSort(c.key) : undefined}>{c.label}</CrmV2Th>
+              ))}
               <CrmV2Th style={{ textAlign: 'right' }}>Compte</CrmV2Th>
             </tr>
           </thead>
           <tbody>
+            {mode === 'planning' && !common.planning && rows.length > 0 && (
+              <tr><CrmV2Td colSpan={colSpan} style={{ textAlign: 'center', height: 50 }}><AdminSpin size={16} /></CrmV2Td></tr>
+            )}
             {loadingMembers && rows.length === 0 ? (
               <tr><CrmV2Td colSpan={colSpan} style={{ textAlign: 'center', height: 80 }}><AdminSpin size={18} /></CrmV2Td></tr>
             ) : rows.length === 0 ? (
@@ -902,6 +988,58 @@ function PresenceDays({ days, onEdit }: { days: DayReport[]; onEdit: (d: DayRepo
   )
 }
 
+const ACCES_COLS: Array<{ key: string; label: string; sortable?: boolean }> = [
+  { key: 'roles', label: 'Rôle · accès' },
+  { key: 'email', label: 'E-mail' },
+  { key: 'lastSignIn', label: 'Dernière connexion', sortable: true },
+  { key: 'status', label: 'Statut' },
+]
+
+const ROLE_ACCESS: Record<string, string> = {
+  admin: 'CRM complet',
+  manager: 'CRM complet',
+  closer: 'Son agenda closer',
+  telepro: 'Espace télépro',
+}
+
+/** Mode Accès : rôle principal + casquettes, e-mail, dernière connexion, statut. */
+function AccesCells({ row }: { row: Row }) {
+  const m = row.member
+  if (!m) return <CrmV2Td colSpan={ACCES_COLS.length} style={{ color: crmV2.textFaint }}>—</CrmV2Td>
+  const roles = teamRolesOf(m)
+  return (
+    <>
+      <CrmV2Td style={{ whiteSpace: 'nowrap' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          {roles.map((r, i) => {
+            const c = ROLE_COLOR[r] ?? crmV2.goldDark
+            return (
+              <span key={r} title={i === 0 ? `Rôle principal : ${ROLE_ACCESS[r] ?? ''}` : 'Casquette en plus'} style={{
+                padding: '1px 8px', borderRadius: 999, fontSize: 11.5, fontWeight: 700, color: c,
+                background: `${c}14`, border: `1px solid ${i === 0 ? c : `${c}40`}`, whiteSpace: 'nowrap',
+              }}>
+                {TEAM_ROLE_LABELS[r] ?? r}
+              </span>
+            )
+          })}
+          <span style={{ fontSize: 12, color: crmV2.textMuted, marginLeft: 4 }}>{ROLE_ACCESS[m.role] ?? ''}</span>
+        </span>
+      </CrmV2Td>
+      <CrmV2Td style={{ color: crmV2.textMuted, whiteSpace: 'nowrap', maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.email}</CrmV2Td>
+      <CrmV2Td style={{ color: crmV2.textMuted, whiteSpace: 'nowrap' }}>{fmtLastSignIn(m.last_sign_in_at)}</CrmV2Td>
+      <CrmV2Td style={{ whiteSpace: 'nowrap' }}>
+        <span style={{
+          display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700,
+          color: m.is_banned ? '#d13a41' : m.auth_id ? crmV2.successStrong : '#b45309',
+        }}>
+          <span style={{ width: 7, height: 7, borderRadius: 999, background: 'currentColor' }} />
+          {m.is_banned ? 'Désactivé' : m.auth_id ? 'Actif' : 'Sans compte'}
+        </span>
+      </CrmV2Td>
+    </>
+  )
+}
+
 /** Bouton « Colonnes » : afficher / masquer les colonnes du tableau. */
 function ColumnPicker({ cols, hidden, onToggle }: { cols: Col[]; hidden: string[]; onToggle: (key: string) => void }) {
   const [open, setOpen] = useState(false)
@@ -990,14 +1128,28 @@ function MemberRow({
   open: boolean
   onToggle: () => void
 }) {
-  const { tab, statsLoading } = common
+  const { tab, statsLoading, mode } = common
   const account = useAccountActions(tab, row, common.onPatch)
   const s = row.stats
   return (
     <Fragment>
       <CrmV2Tr onClick={onToggle}>
         <CrmV2Td style={{ whiteSpace: 'nowrap' }}><NameCell tab={tab} row={row} open={open} /></CrmV2Td>
-        {cols.map(c => c.key === 'presence' ? (
+        {mode === 'planning' && (common.planning?.report[row.id] ?? []).map(d => (
+          <CrmV2Td key={d.date} style={{ height: 'auto', padding: 2, verticalAlign: 'top', borderLeft: `1px solid ${crmV2.borderLight}` }}>
+            <PlanningDayCell day={d} today={parisDateKey(new Date())} onClick={() => common.onEditDay(row, d)} />
+          </CrmV2Td>
+        ))}
+        {mode === 'planning' && common.planning && !common.planning.report[row.id] && (
+          <CrmV2Td colSpan={7} style={{ color: crmV2.textFaint, fontSize: 12 }}>Pas dans l&apos;équipe télépro active</CrmV2Td>
+        )}
+        {mode === 'planning' && (
+          <CrmV2Td style={{ textAlign: 'right', verticalAlign: 'top', paddingTop: 8 }}>
+            {common.planning?.report[row.id] ? <PlanningWeekSummary days={common.planning.report[row.id]} /> : null}
+          </CrmV2Td>
+        )}
+        {mode === 'acces' && <AccesCells row={row} />}
+        {(mode === 'stats' ? cols : []).map(c => c.key === 'presence' ? (
           <CrmV2Td key={c.key} style={{ whiteSpace: 'nowrap' }}>
             <PresenceCell days={common.presence ? (common.presence[row.id] ?? []) : null} />
           </CrmV2Td>
@@ -1006,9 +1158,7 @@ function MemberRow({
             {s ? cellValue(tab, c.key, s) : statsLoading ? <span style={{ color: crmV2.textFaint }}>…</span> : '—'}
           </CrmV2Td>
         ))}
-        {tab === 'admins' && (
-          <CrmV2Td style={{ color: crmV2.textMuted, whiteSpace: 'nowrap' }}>{fmtLastSignIn(row.member?.last_sign_in_at ?? null)}</CrmV2Td>
-        )}
+
         <CrmV2Td style={{ textAlign: 'right' }}>
           <div onClick={e => e.stopPropagation()}>{account.actions}</div>
         </CrmV2Td>
@@ -1096,7 +1246,7 @@ function MemberDetail({ row, ...common }: TableCommon & { row: Row }) {
   const days = common.presence?.[row.id] ?? []
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {tab === 'telepros' && common.presence && <PresenceDays days={days} onEdit={setEditing} />}
+      {tab === 'telepros' && common.mode === 'stats' && common.presence && <PresenceDays days={days} onEdit={setEditing} />}
       {tab === 'telepros' && (
         <DayScheduleEditor
           open={!!editing}
