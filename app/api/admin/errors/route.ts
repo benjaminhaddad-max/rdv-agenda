@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireApiRole } from '@/lib/api-auth'
 import { createServiceClient } from '@/lib/supabase'
 
 /**
@@ -13,6 +14,8 @@ import { createServiceClient } from '@/lib/supabase'
  */
 
 export async function GET(req: NextRequest) {
+  const apiGuard = await requireApiRole(['admin'])
+  if (!apiGuard.ok) return apiGuard.response
   const sp = req.nextUrl.searchParams
   const level = sp.get('level') || ''
   const label = sp.get('label') || ''
@@ -21,6 +24,17 @@ export async function GET(req: NextRequest) {
   const offset = parseInt(sp.get('offset') || '0', 10)
 
   const db = createServiceClient()
+
+  // Badge de la sidebar : seulement le nombre, sans lignes ni stats.
+  if (sp.get('count_only') === '1') {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let cq: any = db.from('crm_error_logs').select('id', { count: 'exact', head: true })
+    if (resolved === '1') cq = cq.eq('resolved', true)
+    if (resolved === '0') cq = cq.eq('resolved', false)
+    const { count, error } = await cq
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ total: count ?? 0 })
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let q: any = db.from('crm_error_logs')
@@ -67,6 +81,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  const apiGuard = await requireApiRole(['admin'])
+  if (!apiGuard.ok) return apiGuard.response
   let body: { id?: string; resolved?: boolean; resolved_by?: string }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'JSON invalide' }, { status: 400 }) }
   if (!body.id) return NextResponse.json({ error: 'id requis' }, { status: 400 })
@@ -83,6 +99,8 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const apiGuard = await requireApiRole(['admin'])
+  if (!apiGuard.ok) return apiGuard.response
   const sp = req.nextUrl.searchParams
   const olderThanDays = parseInt(sp.get('older_than_days') || '30', 10)
   const cutoff = new Date(Date.now() - olderThanDays * 86400_000).toISOString()

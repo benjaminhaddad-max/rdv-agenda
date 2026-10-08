@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireApiUser } from '@/lib/api-auth'
 import { createServiceClient } from '@/lib/supabase'
 import { hubspotFetch } from '@/lib/hubspot'
 import { BENJAMIN_TELEPRO_ID, triggerBenjaminSheetSyncForContacts } from '@/lib/benjamin-sheet-sync'
 
 export async function POST(req: NextRequest) {
+  const apiGuard = await requireApiUser()
+  if (!apiGuard.ok) return apiGuard.response
   const db = createServiceClient()
   const {
     contact_ids,

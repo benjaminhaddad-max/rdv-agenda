@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireApiUser } from '@/lib/api-auth'
 import { createServiceClient } from '@/lib/supabase'
 import { hubspotFetch } from '@/lib/hubspot'
 
@@ -6,6 +7,8 @@ import { hubspotFetch } from '@/lib/hubspot'
 // Revert les deals qui ont été déplacés par erreur
 // Body: { dealIds: string[], originalStage: string }
 export async function POST(req: NextRequest) {
+  const apiGuard = await requireApiUser()
+  if (!apiGuard.ok) return apiGuard.response
   const body = await req.json()
   const { dealIds, originalStage } = body as { dealIds: string[]; originalStage: string }
 

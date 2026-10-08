@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireApiUser } from '@/lib/api-auth'
 import { createServiceClient } from '@/lib/supabase'
 import { TASK_COLS } from '@/lib/crm-columns'
 
@@ -13,6 +14,8 @@ import { TASK_COLS } from '@/lib/crm-columns'
  *   limit    : défaut 100
  */
 export async function GET(req: NextRequest) {
+  const apiGuard = await requireApiUser()
+  if (!apiGuard.ok) return apiGuard.response
   const db = createServiceClient()
   const { searchParams } = req.nextUrl
 
@@ -55,6 +58,8 @@ export async function GET(req: NextRequest) {
  *         owner_id?, created_by?, priority?, task_type?, due_at? }
  */
 export async function POST(req: NextRequest) {
+  const apiGuard = await requireApiUser()
+  if (!apiGuard.ok) return apiGuard.response
   const db = createServiceClient()
   const body = await req.json()
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
-import { getApiUserContext } from '@/lib/api-auth'
+import { getApiUserContext, requireApiUser } from '@/lib/api-auth'
 import { fetchParcoursupVerdictsByContactId, type ParcoursupVerdictCell } from '@/lib/parcoursup-verdict'
 import { isTypesenseEnabled, searchTypesenseCrmContacts } from '@/lib/typesense'
 
@@ -17,6 +17,8 @@ import { isTypesenseEnabled, searchTypesenseCrmContacts } from '@/lib/typesense'
 // Paramètres vue liste :
 //   sort (dealname|formation|classe|zone|stage|created), order (asc|desc), page, limit
 export async function GET(req: NextRequest) {
+  const apiGuard = await requireApiUser()
+  if (!apiGuard.ok) return apiGuard.response
   const db = createServiceClient()
   const { searchParams } = req.nextUrl
 

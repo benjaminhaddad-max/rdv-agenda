@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server'
+import { requireApiRole } from '@/lib/api-auth'
 import { hubspotFetch, PIPELINE_2026_2027 } from '@/lib/hubspot'
 import { isHubspotHardOff, hubspotHardOffResponse } from '@/lib/hubspot-hard-off'
 
 // ─── GET — liste les deals archivés de la pipeline 2026-2027 ──────────────
 export async function GET() {
+  const apiGuard = await requireApiRole(['admin'])
+  if (!apiGuard.ok) return apiGuard.response
   if (isHubspotHardOff()) return hubspotHardOffResponse()
   try {
     const all: Array<{ id: string; properties: { dealname: string; dealstage: string; pipeline: string; archivedAt?: string } }> = []
@@ -27,6 +30,8 @@ export async function GET() {
 
 // ─── POST — restaure tous les deals archivés de la pipeline ───────────────
 export async function POST() {
+  const apiGuard = await requireApiRole(['admin'])
+  if (!apiGuard.ok) return apiGuard.response
   if (isHubspotHardOff()) return hubspotHardOffResponse()
   try {
     const all: Array<{ id: string; properties: { pipeline: string } }> = []

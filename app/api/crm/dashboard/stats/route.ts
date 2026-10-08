@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { requireApiUser } from '@/lib/api-auth'
 import { createServiceClient } from '@/lib/supabase'
 
 /**
@@ -21,6 +22,8 @@ async function awaitCount(builder: any): Promise<number> {
 }
 
 export async function GET() {
+  const apiGuard = await requireApiUser()
+  if (!apiGuard.ok) return apiGuard.response
   const startedAt = Date.now()
   const db = createServiceClient()
   const now = new Date()

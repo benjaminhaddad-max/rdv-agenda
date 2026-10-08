@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { requireApiRole } from '@/lib/api-auth'
 import { hubspotFetch, PIPELINE_2026_2027, STAGES } from '@/lib/hubspot'
 import { isHubspotHardOff, hubspotHardOffResponse } from '@/lib/hubspot-hard-off'
 
@@ -22,6 +23,8 @@ function buildDealName(contact: {
 
 // ─── GET — aperçu des renommages prévus (dry run) ─────────────────────────
 export async function GET() {
+  const apiGuard = await requireApiRole(['admin'])
+  if (!apiGuard.ok) return apiGuard.response
   if (isHubspotHardOff()) return hubspotHardOffResponse()
   try {
     const previews: Array<{ dealId: string; oldName: string; newName: string; contactId: string }> = []
@@ -108,6 +111,8 @@ export async function GET() {
 
 // ─── POST — applique les renommages ───────────────────────────────────────
 export async function POST() {
+  const apiGuard = await requireApiRole(['admin'])
+  if (!apiGuard.ok) return apiGuard.response
   if (isHubspotHardOff()) return hubspotHardOffResponse()
   try {
     const renamed: Array<{ dealId: string; newName: string }> = []
