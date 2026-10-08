@@ -113,6 +113,20 @@ async function buildReport(req: NextRequest, startedAt: number) {
     needsLines ? Promise.resolve([] as CallRow[]) : fetchCalls(db, prevBounds.start, prevBounds.end, trackedLineIds, trackedUserIds),
   ])
 
+  // Les lignes / comptes Aircall cochés ne servent qu'à repérer les agents hors
+  // équipe : un appel déjà rattaché à un membre de l'équipe compte, quelle que
+  // soit sa ligne (les télépros arrivés sur de nouvelles lignes n'avaient
+  // sinon aucun appel). On complète donc par les appels de l'équipe.
+  const teamIds = ((users ?? []) as Array<UserRow & { extra_roles?: unknown; hubspot_owner_id?: unknown }>)
+    .filter(u => hasTeamRole(u, role)).map(u => u.id)
+  const mappedAircallIds = [...aircallUserMap.entries()].filter(([, uid]) => teamIds.includes(uid)).map(([aid]) => aid)
+  const [teamCurrent, teamPrev] = await Promise.all([
+    fetchTeamCalls(db, start, end, teamIds, mappedAircallIds),
+    fetchTeamCalls(db, prevBounds.start, prevBounds.end, teamIds, mappedAircallIds),
+  ])
+  mergeCalls(currentCalls, teamCurrent)
+  mergeCalls(prevCalls, teamPrev)
+
   if (usersErr) {
     return NextResponse.json({ error: usersErr.message }, { status: 500 })
   }
@@ -272,6 +286,53 @@ async function buildReport(req: NextRequest, startedAt: number) {
   })
 }
 
+const CALL_SELECT = 'id, rdv_user_id, agent_email, agent_name, direction, answered, status, duration_sec, started_at, ended_at, answered_at:payload->answered_at, hubspot_contact_id, line_id, line_name, aircall_user_id'
+
+/** Ajoute à `target` les appels de `extra` absents (dédoublonnage par id). */
+function mergeCalls(target: CallRow[], extra: CallRow[]): void {
+  const seen = new Set(target.map(c => String(c.id)))
+  for (const c of extra) {
+    if (seen.has(String(c.id))) continue
+    seen.add(String(c.id))
+    target.push(c)
+  }
+}
+
+/** Appels des membres de l'équipe (rdv_user_id, ou compte Aircall lié à la main), toutes lignes. */
+async function fetchTeamCalls(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  db: any,
+  start: string,
+  end: string,
+  teamIds: string[],
+  aircallUserIds: number[],
+): Promise<CallRow[]> {
+  const out: CallRow[] = []
+  const run = async (column: 'rdv_user_id' | 'aircall_user_id', values: Array<string | number>) => {
+    for (let i = 0; i < values.length; i += 100) {
+      const chunk = values.slice(i, i + 100)
+      for (let from = 0; from < 200_000; from += 1000) {
+        const { data, error } = await db
+          .from('aircall_calls')
+          .select(CALL_SELECT)
+          .in(column, chunk)
+          .gte('started_at', start)
+          .lt('started_at', end)
+          .order('started_at', { ascending: true })
+          .range(from, from + 999)
+        if (error) return
+        out.push(...((data ?? []) as CallRow[]))
+        if (!data || data.length < 1000) break
+      }
+    }
+  }
+  await run('rdv_user_id', teamIds)
+  if (aircallUserIds.length) await run('aircall_user_id', aircallUserIds)
+  const unique: CallRow[] = []
+  mergeCalls(unique, out)
+  return unique
+}
+
 async function fetchCalls(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   db: any,
@@ -286,7 +347,7 @@ async function fetchCalls(
   while (from < 200_000) {
     let q = db
       .from('aircall_calls')
-      .select('rdv_user_id, agent_email, agent_name, direction, answered, status, duration_sec, started_at, ended_at, answered_at:payload->answered_at, hubspot_contact_id, line_id, line_name, aircall_user_id')
+      .select(CALL_SELECT)
       .in('line_id', lineIds)
       .gte('started_at', start)
       .lt('started_at', end)

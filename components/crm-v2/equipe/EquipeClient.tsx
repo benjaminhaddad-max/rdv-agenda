@@ -34,6 +34,7 @@ import { AdminIconButton, AdminNotice, AdminSpin } from '@/components/crm-v2/adm
 import { PanelCard } from '@/components/crm-v2/panels/PanelUi'
 import { CredentialBox, type TeamMember } from '@/components/crm-v2/panels/TeamMemberManager'
 import PlanningWeek from '@/components/crm-v2/equipe/PlanningWeek'
+import { SlotChip, VERDICTS, VerdictPill, WEEKDAYS, fmtMinutes as fmtPlannedMinutes, type DayReport } from '@/components/planning/PlanningUi'
 import { addParisDays, parisDateKey, parisMonthEndKey, parisWeekStartKey } from '@/lib/date-paris'
 import { RDV_BRANDS, type RdvBrand } from '@/lib/rdv-brand'
 import { TEAM_ROLE_LABELS, TEAM_ROLES, teamRolesOf, type TeamRole } from '@/lib/team-roles'
@@ -317,6 +318,19 @@ export default function EquipeClient() {
 
   const statsReady = !!team.role && statsKey === wantedKey && stats?.role === team.role
 
+  // Présence (planning d'appel) sur la période — onglet Télépros
+  const [presence, setPresence] = useState<Record<string, DayReport[]> | null>(null)
+  useEffect(() => {
+    if (tab !== 'telepros') return
+    let cancelled = false
+    setPresence(null)
+    fetch(`/api/admin/planning?from=${from}&to=${to}`, { cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(j => { if (!cancelled && j?.report) setPresence(j.report as Record<string, DayReport[]>) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [tab, from, to, refreshTick])
+
   function refresh() {
     loadMembers(tab)
     setRefreshTick(t => t + 1)
@@ -394,6 +408,7 @@ export default function EquipeClient() {
     tab, isMobile, statsLoading, sort, onSort: toggleSort, expanded,
     onExpand: (id: string) => setExpanded(e => e === id ? null : id),
     onPatch: patchMember, onAdd: addMember, onRolesChanged: reloadAllMembers, extraRolesReady,
+    presence,
   }
 
   return (
@@ -407,6 +422,14 @@ export default function EquipeClient() {
             : `${formatRange(period, from, to)} · comptes, accès et performance`}
         actions={
           <>
+            {tab === 'telepros' && (
+              <CrmV2Segmented<'perf' | 'planning'>
+                size="sm"
+                items={[{ id: 'perf', label: 'Performance' }, { id: 'planning', label: "Planning d'appel" }]}
+                value={teleproView}
+                onChange={changeTeleproView}
+              />
+            )}
             {!isAdmins && (
               <>
                 {!isPlanning && (
@@ -445,15 +468,6 @@ export default function EquipeClient() {
       </CrmV2Header>
 
       <CrmV2Body>
-        {tab === 'telepros' && (
-          <div>
-            <CrmV2Segmented<'perf' | 'planning'>
-              items={[{ id: 'perf', label: 'Performance' }, { id: 'planning', label: "Planning d'appel" }]}
-              value={teleproView}
-              onChange={changeTeleproView}
-            />
-          </div>
-        )}
         {isPlanning ? (
           <PlanningWeek weekStart={from} refreshKey={refreshTick} search="" />
         ) : (
@@ -602,6 +616,8 @@ type TableCommon = {
   onAdd: (m: EquipeMember) => void
   onRolesChanged: () => void
   extraRolesReady: boolean
+  /** Bilan du planning d'appel par télépro sur la période (onglet Télépros) */
+  presence: Record<string, DayReport[]> | null
 }
 
 function MembersTable({
@@ -689,7 +705,7 @@ function MembersTable({
     )
   }
 
-  const colSpan = cols.length + 3
+  const colSpan = cols.length + 3 + (tab === 'telepros' ? 1 : 0)
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {extras}
@@ -703,6 +719,7 @@ function MembersTable({
                   <span title={c.title}>{c.label}</span>
                 </CrmV2Th>
               ))}
+              {tab === 'telepros' && <CrmV2Th><span title="Horaires d'appel prévus et journées bien faites / partielles / sans appel">Présence</span></CrmV2Th>}
               {isAdmins ? (
                 <CrmV2Th sorted={sort.key === 'lastSignIn' ? sort.dir : false} onClick={() => onSort('lastSignIn')}>Dernière connexion</CrmV2Th>
               ) : (
@@ -771,6 +788,74 @@ function rateColor(v: number | null | undefined, good: number, bad: number): str
   if (v >= good) return crmV2.successStrong
   if (v < bad) return '#dc2626'
   return '#d97706'
+}
+
+function presenceSummary(days: DayReport[]) {
+  const t = { planned: 0, ok: 0, partiel: 0, absent: 0, hors: 0 }
+  for (const d of days) {
+    t.planned += d.planned_min
+    if (d.verdict === 'ok') t.ok++
+    else if (d.verdict === 'partiel') t.partiel++
+    else if (d.verdict === 'absent') t.absent++
+    else if (d.verdict === 'hors_planning') t.hors++
+  }
+  return t
+}
+
+/** Colonne « Présence » : heures prévues + journées ✓ / ~ / ✗ sur la période. */
+function PresenceCell({ days }: { days: DayReport[] | null }) {
+  if (!days) return <span style={{ color: crmV2.textFaint }}>…</span>
+  const t = presenceSummary(days)
+  if (!t.planned) {
+    return t.hors
+      ? <span title="Des appels sans horaires prévus" style={{ fontSize: 12, color: VERDICTS.hors_planning.color }}>Sans planning · {t.hors} j appelé{t.hors > 1 ? 's' : ''}</span>
+      : <span style={{ fontSize: 12, color: crmV2.textFaint }}>Pas de planning</span>
+  }
+  const judged = t.ok + t.partiel + t.absent
+  return (
+    <span style={{ display: 'inline-flex', flexDirection: 'column', gap: 1, fontSize: 12 }}>
+      <strong style={{ color: crmV2.text }}>{fmtPlannedMinutes(t.planned)} prévues</strong>
+      {judged > 0 ? (
+        <span title="Journées bien faites / partielles / sans appel">
+          <span style={{ color: VERDICTS.ok.color, fontWeight: 700 }}>{t.ok} ✓</span>{' '}
+          <span style={{ color: VERDICTS.partiel.color, fontWeight: 700 }}>{t.partiel} ~</span>{' '}
+          <span style={{ color: VERDICTS.absent.color, fontWeight: 700 }}>{t.absent} ✗</span>
+        </span>
+      ) : <span style={{ color: crmV2.textFaint }}>à venir</span>}
+    </span>
+  )
+}
+
+/** Détail jour par jour de la présence (dans la ligne dépliée). */
+function PresenceDays({ days }: { days: DayReport[] }) {
+  const shown = days.filter(d => d.slots.length || d.calls)
+  if (!shown.length) return null
+  return (
+    <div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
+        Présence (horaires d&apos;appel)
+      </div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {shown.map(d => {
+          const [y, m, dd] = d.date.split('-').map(Number)
+          const wd = WEEKDAYS[(new Date(Date.UTC(y, m - 1, dd, 12)).getUTCDay() + 6) % 7]
+          return (
+            <div key={d.date} style={{
+              border: `1px solid ${crmV2.border}`, borderRadius: 10, padding: '6px 8px', background: crmV2.bg,
+              display: 'flex', flexDirection: 'column', gap: 4, minWidth: 120,
+            }}>
+              <span style={{ fontSize: 12, fontWeight: 700 }}>{wd} {dd}</span>
+              {d.slots.length > 0 && <span style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>{d.slots.map(s => <SlotChip key={s.id} slot={s} />)}</span>}
+              <VerdictPill verdict={d.verdict} small />
+              <span style={{ fontSize: 11, color: crmV2.textMuted }}>
+                {d.calls} appels · {d.talk2} ≥2min · {d.rdv} RDV{d.first_call ? ` · ${d.first_call}→${d.last_call}` : ''}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
 function Faint({ children }: { children: ReactNode }) {
@@ -861,6 +946,11 @@ function MemberRow({
             {s ? cellValue(tab, c.key, s) : statsLoading ? <span style={{ color: crmV2.textFaint }}>…</span> : '—'}
           </CrmV2Td>
         ))}
+        {tab === 'telepros' && (
+          <CrmV2Td style={{ whiteSpace: 'nowrap' }}>
+            <PresenceCell days={common.presence ? (common.presence[row.id] ?? []) : null} />
+          </CrmV2Td>
+        )}
         {tab === 'admins' ? (
           <CrmV2Td style={{ color: crmV2.textMuted, whiteSpace: 'nowrap' }}>{fmtLastSignIn(row.member?.last_sign_in_at ?? null)}</CrmV2Td>
         ) : (
@@ -937,6 +1027,7 @@ function MemberDetail({ row, ...common }: TableCommon & { row: Row }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {tab !== 'admins' && <BrandPerf tab={tab} row={row} statsLoading={common.statsLoading} />}
+      {tab === 'telepros' && common.presence && <PresenceDays days={common.presence[row.id] ?? []} />}
       {row.member && (
         <AccountSettings
           member={row.member}

@@ -14,7 +14,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { addParisDays, parisDateKey, parisMidnightUtc, parisRangeUtcBounds } from '@/lib/date-paris'
-import { getAircallTrackedLineIds, getAircallUserMap } from '@/lib/settings'
+import { getAircallUserMap } from '@/lib/settings'
 import { isHumanAnswered, isOutboundTalk2min, talkSeconds, type CallRow } from '@/lib/suivi-commercial'
 import { hasTeamRole } from '@/lib/team-roles'
 
@@ -232,23 +232,40 @@ export async function loadTeleproTeam(db: SupabaseClient): Promise<PlanningMembe
 
 // ── Bilan ───────────────────────────────────────────────────────────────────
 
-async function fetchOutboundCalls(db: SupabaseClient, startIso: string, endIso: string): Promise<CallRow[]> {
-  const lineIds = await getAircallTrackedLineIds()
+/** Appels sortants des télépros (rdv_user_id ou compte Aircall lié), toutes lignes Aircall. */
+async function fetchOutboundCalls(
+  db: SupabaseClient,
+  startIso: string,
+  endIso: string,
+  userIds: string[],
+  aircallUserIds: number[],
+): Promise<CallRow[]> {
   const out: CallRow[] = []
-  for (let from = 0; from < 100_000; from += 1000) {
-    let q = db.from('aircall_calls')
-      .select('rdv_user_id, agent_email, agent_name, direction, answered, status, duration_sec, started_at, ended_at, answered_at:payload->answered_at, hubspot_contact_id, line_id, line_name, aircall_user_id')
-      .eq('direction', 'outbound')
-      .gte('started_at', startIso)
-      .lt('started_at', endIso)
-      .order('started_at', { ascending: true })
-      .range(from, from + 999)
-    if (lineIds.length) q = q.in('line_id', lineIds)
-    const { data, error } = await q
-    if (error) return out
-    out.push(...((data ?? []) as CallRow[]))
-    if (!data || data.length < 1000) break
+  const seen = new Set<string>()
+  const run = async (column: 'rdv_user_id' | 'aircall_user_id', values: Array<string | number>) => {
+    for (let i = 0; i < values.length; i += 100) {
+      const chunk = values.slice(i, i + 100)
+      for (let from = 0; from < 100_000; from += 1000) {
+        const { data, error } = await db.from('aircall_calls')
+          .select('id, rdv_user_id, agent_email, agent_name, direction, answered, status, duration_sec, started_at, ended_at, answered_at:payload->answered_at, hubspot_contact_id, line_id, line_name, aircall_user_id')
+          .eq('direction', 'outbound')
+          .in(column, chunk)
+          .gte('started_at', startIso)
+          .lt('started_at', endIso)
+          .order('started_at', { ascending: true })
+          .range(from, from + 999)
+        if (error) return
+        for (const c of (data ?? []) as CallRow[]) {
+          if (seen.has(String(c.id))) continue
+          seen.add(String(c.id))
+          out.push(c)
+        }
+        if (!data || data.length < 1000) break
+      }
+    }
   }
+  await run('rdv_user_id', userIds)
+  if (aircallUserIds.length) await run('aircall_user_id', aircallUserIds)
   return out
 }
 
@@ -301,21 +318,27 @@ function dayVerdict(day: DayReport, date: string, today: string): DayVerdict {
   return 'partiel'
 }
 
-/** Bilan jour par jour d'une semaine (lundi = weekStart) pour des télépros. */
+/**
+ * Bilan jour par jour pour des télépros, sur `days` jours à partir de
+ * `weekStart` (une semaine par défaut ; jusqu'à un mois pour la vue Équipe).
+ */
 export async function buildPlanningReport(
   db: SupabaseClient,
   userIds: string[],
   weekStart: string,
+  days = 7,
 ): Promise<{ ready: boolean; dates: string[]; report: Record<string, DayReport[]> }> {
-  const dates = Array.from({ length: 7 }, (_, i) => addParisDays(weekStart, i))
-  const weekEnd = addParisDays(weekStart, 7)
-  const { start, end } = parisRangeUtcBounds(weekStart, dates[6])
+  const n = Math.max(1, Math.min(31, Math.round(days)))
+  const dates = Array.from({ length: n }, (_, i) => addParisDays(weekStart, i))
+  const weekEnd = addParisDays(weekStart, n)
+  const { start, end } = parisRangeUtcBounds(weekStart, dates[n - 1])
   const ids = new Set(userIds)
 
-  const [{ slots, ready }, calls, userMap, rdvRows] = await Promise.all([
+  const userMap = await getAircallUserMap()
+  const mappedAircallIds = [...userMap.entries()].filter(([, uid]) => ids.has(uid)).map(([aid]) => aid)
+  const [{ slots, ready }, calls, rdvRows] = await Promise.all([
     loadSlots(db, weekStart, weekEnd, userIds),
-    fetchOutboundCalls(db, start, end),
-    getAircallUserMap(),
+    fetchOutboundCalls(db, start, end, userIds, mappedAircallIds),
     db.from('rdv_appointments').select('telepro_id, created_at')
       .in('telepro_id', userIds.length ? userIds : ['00000000-0000-0000-0000-000000000000'])
       .gte('created_at', start).lt('created_at', end)

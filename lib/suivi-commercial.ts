@@ -337,6 +337,7 @@ export function sumBrandBreakdowns(list: Array<BrandBreakdown | undefined>): Bra
 }
 
 export type CallRow = {
+  id?: string | number
   rdv_user_id: string | null
   agent_email: string | null
   agent_name: string | null
