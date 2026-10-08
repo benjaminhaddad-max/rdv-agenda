@@ -10,8 +10,10 @@ type LyceeLite = Pick<LyceeRow, 'uai' | 'name' | 'city' | 'department' | 'assign
 /**
  * GET /api/crm/lycees/events?season=2026-2027&hidden=1
  *   Agenda des forums / interventions / flying (avec le lycée) + dernier passage du bot.
- *   Non-admins : événements de leurs lycées + événements hors lycée.
+ *   Non-admins : forums qui leur sont attribués + forums de leurs lycées.
  * POST /api/crm/lycees/events — ajout manuel.
+ * PATCH /api/crm/lycees/events — modification groupée (admin) :
+ *   { ids: string[], patch: { assigned_to?, status? } }
  */
 export async function GET(req: NextRequest) {
   const a = await requireLyceeAccess()
@@ -40,7 +42,7 @@ export async function GET(req: NextRequest) {
   }
 
   const events = evs.data
-    .filter(e => isManager || !e.uai || lycees.get(e.uai)?.assigned_to === ctx.appUserId)
+    .filter(e => isManager || e.assigned_to === ctx.appUserId || (!!e.uai && lycees.get(e.uai)?.assigned_to === ctx.appUserId))
     .map(e => ({ ...e, lycee: e.uai ? lycees.get(e.uai) ?? null : null }))
 
   const { data: lastScan } = await db
@@ -79,6 +81,7 @@ export async function POST(req: NextRequest) {
     status: patch.status ?? (patch.date ? 'confirme' : 'a_confirmer'),
     source: 'manual',
     created_by: access.ctx.appUserId,
+    ...(access.isManager && typeof body.assigned_to === 'string' && body.assigned_to ? { assigned_to: body.assigned_to } : {}),
   }
   const { data, error } = await access.db.from('lycee_events').insert(row).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -95,4 +98,29 @@ export async function POST(req: NextRequest) {
     }
   }
   return NextResponse.json({ event: data }, { status: 201 })
+}
+
+export async function PATCH(req: NextRequest) {
+  const a = await requireLyceeAccess()
+  if (!a.ok) return a.response
+  if (!a.access.isManager) return NextResponse.json({ error: 'Réservé aux admins' }, { status: 403 })
+  const body = await req.json().catch(() => ({}))
+  const ids: string[] = Array.isArray(body.ids) ? body.ids.filter((x: unknown) => typeof x === 'string').slice(0, 2000) : []
+  const raw = (body.patch || {}) as Record<string, unknown>
+  if (!ids.length) return NextResponse.json({ error: 'Aucun forum sélectionné' }, { status: 400 })
+  const patch: Record<string, unknown> = {}
+  if ('assigned_to' in raw) patch.assigned_to = typeof raw.assigned_to === 'string' && raw.assigned_to ? raw.assigned_to : null
+  if ('status' in raw) {
+    const { patch: p, error } = eventPatchFrom({ status: raw.status })
+    if (error) return NextResponse.json({ error }, { status: 400 })
+    patch.status = p.status
+  }
+  if ('hidden' in raw && typeof raw.hidden === 'boolean') patch.hidden = raw.hidden
+  if (!Object.keys(patch).length) return NextResponse.json({ error: 'Rien à modifier' }, { status: 400 })
+  patch.updated_at = new Date().toISOString()
+  for (let i = 0; i < ids.length; i += 300) {
+    const { error } = await a.access.db.from('lycee_events').update(patch).in('id', ids.slice(i, i + 300))
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+  return NextResponse.json({ ok: true, updated: ids.length })
 }

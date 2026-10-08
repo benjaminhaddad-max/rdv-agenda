@@ -11,8 +11,8 @@ import { NextResponse } from 'next/server'
 import { requireApiUser, type ApiUserContext } from '@/lib/api-auth'
 import { createServiceClient } from '@/lib/supabase'
 import {
-  computeLyceeScore, CURRENT_SEASON, PREVIOUS_SEASON,
-  type LyceeActivityKind, type LyceeContactRow, type LyceeEventRow, type LyceeListItem, type LyceeRow,
+  CALL_OUTCOMES, cleanDate, cleanStr, computeLyceeScore, CURRENT_SEASON, lookup, oneOf, PREVIOUS_SEASON,
+  type CallOutcome, type LyceeActivityKind, type LyceeContactRow, type LyceeEventRow, type LyceeListItem, type LyceeRow, type LyceeStatus,
 } from '@/lib/lycees'
 
 type Db = ReturnType<typeof createServiceClient>
@@ -147,4 +147,118 @@ export function buildListItems(
 
 export function parisToday(): string {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' })
+}
+
+// ── Appels (lycée ou organisateur de forum), traités comme des leads ───────
+
+export type CallInput = {
+  kind: 'call' | 'email' | 'visit' | 'note'
+  outcome: CallOutcome | null
+  content: string | null
+  /** Prochain rappel : remplace le précédent (null = plus de rappel prévu) */
+  nextActionAt: string | null
+  nextAction: string | null
+}
+
+export function parseCallInput(body: Record<string, unknown>): { ok: true; input: CallInput } | { ok: false; error: string } {
+  const kinds = ['call', 'email', 'visit', 'note'] as const
+  const kind = kinds.find(k => k === body.kind) ?? 'note'
+  const outcome = oneOf(CALL_OUTCOMES, body.outcome)
+  const content = cleanStr(body.content, 4000)
+  if (!content && !outcome) return { ok: false, error: 'Indique le résultat de l’appel ou un commentaire' }
+  return {
+    ok: true,
+    input: {
+      kind, outcome, content,
+      nextActionAt: 'next_action_at' in body ? cleanDate(body.next_action_at) : null,
+      nextAction: cleanStr(body.next_action, 300),
+    },
+  }
+}
+
+/** Statut du lycée après un appel (on ne redescend jamais un « obtenu » sur un simple NRP). */
+function lyceeStatusAfter(prev: LyceeStatus, outcome: CallOutcome | null, hasNext: boolean): LyceeStatus {
+  if (outcome === 'obtained') return 'obtenu'
+  if (outcome === 'refused') return 'refus'
+  if (prev === 'obtenu' || prev === 'refus' || prev === 'non_cible') return prev
+  if (outcome === 'callback' || outcome === 'interested' || outcome === 'mail_sent') return 'a_relancer'
+  if (hasNext && prev !== 'a_contacter') return 'a_relancer'
+  return 'en_cours'
+}
+
+function activityText(input: CallInput): string {
+  const o = lookup(CALL_OUTCOMES, input.outcome)
+  return [o?.label, input.content].filter(Boolean).join(' — ')
+}
+
+/** Journalise l'appel sur un lycée et met à jour la ligne (dernier appel, rappel, statut). */
+export async function logLyceeCall(access: LyceeAccess, lycee: LyceeRow, input: CallInput) {
+  const author = await authorNameOf(access.db, access.ctx.appUserId)
+  const { data, error } = await access.db.from('lycee_activities').insert({
+    uai: lycee.uai, kind: input.kind, outcome: input.outcome, content: activityText(input),
+    author_id: access.ctx.appUserId, author_name: author,
+  }).select().single()
+  if (error) return { error: error.message }
+  if (input.kind !== 'note' || input.outcome) {
+    const now = new Date().toISOString()
+    await access.db.from('lycees').update({
+      last_contact_at: now,
+      last_outcome: input.outcome,
+      last_note: input.content,
+      calls_count: (lycee.calls_count || 0) + 1,
+      next_action_at: input.nextActionAt,
+      next_action: input.nextActionAt ? (input.nextAction ?? lycee.next_action) : null,
+      status: lyceeStatusAfter(lycee.status, input.outcome, !!input.nextActionAt),
+      updated_at: now,
+    }).eq('uai', lycee.uai)
+  }
+  return { activity: data }
+}
+
+/** Journalise l'appel sur un forum (organisateur) et met à jour l'événement. */
+export async function logEventCall(access: LyceeAccess, ev: LyceeEventRow, input: CallInput) {
+  const author = await authorNameOf(access.db, access.ctx.appUserId)
+  const { data, error } = await access.db.from('lycee_activities').insert({
+    uai: ev.uai, event_id: ev.id, kind: input.kind, outcome: input.outcome,
+    content: `Forum${ev.date ? ` du ${ev.date.split('-').reverse().join('/')}` : ''} : ${activityText(input)}`,
+    author_id: access.ctx.appUserId, author_name: author,
+  }).select().single()
+  if (error) return { error: error.message }
+  if (input.kind !== 'note' || input.outcome) {
+    const now = new Date().toISOString()
+    const status = input.outcome === 'obtained' ? 'confirme'
+      : input.outcome === 'refused' ? 'refuse'
+      : ev.status === 'detecte' ? 'a_confirmer' : ev.status
+    await access.db.from('lycee_events').update({
+      last_contact_at: now,
+      last_outcome: input.outcome,
+      last_note: input.content,
+      calls_count: (ev.calls_count || 0) + 1,
+      next_action_at: input.nextActionAt,
+      status,
+      updated_at: now,
+    }).eq('id', ev.id)
+    // Stand / intervention obtenu(e) : le lycée passe en « obtenu »
+    if (status === 'confirme' && ev.uai && ev.kind !== 'flying') {
+      await access.db.from('lycees').update({ status: 'obtenu', updated_at: now }).eq('uai', ev.uai).neq('status', 'obtenu')
+    }
+  }
+  return { activity: data }
+}
+
+/** Accès à un forum : admin, forum attribué, ou lycée attribué à l'utilisateur. */
+export async function loadEventFor(access: LyceeAccess, id: string): Promise<
+  { ok: true; ev: LyceeEventRow } | { ok: false; response: NextResponse }
+> {
+  const { data, error } = await access.db.from('lycee_events').select('*').eq('id', id).maybeSingle()
+  if (isMissingTable(error)) return { ok: false, response: missingMigrationResponse() }
+  if (error) return { ok: false, response: NextResponse.json({ error: error.message }, { status: 500 }) }
+  if (!data) return { ok: false, response: NextResponse.json({ error: 'Forum introuvable' }, { status: 404 }) }
+  const ev = data as LyceeEventRow
+  if (access.isManager || ev.assigned_to === access.ctx.appUserId) return { ok: true, ev }
+  if (ev.uai) {
+    const { data: l } = await access.db.from('lycees').select('assigned_to').eq('uai', ev.uai).maybeSingle()
+    if (l?.assigned_to === access.ctx.appUserId) return { ok: true, ev }
+  }
+  return { ok: false, response: NextResponse.json({ error: 'Ce forum ne vous est pas attribué' }, { status: 403 }) }
 }

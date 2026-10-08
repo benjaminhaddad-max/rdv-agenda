@@ -6,24 +6,28 @@
  * (forum d'une ville, d'un CIO).
  */
 
-import { useMemo, useState } from 'react'
-import { Trash2 } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Phone, Trash2 } from 'lucide-react'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import { CrmV2Button, CrmV2Field, CrmV2Input, CrmV2Select, CrmV2Textarea, CrmV2Toggle } from '@/components/crm-v2/primitives'
 import { AdminModal, AdminNotice } from '@/components/crm-v2/admin/AdminUi'
 import {
   EVENT_KINDS, EVENT_SCOPES, EVENT_STATUSES, LYCEE_MODES, normalizeName,
-  type LyceeEventRow, type LyceeRow,
+  type LyceeActivityRow, type LyceeEventRow, type LyceeRow,
 } from '@/lib/lycees'
-import { api, Dept } from './ui'
+import { api, Dept, fmtDateTime, OutcomePill, type TeamUser } from './ui'
 
 type LyceeOption = Pick<LyceeRow, 'uai' | 'name' | 'city' | 'department'>
 
 export type EventDraft = Partial<LyceeEventRow> & { uai?: string | null }
 
 export default function EventModal({
-  open, onClose, onSaved, initial, lycees, lockLycee = false,
+  open, onClose, onSaved, initial, lycees, lockLycee = false, users = [], isManager = false, onCall,
 }: {
+  users?: TeamUser[]
+  isManager?: boolean
+  /** Ouvre « Noter un appel » sur ce forum */
+  onCall?: () => void
   open: boolean
   onClose: () => void
   onSaved: () => void
@@ -39,6 +43,11 @@ export default function EventModal({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const set = <K extends keyof EventDraft>(k: K, v: EventDraft[K]) => setF(p => ({ ...p, [k]: v }))
+  const [calls, setCalls] = useState<LyceeActivityRow[]>([])
+  useEffect(() => {
+    if (!initial?.id) return
+    api<{ activities: LyceeActivityRow[] }>(`/api/crm/lycees/events/${initial.id}`).then(d => setCalls(d.activities)).catch(() => {})
+  }, [initial?.id])
 
   const save = async () => {
     setSaving(true)
@@ -52,6 +61,7 @@ export default function EventModal({
         leads_count: f.leads_count ?? null, competition: f.competition ?? null, audience: f.audience ?? null,
         organizer_contact: f.organizer_contact ?? null, notes: f.notes ?? null, source_url: f.source_url ?? null,
         ...(f.season && !f.date ? { season: f.season } : {}),
+        ...(isManager ? { assigned_to: f.assigned_to ?? null } : {}),
       }
       if (editing) await api(`/api/crm/lycees/events/${initial!.id}`, { method: 'PATCH', json: body })
       else await api('/api/crm/lycees/events', { method: 'POST', json: body })
@@ -92,6 +102,9 @@ export default function EventModal({
               Supprimer
             </CrmV2Button>
           )}
+          {editing && onCall && (
+            <CrmV2Button variant="gold" icon={<Phone size={14} />} onClick={onCall} disabled={saving}>Noter un appel</CrmV2Button>
+          )}
           <CrmV2Button onClick={onClose} disabled={saving}>Annuler</CrmV2Button>
           <CrmV2Button variant="primary" onClick={save} disabled={saving}>{saving ? 'Enregistrement…' : 'Enregistrer'}</CrmV2Button>
         </>
@@ -108,6 +121,15 @@ export default function EventModal({
         {!f.uai && (
           <CrmV2Field label="Nom de l’événement" style={{ gridColumn: '1 / -1' }}>
             <CrmV2Input value={f.title ?? ''} onChange={e => set('title', e.target.value)} placeholder="Forum de l’orientation de Meaux" />
+          </CrmV2Field>
+        )}
+        {isManager && (
+          <CrmV2Field label="Attribué à (appels à l’organisateur)" style={{ gridColumn: '1 / -1' }}
+            hint="Vide = la personne qui a le lycée.">
+            <CrmV2Select value={f.assigned_to ?? ''} onChange={e => set('assigned_to', e.target.value || null)}>
+              <option value="">Personne en particulier</option>
+              {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+            </CrmV2Select>
           </CrmV2Field>
         )}
         <CrmV2Field label="Type">
@@ -171,6 +193,19 @@ export default function EventModal({
         <CrmV2Field label="Source (lien)" style={{ gridColumn: '1 / -1' }}>
           <CrmV2Input value={f.source_url ?? ''} onChange={e => set('source_url', e.target.value)} placeholder="https://…" />
         </CrmV2Field>
+        {editing && (
+          <div style={{ gridColumn: '1 / -1' }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: crmV2.textMuted, marginBottom: 6 }}>Appels ({calls.length})</div>
+            {!calls.length && <div style={{ fontSize: 12.5, color: crmV2.textFaint }}>Aucun appel noté pour ce forum.</div>}
+            {calls.map(c => (
+              <div key={c.id} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '6px 0', borderTop: `1px solid ${crmV2.borderLight}`, fontSize: 12.5 }}>
+                <span style={{ width: 92, color: crmV2.textFaint, flexShrink: 0 }}>{fmtDateTime(c.created_at)}</span>
+                {c.outcome && <OutcomePill outcome={c.outcome} />}
+                <span style={{ flex: 1, minWidth: 0 }}>{c.content} <span style={{ color: crmV2.textFaint }}>· {c.author_name}</span></span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </AdminModal>
   )

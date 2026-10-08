@@ -1,30 +1,35 @@
 'use client'
 
 /**
- * Onglet « Lycées » (/admin/crm-v2/lycees) — gestion des lycées d'Île-de-France
- * pour les forums d'orientation, interventions et flying.
+ * Onglet « Lycées » (/admin/crm-v2/lycees) — les lycées d'Île-de-France et
+ * leurs forums d'orientation, traités comme des leads.
  *
- * Onglets : Lycées (tableau + fiche), Agenda des forums, À ne pas louper,
- * Flying, Équipe (admin). Les télépros / closers ne voient que les lycées qui
- * leur sont attribués.
+ * Onglets :
+ *  - Lycées : liste d'appels (vues rapides à rappeler / jamais appelés / à
+ *    recaler…), attribution, résultat du dernier appel, rappel, fiche lycée ;
+ *  - Forums : les forums (organisateurs) à appeler, en liste ou en cartes ;
+ *  - Nos dates : récap des endroits où on sera.
+ * Les télépros / closers ne voient que ce qui leur est attribué.
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { CalendarCheck, CalendarPlus, Flame, RotateCcw, School, Trophy } from 'lucide-react'
+import { CalendarCheck, CalendarPlus, PhoneCall, PhoneOff, Radar, Trophy } from 'lucide-react'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import {
-  CrmV2Body, CrmV2Button, CrmV2Header, CrmV2KpiCard, CrmV2KpiGrid, CrmV2Page, CrmV2Spinner, CrmV2Tabs,
+  CrmV2Body, CrmV2Button, CrmV2Header, CrmV2KpiCard, CrmV2KpiGrid, CrmV2Page, CrmV2Segmented, CrmV2Spinner, CrmV2Tabs,
 } from '@/components/crm-v2/primitives'
 import { AdminNotice } from '@/components/crm-v2/admin/AdminUi'
 import { CURRENT_SEASON, seasonLabel, type LyceeListItem } from '@/lib/lycees'
-import LyceesTable, { applyLyceeFilters, EMPTY_FILTERS, type LyceeFilters } from './LyceesTable'
+import LyceesTable, { applyLyceeFilters, EMPTY_FILTERS, LYCEE_VIEWS, matchLyceeView, type LyceeFilters } from './LyceesTable'
 import LyceeDrawer from './LyceeDrawer'
 import ForumsAgenda from './ForumsAgenda'
+import ForumsList from './ForumsList'
+import OurDates from './OurDates'
 import EventModal, { type EventDraft } from './EventModal'
-import { AlertsTab, FlyingTab, TeamTab } from './LyceesInsights'
+import CallLogModal, { type CallTarget } from './CallLogModal'
 import { api, parisTodayKey, type AgendaEvent, type TeamUser } from './ui'
 
-type Tab = 'lycees' | 'agenda' | 'alertes' | 'flying' | 'equipe'
+type Tab = 'lycees' | 'forums' | 'dates'
 type ListResponse = { lycees: LyceeListItem[]; is_manager: boolean; me: string }
 type EventsResponse = {
   events: AgendaEvent[]
@@ -32,7 +37,7 @@ type EventsResponse = {
   is_manager: boolean
 }
 
-const FILTERS_KEY = 'crm-v2-lycees-filters'
+const FILTERS_KEY = 'crm-v2-lycees-filters-v2'
 
 export default function LyceesClient() {
   const [tab, setTab] = useState<Tab>('lycees')
@@ -44,10 +49,15 @@ export default function LyceesClient() {
   const [openUai, setOpenUai] = useState<string | null>(null)
   const [eventDraft, setEventDraft] = useState<EventDraft | null>(null)
   const [scanning, setScanning] = useState(false)
+  const [callTarget, setCallTarget] = useState<CallTarget | null>(null)
+  const [forumMode, setForumMode] = useState<'liste' | 'cartes'>('liste')
   const [notice, setNotice] = useState<string | null>(null)
   const [filters, setFiltersState] = useState<LyceeFilters>(() => {
     if (typeof window === 'undefined') return EMPTY_FILTERS
-    try { return { ...EMPTY_FILTERS, ...JSON.parse(localStorage.getItem(FILTERS_KEY) || '{}') } } catch { return EMPTY_FILTERS }
+    try {
+      const f = { ...EMPTY_FILTERS, quick: 'a_traiter' as const, ...JSON.parse(localStorage.getItem(FILTERS_KEY) || '{}') }
+      return LYCEE_VIEWS.some(v => v.id === f.quick) ? f : { ...f, quick: '' }
+    } catch { return { ...EMPTY_FILTERS, quick: 'a_traiter' } }
   })
   const setFilters = (f: LyceeFilters) => {
     setFiltersState(f)
@@ -90,30 +100,36 @@ export default function LyceesClient() {
   const events = useMemo(() => agenda?.events ?? [], [agenda])
   const today = parisTodayKey()
   const filtered = useMemo(() => applyLyceeFilters(lycees, filters, list?.me ?? null, today), [lycees, filters, list?.me, today])
+  const viewBase = useMemo(() => applyLyceeFilters(lycees, { ...filters, quick: '' }, list?.me ?? null, today), [lycees, filters, list?.me, today])
   const lyceeOptions = useMemo(() => lycees.map(l => ({ uai: l.uai, name: l.name, city: l.city, department: l.department })), [lycees])
 
   const kpis = useMemo(() => {
-    const upcoming = events.filter(e => e.kind !== 'flying' && e.date && e.date >= today && e.status !== 'annule' && e.status !== 'refuse')
-    const in30 = upcoming.filter(e => (Date.parse(e.date!) - Date.parse(today)) / 86400_000 <= 30)
+    const upcoming = events.filter(e => e.kind !== 'flying' && (!e.date || e.date >= today))
     return {
+      rappels: lycees.filter(l => matchLyceeView(l, 'rappels', today)).length,
+      jamais: lycees.filter(l => matchLyceeView(l, 'jamais', today)).length,
       obtained: lycees.filter(l => l.status === 'obtenu').length,
-      upcoming: upcoming.length,
-      in30: in30.length,
-      toReschedule: lycees.filter(l => l.had_previous_season && !l.current_season_events && l.status !== 'refus').length,
-      detected: events.filter(e => e.status === 'detecte' && (!e.date || e.date >= today)).length,
-      hot: lycees.filter(l => l.score >= 65).length,
-      late: lycees.filter(l => l.next_action_at && l.next_action_at < today).length,
-      soonNoOne: upcoming.filter(e => !e.intervenants && e.status !== 'detecte' && (Date.parse(e.date!) - Date.parse(today)) / 86400_000 <= 21).length,
+      forumsToCall: upcoming.filter(e => e.status === 'detecte' || e.status === 'a_confirmer').length,
+      forumsRappels: events.filter(e => e.next_action_at && e.next_action_at <= today).length,
+      confirmed: upcoming.filter(e => e.status === 'confirme').length,
     }
   }, [lycees, events, today])
-
-  const alertsCount = kpis.detected + kpis.toReschedule + kpis.late + kpis.soonNoOne
 
   const bulk = async (uais: string[], patch: Record<string, unknown>) => {
     try {
       await api('/api/crm/lycees', { method: 'PATCH', json: { uais, patch } })
       setNotice(`${uais.length} lycée(s) mis à jour.`)
       await loadList()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erreur')
+    }
+  }
+
+  const bulkEvents = async (ids: string[], patch: Record<string, unknown>) => {
+    try {
+      await api('/api/crm/lycees/events', { method: 'PATCH', json: { ids, patch } })
+      setNotice(`${ids.length} forum(s) mis à jour.`)
+      await loadAgenda()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erreur')
     }
@@ -146,11 +162,10 @@ export default function LyceesClient() {
 
   const tabs = [
     { id: 'lycees', label: isManager ? 'Lycées' : 'Mes lycées', count: lycees.length },
-    { id: 'agenda', label: `Agenda des forums ${seasonLabel(CURRENT_SEASON)}`, count: kpis.upcoming },
-    { id: 'alertes', label: '⚠ À ne pas louper', count: alertsCount },
-    { id: 'flying', label: 'Flying' },
-    ...(isManager ? [{ id: 'equipe', label: 'Équipe' }] : []),
+    { id: 'forums', label: `Forums ${seasonLabel(CURRENT_SEASON)}`, count: kpis.forumsToCall },
+    { id: 'dates', label: 'Nos dates', count: kpis.confirmed },
   ]
+  const eventName = (e: AgendaEvent) => `${e.lycee?.name ?? e.title ?? 'Forum'}${e.date ? ` · ${e.date.split('-').reverse().join('/')}` : ''}`
 
   return (
     <CrmV2Page>
@@ -179,50 +194,72 @@ export default function LyceesClient() {
             {tab === 'lycees' && (
               <>
                 <CrmV2KpiGrid>
-                  <CrmV2KpiCard label={isManager ? 'Lycées en base' : 'Mes lycées'} value={lycees.length.toLocaleString('fr-FR')} icon={<School size={15} />}
-                    detail={`${kpis.hot} à fort potentiel (score ≥ 65)`} onClick={() => setFilters(EMPTY_FILTERS)} />
-                  <CrmV2KpiCard label="Forums / inters obtenus" value={kpis.obtained} icon={<Trophy size={15} />} color="#16a34a"
-                    detail={`saison ${seasonLabel(CURRENT_SEASON)}`} onClick={() => setFilters({ ...EMPTY_FILTERS, status: 'obtenu' })} />
-                  <CrmV2KpiCard label="Forums à venir" value={kpis.upcoming} icon={<CalendarCheck size={15} />} color="#0091ae"
-                    detail={`dont ${kpis.in30} dans les 30 jours`} onClick={() => setTab('agenda')} />
-                  <CrmV2KpiCard label="À recaler" value={kpis.toReschedule} icon={<RotateCcw size={15} />} color="#e8833a"
-                    detail="forum l’an dernier, rien cette année" onClick={() => setFilters({ ...EMPTY_FILTERS, quick: 'a_recaler' })} />
-                  <CrmV2KpiCard label="À vérifier" value={kpis.detected} icon={<Flame size={15} />} color="#d13a41"
-                    detail="forums détectés par la veille" onClick={() => setTab('alertes')} />
+                  <CrmV2KpiCard label="À rappeler" value={kpis.rappels} icon={<PhoneCall size={15} />} color={kpis.rappels ? '#d13a41' : crmV2.text}
+                    detail="aujourd’hui ou en retard" onClick={() => setFilters({ ...filters, quick: 'rappels' })} />
+                  <CrmV2KpiCard label="Jamais appelés" value={kpis.jamais} icon={<PhoneOff size={15} />} color="#b8963e"
+                    detail={`sur ${lycees.length} lycées`} onClick={() => setFilters({ ...filters, quick: 'jamais' })} />
+                  <CrmV2KpiCard label="Obtenus" value={kpis.obtained} icon={<Trophy size={15} />} color="#16a34a"
+                    detail="forum / conférence / inter" onClick={() => setFilters({ ...filters, quick: 'obtenus' })} />
+                  <CrmV2KpiCard label="Forums à appeler" value={kpis.forumsToCall} icon={<Radar size={15} />} color="#0091ae"
+                    detail={kpis.forumsRappels ? `dont ${kpis.forumsRappels} rappel(s) dus` : 'organisateurs à contacter'} onClick={() => setTab('forums')} />
+                  <CrmV2KpiCard label="Nos dates à venir" value={kpis.confirmed} icon={<CalendarCheck size={15} />}
+                    detail="confirmées" onClick={() => setTab('dates')} />
                 </CrmV2KpiGrid>
                 <LyceesTable
                   items={filtered}
+                  viewBase={viewBase}
                   allCount={lycees.length}
                   filters={filters}
                   setFilters={setFilters}
                   users={users}
                   isManager={isManager}
                   onOpen={setOpenUai}
+                  onCall={l => setCallTarget({ type: 'lycee', uai: l.uai, name: l.name })}
                   onBulk={bulk}
                 />
               </>
             )}
-            {tab === 'agenda' && (
+            {tab === 'forums' && (
               !agenda ? <CrmV2Spinner /> : (
-                <ForumsAgenda
-                  events={events}
-                  users={users}
-                  onOpenLycee={setOpenUai}
-                  onEdit={e => setEventDraft(e)}
-                  onQuickPatch={quickPatchEvent}
-                  lastScan={agenda.last_scan}
-                  canScan={isManager}
-                  scanning={scanning}
-                  onScan={scan}
-                />
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <CrmV2Segmented value={forumMode} onChange={setForumMode} items={[{ id: 'liste', label: 'Liste' }, { id: 'cartes', label: 'Cartes' }]} />
+                    {isManager && forumMode === 'liste' && (
+                      <CrmV2Button size="sm" variant="gold" icon={<Radar size={13} />} disabled={scanning} onClick={() => scan([])}>
+                        {scanning ? 'Veille en cours (2-4 min)…' : 'Chercher de nouveaux forums'}
+                      </CrmV2Button>
+                    )}
+                  </div>
+                  {forumMode === 'liste' ? (
+                    <ForumsList
+                      events={events}
+                      users={users}
+                      me={list.me}
+                      isManager={isManager}
+                      onOpenLycee={setOpenUai}
+                      onEdit={e => setEventDraft(e)}
+                      onCall={e => setCallTarget({ type: 'event', id: e.id, name: eventName(e) })}
+                      onQuickPatch={quickPatchEvent}
+                      onBulk={bulkEvents}
+                    />
+                  ) : (
+                    <ForumsAgenda
+                      events={events}
+                      users={users}
+                      onOpenLycee={setOpenUai}
+                      onEdit={e => setEventDraft(e)}
+                      onQuickPatch={quickPatchEvent}
+                      lastScan={agenda.last_scan}
+                      canScan={isManager}
+                      scanning={scanning}
+                      onScan={scan}
+                    />
+                  )}
+                </>
               )
             )}
-            {tab === 'alertes' && (
-              <AlertsTab lycees={lycees} events={events} users={users} isManager={isManager} onOpenLycee={setOpenUai} onEditEvent={e => setEventDraft(e)} />
-            )}
-            {tab === 'flying' && <FlyingTab lycees={lycees} onOpenLycee={setOpenUai} />}
-            {tab === 'equipe' && isManager && (
-              <TeamTab lycees={lycees} events={events} users={users} onFilterAssignee={id => { setFilters({ ...EMPTY_FILTERS, assignee: id }); setTab('lycees') }} />
+            {tab === 'dates' && (
+              !agenda ? <CrmV2Spinner /> : <OurDates events={events} onOpenLycee={setOpenUai} onEdit={e => setEventDraft(e)} />
             )}
           </>
         )}
@@ -231,14 +268,30 @@ export default function LyceesClient() {
         </div>
       </CrmV2Body>
 
-      <LyceeDrawer uai={openUai} onClose={() => setOpenUai(null)} onChanged={() => { void loadList(); void loadAgenda() }} users={users} lycees={lyceeOptions} />
+      <LyceeDrawer uai={openUai} onClose={() => setOpenUai(null)} onChanged={() => { void loadList(); void loadAgenda() }} users={users} lycees={lyceeOptions}
+        onCall={(uai, name) => setCallTarget({ type: 'lycee', uai, name })} />
       {eventDraft && (
         <EventModal
           open
           initial={eventDraft}
           lycees={lyceeOptions}
+          users={users}
+          isManager={isManager}
+          onCall={eventDraft.id ? () => {
+            const ev = eventDraft
+            setEventDraft(null)
+            setCallTarget({ type: 'event', id: ev.id!, name: ev.title ?? lycees.find(l => l.uai === ev.uai)?.name ?? 'Forum' })
+          } : undefined}
           onClose={() => setEventDraft(null)}
           onSaved={reload}
+        />
+      )}
+      {callTarget && (
+        <CallLogModal
+          key={callTarget.type === 'lycee' ? callTarget.uai : callTarget.id}
+          target={callTarget}
+          onClose={() => setCallTarget(null)}
+          onSaved={() => { reload(); setNotice('Appel enregistré.') }}
         />
       )}
     </CrmV2Page>

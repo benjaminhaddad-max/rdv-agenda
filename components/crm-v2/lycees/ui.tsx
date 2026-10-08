@@ -5,8 +5,9 @@
 import type { CSSProperties, ReactNode } from 'react'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import { CrmV2StatusPill, hexA } from '@/components/crm-v2/primitives'
+import { CalendarClock } from 'lucide-react'
 import {
-  EVENT_KINDS, EVENT_STATUSES, LYCEE_MODES, LYCEE_PRIORITIES, LYCEE_STATUSES, lookup, scoreColor,
+  CALL_OUTCOMES, EVENT_KINDS, EVENT_STATUSES, LYCEE_MODES, LYCEE_PRIORITIES, LYCEE_STATUSES, lookup, scoreColor,
   type LyceeEventRow, type LyceeRow,
 } from '@/lib/lycees'
 
@@ -98,6 +99,42 @@ export function KindPill({ kind }: { kind: string }) {
 export function EventStatusPill({ status }: { status: string }) {
   const s = lookup(EVENT_STATUSES, status)
   return s ? <CrmV2StatusPill label={s.label} color={s.color} /> : null
+}
+
+export function OutcomePill({ outcome }: { outcome: string | null }) {
+  const o = lookup(CALL_OUTCOMES, outcome)
+  return o ? <CrmV2StatusPill label={o.short} color={o.color} dot={false} /> : null
+}
+
+/** Cellule « Dernier appel » : résultat + date + remarque (une ligne). */
+export function LastCallCell({ at, outcome, note, count }: { at: string | null; outcome: string | null; note: string | null; count: number }) {
+  if (!at && !count) return <span style={{ color: crmV2.textFaint, fontSize: 12 }}>Jamais appelé</span>
+  return (
+    <div style={{ minWidth: 0, maxWidth: 280 }} title={note ?? undefined}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+        <OutcomePill outcome={outcome} />
+        <span style={{ fontSize: 11.5, color: crmV2.textFaint }}>
+          {at ? new Date(at).toLocaleDateString('fr-FR', { timeZone: 'Europe/Paris', day: 'numeric', month: 'short' }) : ''}{count > 1 ? ` · ${count} appels` : ''}
+        </span>
+      </div>
+      {note && <div style={{ fontSize: 12, color: crmV2.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 1 }}>{note}</div>}
+    </div>
+  )
+}
+
+/** Cellule « Rappel » : date du prochain rappel (rouge si en retard). */
+export function NextCallCell({ date, today }: { date: string | null; today: string }) {
+  if (!date) return <span style={{ color: crmV2.textFaint }}>—</span>
+  const late = date < today
+  const isToday = date === today
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, whiteSpace: 'nowrap',
+      color: late ? crmV2.danger : isToday ? '#e8833a' : crmV2.textMuted, fontWeight: late || isToday ? 700 : 500,
+    }}>
+      <CalendarClock size={12} /> {isToday ? 'Aujourd’hui' : `${fmtDate(date)} · ${relDays(today, date)}`}
+    </span>
+  )
 }
 
 export function Dept({ d }: { d: string | null }) {

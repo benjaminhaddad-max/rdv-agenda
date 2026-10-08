@@ -22,7 +22,7 @@ import {
 } from '@/lib/lycees'
 import EventModal, { type EventDraft } from './EventModal'
 import {
-  api, Dept, EventStatusPill, fmtDate, fmtDateTime, KindPill, mapsUrl, ModePill, parisTodayKey, ScorePill, Stat, telHref,
+  api, Dept, EventStatusPill, fmtDate, fmtDateTime, KindPill, mapsUrl, ModePill, OutcomePill, parisTodayKey, ScorePill, Stat, telHref,
   type TeamUser,
 } from './ui'
 
@@ -37,8 +37,10 @@ type Detail = {
 type LyceeOption = Pick<LyceeRow, 'uai' | 'name' | 'city' | 'department'>
 
 export default function LyceeDrawer({
-  uai, onClose, onChanged, users, lycees,
+  uai, onClose, onChanged, users, lycees, onCall,
 }: {
+  /** Ouvre « Noter un appel » sur ce lycée */
+  onCall: (uai: string, name: string) => void
   uai: string | null
   onClose: () => void
   /** Rafraîchit la liste derrière (statut, attribution…) */
@@ -112,7 +114,7 @@ export default function LyceeDrawer({
             onAdd={() => setEventDraft({ uai: l.uai, kind: 'forum', scope: 'lycee', status: 'a_confirmer', mode: l.mode })}
             onEdit={ev => setEventDraft(ev)}
           />
-          <Journal uai={l.uai} activities={d.activities} onReload={async () => { await load(); onChanged() }} />
+          <Journal uai={l.uai} activities={d.activities} onReload={async () => { await load(); onChanged() }} onCall={() => onCall(l.uai, l.name)} />
           <Notes key={`${l.notes}|${l.competition}`} l={l} onPatch={patch} />
         </div>
       )}
@@ -437,8 +439,8 @@ function Evenements({ events, onAdd, onEdit }: { events: LyceeEventRow[]; onAdd:
   )
 }
 
-function Journal({ uai, activities, onReload }: { uai: string; activities: LyceeActivityRow[]; onReload: () => Promise<void> }) {
-  const [kind, setKind] = useState<'note' | 'call' | 'email' | 'visit'>('call')
+function Journal({ uai, activities, onReload, onCall }: { uai: string; activities: LyceeActivityRow[]; onReload: () => Promise<void>; onCall: () => void }) {
+  const [kind, setKind] = useState<'note' | 'call' | 'email' | 'visit'>('note')
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
   const add = async () => {
@@ -459,15 +461,17 @@ function Journal({ uai, activities, onReload }: { uai: string; activities: Lycee
   }
   const color: Record<string, string> = { note: crmV2.gold, call: '#00a38d', email: '#0091ae', visit: '#7e22ce', status: '#516f90', assign: '#516f90' }
   return (
-    <Block title="Journal & commentaires" icon={<MessageSquare size={14} />} count={activities.length}>
+    <Block title="Appels & commentaires" icon={<MessageSquare size={14} />} count={activities.length} actions={
+      <CrmV2Button size="sm" variant="gold" icon={<Phone size={13} />} onClick={onCall}>Noter un appel</CrmV2Button>
+    }>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
         <CrmV2Segmented size="sm" value={kind} onChange={setKind} items={[
-          { id: 'call', label: 'Appel' }, { id: 'email', label: 'Mail' }, { id: 'visit', label: 'Visite' }, { id: 'note', label: 'Note' },
+          { id: 'note', label: 'Commentaire' }, { id: 'email', label: 'Mail' }, { id: 'visit', label: 'Visite' },
         ]} />
         <CrmV2Textarea
           value={text}
           onChange={e => setText(e.target.value)}
-          placeholder={kind === 'call' ? 'Ex. Secrétariat → renvoie vers Mme X (CPE), forum prévu fin janvier, rappeler lundi…' : 'Commentaire…'}
+          placeholder="Commentaire sur le lycée (pour un appel, utilise « Noter un appel »)…"
           rows={3}
           onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void add() }}
         />
@@ -479,8 +483,10 @@ function Journal({ uai, activities, onReload }: { uai: string; activities: Lycee
         <div key={a.id} style={{ display: 'flex', gap: 10, padding: '8px 0', borderTop: `1px solid ${crmV2.borderLight}` }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: color[a.kind] ?? crmV2.gold, marginTop: 6, flexShrink: 0 }} />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 11.5, color: crmV2.textFaint }}>
-              <b style={{ color: crmV2.textMuted }}>{lookup(ACTIVITY_KINDS, a.kind)?.label}</b> · {a.author_name ?? '—'} · {fmtDateTime(a.created_at)}
+            <div style={{ fontSize: 11.5, color: crmV2.textFaint, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <b style={{ color: crmV2.textMuted }}>{lookup(ACTIVITY_KINDS, a.kind)?.label}</b>
+              {a.outcome && <OutcomePill outcome={a.outcome} />}
+              <span>· {a.author_name ?? '—'} · {fmtDateTime(a.created_at)}</span>
             </div>
             <div style={{ fontSize: 13, color: crmV2.text, whiteSpace: 'pre-wrap', marginTop: 2 }}>{a.content}</div>
           </div>

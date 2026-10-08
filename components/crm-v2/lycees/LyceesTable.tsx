@@ -1,9 +1,13 @@
 'use client'
 
-/** Tableau des lycées (onglet « Lycées ») : filtres, tri, sélection et actions groupées. */
+/**
+ * Tableau des lycées (onglet « Lycées »), traité comme une liste de leads :
+ * vues rapides (à rappeler, jamais appelés, à recaler…), dernier appel avec la
+ * remarque, prochain rappel, bouton « Appel », attribution groupée.
+ */
 
 import { useMemo, useState, type CSSProperties } from 'react'
-import { CalendarClock, Download, X } from 'lucide-react'
+import { Download, Phone, X } from 'lucide-react'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import { useIsMobile } from '@/lib/useIsMobile'
 import {
@@ -15,7 +19,7 @@ import {
   type LyceeListItem,
 } from '@/lib/lycees'
 import {
-  Dept, fmtDate, KindPill, ModePill, parisTodayKey, PriorityPill, relDays, ScorePill, StatusPill, UserChip, type TeamUser,
+  Dept, fmtDate, KindPill, LastCallCell, ModePill, NextCallCell, parisTodayKey, PriorityPill, ScorePill, StatusPill, UserChip, type TeamUser,
 } from './ui'
 
 export type LyceeFilters = {
@@ -27,14 +31,40 @@ export type LyceeFilters = {
   mode: string
   voie: string
   secteur: string
-  quick: '' | 'historique' | 'a_recaler' | 'flying' | 'relance_retard'
+  /** Vue rapide (pilules au-dessus du tableau) */
+  quick: LyceeView
+}
+
+export type LyceeView = '' | 'a_traiter' | 'rappels' | 'jamais' | 'recaler' | 'prioritaires' | 'obtenus'
+
+export const LYCEE_VIEWS: { id: LyceeView; label: string; managerOnly?: boolean; hint: string }[] = [
+  { id: 'a_traiter', label: 'À traiter', hint: 'Ni obtenu, ni refus, ni hors cible' },
+  { id: 'rappels', label: 'À rappeler', hint: 'Rappel prévu aujourd’hui ou en retard' },
+  { id: 'jamais', label: 'Jamais appelés', hint: 'Aucun appel noté' },
+  { id: 'recaler', label: 'À recaler', hint: 'Forum ou inter l’an dernier, rien de calé cette année' },
+  { id: 'prioritaires', label: 'Prioritaires non attribués', managerOnly: true, hint: 'Très importants / importants / score ≥ 65, sans personne' },
+  { id: 'obtenus', label: 'Obtenus', hint: 'Forum, conférence ou intervention obtenu(e)' },
+  { id: '', label: 'Tous', hint: '' },
+]
+
+export function matchLyceeView(l: LyceeListItem, v: LyceeView, today: string): boolean {
+  const open = l.status !== 'obtenu' && l.status !== 'refus' && l.status !== 'non_cible'
+  switch (v) {
+    case 'a_traiter': return open
+    case 'rappels': return !!l.next_action_at && l.next_action_at <= today
+    case 'jamais': return !l.calls_count && !l.last_contact_at && open
+    case 'recaler': return l.had_previous_season && !l.current_season_events && open
+    case 'prioritaires': return !l.assigned_to && open && (l.priority === 'tres_important' || l.priority === 'important' || l.score >= 65)
+    case 'obtenus': return l.status === 'obtenu'
+    default: return true
+  }
 }
 
 export const EMPTY_FILTERS: LyceeFilters = {
   q: '', dept: '', status: '', priority: '', assignee: '', mode: '', voie: '', secteur: '', quick: '',
 }
 
-type SortKey = 'score' | 'name' | 'svt' | 'next' | 'last' | 'flying' | 'leads'
+type SortKey = 'score' | 'name' | 'next' | 'last' | 'rappel'
 
 export function applyLyceeFilters(items: LyceeListItem[], f: LyceeFilters, me: string | null, today: string): LyceeListItem[] {
   const q = normalizeName(f.q)
@@ -52,17 +82,15 @@ export function applyLyceeFilters(items: LyceeListItem[], f: LyceeFilters, me: s
     if (f.voie === 'gen' && l.voie_generale === false) return false
     if (f.voie === 'pro' && l.voie_generale !== false) return false
     if (f.secteur && l.secteur !== f.secteur) return false
-    if (f.quick === 'historique' && !l.past_events) return false
-    if (f.quick === 'a_recaler' && !(l.had_previous_season && !l.current_season_events)) return false
-    if (f.quick === 'flying' && !l.flying_per_session) return false
-    if (f.quick === 'relance_retard' && !(l.next_action_at && l.next_action_at < today)) return false
-    return true
+    return matchLyceeView(l, f.quick, today)
   })
 }
 
 export default function LyceesTable({
-  items, allCount, filters, setFilters, users, isManager, onOpen, onBulk,
+  items, viewBase, allCount, filters, setFilters, users, isManager, onOpen, onCall, onBulk,
 }: {
+  /** Lycées filtrés hors vue rapide (pour les compteurs des pilules) */
+  viewBase: LyceeListItem[]
   items: LyceeListItem[]
   allCount: number
   filters: LyceeFilters
@@ -70,6 +98,7 @@ export default function LyceesTable({
   users: TeamUser[]
   isManager: boolean
   onOpen: (uai: string) => void
+  onCall: (l: LyceeListItem) => void
   onBulk: (uais: string[], patch: Record<string, unknown>) => Promise<void>
 }) {
   const isMobile = useIsMobile()
@@ -84,11 +113,9 @@ export default function LyceesTable({
     const v = (l: LyceeListItem): number | string => {
       switch (sort.key) {
         case 'name': return normalizeName(l.name)
-        case 'svt': return l.eff_svt ?? -1
         case 'next': return l.next_event?.date ?? (sort.dir === 1 ? '9999' : '0000')
         case 'last': return l.last_contact_at ?? ''
-        case 'flying': return l.flying_per_session ?? -1
-        case 'leads': return l.past_leads
+        case 'rappel': return l.next_action_at ?? (sort.dir === 1 ? '9999' : '0000')
         default: return l.score
       }
     }
@@ -102,7 +129,7 @@ export default function LyceesTable({
   const set = (patch: Partial<LyceeFilters>) => { setFilters({ ...filters, ...patch }); setPage(1) }
   const th = (key: SortKey, label: string, style?: CSSProperties) => (
     <CrmV2Th style={style} sorted={sort.key === key ? (sort.dir === 1 ? 'asc' : 'desc') : false}
-      onClick={() => setSort(s => ({ key, dir: s.key === key ? (s.dir === 1 ? -1 : 1) : (key === 'name' || key === 'next' ? 1 : -1) }))}>
+      onClick={() => setSort(s => ({ key, dir: s.key === key ? (s.dir === 1 ? -1 : 1) : (key === 'name' || key === 'next' || key === 'rappel' ? 1 : -1) }))}>
       {label}
     </CrmV2Th>
   )
@@ -116,12 +143,12 @@ export default function LyceesTable({
   const activeFilters = Object.entries(filters).filter(([, v]) => v).length
 
   const exportCsv = () => {
-    const cols = ['UAI', 'Lycée', 'Ville', 'Dépt', 'Score', 'Priorité', 'Statut', 'Mode', 'Attribué à', 'Téléphone', 'Mail', 'Élèves SVT', 'IPS', 'Leads passés', 'Leads/flying', 'Prochain événement']
+    const cols = ['UAI', 'Lycée', 'Ville', 'Dépt', 'Score', 'Priorité', 'Statut', 'Mode', 'Attribué à', 'Téléphone', 'Mail', 'Dernier appel', 'Résultat', 'Remarque', 'Rappel', 'Prochain événement']
     const esc = (s: unknown) => `"${String(s ?? '').replace(/"/g, '""')}"`
     const lines = sorted.map(l => [
       l.uai, l.name, l.city, l.department, l.score, lookup(LYCEE_PRIORITIES, l.priority)?.label, lookup(LYCEE_STATUSES, l.status)?.label,
-      lookup(LYCEE_MODES, l.mode)?.short, usersById.get(l.assigned_to ?? '')?.name, l.phone, l.email, l.eff_svt, l.ips,
-      l.past_leads, l.flying_per_session, l.next_event?.date,
+      lookup(LYCEE_MODES, l.mode)?.short, usersById.get(l.assigned_to ?? '')?.name, l.phone, l.email,
+      l.last_contact_at?.slice(0, 10), l.last_outcome, l.last_note, l.next_action_at, l.next_event?.date,
     ].map(esc).join(';'))
     const blob = new Blob(['﻿' + [cols.join(';'), ...lines].join('\n')], { type: 'text/csv;charset=utf-8' })
     const a = document.createElement('a')
@@ -167,13 +194,6 @@ export default function LyceesTable({
       <AdminPillSelect value={filters.secteur} onChange={e => set({ secteur: e.target.value })}>
         <option value="">Public & privé</option>
         {Object.entries(SECTEUR_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-      </AdminPillSelect>
-      <AdminPillSelect value={filters.quick} onChange={e => set({ quick: e.target.value as LyceeFilters['quick'] })}>
-        <option value="">Raccourcis</option>
-        <option value="historique">Déjà fait un forum / inter</option>
-        <option value="a_recaler">Forum l’an dernier, rien cette année</option>
-        <option value="flying">Avec historique de flying</option>
-        <option value="relance_retard">Relance en retard</option>
       </AdminPillSelect>
       {activeFilters > 0 && (
         <CrmV2Button size="sm" variant="ghost" icon={<X size={13} />} onClick={() => set(EMPTY_FILTERS)}>Effacer</CrmV2Button>
@@ -233,6 +253,26 @@ export default function LyceesTable({
     </div>
   )
 
+  const views = LYCEE_VIEWS.filter(v => isManager || !v.managerOnly)
+  const viewPills = (
+    <div style={{ display: 'flex', gap: 6, flexWrap: isMobile ? 'nowrap' : 'wrap', overflowX: 'auto', scrollbarWidth: 'none' }}>
+      {views.map(v => {
+        const on = filters.quick === v.id
+        const n = viewBase.filter(l => matchLyceeView(l, v.id, today)).length
+        return (
+          <button key={v.id || 'tous'} type="button" title={v.hint} onClick={() => set({ quick: v.id })} style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 999, fontFamily: 'inherit', fontSize: 13,
+            fontWeight: on ? 700 : 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
+            border: `1px solid ${on ? crmV2.primary : crmV2.borderStrong}`, background: on ? crmV2.primary : crmV2.bg, color: on ? '#fff' : crmV2.text,
+          }}>
+            {v.label}
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: on ? 'rgba(255,255,255,0.8)' : v.id === 'rappels' && n ? crmV2.danger : crmV2.textFaint }}>{n}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+
   const footer = (
     <>
       <span>{items.length !== allCount ? `${items.length.toLocaleString('fr-FR')} lycées filtrés sur ${allCount.toLocaleString('fr-FR')}` : null}</span>
@@ -243,6 +283,7 @@ export default function LyceesTable({
   if (isMobile) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {viewPills}
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{toolbar}</div>
         {!sorted.length ? <CrmV2Empty title="Aucun lycée" description="Change les filtres." /> : (
           <AdminMobileList>
@@ -254,7 +295,16 @@ export default function LyceesTable({
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: crmV2.textMuted, marginTop: 2, flexWrap: 'wrap' }}>
                     <Dept d={l.department} /> {l.city} <StatusPill status={l.status} />
                   </div>
+                  {(l.last_note || l.next_action_at) && (
+                    <div style={{ fontSize: 12, color: crmV2.textMuted, marginTop: 3 }}>
+                      <NextCallCell date={l.next_action_at} today={today} /> {l.last_note}
+                    </div>
+                  )}
                 </div>
+                <span onClick={e => { e.stopPropagation(); onCall(l) }} style={{
+                  width: 38, height: 38, borderRadius: 999, background: crmV2.goldSoft, color: crmV2.goldDark,
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                }}><Phone size={16} /></span>
               </AdminMobileRow>
             ))}
           </AdminMobileList>
@@ -265,6 +315,8 @@ export default function LyceesTable({
   }
 
   return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    {viewPills}
     <CrmV2TableCard toolbar={toolbar} footer={footer} scrollStyle={{ maxHeight: 'calc(100vh - 330px)', minHeight: 300 }}>
       {bulkBar}
       {!sorted.length ? <CrmV2Empty title="Aucun lycée" description="Aucun lycée ne correspond à ces filtres." /> : (
@@ -287,16 +339,14 @@ export default function LyceesTable({
               <CrmV2Th>Statut</CrmV2Th>
               <CrmV2Th>Mode</CrmV2Th>
               {isManager && <CrmV2Th>Attribué à</CrmV2Th>}
+              {th('last', 'Dernier appel')}
+              {th('rappel', 'Rappel')}
               {th('next', 'Forum 26-27')}
-              {th('leads', 'Historique')}
-              {th('flying', 'Flying')}
-              {th('svt', 'Spé SVT')}
-              {th('last', 'Suivi')}
+              <CrmV2Th style={{ width: 90 }}> </CrmV2Th>
             </tr>
           </thead>
           <tbody>
             {pageItems.map(l => {
-              const late = l.next_action_at && l.next_action_at < today
               return (
                 <CrmV2Tr key={l.uai} onClick={() => onOpen(l.uai)}>
                   {isManager && (
@@ -312,6 +362,7 @@ export default function LyceesTable({
                       <Dept d={l.department} />
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {l.city}{l.secteur !== 'public' ? ' · privé' : ''}{l.voie_generale === false ? ' · pro' : ''}
+                        {l.past_events ? ` · ${l.past_events} déjà fait(s)${l.past_leads ? `, ${l.past_leads} leads` : ''}` : ''}
                       </span>
                     </div>
                   </CrmV2Td>
@@ -320,6 +371,8 @@ export default function LyceesTable({
                   <CrmV2Td><StatusPill status={l.status} /></CrmV2Td>
                   <CrmV2Td><ModePill mode={l.mode} /></CrmV2Td>
                   {isManager && <CrmV2Td style={{ maxWidth: 150 }}><UserChip user={usersById.get(l.assigned_to ?? '')} /></CrmV2Td>}
+                  <CrmV2Td><LastCallCell at={l.last_contact_at} outcome={l.last_outcome} note={l.last_note} count={l.calls_count || 0} /></CrmV2Td>
+                  <CrmV2Td><NextCallCell date={l.next_action_at} today={today} /></CrmV2Td>
                   <CrmV2Td>
                     {l.next_event ? (
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
@@ -330,25 +383,10 @@ export default function LyceesTable({
                       <span style={{ color: '#e8833a', fontWeight: 700, fontSize: 12 }}>À recaler</span>
                     ) : <span style={{ color: crmV2.textFaint }}>—</span>}
                   </CrmV2Td>
-                  <CrmV2Td style={{ whiteSpace: 'nowrap' }}>
-                    {l.past_events ? (
-                      <span style={{ fontSize: 12.5 }}>
-                        <b>{l.past_events}</b> fait(s){l.past_leads ? <span style={{ color: '#16a34a', fontWeight: 700 }}> · {l.past_leads} leads</span> : null}
-                      </span>
-                    ) : <span style={{ color: crmV2.textFaint }}>—</span>}
-                  </CrmV2Td>
-                  <CrmV2Td style={{ whiteSpace: 'nowrap' }}>
-                    {l.flying_per_session ? <span><b>{l.flying_per_session}</b><span style={{ color: crmV2.textFaint, fontSize: 11.5 }}> /session</span></span> : <span style={{ color: crmV2.textFaint }}>—</span>}
-                  </CrmV2Td>
-                  <CrmV2Td style={{ fontVariantNumeric: 'tabular-nums' }}>{l.eff_svt ?? <span style={{ color: crmV2.textFaint }}>—</span>}</CrmV2Td>
-                  <CrmV2Td style={{ maxWidth: 220 }}>
-                    {l.next_action_at ? (
-                      <span title={l.next_action ?? undefined} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: late ? crmV2.danger : crmV2.textMuted, fontWeight: late ? 700 : 500, whiteSpace: 'nowrap' }}>
-                        <CalendarClock size={12} /> {fmtDate(l.next_action_at)} · {relDays(today, l.next_action_at)}
-                      </span>
-                    ) : l.last_contact_at ? (
-                      <span style={{ fontSize: 12, color: crmV2.textMuted }}>Contacté le {new Date(l.last_contact_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}</span>
-                    ) : <span style={{ color: crmV2.textFaint }}>—</span>}
+                  <CrmV2Td>
+                    <span onClick={e => e.stopPropagation()}>
+                      <CrmV2Button size="sm" variant="gold" icon={<Phone size={12} />} onClick={() => onCall(l)}>Appel</CrmV2Button>
+                    </span>
                   </CrmV2Td>
                 </CrmV2Tr>
               )
@@ -357,5 +395,6 @@ export default function LyceesTable({
         </CrmV2Table>
       )}
     </CrmV2TableCard>
+    </div>
   )
 }

@@ -15,6 +15,7 @@ export type LyceeEventKind = 'forum' | 'intervention' | 'conference' | 'flying' 
 export type LyceeEventStatus = 'detecte' | 'a_confirmer' | 'confirme' | 'realise' | 'annule' | 'refuse'
 export type LyceeEventScope = 'lycee' | 'inter_lycees' | 'ville' | 'departement'
 export type LyceeActivityKind = 'note' | 'call' | 'email' | 'visit' | 'status' | 'assign'
+export type CallOutcome = 'no_answer' | 'voicemail' | 'callback' | 'mail_sent' | 'interested' | 'obtained' | 'refused' | 'wrong_number'
 
 /** Saison scolaire en cours de prospection. */
 export const CURRENT_SEASON = '2026-2027'
@@ -63,6 +64,18 @@ export const EVENT_SCOPES: { id: LyceeEventScope; label: string }[] = [
   { id: 'inter_lycees', label: 'Inter-lycées' },
   { id: 'ville', label: 'Forum de ville / CIO' },
   { id: 'departement', label: 'Départemental' },
+]
+
+/** Résultat d'un appel (lycée ou organisateur de forum), comme pour un lead. */
+export const CALL_OUTCOMES: { id: CallOutcome; label: string; short: string; color: string }[] = [
+  { id: 'no_answer', label: 'Pas de réponse', short: 'NRP', color: '#7c98b6' },
+  { id: 'voicemail', label: 'Messagerie / message laissé', short: 'Messagerie', color: '#7c98b6' },
+  { id: 'callback', label: 'À rappeler', short: 'À rappeler', color: '#b8963e' },
+  { id: 'mail_sent', label: 'Mail envoyé (demandé)', short: 'Mail envoyé', color: '#0091ae' },
+  { id: 'interested', label: 'Intéressé — en discussion', short: 'Intéressé', color: '#7e22ce' },
+  { id: 'obtained', label: 'Obtenu (conférence / forum / stand)', short: 'Obtenu', color: '#16a34a' },
+  { id: 'refused', label: 'Refus', short: 'Refus', color: '#d13a41' },
+  { id: 'wrong_number', label: 'Mauvais numéro', short: 'Mauvais n°', color: '#94a3b8' },
 ]
 
 export const ACTIVITY_KINDS: { id: LyceeActivityKind; label: string }[] = [
@@ -152,6 +165,10 @@ export type LyceeRow = {
   flying_leads_total: number | null
   flying_sessions: number | null
   last_contact_at: string | null
+  /** v60 — dernier appel */
+  last_outcome: CallOutcome | null
+  last_note: string | null
+  calls_count: number
   created_at: string
   updated_at: string
 }
@@ -196,13 +213,22 @@ export type LyceeEventRow = {
   source_url: string | null
   dedupe_key: string | null
   hidden: boolean
+  /** v60 — un forum est appelé comme un lead (organisateur) */
+  assigned_to: string | null
+  last_contact_at: string | null
+  last_outcome: CallOutcome | null
+  last_note: string | null
+  calls_count: number
+  next_action_at: string | null
   created_at: string
   updated_at: string
 }
 
 export type LyceeActivityRow = {
   id: string
-  uai: string
+  uai: string | null
+  event_id: string | null
+  outcome: CallOutcome | null
   kind: LyceeActivityKind
   content: string
   author_id: string | null
