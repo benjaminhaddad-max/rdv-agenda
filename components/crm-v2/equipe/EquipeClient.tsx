@@ -1,47 +1,62 @@
 'use client'
 
 /**
- * Page « Télépros / Closers » (/admin/crm-v2/equipe) : un onglet par équipe,
- * avec sur la même ligne la gestion du compte (désactiver, ajouter, se
- * connecter en tant que, identifiants) et la performance de la période.
+ * Page « Équipe » (/admin/crm-v2/equipe) — remplace « Utilisateurs ».
+ * Onglets Télépros / Closers / Admins ; sur chaque ligne, la gestion du compte
+ * (désactiver, ajouter, se connecter en tant que, identifiants) et, pour les
+ * télépros et closers, la performance de la période.
  *
  * - Télépros : appels Aircall (lignes suivies), temps d'appel, RDV placés,
  *   minutes d'appel par RDV, RDV convertis — par marque (Diploma / Medibox).
  * - Closers : RDV eus, honorés, no-show, convertis, taux de closing — par
- *   marque. Pascal (compte admin) est inclus dès qu'il a des RDV : une
- *   réassignation remplace le closer du RDV, qui compte pour le closer final.
+ *   marque. Une réassignation remplace le closer du RDV : il compte pour le
+ *   closer final.
+ * - Double rôle : rdv_users.role (rôle principal) + extra_roles (casquettes en
+ *   plus, cf. lib/team-roles.ts). Un admin qui close (Pascal) apparaît dans
+ *   Closers ; un télépro qui close aussi apparaît dans les deux onglets.
  *
  * Les chiffres viennent de /api/crm/reports/suivi-commercial (même calcul
  * que « Suivi commercial »).
  */
 
-import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import {
   AlertTriangle, BarChart3, Briefcase, CalendarCheck, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, Key,
-  LogIn, Percent, Phone, PhoneOutgoing, Plus, RefreshCw, Trophy, UserCheck, UserPlus, UserX, X,
+  LogIn, Percent, Phone, PhoneOutgoing, Plus, RefreshCw, Shield, Trash2, Trophy, UserCheck, UserPlus, UserX, X,
 } from 'lucide-react'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import { useIsMobile } from '@/lib/useIsMobile'
 import {
   CrmV2Avatar, CrmV2Body, CrmV2Button, CrmV2Field, CrmV2Header, CrmV2Input, CrmV2KpiCard, CrmV2KpiGrid, CrmV2Page,
-  CrmV2Search, CrmV2Segmented, CrmV2StatusPill, CrmV2Table, CrmV2TableCard, CrmV2Tabs, CrmV2Td, CrmV2Th, CrmV2Tr,
+  CrmV2Search, CrmV2Segmented, CrmV2Select, CrmV2StatusPill, CrmV2Table, CrmV2TableCard, CrmV2Tabs, CrmV2Td, CrmV2Th, CrmV2Tr,
 } from '@/components/crm-v2/primitives'
 import { AdminIconButton, AdminNotice, AdminSpin } from '@/components/crm-v2/admin/AdminUi'
 import { PanelCard } from '@/components/crm-v2/panels/PanelUi'
 import { CredentialBox, type TeamMember } from '@/components/crm-v2/panels/TeamMemberManager'
 import { addParisDays, parisDateKey, parisMonthEndKey, parisWeekStartKey } from '@/lib/date-paris'
 import { RDV_BRANDS, type RdvBrand } from '@/lib/rdv-brand'
+import { TEAM_ROLE_LABELS, TEAM_ROLES, teamRolesOf, type TeamRole } from '@/lib/team-roles'
 import type { AgentMetrics, BrandBreakdown, SuiviCommercialResponse } from '@/lib/suivi-commercial'
 
-type Tab = 'telepros' | 'closers'
+type Tab = 'telepros' | 'closers' | 'admins'
 type Period = 'day' | 'week' | 'month'
 
+type EquipeMember = TeamMember & {
+  role: string
+  extra_roles: string[]
+  crm_brand: string | null
+  is_default_brand_telepro: boolean
+  hubspot_owner_id: string | null
+  last_sign_in_at: string | null
+}
+
 const TEAMS: Record<Tab, {
+  /** POST création + PATCH ban / unban / reset-password */
   endpoint: string
-  role: 'telepro' | 'closer'
+  role: TeamRole | null
   noun: string
   column: string
-  impersonateUrl: (m: TeamMember) => string | null
+  impersonateUrl: (m: EquipeMember) => string | null
 }> = {
   telepros: {
     endpoint: '/api/admin/telepros',
@@ -57,9 +72,30 @@ const TEAMS: Record<Tab, {
     column: 'Closer',
     impersonateUrl: m => (m.slug ? `/closer/${m.slug}` : null),
   },
+  admins: {
+    endpoint: '/api/admin/closers', // PATCH ban / reset : valable pour tout compte
+    role: null,
+    noun: 'admin',
+    column: 'Admin',
+    impersonateUrl: () => null,
+  },
 }
 
 const BRANDS: RdvBrand[] = ['diploma', 'medibox']
+const MAIN_ROLES = ['admin', 'manager', 'closer', 'telepro'] as const
+const CRM_BRAND_OPTIONS = [
+  { id: '', label: 'Toutes marques' },
+  { id: 'diploma', label: 'Diploma' },
+  { id: 'linova', label: 'Linova' },
+  { id: 'edumove', label: 'Edumove' },
+  { id: 'afem', label: 'AFEM' },
+]
+const ROLE_COLOR: Record<string, string> = {
+  admin: '#7e22ce',
+  manager: '#0091ae',
+  closer: '#8a6d22',
+  telepro: '#1f7ca8',
+}
 
 // ── Période ──────────────────────────────────────────────────────────────────
 
@@ -135,25 +171,29 @@ function converted(a: { rdv_positifs: number; rdv_preinscriptions: number }): nu
   return a.rdv_positifs + a.rdv_preinscriptions
 }
 
+function fmtLastSignIn(iso: string | null): string {
+  if (!iso) return 'Jamais'
+  return new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
 // ── Lignes ───────────────────────────────────────────────────────────────────
 
 type Row = {
   id: string
   name: string
   color: string | null
-  member: TeamMember | null
+  member: EquipeMember | null
   stats: AgentMetrics | null
-  /** Compte non « closer » qui close quand même (Pascal, admin). */
-  extraRole: string | null
 }
 
 type SortKey =
   | 'name' | 'calls' | 'answered' | 'talk2' | 'talk' | 'rdv' | 'minPerRdv' | 'conv'
-  | 'honored' | 'noShow' | 'cancelled' | 'showRate' | 'closingRate'
+  | 'honored' | 'noShow' | 'cancelled' | 'showRate' | 'closingRate' | 'lastSignIn'
 
 function sortValue(r: Row, key: SortKey): number | string {
   const s = r.stats
   if (key === 'name') return r.name
+  if (key === 'lastSignIn') return r.member?.last_sign_in_at ? Date.parse(r.member.last_sign_in_at) : 0
   if (!s) return -1
   switch (key) {
     case 'calls': return s.calls_outbound
@@ -172,6 +212,8 @@ function sortValue(r: Row, key: SortKey): number | string {
   }
 }
 
+const EMPTY_MEMBERS: Record<Tab, EquipeMember[] | null> = { telepros: null, closers: null, admins: null }
+
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function EquipeClient() {
@@ -181,7 +223,8 @@ export default function EquipeClient() {
   const [anchor, setAnchor] = useState(() => parisDateKey(new Date()))
   const { from, to } = periodRange(period, anchor)
 
-  const [members, setMembers] = useState<Record<Tab, TeamMember[] | null>>({ telepros: null, closers: null })
+  const [members, setMembers] = useState<Record<Tab, EquipeMember[] | null>>(EMPTY_MEMBERS)
+  const [extraRolesReady, setExtraRolesReady] = useState(true)
   const [stats, setStats] = useState<SuiviCommercialResponse | null>(null)
   const [statsKey, setStatsKey] = useState<string | null>(null)
   const [statsLoading, setStatsLoading] = useState(false)
@@ -194,18 +237,22 @@ export default function EquipeClient() {
   const [showBanned, setShowBanned] = useState(false)
 
   const team = TEAMS[tab]
+  const isAdmins = tab === 'admins'
 
   // Onglet depuis l'URL (?tab=closers), sans Suspense
   useEffect(() => {
     const t = new URLSearchParams(window.location.search).get('tab')
-    if (t === 'closers' || t === 'telepros') setTab(t)
+    if (t === 'closers' || t === 'telepros' || t === 'admins') {
+      setTab(t)
+      if (t === 'admins') setSort({ key: 'name', dir: 'asc' })
+    }
   }, [])
 
   function changeTab(t: Tab) {
     setTab(t)
     setExpanded(null)
     setSearch('')
-    setSort({ key: 'rdv', dir: 'desc' })
+    setSort(t === 'admins' ? { key: 'name', dir: 'asc' } : { key: 'rdv', dir: 'desc' })
     const url = new URL(window.location.href)
     url.searchParams.set('tab', t)
     window.history.replaceState(null, '', url.toString())
@@ -214,13 +261,10 @@ export default function EquipeClient() {
   // Comptes : chargés une fois par onglet (et à l'actualisation)
   const loadMembers = useCallback(async (t: Tab) => {
     try {
-      const res = await fetch(TEAMS[t].endpoint, { cache: 'no-store' })
-      if (res.ok) {
-        const data = await res.json()
-        setMembers(prev => ({ ...prev, [t]: Array.isArray(data) ? data : [] }))
-      } else {
-        setMembers(prev => ({ ...prev, [t]: prev[t] ?? [] }))
-      }
+      const res = await fetch(`/api/admin/team?tab=${t}`, { cache: 'no-store' })
+      const data = res.ok ? await res.json() : null
+      setMembers(prev => ({ ...prev, [t]: Array.isArray(data?.members) ? data.members : (prev[t] ?? []) }))
+      if (data) setExtraRolesReady(data.extra_roles_ready !== false)
     } catch {
       setMembers(prev => ({ ...prev, [t]: prev[t] ?? [] }))
     }
@@ -230,9 +274,10 @@ export default function EquipeClient() {
     if (members[tab] == null) loadMembers(tab)
   }, [tab, members, loadMembers])
 
-  // Performance de la période
+  // Performance de la période (télépros / closers)
   const wantedKey = `${team.role}|${from}|${to}|${refreshTick}`
   useEffect(() => {
+    if (!team.role) return
     let cancelled = false
     setStatsLoading(true)
     setStatsError(null)
@@ -253,11 +298,17 @@ export default function EquipeClient() {
     return () => { cancelled = true }
   }, [team.role, from, to, refreshTick, wantedKey])
 
-  const statsReady = statsKey === wantedKey && stats?.role === team.role
+  const statsReady = !!team.role && statsKey === wantedKey && stats?.role === team.role
 
   function refresh() {
     loadMembers(tab)
     setRefreshTick(t => t + 1)
+  }
+
+  /** Rôle / casquettes changés : un compte peut changer d'onglet → tout recharger. */
+  function reloadAllMembers() {
+    setMembers(EMPTY_MEMBERS)
+    setExpanded(null)
   }
 
   // Fusion comptes + stats
@@ -266,12 +317,12 @@ export default function EquipeClient() {
     const byId = new Map<string, AgentMetrics>()
     if (statsReady && stats) for (const a of stats.agents) if (!a.unmapped) byId.set(a.user_id, a)
     const out: Row[] = list.map(m => ({
-      id: m.id, name: m.name, color: m.avatar_color, member: m, stats: byId.get(m.id) ?? null, extraRole: null,
+      id: m.id, name: m.name, color: m.avatar_color, member: m, stats: byId.get(m.id) ?? null,
     }))
     const known = new Set(list.map(m => m.id))
     for (const a of byId.values()) {
       if (known.has(a.user_id)) continue
-      out.push({ id: a.user_id, name: a.name, color: a.avatar_color, member: null, stats: a, extraRole: a.user_role ?? 'admin' })
+      out.push({ id: a.user_id, name: a.name, color: a.avatar_color, member: null, stats: a })
     }
     return out
   }, [members, tab, stats, statsReady])
@@ -296,11 +347,17 @@ export default function EquipeClient() {
       : { key, dir: key === 'name' || key === 'minPerRdv' ? 'asc' : 'desc' })
   }
 
-  function patchMember(id: string, patch: Partial<TeamMember>) {
-    setMembers(prev => ({ ...prev, [tab]: (prev[tab] ?? []).map(m => m.id === id ? { ...m, ...patch } : m) }))
+  function patchMember(id: string, patch: Partial<EquipeMember>) {
+    setMembers(prev => {
+      const next = { ...prev }
+      for (const t of Object.keys(next) as Tab[]) {
+        if (next[t]) next[t] = next[t]!.map(m => m.id === id ? { ...m, ...patch } : m)
+      }
+      return next
+    })
   }
 
-  function addMember(m: TeamMember) {
+  function addMember(m: EquipeMember) {
     setMembers(prev => ({
       ...prev,
       [tab]: [...(prev[tab] ?? []), m].sort((a, b) => a.name.localeCompare(b.name, 'fr')),
@@ -310,27 +367,44 @@ export default function EquipeClient() {
   const totals = statsReady ? stats?.totals : null
   const unmappedCount = statsReady && stats ? stats.agents.filter(a => a.unmapped).length : 0
   const loadingMembers = members[tab] == null
+  const activeCount = (t: Tab) => members[t]?.filter(m => !m.is_banned).length
+
+  const tabLabel = (icon: ReactNode, label: string) => (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>{icon} {label}</span>
+  )
+
+  const tableProps = {
+    tab, isMobile, statsLoading, sort, onSort: toggleSort, expanded,
+    onExpand: (id: string) => setExpanded(e => e === id ? null : id),
+    onPatch: patchMember, onAdd: addMember, onRolesChanged: reloadAllMembers, extraRolesReady,
+  }
 
   return (
     <CrmV2Page>
       <CrmV2Header
-        title="Télépros / Closers"
-        subtitle={`${formatRange(period, from, to)} · comptes, accès et performance`}
+        title="Équipe"
+        subtitle={isAdmins
+          ? 'Comptes admin et manager · accès complet au CRM'
+          : `${formatRange(period, from, to)} · comptes, accès et performance`}
         actions={
           <>
-            <CrmV2Segmented<Period>
-              size="sm"
-              items={[{ id: 'day', label: 'Jour' }, { id: 'week', label: 'Semaine' }, { id: 'month', label: 'Mois' }]}
-              value={period}
-              onChange={setPeriod}
-            />
-            <div style={{ display: 'inline-flex', gap: 4 }}>
-              <AdminIconButton icon={<ChevronLeft size={15} />} title="Période précédente" onClick={() => setAnchor(a => shiftAnchor(period, a, -1))} />
-              <CrmV2Button size="sm" onClick={() => setAnchor(parisDateKey(new Date()))}>Aujourd&apos;hui</CrmV2Button>
-              <AdminIconButton icon={<ChevronRight size={15} />} title="Période suivante" onClick={() => setAnchor(a => shiftAnchor(period, a, 1))} />
-            </div>
+            {!isAdmins && (
+              <>
+                <CrmV2Segmented<Period>
+                  size="sm"
+                  items={[{ id: 'day', label: 'Jour' }, { id: 'week', label: 'Semaine' }, { id: 'month', label: 'Mois' }]}
+                  value={period}
+                  onChange={setPeriod}
+                />
+                <div style={{ display: 'inline-flex', gap: 4 }}>
+                  <AdminIconButton icon={<ChevronLeft size={15} />} title="Période précédente" onClick={() => setAnchor(a => shiftAnchor(period, a, -1))} />
+                  <CrmV2Button size="sm" onClick={() => setAnchor(parisDateKey(new Date()))}>Aujourd&apos;hui</CrmV2Button>
+                  <AdminIconButton icon={<ChevronRight size={15} />} title="Période suivante" onClick={() => setAnchor(a => shiftAnchor(period, a, 1))} />
+                </div>
+              </>
+            )}
             <AdminIconButton
-              icon={<RefreshCw size={15} style={{ animation: statsLoading ? 'crm-v2-spin 1s linear infinite' : 'none' }} />}
+              icon={<RefreshCw size={15} style={{ animation: statsLoading || loadingMembers ? 'crm-v2-spin 1s linear infinite' : 'none' }} />}
               title="Actualiser"
               onClick={refresh}
             />
@@ -342,49 +416,46 @@ export default function EquipeClient() {
           value={tab}
           onChange={id => changeTab(id as Tab)}
           items={[
-            { id: 'telepros', label: <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Phone size={14} /> Télépros</span>, count: members.telepros?.filter(m => !m.is_banned).length },
-            { id: 'closers', label: <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Briefcase size={14} /> Closers</span>, count: members.closers?.filter(m => !m.is_banned).length },
+            { id: 'telepros', label: tabLabel(<Phone size={14} />, 'Télépros'), count: activeCount('telepros') },
+            { id: 'closers', label: tabLabel(<Briefcase size={14} />, 'Closers'), count: activeCount('closers') },
+            { id: 'admins', label: tabLabel(<Shield size={14} />, 'Admins'), count: activeCount('admins') },
           ]}
         />
       </CrmV2Header>
 
       <CrmV2Body>
-        {statsError && <AdminNotice tone="error">{statsError}</AdminNotice>}
-        {statsReady && stats?.needs_lines && tab === 'telepros' && (
+        {!isAdmins && statsError && <AdminNotice tone="error">{statsError}</AdminNotice>}
+        {!isAdmins && statsReady && stats?.needs_lines && tab === 'telepros' && (
           <AdminNotice tone="warning" icon={<AlertTriangle size={15} />}>
             Aucune ligne Aircall suivie : les appels ne sont pas comptés. Choisis les lignes dans{' '}
             <a href="/admin/crm-v2/reports/suivi-commercial" style={{ color: 'inherit', fontWeight: 700 }}>Suivi commercial</a>.
           </AdminNotice>
         )}
 
-        <TeamKpis tab={tab} totals={totals ?? null} loading={statsLoading} />
+        {!isAdmins && <TeamKpis tab={tab} totals={totals ?? null} loading={statsLoading} />}
 
         <MembersTable
-          tab={tab}
-          isMobile={isMobile}
+          {...tableProps}
           rows={activeRows}
           loadingMembers={loadingMembers}
-          statsLoading={statsLoading}
           search={search}
           onSearch={setSearch}
-          sort={sort}
-          onSort={toggleSort}
-          expanded={expanded}
-          onExpand={id => setExpanded(e => e === id ? null : id)}
-          onPatch={patchMember}
-          onAdd={addMember}
           footer={
-            <>
-              <span>
-                {tab === 'telepros'
-                  ? 'RDV comptés à la date de prise du RDV · appels sur les lignes Aircall suivies · minutes = temps de conversation réel.'
-                  : 'RDV comptés à leur date · un RDV réassigné compte pour le closer final · convertis = positifs + préinscriptions.'}
-                {unmappedCount > 0 && ` · ${unmappedCount} agent(s) Aircall non associé(s).`}
-              </span>
-              <a href="/admin/crm-v2/reports/suivi-commercial" style={{ color: crmV2.link, fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                <BarChart3 size={13} /> Suivi commercial détaillé
-              </a>
-            </>
+            isAdmins ? (
+              <span>Un admin peut aussi être closer ou télépro : ouvre sa ligne pour lui ajouter la casquette.</span>
+            ) : (
+              <>
+                <span>
+                  {tab === 'telepros'
+                    ? 'RDV comptés à la date de prise du RDV · appels sur les lignes Aircall suivies · minutes = temps de conversation réel.'
+                    : 'RDV comptés à leur date · un RDV réassigné compte pour le closer final · convertis = positifs + préinscriptions.'}
+                  {unmappedCount > 0 && ` · ${unmappedCount} agent(s) Aircall non associé(s).`}
+                </span>
+                <a href="/admin/crm-v2/reports/suivi-commercial" style={{ color: crmV2.link, fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <BarChart3 size={13} /> Suivi commercial détaillé
+                </a>
+              </>
+            )
           }
         />
 
@@ -399,19 +470,7 @@ export default function EquipeClient() {
             </button>
             {showBanned && (
               <div style={{ marginTop: 8 }}>
-                <MembersTable
-                  tab={tab}
-                  isMobile={isMobile}
-                  rows={bannedRows}
-                  loadingMembers={false}
-                  statsLoading={statsLoading}
-                  sort={sort}
-                  onSort={toggleSort}
-                  expanded={expanded}
-                  onExpand={id => setExpanded(e => e === id ? null : id)}
-                  onPatch={patchMember}
-                  onAdd={addMember}
-                />
+                <MembersTable {...tableProps} rows={bannedRows} loadingMembers={false} />
               </div>
             )}
           </div>
@@ -492,28 +551,35 @@ const CLOSER_COLS: Col[] = [
   { key: 'closingRate', label: 'Closing', title: 'Convertis / RDV honorés' },
 ]
 
-function MembersTable({
-  tab, isMobile, rows, loadingMembers, statsLoading, search, onSearch, sort, onSort, expanded, onExpand, onPatch, onAdd, footer,
-}: {
+type TableCommon = {
   tab: Tab
   isMobile: boolean
-  rows: Row[]
-  loadingMembers: boolean
   statsLoading: boolean
-  search?: string
-  onSearch?: (v: string) => void
   sort: { key: SortKey; dir: 'asc' | 'desc' }
   onSort: (k: SortKey) => void
   expanded: string | null
   onExpand: (id: string) => void
-  onPatch: (id: string, patch: Partial<TeamMember>) => void
-  onAdd: (m: TeamMember) => void
+  onPatch: (id: string, patch: Partial<EquipeMember>) => void
+  onAdd: (m: EquipeMember) => void
+  onRolesChanged: () => void
+  extraRolesReady: boolean
+}
+
+function MembersTable({
+  rows, loadingMembers, search, onSearch, footer, ...common
+}: TableCommon & {
+  rows: Row[]
+  loadingMembers: boolean
+  search?: string
+  onSearch?: (v: string) => void
   footer?: ReactNode
 }) {
+  const { tab, isMobile, sort, onSort } = common
   const team = TEAMS[tab]
-  const cols = tab === 'telepros' ? TELEPRO_COLS : CLOSER_COLS
+  const isAdmins = tab === 'admins'
+  const cols = tab === 'telepros' ? TELEPRO_COLS : tab === 'closers' ? CLOSER_COLS : []
   const [showAdd, setShowAdd] = useState(false)
-  const [created, setCreated] = useState<{ name: string; email: string; password: string } | null>(null)
+  const [created, setCreated] = useState<{ name: string; email: string; password: string | null; emailSent?: boolean } | null>(null)
 
   useEffect(() => { setShowAdd(false); setCreated(null) }, [tab])
 
@@ -537,11 +603,19 @@ function MembersTable({
     <>
       {created && (
         <AdminNotice tone="success" icon={<UserCheck size={15} />} onClose={() => setCreated(null)}>
-          <div style={{ fontWeight: 700 }}>Compte créé — {created.name}</div>
-          <CredentialBox email={created.email} password={created.password} passwordLabel="Mot de passe CRM" />
-          <div style={{ fontSize: 12, color: crmV2.textMuted, marginTop: 8 }}>
-            Transmets ces identifiants. Le mot de passe ne sera plus visible après fermeture.
+          <div style={{ fontWeight: 700 }}>
+            Compte créé — {created.name}{created.emailSent ? ' · invitation envoyée par e-mail' : ''}
           </div>
+          {created.password ? (
+            <>
+              <CredentialBox email={created.email} password={created.password} passwordLabel="Mot de passe CRM" />
+              <div style={{ fontSize: 12, color: crmV2.textMuted, marginTop: 8 }}>
+                Transmets ces identifiants. Le mot de passe ne sera plus visible après fermeture.
+              </div>
+            </>
+          ) : (
+            <div style={{ fontSize: 12, color: crmV2.textMuted, marginTop: 4 }}>Compte existant : mot de passe inchangé.</div>
+          )}
         </AdminNotice>
       )}
       {showAdd && (
@@ -549,9 +623,9 @@ function MembersTable({
           tab={tab}
           isMobile={isMobile}
           onCancel={() => setShowAdd(false)}
-          onCreated={(m, password) => {
-            onAdd(m)
-            setCreated({ name: m.name, email: m.email, password })
+          onCreated={(m, password, emailSent) => {
+            common.onAdd(m)
+            setCreated({ name: m.name, email: m.email, password, emailSent })
             setShowAdd(false)
           }}
         />
@@ -569,8 +643,7 @@ function MembersTable({
         ) : rows.length === 0 ? (
           <div style={{ fontSize: 13, color: crmV2.textMuted }}>Aucun {team.noun}.</div>
         ) : rows.map(r => (
-          <MobileMemberCard key={r.id} tab={tab} row={r} statsLoading={statsLoading}
-            open={expanded === r.id} onToggle={() => onExpand(r.id)} onPatch={onPatch} />
+          <MobileMemberCard key={r.id} {...common} row={r} open={common.expanded === r.id} onToggle={() => common.onExpand(r.id)} />
         ))}
         {footer && <div style={{ fontSize: 12, color: crmV2.textMuted, display: 'flex', flexDirection: 'column', gap: 6 }}>{footer}</div>}
       </div>
@@ -591,7 +664,11 @@ function MembersTable({
                   <span title={c.title}>{c.label}</span>
                 </CrmV2Th>
               ))}
-              <CrmV2Th>Marques</CrmV2Th>
+              {isAdmins ? (
+                <CrmV2Th sorted={sort.key === 'lastSignIn' ? sort.dir : false} onClick={() => onSort('lastSignIn')}>Dernière connexion</CrmV2Th>
+              ) : (
+                <CrmV2Th>Marques</CrmV2Th>
+              )}
               <CrmV2Th style={{ textAlign: 'right' }}>Compte</CrmV2Th>
             </tr>
           </thead>
@@ -601,8 +678,8 @@ function MembersTable({
             ) : rows.length === 0 ? (
               <tr><CrmV2Td colSpan={colSpan} style={{ color: crmV2.textMuted }}>Aucun {team.noun}.</CrmV2Td></tr>
             ) : rows.map(r => (
-              <MemberRow key={r.id} tab={tab} row={r} cols={cols} colSpan={colSpan} statsLoading={statsLoading}
-                open={expanded === r.id} onToggle={() => onExpand(r.id)} onPatch={onPatch} />
+              <MemberRow key={r.id} {...common} row={r} cols={cols} colSpan={colSpan}
+                open={common.expanded === r.id} onToggle={() => common.onExpand(r.id)} />
             ))}
           </tbody>
         </CrmV2Table>
@@ -662,44 +739,57 @@ function BrandChips({ b }: { b: BrandBreakdown | undefined }) {
   )
 }
 
-function NameCell({ row, open }: { row: Row; open: boolean }) {
+/** Casquettes du compte autres que celle de l'onglet (double rôle). */
+function otherRoles(tab: Tab, m: EquipeMember | null): string[] {
+  if (!m) return []
+  const all = teamRolesOf(m)
+  if (tab === 'telepros') return all.filter(r => r !== 'telepro')
+  if (tab === 'closers') return all.filter(r => r !== 'closer')
+  return all.filter(r => r !== 'admin')
+}
+
+function NameCell({ tab, row, open }: { tab: Tab; row: Row; open: boolean }) {
   const banned = !!row.member?.is_banned
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 0, flexWrap: 'wrap' }}>
       {open ? <ChevronUp size={14} color={crmV2.textFaint} /> : <ChevronDown size={14} color={crmV2.textFaint} />}
       <span style={{ opacity: banned ? 0.5 : 1, display: 'inline-flex' }}>
         <CrmV2Avatar name={row.name} color={banned ? crmV2.borderStrong : (row.color ?? crmV2.gold)} size={24} radius="36%" />
       </span>
       <span style={{ fontWeight: 600, color: banned ? crmV2.textMuted : crmV2.text, whiteSpace: 'nowrap' }}>{row.name}</span>
-      {row.extraRole && <CrmV2StatusPill label={row.extraRole === 'manager' ? 'Manager' : 'Admin'} color={crmV2.goldDark} />}
+      {otherRoles(tab, row.member).map(r => (
+        <CrmV2StatusPill key={r} label={`+ ${TEAM_ROLE_LABELS[r] ?? r}`} color={ROLE_COLOR[r] ?? crmV2.goldDark} dot={false} />
+      ))}
     </span>
   )
 }
 
 function MemberRow({
-  tab, row, cols, colSpan, statsLoading, open, onToggle, onPatch,
-}: {
-  tab: Tab
+  row, cols, colSpan, open, onToggle, ...common
+}: TableCommon & {
   row: Row
   cols: Col[]
   colSpan: number
-  statsLoading: boolean
   open: boolean
   onToggle: () => void
-  onPatch: (id: string, patch: Partial<TeamMember>) => void
 }) {
-  const account = useAccountActions(tab, row, onPatch)
+  const { tab, statsLoading } = common
+  const account = useAccountActions(tab, row, common.onPatch)
   const s = row.stats
   return (
     <Fragment>
       <CrmV2Tr onClick={onToggle}>
-        <CrmV2Td><NameCell row={row} open={open} /></CrmV2Td>
+        <CrmV2Td><NameCell tab={tab} row={row} open={open} /></CrmV2Td>
         {cols.map(c => (
           <CrmV2Td key={c.key} style={{ textAlign: 'right', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
             {s ? cellValue(tab, c.key, s) : statsLoading ? <span style={{ color: crmV2.textFaint }}>…</span> : '—'}
           </CrmV2Td>
         ))}
-        <CrmV2Td><BrandChips b={s?.by_brand} /></CrmV2Td>
+        {tab === 'admins' ? (
+          <CrmV2Td style={{ color: crmV2.textMuted, whiteSpace: 'nowrap' }}>{fmtLastSignIn(row.member?.last_sign_in_at ?? null)}</CrmV2Td>
+        ) : (
+          <CrmV2Td><BrandChips b={s?.by_brand} /></CrmV2Td>
+        )}
         <CrmV2Td style={{ textAlign: 'right' }}>
           <div onClick={e => e.stopPropagation()}>{account.actions}</div>
         </CrmV2Td>
@@ -710,7 +800,7 @@ function MemberRow({
       {open && (
         <tr>
           <CrmV2Td colSpan={colSpan} style={{ height: 'auto', padding: '10px 14px 16px', background: crmV2.bgHover }}>
-            <MemberDetail tab={tab} row={row} statsLoading={statsLoading} />
+            <MemberDetail {...common} row={row} />
           </CrmV2Td>
         </tr>
       )}
@@ -719,16 +809,14 @@ function MemberRow({
 }
 
 function MobileMemberCard({
-  tab, row, statsLoading, open, onToggle, onPatch,
-}: {
-  tab: Tab
+  row, open, onToggle, ...common
+}: TableCommon & {
   row: Row
-  statsLoading: boolean
   open: boolean
   onToggle: () => void
-  onPatch: (id: string, patch: Partial<TeamMember>) => void
 }) {
-  const account = useAccountActions(tab, row, onPatch)
+  const { tab, statsLoading } = common
+  const account = useAccountActions(tab, row, common.onPatch)
   const s = row.stats
   const mini: Array<[string, ReactNode]> = s
     ? tab === 'telepros'
@@ -740,12 +828,16 @@ function MobileMemberCard({
     <PanelCard style={{ padding: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
         <button type="button" onClick={onToggle} style={{ appearance: 'none', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', minWidth: 0, textAlign: 'left' }}>
-          <NameCell row={row} open={open} />
+          <NameCell tab={tab} row={row} open={open} />
         </button>
         {account.actions}
       </div>
       {account.confirm ?? account.credentials}
-      {s ? (
+      {tab === 'admins' ? (
+        <div style={{ fontSize: 12, color: crmV2.textMuted, marginTop: 6 }}>
+          {row.member?.email} · dernière connexion {fmtLastSignIn(row.member?.last_sign_in_at ?? null)}
+        </div>
+      ) : s ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8, marginTop: 10 }}>
           {mini.map(([label, value]) => (
             <div key={label}>
@@ -757,14 +849,31 @@ function MobileMemberCard({
       ) : statsLoading ? (
         <div style={{ marginTop: 8 }}><AdminSpin /></div>
       ) : null}
-      {open && <div style={{ marginTop: 10 }}><MemberDetail tab={tab} row={row} statsLoading={statsLoading} /></div>}
+      {open && <div style={{ marginTop: 10 }}><MemberDetail {...common} row={row} /></div>}
     </PanelCard>
   )
 }
 
-// ── Détail par marque ────────────────────────────────────────────────────────
+// ── Détail : performance par marque + réglages du compte ────────────────────
 
-function MemberDetail({ tab, row, statsLoading }: { tab: Tab; row: Row; statsLoading: boolean }) {
+function MemberDetail({ row, ...common }: TableCommon & { row: Row }) {
+  const { tab } = common
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {tab !== 'admins' && <BrandPerf tab={tab} row={row} statsLoading={common.statsLoading} />}
+      {row.member && (
+        <AccountSettings
+          member={row.member}
+          onPatch={common.onPatch}
+          onRolesChanged={common.onRolesChanged}
+          extraRolesReady={common.extraRolesReady}
+        />
+      )}
+    </div>
+  )
+}
+
+function BrandPerf({ tab, row, statsLoading }: { tab: Tab; row: Row; statsLoading: boolean }) {
   const s = row.stats
   if (!s) {
     return <div style={{ fontSize: 13, color: crmV2.textMuted }}>{statsLoading ? 'Chargement…' : 'Aucune activité sur la période.'}</div>
@@ -791,10 +900,10 @@ function MemberDetail({ tab, row, statsLoading }: { tab: Tab; row: Row; statsLoa
             {BRANDS.map(k => {
               const b = s.by_brand[k]
               const conv = converted(b)
-              const pending = b.rdv_total - b.rdv_annules - b.rdv_no_show
+              const kept = b.rdv_total - b.rdv_annules - b.rdv_no_show
               const cells: ReactNode[] = isCloser
                 ? [fmtInt(b.rdv_total), fmtInt(b.rdv_honored), fmtInt(b.rdv_no_show), fmtInt(b.rdv_annules), fmtInt(conv), fmtPct(pct(conv, b.rdv_honored))]
-                : [fmtInt(b.rdv_total), fmtInt(Math.max(0, pending)), fmtInt(b.rdv_no_show), fmtInt(b.rdv_annules), fmtInt(conv), fmtPct(pct(conv, b.rdv_total))]
+                : [fmtInt(b.rdv_total), fmtInt(Math.max(0, kept)), fmtInt(b.rdv_no_show), fmtInt(b.rdv_annules), fmtInt(conv), fmtPct(pct(conv, b.rdv_total))]
               return (
                 <tr key={k} style={{ borderTop: `1px solid ${crmV2.border}` }}>
                   <td style={{ padding: '6px 12px', fontWeight: 700, color: RDV_BRANDS[k].color, whiteSpace: 'nowrap' }}>{RDV_BRANDS[k].label}</td>
@@ -807,28 +916,133 @@ function MemberDetail({ tab, row, statsLoading }: { tab: Tab; row: Row; statsLoa
           </tbody>
         </table>
       </div>
-      {!isCloser && (
-        <div style={{ fontSize: 12, color: crmV2.textMuted }}>
-          {fmtInt(s.calls_outbound)} appels sortants · {fmtInt(s.calls_outbound_talk_2min)} conversations ≥ 2 min
-          {s.avg_talk_2min_sec ? ` (moy. ${Math.round(s.avg_talk_2min_sec / 60)} min)` : ''}
-          {' · '}{fmtPct(s.conversion_talk_2min)} des conversations ≥ 2 min deviennent un RDV
-          {s.delta_rdv !== 0 && ` · ${s.delta_rdv > 0 ? '+' : ''}${s.delta_rdv} RDV vs période précédente`}
+      <div style={{ fontSize: 12, color: crmV2.textMuted }}>
+        {isCloser
+          ? <>Présence {fmtPct(s.show_rate)}</>
+          : <>
+              {fmtInt(s.calls_outbound)} appels sortants · {fmtInt(s.calls_outbound_talk_2min)} conversations ≥ 2 min
+              {s.avg_talk_2min_sec ? ` (moy. ${Math.round(s.avg_talk_2min_sec / 60)} min)` : ''}
+              {' · '}{fmtPct(s.conversion_talk_2min)} des conversations ≥ 2 min deviennent un RDV
+            </>}
+        {s.delta_rdv !== 0 && ` · ${s.delta_rdv > 0 ? '+' : ''}${s.delta_rdv} RDV vs période précédente`}
+      </div>
+    </div>
+  )
+}
+
+/** Rôle principal, casquettes en plus (double rôle), marque CRM, suppression. */
+function AccountSettings({
+  member, onPatch, onRolesChanged, extraRolesReady,
+}: {
+  member: EquipeMember
+  onPatch: (id: string, patch: Partial<EquipeMember>) => void
+  onRolesChanged: () => void
+  extraRolesReady: boolean
+}) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function patchUser(body: Record<string, unknown>): Promise<boolean> {
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: member.id, ...body }),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) { setError(j.error || 'Modification impossible'); return false }
+      return true
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function toggleExtra(r: TeamRole) {
+    const next = member.extra_roles.includes(r) ? member.extra_roles.filter(x => x !== r) : [...member.extra_roles, r]
+    if (await patchUser({ extra_roles: next })) onRolesChanged()
+  }
+
+  async function changeRole(role: string) {
+    if (role === member.role) return
+    if (!window.confirm(`Passer ${member.name} en ${TEAM_ROLE_LABELS[role] ?? role} ?\nSes accès changent en conséquence.`)) return
+    // Le nouveau rôle principal sort des casquettes en plus
+    const extras = new Set(member.extra_roles.filter(x => x !== role))
+    if (await patchUser({ role, extra_roles: extraRolesReady ? [...extras] : undefined })) onRolesChanged()
+  }
+
+  async function changeBrand(brand: string) {
+    if (await patchUser({ crm_brand: brand || null })) onPatch(member.id, { crm_brand: brand || null })
+  }
+
+  async function remove() {
+    if (!window.confirm(`Supprimer définitivement le compte de ${member.name} ?\nPréfère « Désactiver » pour garder son historique.`)) return
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/users?id=${encodeURIComponent(member.id)}`, { method: 'DELETE' })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) { setError(j.error || 'Suppression impossible'); return }
+      onRolesChanged()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const label: CSSProperties = { fontSize: 11, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }
+  return (
+    <div style={{
+      display: 'flex', gap: 18, flexWrap: 'wrap', alignItems: 'flex-start',
+      paddingTop: 12, borderTop: `1px dashed ${crmV2.border}`,
+    }}>
+      <div>
+        <div style={label}>Casquettes</div>
+        <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+          {TEAM_ROLES.map(r => {
+            const main = member.role === r
+            const on = main || member.extra_roles.includes(r)
+            return (
+              <label key={r} title={main ? 'Rôle principal' : undefined} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: crmV2.text,
+                cursor: main || busy || !extraRolesReady ? 'default' : 'pointer', opacity: main ? 0.75 : 1,
+              }}>
+                <input type="checkbox" checked={on} disabled={main || busy || !extraRolesReady}
+                  onChange={() => toggleExtra(r)} style={{ accentColor: crmV2.gold, width: 16, height: 16 }} />
+                {TEAM_ROLE_LABELS[r]}{main ? ' (principal)' : ''}
+              </label>
+            )
+          })}
         </div>
-      )}
-      {isCloser && (
-        <div style={{ fontSize: 12, color: crmV2.textMuted }}>
-          Présence {fmtPct(s.show_rate)}
-          {s.delta_rdv !== 0 && ` · ${s.delta_rdv > 0 ? '+' : ''}${s.delta_rdv} RDV vs période précédente`}
-          {row.extraRole && ' · compte admin : il compte comme closer pour chaque RDV dont il reste le closer après réassignation.'}
-        </div>
-      )}
+        {!extraRolesReady && (
+          <div style={{ fontSize: 11, color: crmV2.goldDark, marginTop: 4 }}>Double rôle : migration BDD v56 à appliquer.</div>
+        )}
+      </div>
+      <div>
+        <div style={label}>Rôle principal (accès)</div>
+        <CrmV2Select value={member.role} disabled={busy} onChange={e => changeRole(e.target.value)} style={{ minWidth: 150 }}>
+          {MAIN_ROLES.map(r => <option key={r} value={r}>{TEAM_ROLE_LABELS[r]}</option>)}
+        </CrmV2Select>
+      </div>
+      <div>
+        <div style={label}>Marque CRM</div>
+        <CrmV2Select value={member.crm_brand ?? ''} disabled={busy} onChange={e => changeBrand(e.target.value)} style={{ minWidth: 150 }}>
+          {CRM_BRAND_OPTIONS.map(b => <option key={b.id} value={b.id}>{b.label}</option>)}
+        </CrmV2Select>
+      </div>
+      <div style={{ marginLeft: 'auto', alignSelf: 'flex-end' }}>
+        <CrmV2Button size="sm" variant="secondary" icon={<Trash2 size={13} />} onClick={remove} disabled={busy}>
+          Supprimer le compte
+        </CrmV2Button>
+      </div>
+      {error && <AdminNotice tone="error" style={{ flexBasis: '100%' }}>{error}</AdminNotice>}
     </div>
   )
 }
 
 // ── Actions de compte ────────────────────────────────────────────────────────
 
-function useAccountActions(tab: Tab, row: Row, onPatch: (id: string, patch: Partial<TeamMember>) => void) {
+function useAccountActions(tab: Tab, row: Row, onPatch: (id: string, patch: Partial<EquipeMember>) => void) {
   const team = TEAMS[tab]
   const m = row.member
   const [busy, setBusy] = useState(false)
@@ -870,7 +1084,7 @@ function useAccountActions(tab: Tab, row: Row, onPatch: (id: string, patch: Part
 
   if (!m) {
     return {
-      actions: <span style={{ fontSize: 12, color: crmV2.textFaint, whiteSpace: 'nowrap' }}>Géré dans Utilisateurs</span>,
+      actions: <span style={{ fontSize: 12, color: crmV2.textFaint, whiteSpace: 'nowrap' }}>—</span>,
       confirm: null as ReactNode,
       credentials: null as ReactNode,
     }
@@ -880,19 +1094,21 @@ function useAccountActions(tab: Tab, row: Row, onPatch: (id: string, patch: Part
   const banned = m.is_banned
   const actions = (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, flexShrink: 0 }}>
-      {!banned && (
+      {!banned && m.auth_id && (
         <AdminIconButton icon={<Key size={14} />} title="Identifiants : générer un nouveau mot de passe" onClick={resetPassword} disabled={busy} />
       )}
       {!banned && impersonate && (
         <AdminIconButton icon={<LogIn size={14} />} title={`Se connecter en tant que ce ${team.noun}`} onClick={() => window.open(impersonate, '_blank')} />
       )}
-      <AdminIconButton
-        icon={banned ? <UserCheck size={14} /> : <UserX size={14} />}
-        title={banned ? 'Réactiver' : 'Désactiver'}
-        tone={banned ? 'default' : 'danger'}
-        onClick={() => setConfirming(true)}
-        disabled={busy}
-      />
+      {m.auth_id && (
+        <AdminIconButton
+          icon={banned ? <UserCheck size={14} /> : <UserX size={14} />}
+          title={banned ? 'Réactiver' : 'Désactiver'}
+          tone={banned ? 'default' : 'danger'}
+          onClick={() => setConfirming(true)}
+          disabled={busy}
+        />
+      )}
     </div>
   )
 
@@ -941,7 +1157,7 @@ function AddMemberForm({
   tab: Tab
   isMobile: boolean
   onCancel: () => void
-  onCreated: (m: TeamMember, password: string) => void
+  onCreated: (m: EquipeMember, password: string | null, emailSent?: boolean) => void
 }) {
   const team = TEAMS[tab]
   const [firstName, setFirstName] = useState('')
@@ -956,14 +1172,30 @@ function AddMemberForm({
     setSaving(true)
     setError(null)
     try {
-      const res = await fetch(team.endpoint, {
+      const isAdmins = tab === 'admins'
+      // Admins : /api/users (invitation par e-mail) ; télépros / closers : routes d'équipe
+      const res = await fetch(isAdmins ? '/api/users' : team.endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), firstName: firstName.trim(), lastName: lastName.trim() }),
+        body: JSON.stringify(isAdmins
+          ? { name: `${firstName.trim()} ${lastName.trim()}`, email: email.trim(), role: 'admin' }
+          : { email: email.trim(), firstName: firstName.trim(), lastName: lastName.trim() }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) { setError(data?.error || 'Erreur'); return }
-      onCreated({ ...data.user, auth_id: data.user?.auth_id ?? null, is_banned: false }, data.password)
+      const user = isAdmins ? data : data.user
+      const member: EquipeMember = {
+        ...user,
+        auth_id: user?.auth_id ?? null,
+        is_banned: false,
+        role: user?.role ?? team.role ?? 'admin',
+        extra_roles: [],
+        crm_brand: user?.crm_brand ?? null,
+        is_default_brand_telepro: !!user?.is_default_brand_telepro,
+        hubspot_owner_id: user?.hubspot_owner_id ?? null,
+        last_sign_in_at: null,
+      }
+      onCreated(member, data.password ?? null, isAdmins ? !!data.email_sent : undefined)
     } finally {
       setSaving(false)
     }
@@ -975,7 +1207,9 @@ function AddMemberForm({
         <Plus size={16} color={crmV2.gold} /> Nouveau {team.noun}
       </div>
       <div style={{ fontSize: 13, color: crmV2.textMuted, marginTop: 4 }}>
-        Un mot de passe unique sera généré pour se connecter au CRM.
+        {tab === 'admins'
+          ? 'Accès complet au CRM. Une invitation est envoyée par e-mail.'
+          : 'Un mot de passe unique sera généré pour se connecter au CRM.'}
       </div>
       <div style={{
         display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, minmax(0, 1fr))', gap: '12px 14px', marginTop: 14,

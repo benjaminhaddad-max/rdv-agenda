@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { requireApiRole } from '@/lib/api-auth'
+import { hasTeamRole } from '@/lib/team-roles'
 import { getAircallTrackedLineIds, getAircallTrackedUserIds, getAircallUserMap } from '@/lib/settings'
 import {
   addParisDays,
@@ -38,14 +39,10 @@ type UserRow = {
   hubspot_user_id: string | null
 }
 
-/**
- * Comptes qui peuvent closer sans avoir le rôle « closer » : Pascal (admin,
- * responsable de la cellule commerciale) est closer par défaut de beaucoup de
- * RDV. Ils n'apparaissent que s'ils ont au moins un RDV sur la période ou la
- * précédente. Une réassignation remplace commercial_id : le RDV compte pour le
- * closer final, pas pour celui qui l'avait au départ.
- */
-const CLOSER_EXTRA_ROLES = ['admin', 'manager']
+// Équipe d'un rôle = rôle principal OU casquette en plus (rdv_users.extra_roles,
+// cf. lib/team-roles.ts) : Pascal (admin) est closer, un télépro peut closer.
+// Les autres admins n'apparaissent pas. Une réassignation remplace
+// commercial_id : le RDV compte pour le closer final.
 
 type ApptRow = {
   id: string
@@ -106,9 +103,9 @@ async function buildReport(req: NextRequest, startedAt: number) {
 
   const db = createServiceClient()
   const [{ data: users, error: usersErr }, currentAppts, prevAppts, currentCalls, prevCalls] = await Promise.all([
+    // select('*') : reste valide avant la migration v56 (extra_roles absente)
     db.from('rdv_users')
-      .select('id, name, role, avatar_color, hubspot_user_id')
-      .in('role', role === 'closer' ? ['closer', ...CLOSER_EXTRA_ROLES] : [role])
+      .select('*')
       .order('name'),
     fetchAppointments(db, start, end, role),
     fetchAppointments(db, prevBounds.start, prevBounds.end, role),
@@ -120,7 +117,8 @@ async function buildReport(req: NextRequest, startedAt: number) {
     return NextResponse.json({ error: usersErr.message }, { status: 500 })
   }
 
-  const userList = (users ?? []) as UserRow[]
+  const userList = ((users ?? []) as Array<UserRow & { extra_roles?: unknown; hubspot_owner_id?: unknown }>)
+    .filter(u => hasTeamRole(u, role))
   const agents = new Map<string, AgentMetrics>()
   for (const u of userList) {
     const agent = emptyAgent(u.id, u.name, u.avatar_color, false, dates)
@@ -220,13 +218,6 @@ async function buildReport(req: NextRequest, startedAt: number) {
     finalizeAgent(agent, role)
   }
 
-  // Admins / managers sans aucun RDV closé : hors du rapport closers.
-  if (role === 'closer') {
-    for (const [id, agent] of agents) {
-      if (agent.unmapped || !agent.user_role || agent.user_role === 'closer') continue
-      if (agent.rdv_total === 0 && agent.previous_rdv_total === 0) agents.delete(id)
-    }
-  }
 
   const rows = [...agents.values()].sort((a, b) => {
     if (a.unmapped !== b.unmapped) return a.unmapped ? 1 : -1

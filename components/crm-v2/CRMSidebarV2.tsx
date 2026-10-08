@@ -52,14 +52,8 @@ const NAV_SECTIONS: NavSection[] = [
       { key: 'doublons', label: 'Doublons', href: '/admin/crm-v2/doublons', icon: GitMerge, ready: true },
       { key: 'recherche-prop', label: 'Recherche propriété', href: '/admin/crm-v2/recherche-prop', icon: Search, ready: true },
       { key: 'proprietes', label: 'Propriétés', href: '/admin/crm-v2/proprietes', icon: Database, ready: true },
-      { key: 'users', label: 'Utilisateurs', href: '/admin/crm-v2/users', icon: Users, ready: true },
+      { key: 'users', label: 'Équipe', href: '/admin/crm-v2/equipe', icon: Users, ready: true },
       { key: 'parametres', label: 'Paramètres', href: '/admin/crm-v2/parametres', icon: SettingsIcon, ready: true },
-    ],
-  },
-  {
-    title: 'Équipe',
-    items: [
-      { key: 'equipe', label: 'Télépros / Closers', href: '/admin/crm-v2/equipe', icon: Users, ready: true },
     ],
   },
   {

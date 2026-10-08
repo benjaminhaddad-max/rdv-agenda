@@ -26,7 +26,8 @@ import { weekStartISO } from '@/lib/week'
 import { addParisDays, parisMidnightUtc } from '@/lib/date-paris'
 import { isUserUnavailable, loadCloserPool, loadUnavailability } from '@/lib/unavailability'
 
-export const PASCAL_OWNER_ID = '76299546'
+import { PASCAL_OWNER_ID } from '@/lib/team-roles'
+export { PASCAL_OWNER_ID }
 export const JUDITH_OWNER_ID = '798051044'
 /** Fin inclusive de l'override Judith — date du RDV en Europe/Paris. */
 export const JUDITH_OVERRIDE_UNTIL_DATE = '2026-08-17'

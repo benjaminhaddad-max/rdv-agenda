@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { requireApiRole, requireApiUser } from '@/lib/api-auth'
 import { sendBrevoEmail } from '@/lib/brevo'
+import { TEAM_ROLES } from '@/lib/team-roles'
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://rdv-agenda.vercel.app'
 
@@ -215,7 +216,8 @@ export async function PATCH(req: NextRequest) {
   if (!authz.ok) return authz.response
 
   const body = await req.json()
-  const { id, name, role, email, hubspot_owner_id, crm_brand, crm_scope, is_default_brand_telepro } = body as {
+  const { id, name, role, email, hubspot_owner_id, crm_brand, crm_scope, is_default_brand_telepro, extra_roles } = body as {
+    extra_roles?: unknown
     id?: string
     name?: string
     role?: string
@@ -249,6 +251,11 @@ export async function PATCH(req: NextRequest) {
   if (is_default_brand_telepro !== undefined) {
     update.is_default_brand_telepro = !!is_default_brand_telepro
   }
+  // Casquettes en plus du rôle principal (migration v56) : 'closer' | 'telepro'
+  if (extra_roles !== undefined) {
+    if (!Array.isArray(extra_roles)) return NextResponse.json({ error: 'extra_roles doit être une liste' }, { status: 400 })
+    update.extra_roles = TEAM_ROLES.filter(r => extra_roles.includes(r))
+  }
   if (Object.keys(update).length === 0) {
     return NextResponse.json({ error: 'aucun champ a mettre a jour' }, { status: 400 })
   }
@@ -280,7 +287,12 @@ export async function PATCH(req: NextRequest) {
     .select('id, name, email, slug, avatar_color, role, hubspot_owner_id, hubspot_user_id, auth_id, created_at, crm_brand, crm_scope, is_default_brand_telepro')
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    if (update.extra_roles !== undefined && /extra_roles/i.test(error.message)) {
+      return NextResponse.json({ error: 'Double rôle pas encore activé (migration BDD v56 à appliquer dans Supabase).' }, { status: 503 })
+    }
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
   return NextResponse.json(data)
 }
 

@@ -15,7 +15,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { addParisDays, parisMidnightUtc } from '@/lib/date-paris'
-import { PASCAL_OWNER_ID } from '@/lib/closer-assignment'
+import { hasTeamRole } from '@/lib/team-roles'
 
 export const OPEN_START_HOUR = 9
 export const OPEN_END_HOUR = 21
@@ -148,12 +148,4 @@ export async function loadCloserPool(db: SupabaseClient): Promise<Array<{ id: st
   }
 }
 
-/**
- * Le compte a-t-il cette casquette (rôle principal ou rôle en plus) ?
- * Pascal est toujours closer (filet de sécurité avant la migration v56).
- */
-export function hasTeamRole(u: { role?: unknown; extra_roles?: unknown; hubspot_owner_id?: unknown }, role: 'closer' | 'telepro'): boolean {
-  if (u.role === role) return true
-  if (Array.isArray(u.extra_roles) && u.extra_roles.includes(role)) return true
-  return role === 'closer' && String(u.hubspot_owner_id ?? '') === PASCAL_OWNER_ID
-}
+export { hasTeamRole }
