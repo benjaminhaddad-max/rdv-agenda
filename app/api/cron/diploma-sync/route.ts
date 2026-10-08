@@ -19,6 +19,27 @@ export const maxDuration = 300
 const DIPLOMA_KEY = process.env.DIPLOMA_API_KEY
 const SAISON = '2026-2027'
 
+/**
+ * Campagnes d'inscription de la plateforme (inscriptions.campaign_year, NULL =
+ * 2026-2027). Un dossier d'une campagne future (2027-2028…) a sa propre saison
+ * dans crm_pre_inscriptions, son deal hors du pipeline 2026-2027 et le statut
+ * de lead « Pré-inscrit 2027/2028 ». Les autres (NULL, archive 2025-2026)
+ * restent traités comme avant, en 2026-2027.
+ */
+function saisonOf(ins: { campaign_year?: string | null }): string {
+  const c = String(ins.campaign_year || '').trim()
+  return /^\d{4}-\d{4}$/.test(c) && c > SAISON ? c : SAISON
+}
+
+/** Pipeline des deals dpl_* d'une campagne future (pas de pipeline CRM dédié). */
+function pipelineOfFutureSaison(saison: string): string {
+  return `diploma_${saison.replace('-', '_')}`
+}
+
+function leadStatusOfSaison(saison: string): string {
+  return `Pré-inscrit ${saison.replace('-', '/')}`
+}
+
 const STAGE = {
   preinscription:       '3165428982',
   finalisation:         '3165428983',
@@ -60,6 +81,7 @@ function stageFor(ins: { status: string; finalisation_step: number | null }): st
 
 interface DiplomaInscription {
   id: string
+  campaign_year?: string | null
   email: string | null
   status: string
   hubspot_contact_id: string | null
@@ -216,7 +238,7 @@ export async function GET(req: NextRequest) {
     function buildRow(ins: DiplomaInscription, contactId: string) {
       return {
         hubspot_contact_id: contactId,
-        saison: SAISON,
+        saison: saisonOf(ins),
         paiement_status: ins.status,
         formation: ins.selected_formule_name || null,
         montant: ins.selected_formule_price ? Math.round(ins.selected_formule_price / 100) : null,
@@ -284,7 +306,7 @@ export async function GET(req: NextRequest) {
       }
 
       const row = buildRow(ins, contactId)
-      const key = `${contactId}|${SAISON}`
+      const key = `${contactId}|${row.saison}`
       const existing = dedupMap.get(key)
       if (!existing) {
         dedupMap.set(key, row)
@@ -316,7 +338,8 @@ export async function GET(req: NextRequest) {
           hubspot_contact_id: contactId,
           dealname:           dealName,
           dealstage:          stage,
-          pipeline:           PIPELINE_2627,
+          // Campagne future : hors du pipeline (et du kanban) 2026-2027
+          pipeline:           saisonOf(ins) === SAISON ? PIPELINE_2627 : pipelineOfFutureSaison(saisonOf(ins)),
           amount:             ins.selected_formule_price ? Math.round(ins.selected_formule_price / 100) : null,
           formation:          ins.selected_formule_name || null,
           createdate:         ins.created_at || new Date().toISOString(),
@@ -339,20 +362,21 @@ export async function GET(req: NextRequest) {
     // Preserve les éventuelles éditions manuelles CRM (API externe = read-only)
     // et garde-fou: ne jamais écraser un parcoursup existant avec null.
     const existingByContact = new Map<string, Record<string, unknown>>()
+    const saisons = [...new Set(rowsToUpsert.map(r => r.saison))]
     if (contactIdsForRows.length > 0) {
       const { data: existingRows } = await db
         .from('crm_pre_inscriptions')
-        .select('hubspot_contact_id, external_data')
-        .eq('saison', SAISON)
+        .select('hubspot_contact_id, saison, external_data')
+        .in('saison', saisons)
         .in('hubspot_contact_id', contactIdsForRows)
 
       for (const row of existingRows ?? []) {
         if (!row.hubspot_contact_id) continue
-        existingByContact.set(String(row.hubspot_contact_id), (row.external_data as Record<string, unknown>) || {})
+        existingByContact.set(`${row.hubspot_contact_id}|${row.saison}`, (row.external_data as Record<string, unknown>) || {})
       }
     }
     const mergedRowsToUpsert = rowsToUpsert.map(row => {
-      const previousExternal = existingByContact.get(String(row.hubspot_contact_id)) || {}
+      const previousExternal = existingByContact.get(`${row.hubspot_contact_id}|${row.saison}`) || {}
       const nextExternal = { ...(row.external_data as Record<string, unknown>) }
       const previousOverride = previousExternal.parcoursup_crm_override
       const previousParcoursup = previousExternal.parcoursup
@@ -382,6 +406,10 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // 5. Campagnes futures (2027-2028…) : ranger les dossiers mal classés et
+    //    poser le statut de lead de leur année.
+    const future = await applyFutureCampaigns(db, rowsToUpsert)
+
     const dealsUpdated = dealsUpserted
     const durationMs = Date.now() - startMs
 
@@ -408,6 +436,7 @@ export async function GET(req: NextRequest) {
       skip_no_email: skipNoEmail,
       skip_no_contact_match: skipNoContact,
       skip_stub_failed: skipStubFailed,
+      future_campaigns: future,
     })
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err)
@@ -422,4 +451,55 @@ export async function GET(req: NextRequest) {
     } catch { /* best-effort */ }
     return NextResponse.json({ ok: false, error: errorMessage }, { status: 500 })
   }
+}
+
+/**
+ * Dossiers d'une campagne future (cf. saisonOf) :
+ * - supprime la ligne crm_pre_inscriptions rangée par erreur en 2026-2027 pour
+ *   la même inscription (avant la prise en compte de campaign_year) — elle est
+ *   recréée dans la bonne saison par l'upsert ;
+ * - pose « Pré-inscrit 2027/2028 » sur le lead, sauf s'il est « Inscrit » ou
+ *   s'il a aussi une inscription 2026-2027 en cours.
+ */
+async function applyFutureCampaigns(
+  db: ReturnType<typeof createServiceClient>,
+  rows: Array<{ hubspot_contact_id: string; saison: string; external_data: Record<string, unknown> }>,
+): Promise<{ inscriptions: number; misfiled_removed: number; lead_status_updated: number }> {
+  const futureRows = rows.filter(r => r.saison !== SAISON)
+  if (!futureRows.length) return { inscriptions: 0, misfiled_removed: 0, lead_status_updated: 0 }
+
+  let removed = 0
+  for (const r of futureRows) {
+    const inscriptionId = String(r.external_data?.inscription_id || '')
+    if (!inscriptionId) continue
+    const { data } = await db
+      .from('crm_pre_inscriptions')
+      .delete()
+      .eq('saison', SAISON)
+      .eq('hubspot_contact_id', r.hubspot_contact_id)
+      .eq('external_data->>inscription_id', inscriptionId)
+      .select('id')
+    removed += data?.length ?? 0
+  }
+
+  const currentSeasonContacts = new Set(rows.filter(r => r.saison === SAISON).map(r => r.hubspot_contact_id))
+  const now = new Date().toISOString()
+  let updated = 0
+  for (const r of futureRows) {
+    if (currentSeasonContacts.has(r.hubspot_contact_id)) continue
+    const target = leadStatusOfSaison(r.saison)
+    const { data: c } = await db
+      .from('crm_contacts')
+      .select('hs_lead_status')
+      .eq('hubspot_contact_id', r.hubspot_contact_id)
+      .maybeSingle()
+    const current = String(c?.hs_lead_status || '').trim()
+    if (!c || current === target || current === 'Inscrit') continue
+    const { error } = await db
+      .from('crm_contacts')
+      .update({ hs_lead_status: target, synced_at: now })
+      .eq('hubspot_contact_id', r.hubspot_contact_id)
+    if (!error) updated += 1
+  }
+  return { inscriptions: futureRows.length, misfiled_removed: removed, lead_status_updated: updated }
 }

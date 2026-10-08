@@ -30,6 +30,7 @@ const STATUS_COLORS: Record<string, string> = {
   'Rdv pris': '#16a34a',
   'Pré-inscrit 2025/2026': '#15803d',
   'Pré-inscrit 2026/2027': '#15803d',
+  'Pré-inscrit 2027/2028': '#15803d',
   'Inscrit': '#15803d',
   "A garder pour l'an prochain": '#0ea5e9',
   'Disqualifié': '#dc2626',

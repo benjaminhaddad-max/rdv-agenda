@@ -40,7 +40,9 @@ const STATUS_PREINSCRIT = 'Pré-inscrit 2026/2027'
 
 // Statuts déjà "au niveau ou au-dessus" de la cible : on ne les écrase pas
 // (évite tout downgrade et les écritures inutiles).
-const SKIP_STATUSES = new Set<string>([STATUS_PREINSCRIT, 'Inscrit'])
+// « Pré-inscrit 2027/2028 » est posé par diploma-sync (campagne 2027-2028) : on
+// ne le ramène pas en 2026/2027.
+const SKIP_STATUSES = new Set<string>([STATUS_PREINSCRIT, 'Pré-inscrit 2027/2028', 'Inscrit'])
 
 export async function GET(req: NextRequest) {
   const cronAuth = requireCronSecret(req)

@@ -34,6 +34,7 @@ const LEAD_STATUS_OPTIONS: Array<{ label: string; value: string }> = [
   { value: "A garder pour l'an prochain", label: "A garder pour l'an prochain" },
   { value: 'Pré-inscrit 2025/2026', label: 'Pré-inscrit 2025/2026' },
   { value: 'Pré-inscrit 2026/2027', label: 'Pré-inscrit 2026/2027' },
+  { value: 'Pré-inscrit 2027/2028', label: 'Pré-inscrit 2027/2028' },
   { value: 'Inscrit', label: 'Inscrit' },
   { value: 'Doublon', label: 'Doublon' },
   { value: 'Disqualifié', label: 'Disqualifié' },

@@ -38,6 +38,7 @@ export const NOUVEAU_LEAD_STATUSES = ['Nouveau', 'Nouveau - Chaud'] as const
 export const INSCRIT_LEAD_STATUSES = [
   'Inscrit',
   'Pré-inscrit 2026/2027',
+  'Pré-inscrit 2027/2028',
   'Pré-inscrit 2025/2026',
 ] as const
 

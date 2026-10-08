@@ -44,7 +44,7 @@ const LEAD_STATUS_LIST = [
   ...["A garder pour l'an prochain",'A relancer','A replanifier','Autre prépa concurrente',
      'Disqualifié','Doublon','En attente / Réfléchit','En cours','Inscrit','Mauvais numéro',
      'NRP1','NRP2','NRP3','NRP4','Nouveau','Nouveau - Chaud',
-     'Pré-inscrit 2025/2026','Pré-inscrit 2026/2027','Raccroche au nez','Rdv pris',
+     'Pré-inscrit 2025/2026','Pré-inscrit 2026/2027','Pré-inscrit 2027/2028','Raccroche au nez','Rdv pris',
   ].map(v => ({ id: v, label: v })),
 ]
 

@@ -20,6 +20,7 @@ import { isHubspotHardOff, hubspotHardOffResponse } from '@/lib/hubspot-hard-off
 // Liste des statuts à rafraîchir
 const TARGET_STATUSES = [
   'Pré-inscrit 2026/2027',
+  'Pré-inscrit 2027/2028',
   'Pré-inscrit 2025/2026',
   'Inscrit',
   'Rdv pris',

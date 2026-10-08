@@ -12,6 +12,7 @@
 
 const LEAD_STATUS_CANONICAL_MAP: Record<string, string> = {
   'Pré-inscrit 2026-2027': 'Pré-inscrit 2026/2027',
+  'Pré-inscrit 2027-2028': 'Pré-inscrit 2027/2028',
 }
 
 export function normalizeLeadStatus(value: unknown): string | null {

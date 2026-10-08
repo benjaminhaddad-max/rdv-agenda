@@ -65,6 +65,7 @@ async function fetchDistinctFormEvents(): Promise<string[]> {
 // dropdowns de filtres si une ancienne valeur traînait encore en base.
 const LEAD_STATUS_CANONICAL: Record<string, string> = {
   'Pré-inscrit 2026-2027': 'Pré-inscrit 2026/2027',
+  'Pré-inscrit 2027-2028': 'Pré-inscrit 2027/2028',
 }
 
 function canonicalizeLeadStatuses(raw: string[]): string[] {

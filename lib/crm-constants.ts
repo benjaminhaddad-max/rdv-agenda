@@ -80,6 +80,7 @@ export const LEAD_STATUS_OPTIONS_FALLBACK: SelectOption[] = [
   { id: "A garder pour l'an prochain", label: "A garder pour l'an prochain" },
   { id: 'Pré-inscrit 2025/2026',       label: 'Pré-inscrit 2025/2026' },
   { id: 'Pré-inscrit 2026/2027',       label: 'Pré-inscrit 2026/2027' },
+  { id: 'Pré-inscrit 2027/2028',       label: 'Pré-inscrit 2027/2028' },
   { id: 'Inscrit',                     label: 'Inscrit' },
   { id: 'Doublon',                     label: 'Doublon' },
   { id: 'Disqualifié',                 label: 'Disqualifié' },
