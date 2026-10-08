@@ -21,17 +21,27 @@ import {
   type UnavailabilityBlock,
 } from '@/components/agenda/Unavailability'
 
-/** Nos événements (JPO, salons, webinaires) — rappel épinglé en haut des jours. */
+/** Nos événements (JPO, salons, webinaires) + ceux des concurrents — rappel épinglé en haut des jours. */
 type AgendaEvent = {
   id: string
   name: string
-  brand: string
+  brand: string | null
+  /** Nom de la prépa concurrente ; null = un de nos événements */
+  competitor: string | null
   event_type: string
   start_day: string
   end_day: string
-  time_start: string
+  time_start: string | null
   time_end: string | null
   location: string | null
+}
+
+/** Violet pointillé = concurrents (même code couleur que l'agenda Événements). */
+const COMPETITOR_PIN = { solid: '#7c3aed', soft: 'rgba(124, 58, 237, 0.10)', text: '#6d28d9' }
+
+function eventHours(ev: AgendaEvent): string {
+  if (!ev.time_start) return 'horaires ?'
+  return ev.time_end ? `${ev.time_start}–${ev.time_end}` : `dès ${ev.time_start}`
 }
 
 const AGENDA_EVENT_SHORT: Record<string, string> = { jpo: 'JPO', salon: 'Salon', webinaire: 'Webinaire', autre: 'Événement' }
@@ -408,9 +418,14 @@ export default function WeekCalendar({
     setUnavCreate({ start, end: new Date(start.getTime() + 3600_000) })
   }
 
+  // Bandeau replié : 3 événements max par jour, « +N » pour tout déplier
+  const [pinsExpanded, setPinsExpanded] = useState(false)
   const eventsForDay = (day: Date) => {
     const k = format(day, 'yyyy-MM-dd')
-    return agendaEvents.filter(e => e.start_day <= k && e.end_day >= k)
+    return agendaEvents
+      .filter(e => e.start_day <= k && e.end_day >= k)
+      // Les nôtres d'abord, puis les concurrents ; chacun par heure de début
+      .sort((a, b) => (a.competitor ? 1 : 0) - (b.competitor ? 1 : 0) || (a.time_start || '').localeCompare(b.time_start || ''))
   }
 
   // Closers uniquement (pas managers, pas télépros) + admin (Pascal)
@@ -930,27 +945,51 @@ export default function WeekCalendar({
 
   function eventPinTitle(ev: AgendaEvent) {
     const short = AGENDA_EVENT_SHORT[ev.event_type] || 'Événement'
-    const hours = ev.time_end ? `${ev.time_start}–${ev.time_end}` : ev.time_start
-    return `${short} · ${ev.name} · ${hours}${ev.location ? ` · ${ev.location}` : ''}`
+    return `${ev.competitor ? `${ev.competitor} (concurrent) · ` : ''}${short} · ${ev.name} · ${eventHours(ev)}${ev.location ? ` · ${ev.location}` : ''}`
   }
 
+  /**
+   * Nos événements : 2 lignes (type + horaires début–fin, puis nom).
+   * Concurrents : 1 ligne en violet pointillé (prépa · type · horaires), détail au survol.
+   */
   function renderEventPin(ev: AgendaEvent, compact: boolean) {
-    const c = EVENT_TYPE_COLORS[ev.event_type] || EVENT_TYPE_COLORS.autre
+    const c = ev.competitor ? COMPETITOR_PIN : (EVENT_TYPE_COLORS[ev.event_type] || EVENT_TYPE_COLORS.autre)
     const short = AGENDA_EVENT_SHORT[ev.event_type] || 'Événement'
     const style = {
-      display: 'flex', alignItems: 'center', gap: 4, minWidth: 0, boxSizing: 'border-box' as const,
+      display: 'flex', flexDirection: 'column' as const, gap: 0, minWidth: 0, boxSizing: 'border-box' as const,
       fontSize: compact ? 9 : 11, fontWeight: 700, lineHeight: 1.3, padding: compact ? '1px 3px' : '2px 6px',
-      borderRadius: 6, background: c.soft, border: `1px solid ${c.solid}4d`, color: crmV2.text,
-      whiteSpace: 'nowrap' as const, overflow: 'hidden', textDecoration: 'none',
+      borderRadius: 6, background: c.soft, color: crmV2.text, textDecoration: 'none',
+      border: ev.competitor ? `1px dashed ${c.solid}99` : `1px solid ${c.solid}4d`,
     }
-    const inner = (
+    const line = { display: 'flex', alignItems: 'center', gap: 4, minWidth: 0, whiteSpace: 'nowrap' as const, overflow: 'hidden' }
+    const dot = <span style={{ width: 6, height: 6, borderRadius: '50%', background: c.solid, flexShrink: 0 }} />
+    const inner = compact ? (
+      <div style={line}>
+        {dot}
+        <span style={{ color: c.text, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {ev.competitor ? ev.competitor.split(' ')[0] : short} {ev.time_start || ''}
+        </span>
+      </div>
+    ) : ev.competitor ? (
+      <div style={line}>
+        {dot}
+        <span style={{ color: c.text, flexShrink: 0 }}>{ev.competitor.replace(/^Prépa /, '').split(' ')[0]}</span>
+        <span style={{ flexShrink: 0 }}>{short}</span>
+        <span style={{ color: c.text, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis' }}>{eventHours(ev)}</span>
+      </div>
+    ) : (
       <>
-        <span style={{ width: 6, height: 6, borderRadius: '50%', background: c.solid, flexShrink: 0 }} />
-        <span style={{ color: c.text, flexShrink: 0 }}>{compact ? short : `${short} ${ev.time_start}`}</span>
-        {!compact && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{ev.name}</span>}
+        <div style={line}>
+          {dot}
+          <span style={{ color: c.text, flexShrink: 0 }}>{short}</span>
+          <span style={{ color: c.text, marginLeft: 'auto', flexShrink: 0 }}>{eventHours(ev)}</span>
+        </div>
+        <div style={{ ...line, fontWeight: 600, paddingLeft: 10 }}>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.name}</span>
+        </div>
       </>
     )
-    return adminMode ? (
+    return adminMode && !ev.competitor ? (
       <a key={ev.id} href={`/admin/crm/events/${ev.id}`} title={eventPinTitle(ev)} style={style}>{inner}</a>
     ) : (
       <div key={ev.id} title={eventPinTitle(ev)} style={style}>{inner}</div>
@@ -1041,12 +1080,12 @@ export default function WeekCalendar({
             display: 'grid', gridTemplateColumns: gridCols, flexShrink: 0,
             borderBottom: `1px solid ${crmV2.border}`, background: crmV2.bg,
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: crmV2.textFaint }} title="Événements Diploma du jour">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: crmV2.textFaint }} title="Événements du jour (les nôtres + concurrents en violet)">
               <Pin size={12} />
             </div>
             {days.map(day => {
               const evs = eventsForDay(day)
-              const shown = evs.slice(0, compact ? 1 : 2)
+              const shown = pinsExpanded ? evs : evs.slice(0, compact ? 1 : 3)
               return (
                 <div key={day.toISOString()} style={{
                   borderLeft: `1px solid ${crmV2.border}`, padding: compact ? 2 : '3px 4px',
@@ -1054,9 +1093,23 @@ export default function WeekCalendar({
                 }}>
                   {shown.map(ev => renderEventPin(ev, compact))}
                   {evs.length > shown.length && (
-                    <span title={evs.slice(shown.length).map(eventPinTitle).join('\n')} style={{ fontSize: 10, fontWeight: 600, color: crmV2.textMuted, paddingLeft: 4 }}>
-                      +{evs.length - shown.length}
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setPinsExpanded(true)}
+                      title={evs.slice(shown.length).map(eventPinTitle).join('\n')}
+                      style={{ alignSelf: 'flex-start', border: 'none', background: 'none', padding: '0 4px', cursor: 'pointer', fontSize: 10, fontWeight: 700, color: crmV2.textMuted, fontFamily: 'inherit' }}
+                    >
+                      +{evs.length - shown.length} autre{evs.length - shown.length > 1 ? 's' : ''}
+                    </button>
+                  )}
+                  {pinsExpanded && evs.length > (compact ? 1 : 3) && (
+                    <button
+                      type="button"
+                      onClick={() => setPinsExpanded(false)}
+                      style={{ alignSelf: 'flex-start', border: 'none', background: 'none', padding: '0 4px', cursor: 'pointer', fontSize: 10, fontWeight: 700, color: crmV2.textMuted, fontFamily: 'inherit' }}
+                    >
+                      Réduire
+                    </button>
                   )}
                 </div>
               )
