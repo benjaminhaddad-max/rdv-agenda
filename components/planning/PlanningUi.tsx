@@ -12,6 +12,7 @@ import { Lock, Plus, Trash2 } from 'lucide-react'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import { CrmV2Button, CrmV2Input } from '@/components/crm-v2/primitives'
 import { AdminModal, AdminNotice } from '@/components/crm-v2/admin/AdminUi'
+import { addParisDays } from '@/lib/date-paris'
 import type { DayReport, DayVerdict, SlotReport } from '@/lib/telepro-planning'
 
 export type { DayReport, SlotReport }
@@ -112,6 +113,7 @@ export function DayScheduleEditor({
 }) {
   const [slots, setSlots] = useState<EditSlot[]>([])
   const [applyTo, setApplyTo] = useState<Set<string>>(new Set())
+  const [repeatWeeks, setRepeatWeeks] = useState(0)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -122,6 +124,7 @@ export function DayScheduleEditor({
       .map(s => ({ start: s.start, end: s.end, locked: s.locked }))
     setSlots(existing.length ? existing : [{ start: '10:00', end: '13:00', locked: canImpose }])
     setApplyTo(new Set())
+    setRepeatWeeks(0)
     setError(null)
   }, [day, canImpose])
 
@@ -135,7 +138,12 @@ export function DayScheduleEditor({
     }
     setSaving(true)
     setError(null)
-    const err = await onSave(slots, [...applyTo])
+    // Répétition : mêmes jours de la semaine sur les N semaines suivantes
+    const base = day ? [day.date, ...applyTo] : [...applyTo]
+    const dates = new Set(applyTo)
+    for (let w = 1; w <= repeatWeeks; w++) for (const d of base) dates.add(addParisDays(d, 7 * w))
+    if (day) dates.delete(day.date)
+    const err = await onSave(slots, [...dates])
     setSaving(false)
     if (err) setError(err)
   }
@@ -223,6 +231,20 @@ export function DayScheduleEditor({
                 )
               })}
             </div>
+          </div>
+        )}
+        {canImpose && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: crmV2.textMuted }}>Répéter chaque semaine</span>
+            {[0, 4, 8, 12, 26].map(n => (
+              <button key={n} type="button" onClick={() => setRepeatWeeks(n)} style={{
+                padding: '5px 10px', borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                border: `1px solid ${repeatWeeks === n ? crmV2.goldBorder : crmV2.border}`,
+                background: repeatWeeks === n ? crmV2.goldSoft : crmV2.bg, color: repeatWeeks === n ? crmV2.goldDark : crmV2.textMuted,
+              }}>
+                {n === 0 ? 'Non' : n === 26 ? '6 mois' : `${n} semaines`}
+              </button>
+            ))}
           </div>
         )}
         {error && <AdminNotice tone="error">{error}</AdminNotice>}

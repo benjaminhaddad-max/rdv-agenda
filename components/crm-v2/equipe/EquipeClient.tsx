@@ -22,7 +22,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import {
   AlertTriangle, BarChart3, Briefcase, CalendarCheck, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, Key,
-  LogIn, Percent, Phone, PhoneOutgoing, Plus, RefreshCw, Shield, Trash2, Trophy, UserCheck, UserPlus, UserX, X,
+  Columns3, LogIn, Percent, Phone, PhoneOutgoing, Plus, RefreshCw, Shield, Trash2, Trophy, UserCheck, UserPlus, UserX, X,
 } from 'lucide-react'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import { useIsMobile } from '@/lib/useIsMobile'
@@ -34,7 +34,7 @@ import { AdminIconButton, AdminNotice, AdminSpin } from '@/components/crm-v2/adm
 import { PanelCard } from '@/components/crm-v2/panels/PanelUi'
 import { CredentialBox, type TeamMember } from '@/components/crm-v2/panels/TeamMemberManager'
 import PlanningWeek from '@/components/crm-v2/equipe/PlanningWeek'
-import { SlotChip, VERDICTS, VerdictPill, WEEKDAYS, fmtMinutes as fmtPlannedMinutes, type DayReport } from '@/components/planning/PlanningUi'
+import { DayScheduleEditor, SlotChip, VERDICTS, VerdictPill, WEEKDAYS, fmtMinutes as fmtPlannedMinutes, type DayReport } from '@/components/planning/PlanningUi'
 import { addParisDays, parisDateKey, parisMonthEndKey, parisWeekStartKey } from '@/lib/date-paris'
 import { RDV_BRANDS, RDV_BRAND_IDS, type RdvBrand } from '@/lib/rdv-brand'
 import { TEAM_ROLE_LABELS, TEAM_ROLES, teamRolesOf, type TeamRole } from '@/lib/team-roles'
@@ -83,20 +83,11 @@ const TEAMS: Record<Tab, {
   },
 }
 
-/** Marques toujours affichées ; Linova / Edumove seulement s'il y a des RDV. */
-const BRANDS: RdvBrand[] = ['diploma', 'medibox']
-
+/** Marques ayant au moins un RDV (les autres n'apparaissent nulle part). */
 function brandsWithData(b: BrandBreakdown | undefined): RdvBrand[] {
-  return RDV_BRAND_IDS.filter(k => BRANDS.includes(k) || (b?.[k]?.rdv_total ?? 0) > 0)
+  return RDV_BRAND_IDS.filter(k => (b?.[k]?.rdv_total ?? 0) > 0)
 }
 const MAIN_ROLES = ['admin', 'manager', 'closer', 'telepro'] as const
-const CRM_BRAND_OPTIONS = [
-  { id: '', label: 'Toutes marques' },
-  { id: 'diploma', label: 'Diploma' },
-  { id: 'linova', label: 'Linova' },
-  { id: 'edumove', label: 'Edumove' },
-  { id: 'afem', label: 'AFEM' },
-]
 const ROLE_COLOR: Record<string, string> = {
   admin: '#7e22ce',
   manager: '#0091ae',
@@ -193,16 +184,19 @@ type Row = {
   stats: AgentMetrics | null
 }
 
-type SortKey =
-  | 'name' | 'calls' | 'answered' | 'talk2' | 'talk' | 'rdv' | 'minPerRdv' | 'conv'
-  | 'honored' | 'noShow' | 'cancelled' | 'showRate' | 'closingRate' | 'lastSignIn'
-  | 'talk2Rdv' | 'venus' | 'preinscrits'
+/** Clé de colonne : 'calls', 'rdv'… ou 'brand:medibox' (colonnes de marque). */
+type SortKey = string
 
-function sortValue(r: Row, key: SortKey): number | string {
+function sortValue(r: Row, key: SortKey, presence: Record<string, DayReport[]> | null): number | string {
   const s = r.stats
   if (key === 'name') return r.name
   if (key === 'lastSignIn') return r.member?.last_sign_in_at ? Date.parse(r.member.last_sign_in_at) : 0
+  if (key === 'presence') {
+    const days = presence?.[r.id] ?? []
+    return days.filter(d => d.calls > 0).length * 10_000 + days.reduce((t, d) => t + d.planned_min, 0)
+  }
   if (!s) return -1
+  if (key.startsWith('brand:')) return s.by_brand[key.slice(6) as RdvBrand]?.rdv_total ?? 0
   switch (key) {
     case 'calls': return s.calls_outbound
     case 'answered': return s.calls_outbound_talk_2min + s.calls_outbound_talk_short
@@ -219,6 +213,8 @@ function sortValue(r: Row, key: SortKey): number | string {
     case 'talk2Rdv': return s.conversion_talk_2min ?? -1
     case 'venus': return s.rdv_venus
     case 'preinscrits': return s.rdv_preinscrits
+    case 'avgTalk2': return s.avg_talk_2min_sec ?? -1
+    case 'delta': return s.delta_rdv
     default: return 0
   }
 }
@@ -246,24 +242,30 @@ export default function EquipeClient() {
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'rdv', dir: 'desc' })
   const [expanded, setExpanded] = useState<string | null>(null)
   const [showBanned, setShowBanned] = useState(false)
-  const [teleproView, setTeleproView] = useState<'perf' | 'planning'>('perf')
+  const [presenceTick, setPresenceTick] = useState(0)
 
   const team = TEAMS[tab]
   const isAdmins = tab === 'admins'
-  const isPlanning = tab === 'telepros' && teleproView === 'planning'
 
-  function changeTeleproView(v: 'perf' | 'planning') {
-    setTeleproView(v)
-    if (v === 'planning') setPeriod('week')
-    const url = new URL(window.location.href)
-    if (v === 'planning') url.searchParams.set('view', 'planning'); else url.searchParams.delete('view')
-    window.history.replaceState(null, '', url.toString())
+  // Colonnes masquées par onglet (réglage « Colonnes », gardé dans le navigateur)
+  const [hiddenCols, setHiddenCols] = useState<Record<string, string[]> | null>(null)
+  useEffect(() => {
+    let stored: Record<string, string[]> | null = null
+    try { stored = JSON.parse(localStorage.getItem(HIDDEN_COLS_KEY) || 'null') } catch { /* stockage indisponible */ }
+    setHiddenCols(stored && typeof stored === 'object' ? stored : {})
+  }, [])
+  function toggleCol(key: string) {
+    setHiddenCols(prev => {
+      const current = prev?.[tab] ?? defaultHidden(tab)
+      const next = { ...(prev ?? {}), [tab]: current.includes(key) ? current.filter(k => k !== key) : [...current, key] }
+      try { localStorage.setItem(HIDDEN_COLS_KEY, JSON.stringify(next)) } catch { /* stockage indisponible */ }
+      return next
+    })
   }
 
   // Onglet depuis l'URL (?tab=closers), sans Suspense
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
-    if (params.get('view') === 'planning') { setTeleproView('planning'); setPeriod('week') }
     const t = params.get('tab')
     if (t === 'closers' || t === 'telepros' || t === 'admins') {
       setTab(t)
@@ -334,7 +336,7 @@ export default function EquipeClient() {
       .then(j => { if (!cancelled && j?.report) setPresence(j.report as Record<string, DayReport[]>) })
       .catch(() => {})
     return () => { cancelled = true }
-  }, [tab, from, to, refreshTick])
+  }, [tab, from, to, refreshTick, presenceTick])
 
   function refresh() {
     loadMembers(tab)
@@ -366,8 +368,8 @@ export default function EquipeClient() {
   const q = search.trim().toLowerCase()
   const filtered = q ? rows.filter(r => `${r.name} ${r.member?.email ?? ''}`.toLowerCase().includes(q)) : rows
   const sorted = [...filtered].sort((a, b) => {
-    const va = sortValue(a, sort.key)
-    const vb = sortValue(b, sort.key)
+    const va = sortValue(a, sort.key, presence)
+    const vb = sortValue(b, sort.key, presence)
     let c = typeof va === 'string' || typeof vb === 'string'
       ? String(va).localeCompare(String(vb), 'fr')
       : (va as number) - (vb as number)
@@ -409,11 +411,28 @@ export default function EquipeClient() {
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>{icon} {label}</span>
   )
 
+  // Colonnes : fixes + une colonne par marque autre que Diploma ayant des RDV sur la période
+  const brandCols: Col[] = useMemo(() => {
+    if (!statsReady || !stats || tab === 'admins') return []
+    const totalsByBrand = stats.totals.by_brand
+    return RDV_BRAND_IDS
+      .filter(b => b !== 'diploma' && (totalsByBrand?.[b]?.rdv_total ?? 0) > 0)
+      .map(b => ({
+        key: `brand:${b}`,
+        label: `RDV ${RDV_BRANDS[b].label}`,
+        title: tab === 'closers' ? `RDV ${RDV_BRANDS[b].label} · convertis` : `RDV ${RDV_BRANDS[b].label} placés · venus`,
+      }))
+  }, [stats, statsReady, tab])
+  const allCols = [...(tab === 'telepros' ? TELEPRO_COLS : tab === 'closers' ? CLOSER_COLS : []), ...brandCols]
+  const hidden = hiddenCols?.[tab] ?? defaultHidden(tab)
+  const visibleCols = allCols.filter(c => !hidden.includes(c.key))
+
   const tableProps = {
     tab, isMobile, statsLoading, sort, onSort: toggleSort, expanded,
     onExpand: (id: string) => setExpanded(e => e === id ? null : id),
     onPatch: patchMember, onAdd: addMember, onRolesChanged: reloadAllMembers, extraRolesReady,
-    presence,
+    presence, cols: visibleCols, allCols, hiddenCols: hidden, onToggleCol: toggleCol,
+    onPresenceChanged: () => setPresenceTick(t => t + 1),
   }
 
   return (
@@ -422,29 +441,17 @@ export default function EquipeClient() {
         title="Équipe"
         subtitle={isAdmins
           ? 'Comptes admin et manager · accès complet au CRM'
-          : isPlanning
-            ? `${formatRange(period, from, to)} · horaires d'appel et bilan de chaque journée`
-            : `${formatRange(period, from, to)} · comptes, accès et performance`}
+          : `${formatRange(period, from, to)} · comptes, présence et performance`}
         actions={
           <>
-            {tab === 'telepros' && (
-              <CrmV2Segmented<'perf' | 'planning'>
-                size="sm"
-                items={[{ id: 'perf', label: 'Performance' }, { id: 'planning', label: "Planning d'appel" }]}
-                value={teleproView}
-                onChange={changeTeleproView}
-              />
-            )}
             {!isAdmins && (
               <>
-                {!isPlanning && (
-                  <CrmV2Segmented<Period>
-                    size="sm"
-                    items={[{ id: 'day', label: 'Jour' }, { id: 'week', label: 'Semaine' }, { id: 'month', label: 'Mois' }]}
-                    value={period}
-                    onChange={setPeriod}
-                  />
-                )}
+                <CrmV2Segmented<Period>
+                  size="sm"
+                  items={[{ id: 'day', label: 'Jour' }, { id: 'week', label: 'Semaine' }, { id: 'month', label: 'Mois' }]}
+                  value={period}
+                  onChange={setPeriod}
+                />
                 <div style={{ display: 'inline-flex', gap: 4 }}>
                   <AdminIconButton icon={<ChevronLeft size={15} />} title="Période précédente" onClick={() => setAnchor(a => shiftAnchor(period, a, -1))} />
                   <CrmV2Button size="sm" onClick={() => setAnchor(parisDateKey(new Date()))}>Aujourd&apos;hui</CrmV2Button>
@@ -473,10 +480,13 @@ export default function EquipeClient() {
       </CrmV2Header>
 
       <CrmV2Body>
-        {isPlanning ? (
-          <PlanningWeek weekStart={from} refreshKey={refreshTick} search="" />
-        ) : (
-        <>
+        {tab === 'telepros' && (
+          <PlanningWeek
+            weekStart={parisWeekStartKey(new Date(`${from}T12:00:00Z`))}
+            refreshKey={refreshTick + presenceTick}
+            onSaved={() => setPresenceTick(t => t + 1)}
+          />
+        )}
         {!isAdmins && statsError && <AdminNotice tone="error">{statsError}</AdminNotice>}
         {!isAdmins && statsReady && stats?.needs_lines && tab === 'telepros' && (
           <AdminNotice tone="warning" icon={<AlertTriangle size={15} />}>
@@ -500,7 +510,7 @@ export default function EquipeClient() {
               <>
                 <span>
                   {tab === 'telepros'
-                    ? 'RDV comptés à la date de prise du RDV · appels sur les lignes Aircall suivies · minutes = temps de conversation réel.'
+                    ? 'RDV comptés à la date de prise du RDV · tous les appels Aircall du télépro · minutes = temps de conversation réel.'
                     : 'RDV comptés à leur date · un RDV réassigné compte pour le closer final · convertis = positifs + préinscriptions.'}
                   {unmappedCount > 0 && ` · ${unmappedCount} agent(s) Aircall non associé(s).`}
                 </span>
@@ -527,8 +537,6 @@ export default function EquipeClient() {
               </div>
             )}
           </div>
-        )}
-        </>
         )}
       </CrmV2Body>
     </CrmV2Page>
@@ -557,8 +565,10 @@ function TeamKpis({ tab, totals, loading }: { tab: Tab; totals: SuiviCommercialR
           detail={t ? `${fmtPct(pct(venus, t.rdv_total))} des RDV placés · ${fmtInt(t.rdv_no_show)} no-show` : undefined} />
         <CrmV2KpiCard icon={<Trophy size={15} />} label="Préinscriptions" color={crmV2.successStrong} value={t ? fmtInt(pre) : dash}
           detail={t ? `${fmtPct(pct(pre, venus))} des venus · ${fmtPct(pct(pre, t.rdv_total))} des placés` : undefined} />
-        <CrmV2KpiCard icon={<Clock size={15} />} label="Par marque" value={t ? fmtInt(t.rdv_total) : dash}
-          detail={brandSplit(t?.by_brand, s => s.rdv_total)} />
+        {t && RDV_BRAND_IDS.some(b => b !== 'diploma' && (t.by_brand?.[b]?.rdv_total ?? 0) > 0) && (
+          <CrmV2KpiCard icon={<Clock size={15} />} label="Par marque" value={fmtInt(t.rdv_total)}
+            detail={brandSplit(t.by_brand, s => s.rdv_total)} />
+        )}
       </CrmV2KpiGrid>
     )
   }
@@ -572,7 +582,7 @@ function TeamKpis({ tab, totals, loading }: { tab: Tab; totals: SuiviCommercialR
         detail={t ? `Taux de présence ${fmtPct(t.show_rate)} · ${fmtInt(t.rdv_no_show)} no-show` : undefined} />
       <CrmV2KpiCard icon={<Trophy size={15} />} label="Convertis" color={crmV2.successStrong} value={t ? fmtInt(converted(t)) : dash}
         detail={t ? `Closing ${fmtPct(t.closing_rate)} des honorés` : undefined} />
-      {BRANDS.map(b => {
+      {RDV_BRAND_IDS.filter(b => (t?.by_brand?.[b]?.rdv_total ?? 0) > 0).map(b => {
         const s = t?.by_brand?.[b]
         return (
           <CrmV2KpiCard key={b} icon={<Percent size={15} />} color={RDV_BRANDS[b].color}
@@ -587,16 +597,22 @@ function TeamKpis({ tab, totals, loading }: { tab: Tab; totals: SuiviCommercialR
 
 // ── Tableau des membres ──────────────────────────────────────────────────────
 
-type Col = { key: SortKey; label: string; title?: string }
+type Col = { key: SortKey; label: string; title?: string; defaultHidden?: boolean }
 
 const TELEPRO_COLS: Col[] = [
-  { key: 'calls', label: 'Appels', title: 'Appels sortants (lignes Aircall suivies)' },
+  { key: 'presence', label: 'Présence', title: "Jours présents (au moins un appel), heures prévues et journées bien faites / partielles / sans appel" },
+  { key: 'calls', label: 'Appels', title: 'Appels sortants Aircall' },
+  { key: 'answered', label: 'Décrochés', title: 'Décrochés humains ≥ 10 s (et part des appels)' },
   { key: 'talk2', label: 'Appels ≥ 2 min', title: 'Conversations de 2 minutes ou plus (et part des appels)' },
+  { key: 'avgTalk2', label: 'Durée moy. ≥ 2 min', title: 'Durée moyenne des conversations de 2 minutes ou plus', defaultHidden: true },
+  { key: 'talk', label: "Temps d'appel", title: 'Temps de conversation réel' },
   { key: 'rdv', label: 'RDV placés', title: 'Tous les RDV placés, même sans appel (SMS, etc.)' },
   { key: 'talk2Rdv', label: '≥ 2 min → RDV', title: 'RDV placés / appels ≥ 2 min : une conversation de 2 min doit se transformer en RDV' },
+  { key: 'minPerRdv', label: 'Min / RDV', title: "Minutes d'appel par RDV placé" },
   { key: 'venus', label: 'RDV venus', title: 'Le closer a saisi une issue (ni no-show ni annulé) — et part des RDV placés' },
+  { key: 'noShow', label: 'No-show', defaultHidden: true },
   { key: 'preinscrits', label: 'Préinscrits', title: 'Contact pré-inscrit / inscrit (plateforme d’inscription) — et part des RDV venus' },
-  { key: 'talk', label: "Temps d'appel" },
+  { key: 'delta', label: 'Évol. RDV', title: 'RDV placés vs période précédente', defaultHidden: true },
 ]
 
 const CLOSER_COLS: Col[] = [
@@ -605,9 +621,17 @@ const CLOSER_COLS: Col[] = [
   { key: 'noShow', label: 'No-show' },
   { key: 'cancelled', label: 'Annulés' },
   { key: 'conv', label: 'Convertis', title: 'Positifs + préinscriptions' },
-  { key: 'showRate', label: 'Présence' },
+  { key: 'showRate', label: 'Présence', title: 'Honorés / (honorés + no-show)' },
   { key: 'closingRate', label: 'Closing', title: 'Convertis / RDV honorés' },
+  { key: 'delta', label: 'Évol. RDV', title: 'RDV vs période précédente', defaultHidden: true },
 ]
+
+const HIDDEN_COLS_KEY = 'equipe-hidden-cols-v1'
+
+function defaultHidden(tab: Tab): string[] {
+  const cols = tab === 'telepros' ? TELEPRO_COLS : tab === 'closers' ? CLOSER_COLS : []
+  return cols.filter(c => c.defaultHidden).map(c => c.key)
+}
 
 type TableCommon = {
   tab: Tab
@@ -623,6 +647,11 @@ type TableCommon = {
   extraRolesReady: boolean
   /** Bilan du planning d'appel par télépro sur la période (onglet Télépros) */
   presence: Record<string, DayReport[]> | null
+  onPresenceChanged: () => void
+  cols: Col[]
+  allCols: Col[]
+  hiddenCols: string[]
+  onToggleCol: (key: string) => void
 }
 
 function MembersTable({
@@ -634,10 +663,9 @@ function MembersTable({
   onSearch?: (v: string) => void
   footer?: ReactNode
 }) {
-  const { tab, isMobile, sort, onSort } = common
+  const { tab, isMobile, sort, onSort, cols } = common
   const team = TEAMS[tab]
   const isAdmins = tab === 'admins'
-  const cols = tab === 'telepros' ? TELEPRO_COLS : tab === 'closers' ? CLOSER_COLS : []
   const [showAdd, setShowAdd] = useState(false)
   const [created, setCreated] = useState<{ name: string; email: string; password: string | null; emailSent?: boolean } | null>(null)
 
@@ -651,6 +679,7 @@ function MembersTable({
         placeholder={`Rechercher un ${team.noun}…`}
         style={{ flex: '1 1 220px', height: isMobile ? 40 : 36 }}
       />
+      {!isAdmins && !isMobile && <ColumnPicker cols={common.allCols} hidden={common.hiddenCols} onToggle={common.onToggleCol} />}
       {!showAdd && (
         <CrmV2Button variant="primary" icon={<UserPlus size={14} />} onClick={() => { setShowAdd(true); setCreated(null) }}>
           Ajouter un {team.noun}
@@ -710,7 +739,7 @@ function MembersTable({
     )
   }
 
-  const colSpan = cols.length + 3 + (tab === 'telepros' ? 1 : 0)
+  const colSpan = cols.length + 2 + (isAdmins ? 1 : 0)
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {extras}
@@ -720,15 +749,12 @@ function MembersTable({
             <tr>
               <CrmV2Th sorted={sort.key === 'name' ? sort.dir : false} onClick={() => onSort('name')}>{team.column}</CrmV2Th>
               {cols.map(c => (
-                <CrmV2Th key={c.key} sorted={sort.key === c.key ? sort.dir : false} onClick={() => onSort(c.key)} style={{ textAlign: 'right' }}>
+                <CrmV2Th key={c.key} sorted={sort.key === c.key ? sort.dir : false} onClick={() => onSort(c.key)} style={{ textAlign: c.key === 'presence' ? 'left' : 'right' }}>
                   <span title={c.title}>{c.label}</span>
                 </CrmV2Th>
               ))}
-              {tab === 'telepros' && <CrmV2Th><span title="Horaires d'appel prévus et journées bien faites / partielles / sans appel">Présence</span></CrmV2Th>}
-              {isAdmins ? (
+              {isAdmins && (
                 <CrmV2Th sorted={sort.key === 'lastSignIn' ? sort.dir : false} onClick={() => onSort('lastSignIn')}>Dernière connexion</CrmV2Th>
-              ) : (
-                <CrmV2Th>Marques</CrmV2Th>
               )}
               <CrmV2Th style={{ textAlign: 'right' }}>Compte</CrmV2Th>
             </tr>
@@ -750,6 +776,13 @@ function MembersTable({
 }
 
 function cellValue(tab: Tab, key: SortKey, s: AgentMetrics): ReactNode {
+  if (key.startsWith('brand:')) {
+    const b = s.by_brand[key.slice(6) as RdvBrand]
+    if (!b?.rdv_total) return '—'
+    return tab === 'closers'
+      ? <>{fmtInt(b.rdv_total)} <Faint>{fmtInt(converted(b))} conv.</Faint></>
+      : <>{fmtInt(b.rdv_total)} <Faint>{fmtInt(b.rdv_venus)} venus</Faint></>
+  }
   switch (key) {
     case 'calls': return fmtInt(s.calls_outbound)
     case 'answered': {
@@ -783,6 +816,10 @@ function cellValue(tab: Tab, key: SortKey, s: AgentMetrics): ReactNode {
     case 'cancelled': return fmtInt(s.rdv_annules)
     case 'showRate': return fmtPct(s.show_rate)
     case 'closingRate': return <strong>{fmtPct(s.closing_rate)}</strong>
+    case 'avgTalk2': return s.avg_talk_2min_sec ? `${Math.floor(s.avg_talk_2min_sec / 60)} min ${String(s.avg_talk_2min_sec % 60).padStart(2, '0')}` : '—'
+    case 'delta': return s.delta_rdv
+      ? <strong style={{ color: s.delta_rdv > 0 ? crmV2.successStrong : '#dc2626' }}>{s.delta_rdv > 0 ? '+' : ''}{s.delta_rdv}</strong>
+      : '—'
     default: return '—'
   }
 }
@@ -811,30 +848,28 @@ function presenceSummary(days: DayReport[]) {
 function PresenceCell({ days }: { days: DayReport[] | null }) {
   if (!days) return <span style={{ color: crmV2.textFaint }}>…</span>
   const t = presenceSummary(days)
-  if (!t.planned) {
-    return t.hors
-      ? <span title="Des appels sans horaires prévus" style={{ fontSize: 12, color: VERDICTS.hors_planning.color }}>Sans planning · {t.hors} j appelé{t.hors > 1 ? 's' : ''}</span>
-      : <span style={{ fontSize: 12, color: crmV2.textFaint }}>Pas de planning</span>
-  }
+  const present = days.filter(d => d.calls > 0).length
   const judged = t.ok + t.partiel + t.absent
   return (
-    <span style={{ display: 'inline-flex', flexDirection: 'column', gap: 1, fontSize: 12 }}>
-      <strong style={{ color: crmV2.text }}>{fmtPlannedMinutes(t.planned)} prévues</strong>
-      {judged > 0 ? (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12, whiteSpace: 'nowrap' }}>
+      <strong style={{ color: present ? crmV2.text : crmV2.textFaint }}>{present} j</strong>
+      <span style={{ color: crmV2.textMuted }}>{t.planned ? `${fmtPlannedMinutes(t.planned)} prévues` : 'sans horaires'}</span>
+      {judged > 0 && (
         <span title="Journées bien faites / partielles / sans appel">
-          <span style={{ color: VERDICTS.ok.color, fontWeight: 700 }}>{t.ok} ✓</span>{' '}
-          <span style={{ color: VERDICTS.partiel.color, fontWeight: 700 }}>{t.partiel} ~</span>{' '}
-          <span style={{ color: VERDICTS.absent.color, fontWeight: 700 }}>{t.absent} ✗</span>
+          <span style={{ color: VERDICTS.ok.color, fontWeight: 700 }}>{t.ok}✓</span>{' '}
+          <span style={{ color: VERDICTS.partiel.color, fontWeight: 700 }}>{t.partiel}~</span>{' '}
+          <span style={{ color: VERDICTS.absent.color, fontWeight: 700 }}>{t.absent}✗</span>
         </span>
-      ) : <span style={{ color: crmV2.textFaint }}>à venir</span>}
+      )}
     </span>
   )
 }
 
-/** Détail jour par jour de la présence (dans la ligne dépliée). */
-function PresenceDays({ days }: { days: DayReport[] }) {
-  const shown = days.filter(d => d.slots.length || d.calls)
+/** Détail jour par jour de la présence (ligne dépliée) — chaque jour se modifie au clic. */
+function PresenceDays({ days, onEdit }: { days: DayReport[]; onEdit: (d: DayReport) => void }) {
+  const shown = days
   if (!shown.length) return null
+  const today = parisDateKey(new Date())
   return (
     <div>
       <div style={{ fontSize: 11, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
@@ -845,17 +880,21 @@ function PresenceDays({ days }: { days: DayReport[] }) {
           const [y, m, dd] = d.date.split('-').map(Number)
           const wd = WEEKDAYS[(new Date(Date.UTC(y, m - 1, dd, 12)).getUTCDay() + 6) % 7]
           return (
-            <div key={d.date} style={{
-              border: `1px solid ${crmV2.border}`, borderRadius: 10, padding: '6px 8px', background: crmV2.bg,
-              display: 'flex', flexDirection: 'column', gap: 4, minWidth: 120,
+            <button type="button" key={d.date} onClick={() => onEdit(d)} title="Modifier / imposer les horaires de ce jour" style={{
+              border: `1px solid ${d.date === today ? crmV2.goldBorder : crmV2.border}`, borderRadius: 10, padding: '6px 8px', background: crmV2.bg,
+              display: 'flex', flexDirection: 'column', gap: 4, minWidth: 128, textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
             }}>
-              <span style={{ fontSize: 12, fontWeight: 700 }}>{wd} {dd}</span>
-              {d.slots.length > 0 && <span style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>{d.slots.map(s => <SlotChip key={s.id} slot={s} />)}</span>}
-              <VerdictPill verdict={d.verdict} small />
-              <span style={{ fontSize: 11, color: crmV2.textMuted }}>
-                {d.calls} appels · {d.talk2} ≥2min · {d.rdv} RDV{d.first_call ? ` · ${d.first_call}→${d.last_call}` : ''}
-              </span>
-            </div>
+              <span style={{ fontSize: 12, fontWeight: 700, color: crmV2.text }}>{wd} {dd}</span>
+              {d.slots.length > 0
+                ? <span style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>{d.slots.map(s => <SlotChip key={s.id} slot={s} />)}</span>
+                : <span style={{ fontSize: 11, color: crmV2.link, fontWeight: 600 }}>{d.date >= today ? '+ définir les horaires' : '+ corriger les horaires'}</span>}
+              {(d.slots.length > 0 || d.calls > 0) && d.verdict !== 'a_venir' && <VerdictPill verdict={d.verdict} small />}
+              {d.calls > 0 && (
+                <span style={{ fontSize: 11, color: crmV2.textMuted }}>
+                  {d.calls} appels · {d.talk2} ≥2min · {d.rdv} RDV · {d.first_call}→{d.last_call}
+                </span>
+              )}
+            </button>
           )
         })}
       </div>
@@ -863,26 +902,38 @@ function PresenceDays({ days }: { days: DayReport[] }) {
   )
 }
 
-function Faint({ children }: { children: ReactNode }) {
-  return <span style={{ color: crmV2.textFaint, fontSize: 12, fontWeight: 500 }}>{children}</span>
+/** Bouton « Colonnes » : afficher / masquer les colonnes du tableau. */
+function ColumnPicker({ cols, hidden, onToggle }: { cols: Col[]; hidden: string[]; onToggle: (key: string) => void }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div style={{ position: 'relative' }}>
+      <CrmV2Button icon={<Columns3 size={14} />} onClick={() => setOpen(o => !o)}>Colonnes</CrmV2Button>
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
+          <div style={{
+            position: 'absolute', right: 0, top: 'calc(100% + 6px)', zIndex: 41, minWidth: 230, maxHeight: 380, overflowY: 'auto',
+            background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: 12, boxShadow: crmV2.shadowPanel, padding: 8,
+          }}>
+            {cols.map(c => (
+              <label key={c.key} title={c.title} style={{
+                display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 8, cursor: 'pointer',
+                fontSize: 13, color: crmV2.text,
+              }}>
+                <input type="checkbox" checked={!hidden.includes(c.key)} onChange={() => onToggle(c.key)}
+                  style={{ accentColor: crmV2.gold, width: 15, height: 15 }} />
+                {c.label}
+              </label>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
 }
 
-function BrandChips({ b }: { b: BrandBreakdown | undefined }) {
-  if (!b) return <span style={{ color: crmV2.textFaint }}>—</span>
-  const items = RDV_BRAND_IDS.filter(k => (b[k]?.rdv_total ?? 0) > 0)
-  if (!items.length) return <span style={{ color: crmV2.textFaint }}>—</span>
-  return (
-    <span style={{ display: 'inline-flex', gap: 4, flexWrap: 'wrap' }}>
-      {items.map(k => (
-        <span key={k} title={`${b[k].rdv_total} RDV ${RDV_BRANDS[k].label}`} style={{
-          display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 700,
-          color: RDV_BRANDS[k].color, background: `${RDV_BRANDS[k].color}1a`, border: `1px solid ${RDV_BRANDS[k].color}40`, whiteSpace: 'nowrap',
-        }}>
-          {k === 'diploma' ? 'Diploma' : RDV_BRANDS[k].label} {b[k].rdv_total}
-        </span>
-      ))}
-    </span>
-  )
+function Faint({ children }: { children: ReactNode }) {
+  return <span style={{ color: crmV2.textFaint, fontSize: 12, fontWeight: 500 }}>{children}</span>
 }
 
 /**
@@ -919,12 +970,12 @@ function DualRoleBadge({ m }: { m: EquipeMember | null }) {
 function NameCell({ row, open }: { tab: Tab; row: Row; open: boolean }) {
   const banned = !!row.member?.is_banned
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 0, flexWrap: 'wrap' }}>
-      {open ? <ChevronUp size={14} color={crmV2.textFaint} /> : <ChevronDown size={14} color={crmV2.textFaint} />}
-      <span style={{ opacity: banned ? 0.5 : 1, display: 'inline-flex' }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 0, flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
+      {open ? <ChevronUp size={14} color={crmV2.textFaint} style={{ flexShrink: 0 }} /> : <ChevronDown size={14} color={crmV2.textFaint} style={{ flexShrink: 0 }} />}
+      <span style={{ opacity: banned ? 0.5 : 1, display: 'inline-flex', flexShrink: 0 }}>
         <CrmV2Avatar name={row.name} color={banned ? crmV2.borderStrong : (row.color ?? crmV2.gold)} size={24} radius="36%" />
       </span>
-      <span style={{ fontWeight: 600, color: banned ? crmV2.textMuted : crmV2.text, whiteSpace: 'nowrap' }}>{row.name}</span>
+      <span style={{ fontWeight: 600, color: banned ? crmV2.textMuted : crmV2.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 190 }}>{row.name}</span>
       <DualRoleBadge m={row.member} />
     </span>
   )
@@ -945,21 +996,18 @@ function MemberRow({
   return (
     <Fragment>
       <CrmV2Tr onClick={onToggle}>
-        <CrmV2Td><NameCell tab={tab} row={row} open={open} /></CrmV2Td>
-        {cols.map(c => (
+        <CrmV2Td style={{ whiteSpace: 'nowrap' }}><NameCell tab={tab} row={row} open={open} /></CrmV2Td>
+        {cols.map(c => c.key === 'presence' ? (
+          <CrmV2Td key={c.key} style={{ whiteSpace: 'nowrap' }}>
+            <PresenceCell days={common.presence ? (common.presence[row.id] ?? []) : null} />
+          </CrmV2Td>
+        ) : (
           <CrmV2Td key={c.key} style={{ textAlign: 'right', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
             {s ? cellValue(tab, c.key, s) : statsLoading ? <span style={{ color: crmV2.textFaint }}>…</span> : '—'}
           </CrmV2Td>
         ))}
-        {tab === 'telepros' && (
-          <CrmV2Td style={{ whiteSpace: 'nowrap' }}>
-            <PresenceCell days={common.presence ? (common.presence[row.id] ?? []) : null} />
-          </CrmV2Td>
-        )}
-        {tab === 'admins' ? (
+        {tab === 'admins' && (
           <CrmV2Td style={{ color: crmV2.textMuted, whiteSpace: 'nowrap' }}>{fmtLastSignIn(row.member?.last_sign_in_at ?? null)}</CrmV2Td>
-        ) : (
-          <CrmV2Td><BrandChips b={s?.by_brand} /></CrmV2Td>
         )}
         <CrmV2Td style={{ textAlign: 'right' }}>
           <div onClick={e => e.stopPropagation()}>{account.actions}</div>
@@ -971,7 +1019,7 @@ function MemberRow({
       {open && (
         <tr>
           <CrmV2Td colSpan={colSpan} style={{ height: 'auto', padding: '10px 14px 16px', background: crmV2.bgHover }}>
-            <MemberDetail {...common} row={row} />
+            <MemberDetail {...common} cols={cols} row={row} />
           </CrmV2Td>
         </tr>
       )}
@@ -1029,10 +1077,37 @@ function MobileMemberCard({
 
 function MemberDetail({ row, ...common }: TableCommon & { row: Row }) {
   const { tab } = common
+  const [editing, setEditing] = useState<DayReport | null>(null)
+
+  async function saveDay(slots: Array<{ start: string; end: string; locked: boolean }>, applyTo: string[]): Promise<string | null> {
+    if (!editing) return null
+    const res = await fetch('/api/admin/planning', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: row.id, date: editing.date, slots, apply_to: applyTo }),
+    })
+    const j = await res.json().catch(() => ({}))
+    if (!res.ok) return j.error || 'Enregistrement impossible'
+    setEditing(null)
+    common.onPresenceChanged()
+    return null
+  }
+
+  const days = common.presence?.[row.id] ?? []
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {tab !== 'admins' && <BrandPerf tab={tab} row={row} statsLoading={common.statsLoading} />}
-      {tab === 'telepros' && common.presence && <PresenceDays days={common.presence[row.id] ?? []} />}
+      {tab === 'telepros' && common.presence && <PresenceDays days={days} onEdit={setEditing} />}
+      {tab === 'telepros' && (
+        <DayScheduleEditor
+          open={!!editing}
+          title={`Horaires d'appel · ${row.name}`}
+          day={editing}
+          weekDates={days.length <= 7 ? days.map(d => d.date) : undefined}
+          canImpose
+          onClose={() => setEditing(null)}
+          onSave={saveDay}
+        />
+      )}
       {row.member && (
         <AccountSettings
           member={row.member}
@@ -1041,63 +1116,6 @@ function MemberDetail({ row, ...common }: TableCommon & { row: Row }) {
           extraRolesReady={common.extraRolesReady}
         />
       )}
-    </div>
-  )
-}
-
-function BrandPerf({ tab, row, statsLoading }: { tab: Tab; row: Row; statsLoading: boolean }) {
-  const s = row.stats
-  if (!s) {
-    return <div style={{ fontSize: 13, color: crmV2.textMuted }}>{statsLoading ? 'Chargement…' : 'Aucune activité sur la période.'}</div>
-  }
-  const isCloser = tab === 'closers'
-  const headers = isCloser
-    ? ['Marque', 'RDV', 'Honorés', 'No-show', 'Annulés', 'Convertis', 'Closing']
-    : ['Marque', 'RDV placés', 'Venus', 'No-show', 'Annulés', 'Préinscrits', 'Préinscr. / venus']
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ borderCollapse: 'collapse', fontSize: 13, minWidth: 520 }}>
-          <thead>
-            <tr>
-              {headers.map((h, i) => (
-                <th key={h} style={{
-                  padding: '4px 12px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em',
-                  color: crmV2.textMuted, textAlign: i === 0 ? 'left' : 'right', whiteSpace: 'nowrap',
-                }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {brandsWithData(s.by_brand).map(k => {
-              const b = s.by_brand[k]
-              const conv = converted(b)
-              const cells: ReactNode[] = isCloser
-                ? [fmtInt(b.rdv_total), fmtInt(b.rdv_honored), fmtInt(b.rdv_no_show), fmtInt(b.rdv_annules), fmtInt(conv), fmtPct(pct(conv, b.rdv_honored))]
-                : [fmtInt(b.rdv_total), fmtInt(b.rdv_venus), fmtInt(b.rdv_no_show), fmtInt(b.rdv_annules), fmtInt(b.rdv_preinscrits), fmtPct(pct(b.rdv_preinscrits, b.rdv_venus))]
-              return (
-                <tr key={k} style={{ borderTop: `1px solid ${crmV2.border}` }}>
-                  <td style={{ padding: '6px 12px', fontWeight: 700, color: RDV_BRANDS[k].color, whiteSpace: 'nowrap' }}>{RDV_BRANDS[k].label}</td>
-                  {cells.map((c, i) => (
-                    <td key={i} style={{ padding: '6px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: crmV2.text }}>{c}</td>
-                  ))}
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
-      <div style={{ fontSize: 12, color: crmV2.textMuted }}>
-        {isCloser
-          ? <>Présence {fmtPct(s.show_rate)}</>
-          : <>
-              {fmtInt(s.calls_outbound)} appels sortants · {fmtInt(s.calls_outbound_talk_2min + s.calls_outbound_talk_short)} décrochés ({fmtPct(s.answer_rate)}) · {fmtInt(s.calls_outbound_talk_2min)} conversations ≥ 2 min
-              {s.avg_talk_2min_sec ? ` (moy. ${Math.round(s.avg_talk_2min_sec / 60)} min)` : ''}
-              {' · '}{fmtPct(s.conversion_talk_2min)} des conversations ≥ 2 min deviennent un RDV
-              {minPerRdv(s.talk_time_sec, s.rdv_total) != null && ` · ${minPerRdv(s.talk_time_sec, s.rdv_total)} min d'appel par RDV`}
-            </>}
-        {s.delta_rdv !== 0 && ` · ${s.delta_rdv > 0 ? '+' : ''}${s.delta_rdv} RDV vs période précédente`}
-      </div>
     </div>
   )
 }
@@ -1142,10 +1160,6 @@ function AccountSettings({
     // Le nouveau rôle principal sort des casquettes en plus
     const extras = new Set(member.extra_roles.filter(x => x !== role))
     if (await patchUser({ role, extra_roles: extraRolesReady ? [...extras] : undefined })) onRolesChanged()
-  }
-
-  async function changeBrand(brand: string) {
-    if (await patchUser({ crm_brand: brand || null })) onPatch(member.id, { crm_brand: brand || null })
   }
 
   async function remove() {
@@ -1194,12 +1208,6 @@ function AccountSettings({
         <div style={label}>Rôle principal (accès)</div>
         <CrmV2Select value={member.role} disabled={busy} onChange={e => changeRole(e.target.value)} style={{ minWidth: 150 }}>
           {MAIN_ROLES.map(r => <option key={r} value={r}>{TEAM_ROLE_LABELS[r]}</option>)}
-        </CrmV2Select>
-      </div>
-      <div>
-        <div style={label}>Marque CRM</div>
-        <CrmV2Select value={member.crm_brand ?? ''} disabled={busy} onChange={e => changeBrand(e.target.value)} style={{ minWidth: 150 }}>
-          {CRM_BRAND_OPTIONS.map(b => <option key={b.id} value={b.id}>{b.label}</option>)}
         </CrmV2Select>
       </div>
       <div style={{ marginLeft: 'auto', alignSelf: 'flex-end' }}>

@@ -16,6 +16,7 @@ import {
 } from '@/lib/telepro-planning'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 export async function GET(req: NextRequest) {
   const authz = await requireApiRole(['admin'])
@@ -52,9 +53,11 @@ export async function PUT(req: NextRequest) {
 
   const db = createServiceClient()
   try {
-    const dates = [...new Set([date, ...applyTo])].slice(0, 14)
-    for (const d of dates) {
-      await replaceDaySlots(db, { userId, date: d, slots, actorId: authz.ctx.appUserId, asAdmin: true })
+    // apply_to : autres jours de la semaine + répétition sur plusieurs semaines
+    const dates = [...new Set([date, ...applyTo])].filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).slice(0, 200)
+    for (let i = 0; i < dates.length; i += 10) {
+      await Promise.all(dates.slice(i, i + 10).map(d =>
+        replaceDaySlots(db, { userId, date: d, slots, actorId: authz.ctx.appUserId, asAdmin: true })))
     }
     return NextResponse.json({ ok: true, dates })
   } catch (e) {
