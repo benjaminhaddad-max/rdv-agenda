@@ -33,6 +33,7 @@ import {
 import { AdminIconButton, AdminNotice, AdminSpin } from '@/components/crm-v2/admin/AdminUi'
 import { PanelCard } from '@/components/crm-v2/panels/PanelUi'
 import { CredentialBox, type TeamMember } from '@/components/crm-v2/panels/TeamMemberManager'
+import { CALL_COLS, CallCells, CallList, CallTeamSummary, useCallAnalysis, type CallAnalysisData } from '@/components/crm-v2/equipe/CallAnalysis'
 import { PlanningDayCell, PlanningDayHeader, PlanningLegend, PlanningWeekSummary, usePlanningWeek, type PlanningData } from '@/components/crm-v2/equipe/PlanningWeek'
 import { DayScheduleEditor, SlotChip, VERDICTS, VerdictPill, WEEKDAYS, fmtMinutes as fmtPlannedMinutes, type DayReport } from '@/components/planning/PlanningUi'
 import { addParisDays, parisDateKey, parisMonthEndKey, parisWeekStartKey } from '@/lib/date-paris'
@@ -43,14 +44,14 @@ import type { AgentMetrics, BrandBreakdown, SuiviCommercialResponse } from '@/li
 type Tab = 'telepros' | 'closers' | 'admins'
 type Period = 'day' | 'week' | 'month'
 /** Mode d'affichage de la liste : mêmes lignes, colonnes différentes. */
-type Mode = 'planning' | 'stats' | 'acces'
+type Mode = 'planning' | 'stats' | 'appels' | 'acces'
 
 const MODES: Record<Tab, Mode[]> = {
-  telepros: ['planning', 'stats', 'acces'],
+  telepros: ['planning', 'stats', 'appels', 'acces'],
   closers: ['stats', 'acces'],
   admins: ['acces'],
 }
-const MODE_LABELS: Record<Mode, string> = { planning: 'Planning', stats: 'Stats', acces: 'Accès' }
+const MODE_LABELS: Record<Mode, string> = { planning: 'Planning', stats: 'Stats', appels: 'Appels', acces: 'Accès' }
 
 type EquipeMember = TeamMember & {
   role: string
@@ -369,6 +370,8 @@ export default function EquipeClient() {
   // Mode Planning : semaine (lundi → dimanche) contenant la période affichée
   const planningWeekStart = parisWeekStartKey(new Date(`${from}T12:00:00Z`))
   const planning = usePlanningWeek(planningWeekStart, refreshTick + presenceTick, tab === 'telepros' && mode === 'planning')
+  // Mode Appels : analyse IA des appels ≥ 2 min sans RDV sur la période
+  const calls = useCallAnalysis(from, to, refreshTick, tab === 'telepros' && mode === 'appels')
 
   async function saveDay(slots: Array<{ start: string; end: string; locked: boolean }>, applyTo: string[]): Promise<string | null> {
     if (!editingDay) return null
@@ -502,7 +505,7 @@ export default function EquipeClient() {
     onPatch: patchMember, onAdd: addMember, onRolesChanged: reloadAllMembers, extraRolesReady,
     presence, cols: visibleCols, allCols, hiddenCols: hidden, onToggleCol: toggleCol,
     onPresenceChanged: () => setPresenceTick(t => t + 1),
-    mode, planning: planning.data, planningCounts: planning.dayCounts, ranks,
+    mode, planning: planning.data, planningCounts: planning.dayCounts, ranks, calls: calls.data,
     periodNav: mode === 'acces' ? null : (
       <PeriodNav
         label={mode === 'planning'
@@ -535,12 +538,14 @@ export default function EquipeClient() {
             ? 'Comptes, rôles et accès'
             : mode === 'planning'
               ? `${formatRange('week', planningWeekStart, addParisDays(planningWeekStart, 6))} · horaires d'appel et présence`
-              : `${formatRange(period, from, to)} · performance`}
+              : mode === 'appels'
+                ? `${formatRange(period, from, to)} · appels de 2 min et plus sans RDV, analysés par l'IA`
+                : `${formatRange(period, from, to)} · performance`}
         actions={
           <>
             {!isAdmins && mode !== 'acces' && (
               <>
-                {mode === 'stats' && (
+                {(mode === 'stats' || mode === 'appels') && (
                   <CrmV2Segmented<Period>
                     size="sm"
                     items={[{ id: 'day', label: 'Jour' }, { id: 'week', label: 'Semaine' }, { id: 'month', label: 'Mois' }]}
@@ -589,6 +594,10 @@ export default function EquipeClient() {
         )}
 
         {mode === 'stats' && <TeamKpis tab={tab} totals={totals ?? null} loading={statsLoading} />}
+        {mode === 'appels' && calls.error && <AdminNotice tone="error">{calls.error}</AdminNotice>}
+        {mode === 'appels' && (
+          <CallTeamSummary data={calls.data} loading={calls.loading} from={from} to={to} onDone={calls.reload} />
+        )}
 
         <MembersTable
           {...tableProps}
@@ -763,6 +772,8 @@ type TableCommon = {
   periodNav: ReactNode
   /** Rang du meilleur au pire */
   ranks: Map<string, number>
+  /** Mode Appels : analyse IA des appels ≥ 2 min sans RDV */
+  calls: CallAnalysisData | null
 }
 
 function MembersTable({
@@ -855,7 +866,7 @@ function MembersTable({
     )
   }
 
-  const colSpan = (mode === 'planning' ? 1 : 2) + (mode === 'stats' ? cols.length : mode === 'planning' ? planningDates.length + 1 : ACCES_COLS.length)
+  const colSpan = (mode === 'planning' ? 1 : 2) + (mode === 'stats' ? cols.length : mode === 'planning' ? planningDates.length + 1 : mode === 'appels' ? CALL_COLS.length : ACCES_COLS.length)
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {extras}
@@ -877,6 +888,9 @@ function MembersTable({
                 </CrmV2Th>
               ))}
               {mode === 'planning' && <CrmV2Th style={{ textAlign: 'right' }}>Semaine</CrmV2Th>}
+              {mode === 'appels' && CALL_COLS.map(c => (
+                <CrmV2Th key={c.key} style={{ textAlign: c.key === 'causes' ? 'left' : 'right' }}>{c.label}</CrmV2Th>
+              ))}
               {mode === 'acces' && ACCES_COLS.map(c => (
                 <CrmV2Th key={c.key} sorted={sort.key === c.key ? sort.dir : false} onClick={c.sortable ? () => onSort(c.key) : undefined}>{c.label}</CrmV2Th>
               ))}
@@ -1162,6 +1176,7 @@ function MemberRow({
           </CrmV2Td>
         )}
         {mode === 'acces' && <AccesCells row={row} />}
+        {mode === 'appels' && <CallCells data={common.calls} userId={row.id} />}
         {(mode === 'stats' ? cols : []).map(c => c.key === 'presence' ? (
           <CrmV2Td key={c.key} style={{ whiteSpace: 'nowrap' }}>
             <PresenceCell days={common.presence ? (common.presence[row.id] ?? []) : null} />
@@ -1254,8 +1269,9 @@ function MemberDetail({ row, actions, ...common }: TableCommon & { row: Row; act
         </span>
         {actions && <div onClick={e => e.stopPropagation()}>{actions}</div>}
       </div>
-      {tab === 'telepros' && row.stats && <MemberStatsStrip s={row.stats} />}
-      {tab === 'telepros' && days.length > 0 && (
+      {tab === 'telepros' && mode === 'appels' && <CallList data={common.calls} userId={row.id} />}
+      {tab === 'telepros' && mode !== 'appels' && row.stats && <MemberStatsStrip s={row.stats} />}
+      {tab === 'telepros' && mode !== 'appels' && days.length > 0 && (
         <MemberDaysTable days={days} onEdit={d => common.onEditDay(row, d)} />
       )}
       {row.member && (
