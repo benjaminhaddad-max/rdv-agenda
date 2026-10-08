@@ -480,6 +480,17 @@ export default function EquipeClient() {
     presence, cols: visibleCols, allCols, hiddenCols: hidden, onToggleCol: toggleCol,
     onPresenceChanged: () => setPresenceTick(t => t + 1),
     mode, planning: planning.data, planningCounts: planning.dayCounts,
+    periodNav: mode === 'acces' ? null : (
+      <PeriodNav
+        label={mode === 'planning'
+          ? `Semaine du ${shortRange(planningWeekStart, addParisDays(planningWeekStart, 6))}`
+          : formatRange(period, from, to)}
+        onPrev={() => setAnchor(a => shiftAnchor(mode === 'planning' ? 'week' : period, a, -1))}
+        onNext={() => setAnchor(a => shiftAnchor(mode === 'planning' ? 'week' : period, a, 1))}
+        onToday={from <= parisDateKey(new Date()) && parisDateKey(new Date()) <= to ? undefined : () => setAnchor(parisDateKey(new Date()))}
+        todayLabel={mode === 'planning' || period === 'week' ? 'Cette semaine' : period === 'month' ? 'Ce mois' : "Aujourd'hui"}
+      />
+    ),
     onEditDay: (row: Row, day: DayReport) => setEditingDay({ row, day }),
     modeSwitch: MODES[tab].length > 1 ? (
       <CrmV2Segmented<Mode>
@@ -725,6 +736,8 @@ type TableCommon = {
   planningCounts: Array<{ present: number; planned: number }>
   onEditDay: (row: Row, day: DayReport) => void
   modeSwitch: ReactNode
+  /** Sélecteur ‹ période › (barre du tableau et ligne dépliée) */
+  periodNav: ReactNode
 }
 
 function MembersTable({
@@ -749,6 +762,7 @@ function MembersTable({
   const toolbar = onSearch ? (
     <>
       {common.modeSwitch}
+      {common.periodNav}
       <CrmV2Search
         value={search ?? ''}
         onChange={e => onSearch(e.target.value)}
@@ -1197,12 +1211,13 @@ function MemberDetail({ row, actions, ...common }: TableCommon & { row: Row; act
     : (common.presence?.[row.id] ?? [])
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {actions && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'space-between', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'space-between', flexWrap: 'wrap' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          {tab === 'telepros' && common.periodNav}
           <span style={{ fontSize: 12, color: crmV2.textMuted }}>{row.member?.email}</span>
-          <div onClick={e => e.stopPropagation()}>{actions}</div>
-        </div>
-      )}
+        </span>
+        {actions && <div onClick={e => e.stopPropagation()}>{actions}</div>}
+      </div>
       {tab === 'telepros' && row.stats && <MemberStatsStrip s={row.stats} />}
       {tab === 'telepros' && days.length > 0 && (
         <MemberDaysTable days={days} onEdit={d => common.onEditDay(row, d)} />
@@ -1216,6 +1231,33 @@ function MemberDetail({ row, actions, ...common }: TableCommon & { row: Row; act
         />
       )}
     </div>
+  )
+}
+
+/** « 5 → 11 oct. » */
+function shortRange(from: string, to: string): string {
+  const f = (k: string, month: boolean) => {
+    const [y, m, d] = k.split('-').map(Number)
+    return new Date(Date.UTC(y, m - 1, d, 12)).toLocaleDateString('fr-FR', { timeZone: 'UTC', day: 'numeric', month: month ? 'short' : undefined })
+  }
+  return `${f(from, from.slice(5, 7) !== to.slice(5, 7))} au ${f(to, true)}`
+}
+
+/** ‹ Semaine du 5 au 11 oct. › [Cette semaine] */
+function PeriodNav({ label, onPrev, onNext, onToday, todayLabel }: {
+  label: string
+  onPrev: () => void
+  onNext: () => void
+  onToday?: () => void
+  todayLabel: string
+}) {
+  return (
+    <span onClick={e => e.stopPropagation()} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+      <AdminIconButton icon={<ChevronLeft size={15} />} title="Période précédente" onClick={onPrev} />
+      <span style={{ fontSize: 13, fontWeight: 700, color: crmV2.text, padding: '0 6px', whiteSpace: 'nowrap' }}>{label}</span>
+      <AdminIconButton icon={<ChevronRight size={15} />} title="Période suivante" onClick={onNext} />
+      {onToday && <CrmV2Button size="sm" onClick={onToday}>{todayLabel}</CrmV2Button>}
+    </span>
   )
 }
 
