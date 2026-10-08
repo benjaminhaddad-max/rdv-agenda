@@ -18,6 +18,7 @@ import {
 import { AdminIconButton, AdminNotice, AdminPillSelect } from '@/components/crm-v2/admin/AdminUi'
 import {
   ACTIVITY_KINDS, CURRENT_SEASON, LYCEE_MODES, LYCEE_PRIORITIES, LYCEE_STATUSES, SECTEUR_LABELS, lookup, seasonLabel,
+  AMB_LABELS, AMB_STATUSES, type AmbassadeurRow,
   type LyceeActivityRow, type LyceeContactRow, type LyceeEventRow, type LyceeListItem, type LyceeRow,
 } from '@/lib/lycees'
 import EventModal, { type EventDraft } from './EventModal'
@@ -31,16 +32,18 @@ type Detail = {
   contacts: LyceeContactRow[]
   events: LyceeEventRow[]
   activities: LyceeActivityRow[]
+  ambassadeurs?: AmbassadeurRow[]
   is_manager: boolean
 }
 
 type LyceeOption = Pick<LyceeRow, 'uai' | 'name' | 'city' | 'department'>
 
 export default function LyceeDrawer({
-  uai, onClose, onChanged, users, lycees, onCall,
+  uai, onClose, onChanged, users, lycees, onCall, onCallAmbassadeur,
 }: {
   /** Ouvre « Noter un appel » sur ce lycée */
   onCall: (uai: string, name: string) => void
+  onCallAmbassadeur: (id: string, name: string) => void
   uai: string | null
   onClose: () => void
   /** Rafraîchit la liste derrière (statut, attribution…) */
@@ -108,6 +111,9 @@ export default function LyceeDrawer({
           <Pilotage key={`${l.next_action}|${l.next_action_at}`} l={l} users={users} isManager={d.is_manager} onPatch={patch} />
           <Coordonnees l={l} onPatch={patch} />
           <Indicateurs l={l} />
+          {!!d.ambassadeurs?.length && (
+            <Ambassadeurs list={d.ambassadeurs} onCall={a => onCallAmbassadeur(a.id, `${[a.first_name, a.last_name].filter(Boolean).join(' ')} · ${l.name}`)} />
+          )}
           <Contacts uai={l.uai} contacts={d.contacts} onReload={load} />
           <Evenements
             events={d.events}
@@ -300,6 +306,40 @@ function Indicateurs({ l }: { l: LyceeListItem }) {
           ))}
         </div>
       )}
+    </Block>
+  )
+}
+
+function Ambassadeurs({ list, onCall }: { list: AmbassadeurRow[]; onCall: (a: AmbassadeurRow) => void }) {
+  const order = { top: 0, bon: 1, moyen: 2, peu_actif: 3, mecontent: 4 } as const
+  const sorted = [...list].sort((a, b) => (order[a.label ?? 'moyen'] - order[b.label ?? 'moyen']) || ((b.score ?? 0) - (a.score ?? 0)))
+  const good = list.filter(a => a.label === 'top' || a.label === 'bon').length
+  return (
+    <Block title={`Nos élèves 2026-27 venant de ce lycée`} icon={<GraduationCap size={14} />} count={list.length}>
+      <div style={{ fontSize: 12, color: crmV2.textMuted, marginBottom: 6 }}>
+        {good ? `${good} bon(s) profil(s) à appeler pour qu’ils parlent de nous à leur ancien lycée.` : 'Pas de profil ambassadeur fort pour l’instant.'}
+      </div>
+      {sorted.map(a => {
+        const lb = lookup(AMB_LABELS, a.label)
+        const st = lookup(AMB_STATUSES, a.status)
+        return (
+          <div key={a.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 0', borderTop: `1px solid ${crmV2.borderLight}` }}>
+            <div style={{ flex: 1, minWidth: 0, fontSize: 13 }}>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                <b>{[a.first_name, a.last_name].filter(Boolean).join(' ')}</b>
+                {lb && <span style={{ fontSize: 11, fontWeight: 800, color: lb.color }}>{lb.label.toUpperCase()}{a.score != null ? ` · ${a.score}` : ''}</span>}
+                {st && a.status !== 'a_appeler' && <span style={{ fontSize: 11, fontWeight: 700, color: st.color }}>· {st.label}</span>}
+              </div>
+              <div style={{ fontSize: 12, color: crmV2.textMuted }}>
+                {a.formation} · {a.series_count ?? 0} séries{a.success_pct != null ? ` · ${Math.round(a.success_pct)} % réussite` : ''}
+                {a.phone && <> · <a href={telHref(a.phone)} style={{ color: crmV2.link, fontWeight: 600, textDecoration: 'none' }}>{a.phone}</a></>}
+              </div>
+              {a.mood_summary && <div style={{ fontSize: 12, color: crmV2.textMuted, fontStyle: 'italic' }}>{a.mood_summary}</div>}
+            </div>
+            {a.label !== 'mecontent' && <CrmV2Button size="sm" variant="gold" icon={<Phone size={12} />} onClick={() => onCall(a)}>Appel</CrmV2Button>}
+          </div>
+        )
+      })}
     </Block>
   )
 }

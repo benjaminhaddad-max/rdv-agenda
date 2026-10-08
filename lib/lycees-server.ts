@@ -12,7 +12,7 @@ import { requireApiUser, type ApiUserContext } from '@/lib/api-auth'
 import { createServiceClient } from '@/lib/supabase'
 import {
   CALL_OUTCOMES, cleanDate, cleanStr, computeLyceeScore, CURRENT_SEASON, lookup, oneOf, PREVIOUS_SEASON,
-  type CallOutcome, type LyceeActivityKind, type LyceeContactRow, type LyceeEventRow, type LyceeListItem, type LyceeRow, type LyceeStatus,
+  type AmbassadeurRow, type AmbassadeurStatus, type CallOutcome, type LyceeActivityKind, type LyceeContactRow, type LyceeEventRow, type LyceeListItem, type LyceeRow, type LyceeStatus,
 } from '@/lib/lycees'
 
 type Db = ReturnType<typeof createServiceClient>
@@ -137,6 +137,8 @@ export function buildListItems(
       past_events: past.length,
       past_leads: pastLeads,
       inscrits_2526: c.ins,
+      eleves_2627: 0,
+      ambassadeurs_bons: 0,
       flying_per_session: l.flying_leads_total && l.flying_sessions ? Math.round(l.flying_leads_total / l.flying_sessions) : null,
       next_event: upcoming
         ? { id: upcoming.id, date: upcoming.date, kind: upcoming.kind, status: upcoming.status, date_confirmed: upcoming.date_confirmed }
@@ -263,4 +265,47 @@ export async function loadEventFor(access: LyceeAccess, id: string): Promise<
     if (l?.assigned_to === access.ctx.appUserId) return { ok: true, ev }
   }
   return { ok: false, response: NextResponse.json({ error: 'Ce forum ne vous est pas attribué' }, { status: 403 }) }
+}
+
+// ── Ambassadeurs ──────────────────────────────────────────────────────────
+
+/** Accès à un ambassadeur : admin, ambassadeur attribué, ou lycée attribué. */
+export async function loadAmbassadeurFor(access: LyceeAccess, id: string): Promise<
+  { ok: true; amb: AmbassadeurRow } | { ok: false; response: NextResponse }
+> {
+  const { data, error } = await access.db.from('lycee_ambassadeurs').select('*').eq('id', id).maybeSingle()
+  if (isMissingTable(error)) return { ok: false, response: missingMigrationResponse() }
+  if (error) return { ok: false, response: NextResponse.json({ error: error.message }, { status: 500 }) }
+  if (!data) return { ok: false, response: NextResponse.json({ error: 'Élève introuvable' }, { status: 404 }) }
+  const amb = data as AmbassadeurRow
+  if (access.isManager || amb.assigned_to === access.ctx.appUserId) return { ok: true, amb }
+  if (amb.uai) {
+    const { data: l } = await access.db.from('lycees').select('assigned_to').eq('uai', amb.uai).maybeSingle()
+    if (l?.assigned_to === access.ctx.appUserId) return { ok: true, amb }
+  }
+  return { ok: false, response: NextResponse.json({ error: 'Cet élève ne vous est pas attribué' }, { status: 403 }) }
+}
+
+/** Appel à un élève ambassadeur : journal (sur son lycée) + suivi sur la ligne. */
+export async function logAmbassadeurCall(access: LyceeAccess, amb: AmbassadeurRow, input: CallInput) {
+  const author = await authorNameOf(access.db, access.ctx.appUserId)
+  const who = [amb.first_name, amb.last_name].filter(Boolean).join(' ') || 'élève'
+  const { data, error } = await access.db.from('lycee_activities').insert({
+    uai: amb.uai, ambassadeur_id: amb.id, kind: input.kind, outcome: input.outcome,
+    content: `Ambassadeur ${who} : ${activityText(input)}`,
+    author_id: access.ctx.appUserId, author_name: author,
+  }).select().single()
+  if (error) return { error: error.message }
+  if (input.kind !== 'note' || input.outcome) {
+    const now = new Date().toISOString()
+    const status: AmbassadeurStatus = input.outcome === 'obtained' ? 'ok'
+      : input.outcome === 'refused' ? 'refus'
+      : input.outcome === 'wrong_number' ? amb.status
+      : amb.status === 'ok' || amb.status === 'refus' || amb.status === 'ecarte' ? amb.status : 'a_relancer'
+    await access.db.from('lycee_ambassadeurs').update({
+      last_contact_at: now, last_outcome: input.outcome, last_note: input.content,
+      calls_count: (amb.calls_count || 0) + 1, next_action_at: input.nextActionAt, status, updated_at: now,
+    }).eq('id', amb.id)
+  }
+  return { activity: data }
 }

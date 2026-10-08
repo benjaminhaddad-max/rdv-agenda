@@ -4,7 +4,7 @@ import {
 } from '@/lib/lycees-server'
 import {
   cleanDate, cleanStr, LYCEE_MODES, LYCEE_PRIORITIES, LYCEE_STATUSES, lookup, oneOf,
-  type LyceeActivityRow, type LyceeContactRow, type LyceeEventRow,
+  type AmbassadeurRow, type LyceeActivityRow, type LyceeContactRow, type LyceeEventRow,
 } from '@/lib/lycees'
 
 /**
@@ -29,6 +29,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ uai
   const err = contacts.error || events.error || activities.error
   if (err) return NextResponse.json({ error: err.message }, { status: 500 })
 
+  const { data: ambs } = await db.from('lycee_ambassadeurs').select('*').eq('uai', uai).order('score', { ascending: false })
   const cts = (contacts.data || []) as LyceeContactRow[]
   const evs = (events.data || []) as LyceeEventRow[]
   const [item] = buildListItems([l.lycee], cts, evs, parisToday())
@@ -37,6 +38,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ uai
     contacts: cts,
     events: evs,
     activities: (activities.data || []) as LyceeActivityRow[],
+    ambassadeurs: (ambs || []) as AmbassadeurRow[],
     is_manager: a.access.isManager,
   })
 }

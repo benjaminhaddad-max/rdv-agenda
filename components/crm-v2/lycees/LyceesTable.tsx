@@ -364,6 +364,7 @@ export default function LyceesTable({
                         {l.city}{l.secteur !== 'public' ? ' · privé' : ''}{l.voie_generale === false ? ' · pro' : ''}
                         {l.past_events ? ` · ${l.past_events} déjà fait(s)${l.past_leads ? `, ${l.past_leads} leads` : ''}` : ''}
                         {l.inscrits_2526 ? <b style={{ color: crmV2.goldDark }}>{` · ${l.inscrits_2526} inscrit${l.inscrits_2526 > 1 ? 's' : ''} 25-26`}</b> : null}
+                        {l.eleves_2627 ? <b style={{ color: '#16a34a' }}>{` · ${l.eleves_2627} élève${l.eleves_2627 > 1 ? 's' : ''} 26-27${l.ambassadeurs_bons ? ` (${l.ambassadeurs_bons} ambassadeur${l.ambassadeurs_bons > 1 ? 's' : ''})` : ''}`}</b> : null}
                       </span>
                     </div>
                   </CrmV2Td>

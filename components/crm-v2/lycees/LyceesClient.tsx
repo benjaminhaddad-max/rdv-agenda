@@ -25,11 +25,12 @@ import LyceeDrawer from './LyceeDrawer'
 import ForumsAgenda from './ForumsAgenda'
 import ForumsList from './ForumsList'
 import OurDates from './OurDates'
+import AmbassadeursList, { type AmbassadeurItem } from './AmbassadeursList'
 import EventModal, { type EventDraft } from './EventModal'
 import CallLogModal, { type CallTarget } from './CallLogModal'
 import { api, parisTodayKey, type AgendaEvent, type TeamUser } from './ui'
 
-type Tab = 'lycees' | 'forums' | 'dates'
+type Tab = 'lycees' | 'forums' | 'dates' | 'ambassadeurs'
 type ListResponse = { lycees: LyceeListItem[]; is_manager: boolean; me: string }
 type EventsResponse = {
   events: AgendaEvent[]
@@ -50,6 +51,8 @@ export default function LyceesClient() {
   const [eventDraft, setEventDraft] = useState<EventDraft | null>(null)
   const [scanning, setScanning] = useState(false)
   const [callTarget, setCallTarget] = useState<CallTarget | null>(null)
+  const [ambs, setAmbs] = useState<AmbassadeurItem[] | null>(null)
+  const [ambsMissing, setAmbsMissing] = useState(false)
   const [forumMode, setForumMode] = useState<'liste' | 'cartes'>('liste')
   const [notice, setNotice] = useState<string | null>(null)
   const [filters, setFiltersState] = useState<LyceeFilters>(() => {
@@ -80,7 +83,16 @@ export default function LyceesClient() {
       if (!(e as { missingMigration?: boolean }).missingMigration) setError(e instanceof Error ? e.message : 'Erreur')
     }
   }, [])
-  const reload = useCallback(() => { void loadList(); void loadAgenda() }, [loadList, loadAgenda])
+  const loadAmbs = useCallback(async () => {
+    try {
+      const d = await api<{ ambassadeurs: AmbassadeurItem[] }>('/api/crm/lycees/ambassadeurs')
+      setAmbs(d.ambassadeurs)
+      setAmbsMissing(false)
+    } catch (e) {
+      if ((e as { missingMigration?: boolean }).missingMigration) { setAmbsMissing(true); setAmbs([]) }
+    }
+  }, [])
+  const reload = useCallback(() => { void loadList(); void loadAgenda(); void loadAmbs() }, [loadList, loadAgenda, loadAmbs])
 
   useEffect(() => { reload() }, [reload])
   useEffect(() => {
@@ -135,6 +147,16 @@ export default function LyceesClient() {
     }
   }
 
+  const bulkAmbs = async (ids: string[], patch: Record<string, unknown>) => {
+    try {
+      await api('/api/crm/lycees/ambassadeurs', { method: 'PATCH', json: { ids, patch } })
+      setNotice(`${ids.length} élève(s) mis à jour.`)
+      await loadAmbs()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erreur')
+    }
+  }
+
   const quickPatchEvent = async (id: string, patch: Record<string, unknown>) => {
     try {
       await api(`/api/crm/lycees/events/${id}`, { method: 'PATCH', json: patch })
@@ -164,6 +186,7 @@ export default function LyceesClient() {
     { id: 'lycees', label: isManager ? 'Lycées' : 'Mes lycées', count: lycees.length },
     { id: 'forums', label: `Forums ${seasonLabel(CURRENT_SEASON)}`, count: kpis.forumsToCall },
     { id: 'dates', label: 'Nos dates', count: kpis.confirmed },
+    { id: 'ambassadeurs', label: 'Ambassadeurs 26-27', count: ambs ? ambs.filter(a => a.status === 'a_appeler' && (a.label === 'top' || a.label === 'bon')).length : undefined },
   ]
   const eventName = (e: AgendaEvent) => `${e.lycee?.name ?? e.title ?? 'Forum'}${e.date ? ` · ${e.date.split('-').reverse().join('/')}` : ''}`
 
@@ -258,6 +281,20 @@ export default function LyceesClient() {
                 </>
               )
             )}
+            {tab === 'ambassadeurs' && (
+              !ambs ? <CrmV2Spinner /> : (
+                <AmbassadeursList
+                  items={ambs}
+                  users={users}
+                  me={list.me}
+                  isManager={isManager}
+                  missingMigration={ambsMissing}
+                  onOpenLycee={setOpenUai}
+                  onCall={a => setCallTarget({ type: 'ambassadeur', id: a.id, name: `${[a.first_name, a.last_name].filter(Boolean).join(' ')} · ${a.lycee?.name ?? a.school_name ?? ''}` })}
+                  onBulk={bulkAmbs}
+                />
+              )
+            )}
             {tab === 'dates' && (
               !agenda ? <CrmV2Spinner /> : <OurDates events={events} onOpenLycee={setOpenUai} onEdit={e => setEventDraft(e)} />
             )}
@@ -269,7 +306,8 @@ export default function LyceesClient() {
       </CrmV2Body>
 
       <LyceeDrawer uai={openUai} onClose={() => setOpenUai(null)} onChanged={() => { void loadList(); void loadAgenda() }} users={users} lycees={lyceeOptions}
-        onCall={(uai, name) => setCallTarget({ type: 'lycee', uai, name })} />
+        onCall={(uai, name) => setCallTarget({ type: 'lycee', uai, name })}
+        onCallAmbassadeur={(id, name) => setCallTarget({ type: 'ambassadeur', id, name })} />
       {eventDraft && (
         <EventModal
           open

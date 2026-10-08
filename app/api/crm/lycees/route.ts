@@ -48,6 +48,23 @@ export async function GET(req: NextRequest) {
     events.data.filter(e => e.uai && uais.has(e.uai)),
     parisToday(),
   )
+  // Élèves 2026-27 par ancien lycée (v61 — ignoré si la table n'existe pas encore)
+  const ambs = await fetchAllRows<{ uai: string | null; label: string | null }>((from, to) =>
+    db.from('lycee_ambassadeurs').select('uai, label').order('id').range(from, to))
+  if (!ambs.error) {
+    const by = new Map<string, { n: number; good: number }>()
+    for (const x of ambs.data) {
+      if (!x.uai) continue
+      const v = by.get(x.uai) || { n: 0, good: 0 }
+      v.n++
+      if (x.label === 'top' || x.label === 'bon') v.good++
+      by.set(x.uai, v)
+    }
+    for (const it of items) {
+      const v = by.get(it.uai)
+      if (v) { it.eleves_2627 = v.n; it.ambassadeurs_bons = v.good }
+    }
+  }
   return NextResponse.json({ lycees: items, is_manager: isManager, me: ctx.appUserId })
 }
 

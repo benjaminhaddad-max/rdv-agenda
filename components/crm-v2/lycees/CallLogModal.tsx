@@ -17,6 +17,7 @@ import { api, fmtDate, fmtDateTime, OutcomePill, parisTodayKey, telHref } from '
 export type CallTarget =
   | { type: 'lycee'; uai: string; name: string }
   | { type: 'event'; id: string; name: string }
+  | { type: 'ambassadeur'; id: string; name: string }
 
 type Phoneline = { label: string; value: string }
 
@@ -40,17 +41,22 @@ export default function CallLogModal({ target, onClose, onSaved }: {
   const [phones, setPhones] = useState<Phoneline[]>([])
   const [extra, setExtra] = useState<string | null>(null)
   const [history, setHistory] = useState<LyceeActivityRow[]>([])
+  const [extraNote, setExtraNote] = useState<string | null>(null)
 
   useEffect(() => {
     if (!target) return
-    const url = target.type === 'lycee' ? `/api/crm/lycees/${target.uai}` : `/api/crm/lycees/events/${target.id}`
+    const url = target.type === 'lycee' ? `/api/crm/lycees/${target.uai}`
+      : target.type === 'event' ? `/api/crm/lycees/events/${target.id}` : `/api/crm/lycees/ambassadeurs/${target.id}`
     api<{
       lycee?: { phone?: string | null; email?: string | null } | null
       contacts?: LyceeContactRow[]
       event?: { organizer_contact: string | null; source_url: string | null }
+      ambassadeur?: { phone: string | null; email: string | null; mood_summary: string | null }
       activities: LyceeActivityRow[]
     }>(url).then(d => {
       const list: Phoneline[] = []
+      if (d.ambassadeur?.phone) list.push({ label: 'Élève', value: d.ambassadeur.phone })
+      if (d.ambassadeur?.mood_summary) setExtraNote(d.ambassadeur.mood_summary)
       if (d.lycee?.phone) list.push({ label: 'Standard du lycée', value: d.lycee.phone })
       for (const c of d.contacts ?? []) {
         if (c.is_alumni) continue
@@ -79,7 +85,8 @@ export default function CallLogModal({ target, onClose, onSaved }: {
     setSaving(true)
     setError(null)
     try {
-      const url = target.type === 'lycee' ? `/api/crm/lycees/${target.uai}/activities` : `/api/crm/lycees/events/${target.id}/activities`
+      const url = target.type === 'lycee' ? `/api/crm/lycees/${target.uai}/activities`
+        : target.type === 'event' ? `/api/crm/lycees/events/${target.id}/activities` : `/api/crm/lycees/ambassadeurs/${target.id}/activities`
       await api(url, { method: 'POST', json: { kind, outcome, content: text, next_action_at: next || null } })
       onSaved()
       onClose()
@@ -96,7 +103,7 @@ export default function CallLogModal({ target, onClose, onSaved }: {
       onClose={onClose}
       width={600}
       closeDisabled={saving}
-      title={target.type === 'event' ? 'Appel — organisateur du forum' : 'Noter un appel'}
+      title={target.type === 'event' ? 'Appel — organisateur du forum' : target.type === 'ambassadeur' ? 'Appel — élève ambassadeur' : 'Noter un appel'}
       subtitle={target.name}
       footer={
         <>
@@ -107,7 +114,10 @@ export default function CallLogModal({ target, onClose, onSaved }: {
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         {error && <AdminNotice tone="error">{error}</AdminNotice>}
-        {(phones.length > 0 || extra) && (
+        {target.type === 'ambassadeur' && (
+          <AdminNotice tone="info">But de l’appel : lui demander de parler de Diploma à son ancien lycée (prof de SVT, CPE, forum) ou de nous mettre en relation. « Obtenu » = il/elle est OK.</AdminNotice>
+        )}
+        {(phones.length > 0 || extra || extraNote) && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: 10, borderRadius: 12, background: crmV2.bgHover, border: `1px solid ${crmV2.border}` }}>
             {phones.map(p => (
               <a key={p.label + p.value} href={telHref(p.value)} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: crmV2.text, textDecoration: 'none' }}>
@@ -117,6 +127,7 @@ export default function CallLogModal({ target, onClose, onSaved }: {
               </a>
             ))}
             {extra && <div style={{ fontSize: 12.5, color: crmV2.textMuted }}>Organisateur : <b style={{ color: crmV2.text }}>{extra}</b></div>}
+            {extraNote && <div style={{ fontSize: 12.5, color: crmV2.textMuted }}>Diploma Lab : {extraNote}</div>}
           </div>
         )}
 
@@ -133,7 +144,7 @@ export default function CallLogModal({ target, onClose, onSaved }: {
                 <button key={o.id} type="button" onClick={() => pick(o.id)} style={{
                   padding: '8px 10px', borderRadius: 10, fontFamily: 'inherit', fontSize: 12.5, fontWeight: on ? 700 : 600, cursor: 'pointer', textAlign: 'left',
                   border: `1.5px solid ${on ? o.color : crmV2.border}`, background: on ? hexA(o.color, 0.1) : crmV2.bg, color: on ? o.color : crmV2.text,
-                }}>{o.label}</button>
+                }}>{target.type === 'ambassadeur' && o.id === 'obtained' ? 'OK — en parle à son lycée' : o.label}</button>
               )
             })}
           </div>

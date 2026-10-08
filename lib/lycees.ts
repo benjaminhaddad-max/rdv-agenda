@@ -247,6 +247,9 @@ export type LyceeListItem = LyceeRow & {
   past_leads: number
   /** Élèves Diploma 2025-26 venant de ce lycée (plateforme d'inscription, dossiers validés) */
   inscrits_2526: number
+  /** Élèves 2026-27 venant du lycée (ambassadeurs, v61) — dont bons profils */
+  eleves_2627: number
+  ambassadeurs_bons: number
   /** Leads attendus par session de flying (historique) */
   flying_per_session: number | null
   /** Prochain événement de la saison en cours (date ≥ aujourd'hui) */
@@ -344,4 +347,65 @@ export function normalizeName(s: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, ' ')
     .trim()
+}
+
+// ── Ambassadeurs (v61) : nos élèves de l'année, par ancien lycée ───────────
+
+export type AmbassadeurLabel = 'top' | 'bon' | 'moyen' | 'peu_actif' | 'mecontent'
+export type AmbassadeurStatus = 'a_appeler' | 'a_relancer' | 'ok' | 'refus' | 'ecarte'
+
+export const AMB_LABELS: { id: AmbassadeurLabel; label: string; color: string; hint: string }[] = [
+  { id: 'top', label: 'Top ambassadeur', color: '#16a34a', hint: 'Très assidu, bon niveau, content' },
+  { id: 'bon', label: 'Bon profil', color: '#0091ae', hint: 'Assidu et plutôt content' },
+  { id: 'moyen', label: 'Moyen', color: '#b8963e', hint: 'Signaux mitigés' },
+  { id: 'peu_actif', label: 'Peu actif', color: '#94a3b8', hint: 'Peu de travail sur Diploma Lab' },
+  { id: 'mecontent', label: 'Mécontent', color: '#d13a41', hint: 'Se plaint / humeur négative : ne pas solliciter' },
+]
+
+export const AMB_STATUSES: { id: AmbassadeurStatus; label: string; color: string }[] = [
+  { id: 'a_appeler', label: 'À appeler', color: '#7c98b6' },
+  { id: 'a_relancer', label: 'À relancer', color: '#b8963e' },
+  { id: 'ok', label: 'OK, en parle à son lycée', color: '#16a34a' },
+  { id: 'refus', label: 'Refus', color: '#d13a41' },
+  { id: 'ecarte', label: 'Écarté', color: '#94a3b8' },
+]
+
+export type AmbassadeurRow = {
+  id: string
+  season: string
+  inscription_id: string
+  uai: string | null
+  school_name: string | null
+  school_city: string | null
+  first_name: string | null
+  last_name: string | null
+  email: string | null
+  phone: string | null
+  formation: string | null
+  school_level: string | null
+  inscription_status: string | null
+  lab_profile_id: string | null
+  series_count: number | null
+  success_pct: number | null
+  exam_avg: number | null
+  exams_count: number | null
+  last_seen_at: string | null
+  coach_messages: number | null
+  tickets_count: number | null
+  tickets_problems: number | null
+  coach_notes: string | null
+  mood: 'positif' | 'neutre' | 'negatif' | null
+  mood_summary: string | null
+  score: number | null
+  label: AmbassadeurLabel | null
+  synced_at: string
+  assigned_to: string | null
+  status: AmbassadeurStatus
+  last_contact_at: string | null
+  last_outcome: CallOutcome | null
+  last_note: string | null
+  calls_count: number
+  next_action_at: string | null
+  created_at: string
+  updated_at: string
 }
