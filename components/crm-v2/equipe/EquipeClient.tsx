@@ -193,12 +193,25 @@ type Row = {
   stats: AgentMetrics | null
 }
 
+/**
+ * Score de classement (du meilleur au pire), volontairement lisible :
+ * - télépro : 5 pts par préinscrit, 3 par RDV venu, 1 par RDV placé ;
+ * - closer  : 5 pts par converti, 2 par RDV honoré, 1 par RDV.
+ * À égalité : conversion ≥ 2 min → RDV (télépro) ou taux de closing (closer).
+ */
+function perfScore(tab: Tab, s: AgentMetrics | null): number {
+  if (!s) return -1
+  if (tab === 'closers') return converted(s) * 5 + s.rdv_honored * 2 + s.rdv_total + (s.closing_rate ?? 0) / 1000
+  return s.rdv_preinscrits * 5 + s.rdv_venus * 3 + s.rdv_total + (s.conversion_talk_2min ?? 0) / 1000
+}
+
 /** Clé de colonne : 'calls', 'rdv'… ou 'brand:medibox' (colonnes de marque). */
 type SortKey = string
 
-function sortValue(r: Row, key: SortKey, presence: Record<string, DayReport[]> | null): number | string {
+function sortValue(r: Row, key: SortKey, presence: Record<string, DayReport[]> | null, tab: Tab): number | string {
   const s = r.stats
   if (key === 'name') return r.name
+  if (key === 'score') return perfScore(tab, s)
   if (key === 'lastSignIn') return r.member?.last_sign_in_at ? Date.parse(r.member.last_sign_in_at) : 0
   if (key === 'presence') {
     const days = presence?.[r.id] ?? []
@@ -248,7 +261,7 @@ export default function EquipeClient() {
   const [refreshTick, setRefreshTick] = useState(0)
 
   const [search, setSearch] = useState('')
-  const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'rdv', dir: 'desc' })
+  const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'score', dir: 'desc' })
   const [expanded, setExpanded] = useState<string | null>(null)
   const [showBanned, setShowBanned] = useState(false)
   const [presenceTick, setPresenceTick] = useState(0)
@@ -297,7 +310,7 @@ export default function EquipeClient() {
     setTab(t)
     setExpanded(null)
     setSearch('')
-    setSort(t === 'admins' ? { key: 'name', dir: 'asc' } : { key: 'rdv', dir: 'desc' })
+    setSort(t === 'admins' ? { key: 'name', dir: 'asc' } : { key: 'score', dir: 'desc' })
     const m = MODES[t].includes(mode) ? mode : MODES[t][0]
     setMode(m)
     if (m === 'planning') setPeriod('week')
@@ -414,8 +427,8 @@ export default function EquipeClient() {
   const q = search.trim().toLowerCase()
   const filtered = q ? rows.filter(r => `${r.name} ${r.member?.email ?? ''}`.toLowerCase().includes(q)) : rows
   const sorted = [...filtered].sort((a, b) => {
-    const va = sortValue(a, sort.key, presence)
-    const vb = sortValue(b, sort.key, presence)
+    const va = sortValue(a, sort.key, presence, tab)
+    const vb = sortValue(b, sort.key, presence, tab)
     let c = typeof va === 'string' || typeof vb === 'string'
       ? String(va).localeCompare(String(vb), 'fr')
       : (va as number) - (vb as number)
@@ -423,6 +436,16 @@ export default function EquipeClient() {
     return c || a.name.localeCompare(b.name, 'fr')
   })
   const activeRows = sorted.filter(r => !r.member?.is_banned)
+
+  // Rang du meilleur au pire (télépros / closers actifs avec des stats)
+  const ranks = useMemo(() => {
+    const map = new Map<string, number>()
+    if (tab === 'admins' || !statsReady) return map
+    rows.filter(r => r.stats && !r.member?.is_banned)
+      .sort((a, b) => perfScore(tab, b.stats) - perfScore(tab, a.stats))
+      .forEach((r, i) => map.set(r.id, i + 1))
+    return map
+  }, [rows, tab, statsReady])
   const bannedRows = sorted.filter(r => r.member?.is_banned)
 
   function toggleSort(key: SortKey) {
@@ -479,7 +502,7 @@ export default function EquipeClient() {
     onPatch: patchMember, onAdd: addMember, onRolesChanged: reloadAllMembers, extraRolesReady,
     presence, cols: visibleCols, allCols, hiddenCols: hidden, onToggleCol: toggleCol,
     onPresenceChanged: () => setPresenceTick(t => t + 1),
-    mode, planning: planning.data, planningCounts: planning.dayCounts,
+    mode, planning: planning.data, planningCounts: planning.dayCounts, ranks,
     periodNav: mode === 'acces' ? null : (
       <PeriodNav
         label={mode === 'planning'
@@ -738,6 +761,8 @@ type TableCommon = {
   modeSwitch: ReactNode
   /** Sélecteur ‹ période › (barre du tableau et ligne dépliée) */
   periodNav: ReactNode
+  /** Rang du meilleur au pire */
+  ranks: Map<string, number>
 }
 
 function MembersTable({
@@ -838,7 +863,9 @@ function MembersTable({
         <CrmV2Table>
           <thead>
             <tr>
-              <CrmV2Th sorted={sort.key === 'name' ? sort.dir : false} onClick={() => onSort('name')}>{team.column}</CrmV2Th>
+              <CrmV2Th sorted={sort.key === 'name' ? sort.dir : false} onClick={() => onSort(sort.key === 'score' ? 'name' : 'score')}>
+                <span title="Clic : classement (meilleur → pire) / ordre alphabétique">{tab === 'admins' ? team.column : `${team.column} · classement`}</span>
+              </CrmV2Th>
               {cols.map(c => (
                 <CrmV2Th key={c.key} sorted={sort.key === c.key ? sort.dir : false} onClick={() => onSort(c.key)} style={{ textAlign: c.key === 'presence' ? 'left' : 'right' }}>
                   <span title={c.title}>{c.label}</span>
@@ -1082,16 +1109,25 @@ function DualRoleBadge({ m }: { m: EquipeMember | null }) {
   )
 }
 
-function NameCell({ row, open }: { tab: Tab; row: Row; open: boolean }) {
+function NameCell({ row, open, rank, compact = false }: { tab: Tab; row: Row; open: boolean; rank?: number; compact?: boolean }) {
   const banned = !!row.member?.is_banned
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 0, flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
       {open ? <ChevronUp size={14} color={crmV2.textFaint} style={{ flexShrink: 0 }} /> : <ChevronDown size={14} color={crmV2.textFaint} style={{ flexShrink: 0 }} />}
+      {rank != null && (
+        <span title={`Classement : n°${rank}`} style={{
+          minWidth: 26, textAlign: 'center', fontSize: 11.5, fontWeight: 800, borderRadius: 999, padding: '1px 5px', flexShrink: 0,
+          color: rank <= 3 ? '#fff' : crmV2.textMuted,
+          background: rank === 1 ? '#C9A84C' : rank === 2 ? '#94a3b8' : rank === 3 ? '#b87333' : crmV2.bgSoft,
+        }}>
+          #{rank}
+        </span>
+      )}
       <span style={{ opacity: banned ? 0.5 : 1, display: 'inline-flex', flexShrink: 0 }}>
         <CrmV2Avatar name={row.name} color={banned ? crmV2.borderStrong : (row.color ?? crmV2.gold)} size={24} radius="36%" />
       </span>
       <span style={{ fontWeight: 600, color: banned ? crmV2.textMuted : crmV2.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 160 }}>{row.name}</span>
-      <DualRoleBadge m={row.member} />
+      {!compact && <DualRoleBadge m={row.member} />}
     </span>
   )
 }
@@ -1111,7 +1147,7 @@ function MemberRow({
   return (
     <Fragment>
       <CrmV2Tr onClick={onToggle}>
-        <CrmV2Td style={{ whiteSpace: 'nowrap' }}><NameCell tab={tab} row={row} open={open} /></CrmV2Td>
+        <CrmV2Td style={{ whiteSpace: 'nowrap' }}><NameCell tab={tab} row={row} open={open} rank={common.ranks.get(row.id)} compact={mode === 'planning'} /></CrmV2Td>
         {mode === 'planning' && (common.planning?.report[row.id] ?? []).map(d => (
           <CrmV2Td key={d.date} style={{ height: 'auto', padding: 2, verticalAlign: 'top', borderLeft: `1px solid ${crmV2.borderLight}` }}>
             <PlanningDayCell day={d} today={parisDateKey(new Date())} onClick={() => common.onEditDay(row, d)} />
