@@ -36,6 +36,14 @@ const WATCH_SOURCES: Record<string, string[]> = {
   '95': ['https://www.ac-versailles.fr/', 'https://www.valdoise.fr/'],
 }
 
+/** Agendas régionaux qui recensent salons et forums (CIDJ, universités, CCI, OpenAgenda Oriane…). */
+const COMMON_SOURCES = [
+  'https://lactudelorientation.com/2026/07/18/les-salons-dorientation-pres-de-chez-moi-2026-2027/',
+  'https://www.cidj.com/agendas',
+  'https://www.u-pec.fr/fr/formation/orientation-et-insertion-professionnelle/agenda-salons-forums',
+  'https://openagenda.com/agendas/96197569/events.json?relative[]=upcoming',
+]
+
 const REPORT_TOOL = {
   name: 'report_forums',
   description: 'Enregistre la liste finale des forums trouvés pour ce département. À appeler une seule fois, à la fin.',
@@ -111,7 +119,9 @@ Trouve les forums à venir de cette saison :
 - forums de bassin ou inter-lycées accueillis par un lycée (scope "inter_lycees") — LES PLUS IMPORTANTS (ex. le forum du lycée Maurice Rondeau à Bussy-Saint-Georges où viennent les lycées du 77) ;
 - forums d'orientation d'une ville, d'une agglo, d'un CIO (scope "ville") ou du département (scope "departement").
 
-Cherche sur Google, les sites des lycées (pages actualités, agenda, ENT monlycee.net), les sites des mairies et des académies, les réseaux sociaux des lycées et des villes, les pages APEL / FCPE. Sources de départ : ${(WATCH_SOURCES[dep] || []).join(', ')}.
+Cherche sur Google, les sites des lycées (pages actualités, agenda, ENT monlycee.net), les sites des mairies et des académies, les réseaux sociaux des lycées et des villes, les pages APEL / FCPE. Sources de départ : ${[...(WATCH_SOURCES[dep] || []), ...COMMON_SOURCES].join(', ')}.
+Astuce très productive : sur le site d'un lycée, la recherche interne « forum » (WordPress : /?s=forum ou /wp-json/wp/v2/posts?search=forum ; SPIP : spip.php?page=recherche&recherche=forum) remonte les annonces des éditions passées et à venir.
+Les forums d'anciens élèves acceptent rarement une prépa externe : garde-les mais précise-le dans notes.
 Lycées prioritaires à vérifier en particulier :
 ${focusLines || '(aucun)'}
 
