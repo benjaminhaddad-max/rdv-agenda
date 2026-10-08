@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import {
   Users, Briefcase, Mail, FileText, LayoutDashboard,
   Rocket, ChevronLeft, ChevronRight, LogOut, Calendar, CalendarDays,
-  ExternalLink, BarChart3, CheckSquare, Workflow, Upload, GitMerge, Settings as SettingsIcon, Database, Facebook, AlertTriangle, MessageSquare, Search, Menu, X, List, Palette, Repeat2, FileSignature, Phone, Sparkles, Presentation, PhoneCall, ClipboardList, Mic,
+  ExternalLink, BarChart3, CheckSquare, Workflow, Upload, GitMerge, Settings as SettingsIcon, Database, Facebook, AlertTriangle, MessageSquare, Menu, X, List, Palette, Repeat2, FileSignature, Phone, Sparkles, Presentation, PhoneCall, ClipboardList, Mic,
 } from 'lucide-react'
 import { useIsMobile } from '@/lib/useIsMobile'
 
@@ -34,7 +34,6 @@ const NAV_SECTIONS: NavSection[] = [
       { key: 'tasks',         label: 'Mes tâches',   href: '/admin/crm/tasks',        icon: CheckSquare },
       { key: 'import',        label: 'Import CSV',   href: '/admin/crm/import',       icon: Upload },
       { key: 'doublons',      label: 'Doublons',     href: '/admin/crm/doublons',     icon: GitMerge },
-      { key: 'recherche-prop',label: 'Recherche propriété', href: '/admin/crm/recherche-prop', icon: Search },
       { key: 'proprietes',    label: 'Propriétés',   href: '/admin/crm/proprietes',   icon: Database },
       { key: 'users',         label: 'Utilisateurs', href: '/admin/crm/users',        icon: Users },
       { key: 'parametres',    label: 'Paramètres',   href: '/admin/crm/parametres',   icon: SettingsIcon },

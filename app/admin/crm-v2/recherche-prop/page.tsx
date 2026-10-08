@@ -1,2 +1,6 @@
-/** Re-export classic page inside CRM V2 shell (Design B). */
-export { default } from '../../crm/recherche-prop/page'
+import { redirect } from 'next/navigation'
+
+/** Fusionnée dans Propriétés : la recherche de contacts se fait depuis la fiche d'une propriété. */
+export default function RecherchePropPage() {
+  redirect('/admin/crm-v2/proprietes')
+}

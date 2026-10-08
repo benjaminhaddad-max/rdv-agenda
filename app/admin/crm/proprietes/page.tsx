@@ -1,13 +1,13 @@
 'use client'
 
-import { useEffect, useState, useMemo, useCallback } from 'react'
-import { Plus, FileText, Hash, Calendar, ListChecks, ToggleLeft, Phone, RefreshCw, Database, Lock } from 'lucide-react'
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
+import { Plus, FileText, Hash, Calendar, ListChecks, ToggleLeft, Phone, Database, Search, ExternalLink, Users } from 'lucide-react'
 import { isUserTypeProperty, buildUserNameIndex, type Owner } from '@/lib/crm-user-resolver'
 import { useIsMobile } from '@/lib/useIsMobile'
 import {
   CrmV2Page, CrmV2Header, CrmV2Tabs, CrmV2Body, CrmV2Button, CrmV2Search, CrmV2TableCard,
   CrmV2Table, CrmV2Th, CrmV2Td, CrmV2Tr, CrmV2Pill, CrmV2Empty, CrmV2Spinner, CrmV2Drawer, CrmV2CloseButton,
-  CrmV2Field, CrmV2Input, CrmV2Select, CrmV2Textarea, CrmV2SectionLabel, CrmV2StatusPill,
+  CrmV2Field, CrmV2Input, CrmV2Select, CrmV2Textarea, CrmV2SectionLabel, CrmV2StatusPill, CrmV2Avatar,
 } from '@/components/crm-v2/primitives'
 import {
   AdminNotice, AdminModal, AdminIconCell, AdminPillSelect, AdminMobileList, AdminMobileRow, AdminEllipsis, AdminSpin,
@@ -60,27 +60,9 @@ export default function ProprietesPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [doneMessage, setDoneMessage] = useState<string | null>(null)
   const [detail, setDetail] = useState<Property | null>(null)
-  const [syncing, setSyncing] = useState(false)
   const isMobile = useIsMobile()
   // Filtre d'affichage par groupe (barre d'outils)
   const [groupFilter, setGroupFilter] = useState('')
-
-  async function resyncFromHubSpot() {
-    if (!confirm(`Re-synchroniser toutes les propriétés ${object} ? Met à jour notamment les options (valeurs prédéfinies).`)) return
-    setSyncing(true)
-    try {
-      const res = await fetch(`/api/crm/properties/sync?object=${object}`, { method: 'POST' })
-      const j = await res.json()
-      if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`)
-      setDoneMessage(`Re-sync OK : ${j.total} propriétés (${j.with_options} avec options)`)
-      load()
-      setTimeout(() => setDoneMessage(null), 5000)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setSyncing(false)
-    }
-  }
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -151,21 +133,11 @@ export default function ProprietesPage() {
     <CrmV2Page>
       <CrmV2Header
         title="Propriétés CRM"
-        subtitle="Propriétés des contacts et des transactions — synchronisées ou créées en interne"
+        subtitle="Clique sur une propriété pour voir ses valeurs et retrouver les contacts qui l’ont"
         actions={
-          <>
-            <CrmV2Button
-              variant="secondary"
-              icon={syncing ? <AdminSpin /> : <RefreshCw size={14} />}
-              onClick={resyncFromHubSpot}
-              disabled={syncing}
-            >
-              {syncing ? 'Synchronisation…' : 'Re-synchroniser'}
-            </CrmV2Button>
-            <CrmV2Button variant="primary" icon={<Plus size={14} />} onClick={() => setShowCreate(true)}>
-              {isMobile ? 'Créer' : 'Créer une propriété'}
-            </CrmV2Button>
-          </>
+          <CrmV2Button variant="primary" icon={<Plus size={14} />} onClick={() => setShowCreate(true)}>
+            {isMobile ? 'Créer' : 'Créer une propriété'}
+          </CrmV2Button>
         }
       >
         <CrmV2Tabs
@@ -325,6 +297,16 @@ function PropertyDetailModal({ property, onClose }: { property: Property; onClos
 
   const isUserProp = isUserTypeProperty(property.name)
   const userIndex = useMemo(() => buildUserNameIndex(owners), [owners])
+  // La recherche de contacts n'existe que pour les propriétés de contacts
+  const canSearchContacts = property.object_type === 'contacts'
+  const searchRef = useRef<HTMLDivElement>(null)
+  const [preset, setPreset] = useState<{ op: string; value: string; n: number } | null>(null)
+
+  function searchValue(value: string) {
+    if (!canSearchContacts) return
+    setPreset(p => ({ op: value ? 'is' : 'is_empty', value, n: (p?.n || 0) + 1 }))
+    setTimeout(() => searchRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
+  }
 
   // Charge les owners si la prop est de type User (pour résoudre IDs → noms)
   useEffect(() => {
@@ -367,7 +349,7 @@ function PropertyDetailModal({ property, onClose }: { property: Property; onClos
     <CrmV2Drawer
       open
       onClose={onClose}
-      width={600}
+      width={680}
       header={
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -428,6 +410,11 @@ function PropertyDetailModal({ property, onClose }: { property: Property; onClos
         <div>
           <CrmV2SectionLabel style={{ marginBottom: 8, flexWrap: 'wrap' }}>
             Valeurs utilisées dans la base
+            {canSearchContacts && actualValues && actualValues.length > 0 && (
+              <span style={{ fontWeight: 500, textTransform: 'none', letterSpacing: 0, color: crmV2.textFaint }}>
+                · clique sur une valeur pour voir les contacts
+              </span>
+            )}
             {actualValues && actualValues.length > 0 && (
               <span style={{ fontWeight: 500, textTransform: 'none', letterSpacing: 0, color: crmV2.textFaint }}>
                 · {actualValues.length} distinctes · {totalCount.toLocaleString('fr-FR')} {property.object_type === 'deals' ? 'transactions' : 'contacts'}
@@ -456,7 +443,13 @@ function PropertyDetailModal({ property, onClose }: { property: Property; onClos
                   {actualValues.map((v, i) => {
                     const resolved = isUserProp && v.value ? userIndex.get(String(v.value)) : null
                     return (
-                      <tr key={i}>
+                      <tr
+                        key={i}
+                        onClick={canSearchContacts ? () => searchValue(v.value || '') : undefined}
+                        style={canSearchContacts ? { cursor: 'pointer' } : undefined}
+                        onMouseEnter={canSearchContacts ? e => (e.currentTarget.style.background = crmV2.rowHover) : undefined}
+                        onMouseLeave={canSearchContacts ? e => (e.currentTarget.style.background = 'transparent') : undefined}
+                      >
                         <td style={{ ...miniTd, wordBreak: 'break-all' }}>
                           {v.value ? (
                             resolved ? (
@@ -486,13 +479,208 @@ function PropertyDetailModal({ property, onClose }: { property: Property; onClos
           )}
         </div>
 
-        {/* Note édition */}
-        <AdminNotice tone="warning" icon={<Lock size={15} />}>
-          <strong>Lecture seule pour l&apos;instant.</strong> L&apos;édition est désactivée tant que le miroir de synchronisation
-          tourne (sinon la synchronisation écraserait tes modifs). Elle sera réactivée quand le miroir sera coupé.
-        </AdminNotice>
+        {/* Recherche des contacts selon la valeur de cette propriété */}
+        {canSearchContacts && (
+          <div ref={searchRef} style={{ scrollMarginTop: 12 }}>
+            <ContactSearch property={property} owners={owners} userIndex={userIndex} isUserProp={isUserProp} preset={preset} />
+          </div>
+        )}
       </div>
     </CrmV2Drawer>
+  )
+}
+
+// ─── Recherche de contacts par valeur (ex-page « Recherche propriété ») ────
+type FoundContact = {
+  hubspot_contact_id: string
+  firstname: string | null
+  lastname: string | null
+  email: string | null
+  phone: string | null
+  classe_actuelle: string | null
+  formation_souhaitee: string | null
+  recent_conversion_date: string | null
+  matched_value: string | null
+}
+
+const OPERATORS_BY_TYPE: Record<string, Array<{ value: string; label: string }>> = {
+  enumeration: [
+    { value: 'is',           label: 'est' },
+    { value: 'is_not',       label: "n'est pas" },
+    { value: 'is_empty',     label: 'est vide' },
+    { value: 'is_not_empty', label: "n'est pas vide" },
+  ],
+  string: [
+    { value: 'contains',     label: 'contient' },
+    { value: 'is',           label: 'est exactement' },
+    { value: 'is_empty',     label: 'est vide' },
+    { value: 'is_not_empty', label: "n'est pas vide" },
+  ],
+  number: [
+    { value: 'is',           label: 'est' },
+    { value: 'is_empty',     label: 'est vide' },
+    { value: 'is_not_empty', label: "n'est pas vide" },
+  ],
+  bool: [
+    { value: 'is',           label: 'est' },
+  ],
+  date: [
+    { value: 'is_empty',     label: 'est vide' },
+    { value: 'is_not_empty', label: "n'est pas vide" },
+  ],
+  datetime: [
+    { value: 'is_empty',     label: 'est vide' },
+    { value: 'is_not_empty', label: "n'est pas vide" },
+  ],
+}
+
+function ContactSearch({ property, owners, userIndex, isUserProp, preset }: {
+  property: Property
+  owners: Owner[]
+  userIndex: Map<string, string>
+  isUserProp: boolean
+  preset: { op: string; value: string; n: number } | null
+}) {
+  const ops = OPERATORS_BY_TYPE[property.type] || OPERATORS_BY_TYPE.string
+  const [operator, setOperator] = useState(ops[0].value)
+  const [value, setValue] = useState('')
+  const [results, setResults] = useState<FoundContact[] | null>(null)
+  const [total, setTotal] = useState(0)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const isMobile = useIsMobile()
+
+  const run = useCallback(async (op: string, val: string) => {
+    setLoading(true); setError(null)
+    try {
+      const params = new URLSearchParams({ prop: property.name, op, value: val, limit: '50', page: '0' })
+      const res = await fetch(`/api/crm/contacts/by-property?${params.toString()}`)
+      const j = await res.json()
+      if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`)
+      setResults(j.data || [])
+      setTotal(j.total || 0)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+      setResults([])
+    } finally {
+      setLoading(false)
+    }
+  }, [property.name])
+
+  // Clic sur une valeur du tableau « Valeurs utilisées » → recherche directe
+  useEffect(() => {
+    if (!preset) return
+    setOperator(preset.op)
+    setValue(preset.value)
+    run(preset.op, preset.value)
+  }, [preset, run])
+
+  const opNeedsValue = !['is_empty', 'is_not_empty'].includes(operator)
+  const isEnum = property.type === 'enumeration' && property.options && property.options.length > 0
+  const canSearch = !loading && !(opNeedsValue && !value)
+  // Un clic sur une valeur peut imposer un opérateur absent de la liste du type (ex. « est » sur une date)
+  const opChoices = ops.some(o => o.value === operator)
+    ? ops
+    : [...ops, { value: operator, label: ({ is: 'est', is_empty: 'est vide' } as Record<string, string>)[operator] || operator }]
+
+  const fullName = (c: FoundContact) => [c.firstname, c.lastname].filter(Boolean).join(' ') || '—'
+  const shownValue = (v: string | null) => v ? ((isUserProp && userIndex.get(v)) || v) : '(vide)'
+  const fieldStyle = isMobile ? { height: 42 } : undefined
+
+  return (
+    <div>
+      <CrmV2SectionLabel icon={<Users size={13} />} style={{ marginBottom: 8 }}>Trouver les contacts</CrmV2SectionLabel>
+      <div style={{
+        display: 'grid', gap: 8, alignItems: 'end',
+        gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'minmax(130px, 0.8fr) minmax(0, 1.6fr) auto',
+      }}>
+        <CrmV2Select value={operator} onChange={e => setOperator(e.target.value)} aria-label="Opérateur" style={fieldStyle}>
+          {opChoices.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </CrmV2Select>
+        {!opNeedsValue ? (
+          <CrmV2Input value="(pas de valeur requise)" disabled style={{ ...fieldStyle, color: crmV2.textFaint, background: crmV2.bgHover }} />
+        ) : isUserProp && owners.length > 0 ? (
+          <CrmV2Select value={value} onChange={e => setValue(e.target.value)} aria-label="Valeur" style={fieldStyle}>
+            <option value="">— Choisir un utilisateur —</option>
+            {owners
+              .slice()
+              .sort((a, b) => (a.firstname || '').localeCompare(b.firstname || ''))
+              .map(o => {
+                const name = [o.firstname, o.lastname].filter(Boolean).join(' ') || o.email || o.hubspot_owner_id
+                // Pour teleprospecteur on filtre par user_id, sinon par hubspot_owner_id
+                const id = property.name === 'teleprospecteur' ? (o.user_id || o.hubspot_owner_id) : o.hubspot_owner_id
+                return <option key={String(id)} value={String(id)}>{name}</option>
+              })}
+          </CrmV2Select>
+        ) : isEnum ? (
+          <CrmV2Select value={value} onChange={e => setValue(e.target.value)} aria-label="Valeur" style={fieldStyle}>
+            <option value="">— Choisir —</option>
+            {property.options!.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </CrmV2Select>
+        ) : (
+          <CrmV2Input
+            type={property.type === 'number' ? 'number' : 'text'}
+            value={value}
+            onChange={e => setValue(e.target.value)}
+            placeholder="Valeur à chercher…"
+            aria-label="Valeur"
+            onKeyDown={e => { if (e.key === 'Enter' && canSearch) run(operator, value) }}
+            style={fieldStyle}
+          />
+        )}
+        <CrmV2Button
+          variant="primary"
+          icon={loading ? <AdminSpin /> : <Search size={14} />}
+          onClick={() => run(operator, value)}
+          disabled={!canSearch}
+          style={isMobile ? { height: 44, width: '100%' } : { height: 38 }}
+        >
+          Rechercher
+        </CrmV2Button>
+      </div>
+
+      {error && <AdminNotice tone="error" style={{ marginTop: 10 }}>{error}</AdminNotice>}
+
+      {results !== null && (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 12, color: crmV2.textMuted, marginBottom: 6 }}>
+            {loading ? 'Recherche…' : total > 0
+              ? <>{total.toLocaleString('fr-FR')} contact{total > 1 ? 's' : ''}{total > results.length && ` · ${results.length} premiers (dernière conversion d’abord)`}</>
+              : 'Aucun contact ne correspond.'}
+          </div>
+          {results.length > 0 && (
+            <div style={{ border: `1px solid ${crmV2.border}`, borderRadius: 12, overflow: 'hidden', maxHeight: 420, overflowY: 'auto' }}>
+              {results.map((c, i) => (
+                <a
+                  key={c.hubspot_contact_id}
+                  href={`/admin/crm/contacts/${c.hubspot_contact_id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', textDecoration: 'none', color: 'inherit',
+                    borderTop: i === 0 ? 'none' : `1px solid ${crmV2.borderLight}`,
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = crmV2.rowHover)}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <CrmV2Avatar name={fullName(c)} size={28} radius="36%" />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <AdminEllipsis style={{ fontSize: 13, fontWeight: 600, color: crmV2.link }}>{fullName(c)}</AdminEllipsis>
+                    <AdminEllipsis style={{ fontSize: 12, color: crmV2.textMuted }}>
+                      {[c.email, c.phone, c.classe_actuelle].filter(Boolean).join(' · ') || '—'}
+                    </AdminEllipsis>
+                  </div>
+                  {!isMobile && (
+                    <CrmV2Pill style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 0 }}>{shownValue(c.matched_value)}</CrmV2Pill>
+                  )}
+                  <ExternalLink size={13} color={crmV2.textFaint} style={{ flexShrink: 0 }} />
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 
