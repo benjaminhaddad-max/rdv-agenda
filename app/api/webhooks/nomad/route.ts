@@ -27,7 +27,9 @@
  *     "nomad_filiere":                "Bac Général",
  *     "nomad_domaine":                "Santé",
  *     "nomad_option":                 "Mathématiques complémentaires",
- *     "nomad_langues":                "Anglais, Espagnol"
+ *     "nomad_langues":                "Anglais, Espagnol",
+ *     "formation_souhaitee":          "Prépa PASS",        // texte tel qu'envoyé
+ *     "nomad_campus":                 "Paris"              // propriété texte libre
  *
  *   Les anciens noms (date, prenom, nom, telephone, codePostal…) restent acceptés.
  *   }
@@ -177,6 +179,8 @@ export async function POST(req: NextRequest) {
   const specialite = pick(fieldMap, ['specialites_terminale', 'specialite', 'specialites'])
   const option = pick(fieldMap, ['nomad_option', 'option', 'options'])
   const langues = pick(fieldMap, ['nomad_langues', 'langues', 'langue'])
+  const formation = pick(fieldMap, ['formation_souhaitee', 'formation'])
+  const campus = pick(fieldMap, ['nomad_campus', 'campus'])
 
   // "75 - Paris" → "75" ; à défaut, déduit du code postal.
   const departement =
@@ -235,6 +239,8 @@ export async function POST(req: NextRequest) {
     ...(pays ? { country: pays } : {}),
     ...(diplome ? { dernier_diplome_obtenu___niveau_d_etude: diplome } : {}),
     ...(specialite ? { specialites_terminale: specialite } : {}),
+    ...(formation ? { formation_souhaitee: formation } : {}),
+    ...(campus ? { nomad_campus: campus } : {}),
     ...(existing ? {} : { hs_lead_status: 'Nouveau' }),
     origine: ORIGINE_NOMAD,
     source: 'Nomad Education',
@@ -267,6 +273,7 @@ export async function POST(req: NextRequest) {
   if (email) contactData.email = email
   if (phone) contactData.phone = phone
   if (classeActuelle) contactData.classe_actuelle = classeActuelle
+  if (formation) contactData.formation_souhaitee = formation
   if (departement) contactData.departement = departement
   if (zoneLocalite) contactData.zone_localite = zoneLocalite
 
@@ -313,6 +320,8 @@ export async function POST(req: NextRequest) {
       `Niveau : ${niveauRaw ?? 'n/a'}${filiere ? ` (${filiere})` : ''}`,
       `Domaine : ${domaine ?? 'n/a'}`,
       `Spécialités : ${specialite ?? 'n/a'}`,
+      `Formation : ${formation ?? 'n/a'}`,
+      `Campus : ${campus ?? 'n/a'}`,
       `Département : ${departement ?? 'n/a'}${codePostal ? ` — CP ${codePostal}` : ''}`,
       `Pays : ${pays ?? 'n/a'}`,
     ].join('\n'),
