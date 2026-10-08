@@ -816,7 +816,7 @@ function MembersTable({
     )
   }
 
-  const colSpan = 2 + (mode === 'stats' ? cols.length : mode === 'planning' ? planningDates.length + 1 : ACCES_COLS.length)
+  const colSpan = (mode === 'planning' ? 1 : 2) + (mode === 'stats' ? cols.length : mode === 'planning' ? planningDates.length + 1 : ACCES_COLS.length)
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {extras}
@@ -831,7 +831,7 @@ function MembersTable({
                 </CrmV2Th>
               ))}
               {planningDates.map((d, i) => (
-                <CrmV2Th key={d} style={{ minWidth: 112, borderLeft: `1px solid ${crmV2.borderLight}` }}>
+                <CrmV2Th key={d} style={{ minWidth: 98, padding: '8px 6px', borderLeft: `1px solid ${crmV2.borderLight}` }}>
                   <PlanningDayHeader date={d} index={i} counts={common.planningCounts[i]} today={today} />
                 </CrmV2Th>
               ))}
@@ -839,7 +839,7 @@ function MembersTable({
               {mode === 'acces' && ACCES_COLS.map(c => (
                 <CrmV2Th key={c.key} sorted={sort.key === c.key ? sort.dir : false} onClick={c.sortable ? () => onSort(c.key) : undefined}>{c.label}</CrmV2Th>
               ))}
-              <CrmV2Th style={{ textAlign: 'right' }}>Compte</CrmV2Th>
+              {mode !== 'planning' && <CrmV2Th style={{ textAlign: 'right' }}>Compte</CrmV2Th>}
             </tr>
           </thead>
           <tbody>
@@ -948,43 +948,6 @@ function PresenceCell({ days }: { days: DayReport[] | null }) {
         </span>
       )}
     </span>
-  )
-}
-
-/** Détail jour par jour de la présence (ligne dépliée) — chaque jour se modifie au clic. */
-function PresenceDays({ days, onEdit }: { days: DayReport[]; onEdit: (d: DayReport) => void }) {
-  const shown = days
-  if (!shown.length) return null
-  const today = parisDateKey(new Date())
-  return (
-    <div>
-      <div style={{ fontSize: 11, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
-        Présence (horaires d&apos;appel)
-      </div>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        {shown.map(d => {
-          const [y, m, dd] = d.date.split('-').map(Number)
-          const wd = WEEKDAYS[(new Date(Date.UTC(y, m - 1, dd, 12)).getUTCDay() + 6) % 7]
-          return (
-            <button type="button" key={d.date} onClick={() => onEdit(d)} title="Modifier / imposer les horaires de ce jour" style={{
-              border: `1px solid ${d.date === today ? crmV2.goldBorder : crmV2.border}`, borderRadius: 10, padding: '6px 8px', background: crmV2.bg,
-              display: 'flex', flexDirection: 'column', gap: 4, minWidth: 128, textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
-            }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: crmV2.text }}>{wd} {dd}</span>
-              {d.slots.length > 0
-                ? <span style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>{d.slots.map(s => <SlotChip key={s.id} slot={s} />)}</span>
-                : <span style={{ fontSize: 11, color: crmV2.link, fontWeight: 600 }}>{d.date >= today ? '+ définir les horaires' : '+ corriger les horaires'}</span>}
-              {(d.slots.length > 0 || d.calls > 0) && d.verdict !== 'a_venir' && <VerdictPill verdict={d.verdict} small />}
-              {d.calls > 0 && (
-                <span style={{ fontSize: 11, color: crmV2.textMuted }}>
-                  {d.calls} appels · {d.talk2} ≥2min · {d.rdv} RDV · {d.first_call}→{d.last_call}
-                </span>
-              )}
-            </button>
-          )
-        })}
-      </div>
-    </div>
   )
 }
 
@@ -1113,7 +1076,7 @@ function NameCell({ row, open }: { tab: Tab; row: Row; open: boolean }) {
       <span style={{ opacity: banned ? 0.5 : 1, display: 'inline-flex', flexShrink: 0 }}>
         <CrmV2Avatar name={row.name} color={banned ? crmV2.borderStrong : (row.color ?? crmV2.gold)} size={24} radius="36%" />
       </span>
-      <span style={{ fontWeight: 600, color: banned ? crmV2.textMuted : crmV2.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 190 }}>{row.name}</span>
+      <span style={{ fontWeight: 600, color: banned ? crmV2.textMuted : crmV2.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 160 }}>{row.name}</span>
       <DualRoleBadge m={row.member} />
     </span>
   )
@@ -1159,9 +1122,11 @@ function MemberRow({
           </CrmV2Td>
         ))}
 
-        <CrmV2Td style={{ textAlign: 'right' }}>
-          <div onClick={e => e.stopPropagation()}>{account.actions}</div>
-        </CrmV2Td>
+        {mode !== 'planning' && (
+          <CrmV2Td style={{ textAlign: 'right' }}>
+            <div onClick={e => e.stopPropagation()}>{account.actions}</div>
+          </CrmV2Td>
+        )}
       </CrmV2Tr>
       {(account.confirm || account.credentials) && (
         <tr><CrmV2Td colSpan={colSpan} style={{ height: 'auto', padding: '8px 14px 12px' }}>{account.confirm ?? account.credentials}</CrmV2Td></tr>
@@ -1169,7 +1134,7 @@ function MemberRow({
       {open && (
         <tr>
           <CrmV2Td colSpan={colSpan} style={{ height: 'auto', padding: '10px 14px 16px', background: crmV2.bgHover }}>
-            <MemberDetail {...common} cols={cols} row={row} />
+            <MemberDetail {...common} cols={cols} row={row} actions={mode === 'planning' ? account.actions : null} />
           </CrmV2Td>
         </tr>
       )}
@@ -1218,45 +1183,29 @@ function MobileMemberCard({
       ) : statsLoading ? (
         <div style={{ marginTop: 8 }}><AdminSpin /></div>
       ) : null}
-      {open && <div style={{ marginTop: 10 }}><MemberDetail {...common} row={row} /></div>}
+      {open && <div style={{ marginTop: 10 }}><MemberDetail {...common} row={row} actions={null} /></div>}
     </PanelCard>
   )
 }
 
 // ── Détail : performance par marque + réglages du compte ────────────────────
 
-function MemberDetail({ row, ...common }: TableCommon & { row: Row }) {
-  const { tab } = common
-  const [editing, setEditing] = useState<DayReport | null>(null)
-
-  async function saveDay(slots: Array<{ start: string; end: string; locked: boolean }>, applyTo: string[]): Promise<string | null> {
-    if (!editing) return null
-    const res = await fetch('/api/admin/planning', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: row.id, date: editing.date, slots, apply_to: applyTo }),
-    })
-    const j = await res.json().catch(() => ({}))
-    if (!res.ok) return j.error || 'Enregistrement impossible'
-    setEditing(null)
-    common.onPresenceChanged()
-    return null
-  }
-
-  const days = common.presence?.[row.id] ?? []
+function MemberDetail({ row, actions, ...common }: TableCommon & { row: Row; actions: ReactNode }) {
+  const { tab, mode } = common
+  const days = mode === 'planning'
+    ? (common.planning?.report[row.id] ?? [])
+    : (common.presence?.[row.id] ?? [])
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {tab === 'telepros' && common.mode === 'stats' && common.presence && <PresenceDays days={days} onEdit={setEditing} />}
-      {tab === 'telepros' && (
-        <DayScheduleEditor
-          open={!!editing}
-          title={`Horaires d'appel · ${row.name}`}
-          day={editing}
-          weekDates={days.length <= 7 ? days.map(d => d.date) : undefined}
-          canImpose
-          onClose={() => setEditing(null)}
-          onSave={saveDay}
-        />
+      {actions && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'space-between', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12, color: crmV2.textMuted }}>{row.member?.email}</span>
+          <div onClick={e => e.stopPropagation()}>{actions}</div>
+        </div>
+      )}
+      {tab === 'telepros' && row.stats && <MemberStatsStrip s={row.stats} />}
+      {tab === 'telepros' && days.length > 0 && (
+        <MemberDaysTable days={days} onEdit={d => common.onEditDay(row, d)} />
       )}
       {row.member && (
         <AccountSettings
@@ -1266,6 +1215,93 @@ function MemberDetail({ row, ...common }: TableCommon & { row: Row }) {
           extraRolesReady={common.extraRolesReady}
         />
       )}
+    </div>
+  )
+}
+
+/** Stats du télépro sur la période (semaine en mode Planning). */
+function MemberStatsStrip({ s }: { s: AgentMetrics }) {
+  const answered = s.calls_outbound_talk_2min + s.calls_outbound_talk_short
+  const mpr = minPerRdv(s.talk_time_sec, s.rdv_total)
+  const items: Array<[string, ReactNode, ReactNode?]> = [
+    ['Appels', fmtInt(s.calls_outbound)],
+    ['Décrochés', fmtInt(answered), fmtPct(s.answer_rate)],
+    ['≥ 2 min', fmtInt(s.calls_outbound_talk_2min), fmtPct(s.talk_2min_rate)],
+    ["Temps d'appel", fmtMinutes(s.talk_time_sec)],
+    ['RDV placés', fmtInt(s.rdv_total)],
+    ['≥ 2 min → RDV', <span key="c" style={{ color: rateColor(s.conversion_talk_2min, 60, 35) }}>{fmtPct(s.conversion_talk_2min)}</span>],
+    ['Min / RDV', mpr != null ? `${mpr} min` : '—'],
+    ['RDV venus', fmtInt(s.rdv_venus), fmtPct(pct(s.rdv_venus, s.rdv_total))],
+    ['No-show', fmtInt(s.rdv_no_show)],
+    ['Préinscrits', fmtInt(s.rdv_preinscrits), fmtPct(pct(s.rdv_preinscrits, s.rdv_venus))],
+  ]
+  return (
+    <div style={{
+      display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(112px, 1fr))', gap: 8,
+    }}>
+      {items.map(([label, value, sub]) => (
+        <div key={label} style={{ background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: 10, padding: '8px 10px' }}>
+          <div style={{ fontSize: 10.5, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>{label}</div>
+          <div style={{ fontSize: 17, fontWeight: 700, color: crmV2.text, fontVariantNumeric: 'tabular-nums' }}>
+            {value}{sub && sub !== '—' ? <span style={{ fontSize: 11.5, fontWeight: 500, color: crmV2.textFaint }}> {sub}</span> : null}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/** Détail jour par jour (horaires, activité Aircall, RDV, bilan) — clic → modifier les horaires. */
+function MemberDaysTable({ days, onEdit }: { days: DayReport[]; onEdit: (d: DayReport) => void }) {
+  const today = parisDateKey(new Date())
+  const th: CSSProperties = {
+    padding: '6px 10px', fontSize: 10.5, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase',
+    letterSpacing: '0.04em', textAlign: 'right', whiteSpace: 'nowrap', borderBottom: `1px solid ${crmV2.border}`,
+  }
+  const td: CSSProperties = { padding: '6px 10px', fontSize: 12.5, textAlign: 'right', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', borderBottom: `1px solid ${crmV2.borderLight}` }
+  return (
+    <div style={{ overflowX: 'auto', background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: 12 }}>
+      <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 760 }}>
+        <thead>
+          <tr>
+            <th style={{ ...th, textAlign: 'left' }}>Jour</th>
+            <th style={{ ...th, textAlign: 'left' }}>Horaires</th>
+            <th style={th}>Activité réelle</th>
+            <th style={th}>Appels</th>
+            <th style={th}>Décrochés</th>
+            <th style={th}>≥ 2 min</th>
+            <th style={th}>Temps</th>
+            <th style={th}>RDV</th>
+            <th style={{ ...th, textAlign: 'left' }}>Bilan</th>
+            <th style={th} />
+          </tr>
+        </thead>
+        <tbody>
+          {days.map(d => {
+            const [y, m, dd] = d.date.split('-').map(Number)
+            const wd = WEEKDAYS[(new Date(Date.UTC(y, m - 1, dd, 12)).getUTCDay() + 6) % 7]
+            const empty = !d.calls && !d.slots.length
+            return (
+              <tr key={d.date} onClick={() => onEdit(d)} style={{ cursor: 'pointer', background: d.date === today ? crmV2.goldSoft : undefined }}>
+                <td style={{ ...td, textAlign: 'left', fontWeight: 700, color: empty ? crmV2.textFaint : crmV2.text }}>{wd} {dd}</td>
+                <td style={{ ...td, textAlign: 'left' }}>
+                  {d.slots.length
+                    ? <span style={{ display: 'inline-flex', gap: 3 }}>{d.slots.map(s => <SlotChip key={s.id} slot={s} />)}</span>
+                    : <span style={{ color: crmV2.textFaint }}>—</span>}
+                </td>
+                <td style={td}>{d.first_call ? `${d.first_call} → ${d.last_call}` : '—'}</td>
+                <td style={{ ...td, fontWeight: 700 }}>{d.calls || '—'}</td>
+                <td style={td}>{d.answered || '—'}</td>
+                <td style={td}>{d.talk2 || '—'}</td>
+                <td style={td}>{d.talk_sec ? fmtMinutes(d.talk_sec) : '—'}</td>
+                <td style={{ ...td, fontWeight: 700, color: d.rdv ? crmV2.goldDark : crmV2.textFaint }}>{d.rdv || '—'}</td>
+                <td style={{ ...td, textAlign: 'left' }}>{(d.slots.length > 0 || d.calls > 0) && d.verdict !== 'a_venir' ? <VerdictPill verdict={d.verdict} small /> : null}</td>
+                <td style={{ ...td, color: crmV2.link, fontWeight: 600 }}>Modifier</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
     </div>
   )
 }
