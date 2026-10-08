@@ -247,6 +247,8 @@ export type LyceeListItem = LyceeRow & {
   past_leads: number
   /** Élèves Diploma 2025-26 venant de ce lycée (plateforme d'inscription, dossiers validés) */
   inscrits_2526: number
+  /** Anciens élèves relais notés dans le fichier de prospection */
+  alumni_declares: number
   /** Élèves 2026-27 venant du lycée (ambassadeurs, v61) — dont bons profils */
   eleves_2627: number
   ambassadeurs_bons: number

@@ -95,7 +95,7 @@ export async function logLyceeActivity(
 }
 
 type EventLite = Pick<LyceeEventRow, 'id' | 'uai' | 'season' | 'kind' | 'status' | 'date' | 'leads_count' | 'date_confirmed' | 'hidden'>
-type ContactLite = Pick<LyceeContactRow, 'uai' | 'is_key' | 'source'>
+type ContactLite = Pick<LyceeContactRow, 'uai' | 'is_key' | 'source' | 'is_alumni'>
 
 /** Agrégats + score pour la liste (et la fiche). */
 export function buildListItems(
@@ -104,9 +104,10 @@ export function buildListItems(
   events: EventLite[],
   today: string,
 ): LyceeListItem[] {
-  const contactsBy = new Map<string, { n: number; key: number; ins: number }>()
+  const contactsBy = new Map<string, { n: number; key: number; ins: number; al: number }>()
   for (const c of contacts) {
-    const v = contactsBy.get(c.uai) || { n: 0, key: 0, ins: 0 }
+    const v = contactsBy.get(c.uai) || { n: 0, key: 0, ins: 0, al: 0 }
+    if (c.is_alumni && c.source === 'import') v.al++
     v.n++
     if (c.is_key) v.key++
     if (c.source === 'plateforme_2526') v.ins++
@@ -123,7 +124,7 @@ export function buildListItems(
     const evs = eventsBy.get(l.uai) || []
     const past = evs.filter(e => e.status === 'realise' && e.kind !== 'flying')
     const pastLeads = past.reduce((s, e) => s + (e.leads_count || 0), 0)
-    const c = contactsBy.get(l.uai) || { n: 0, key: 0, ins: 0 }
+    const c = contactsBy.get(l.uai) || { n: 0, key: 0, ins: 0, al: 0 }
     const { score, parts } = computeLyceeScore(l, { pastLeads, pastEvents: past.length, keyContacts: c.key, inscrits: c.ins })
     const current = evs.filter(e => e.season === CURRENT_SEASON && e.status !== 'annule' && e.status !== 'refuse')
     const upcoming = current
@@ -137,6 +138,7 @@ export function buildListItems(
       past_events: past.length,
       past_leads: pastLeads,
       inscrits_2526: c.ins,
+      alumni_declares: c.al,
       eleves_2627: 0,
       ambassadeurs_bons: 0,
       flying_per_session: l.flying_leads_total && l.flying_sessions ? Math.round(l.flying_leads_total / l.flying_sessions) : null,

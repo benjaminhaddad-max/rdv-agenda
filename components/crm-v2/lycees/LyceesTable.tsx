@@ -35,13 +35,14 @@ export type LyceeFilters = {
   quick: LyceeView
 }
 
-export type LyceeView = '' | 'a_traiter' | 'rappels' | 'jamais' | 'recaler' | 'prioritaires' | 'obtenus'
+export type LyceeView = '' | 'a_traiter' | 'rappels' | 'jamais' | 'recaler' | 'relais' | 'prioritaires' | 'obtenus'
 
 export const LYCEE_VIEWS: { id: LyceeView; label: string; managerOnly?: boolean; hint: string }[] = [
   { id: 'a_traiter', label: 'À traiter', hint: 'Ni obtenu, ni refus, ni hors cible' },
   { id: 'rappels', label: 'À rappeler', hint: 'Rappel prévu aujourd’hui ou en retard' },
   { id: 'jamais', label: 'Jamais appelés', hint: 'Aucun appel noté' },
   { id: 'recaler', label: 'À recaler', hint: 'Forum ou inter l’an dernier, rien de calé cette année' },
+  { id: 'relais', label: 'Avec élèves relais', hint: 'Élèves 26-27 contents, inscrits 25-26 ou anciens élèves du fichier' },
   { id: 'prioritaires', label: 'Prioritaires non attribués', managerOnly: true, hint: 'Très importants / importants / score ≥ 65, sans personne' },
   { id: 'obtenus', label: 'Obtenus', hint: 'Forum, conférence ou intervention obtenu(e)' },
   { id: '', label: 'Tous', hint: '' },
@@ -54,6 +55,7 @@ export function matchLyceeView(l: LyceeListItem, v: LyceeView, today: string): b
     case 'rappels': return !!l.next_action_at && l.next_action_at <= today
     case 'jamais': return !l.calls_count && !l.last_contact_at && open
     case 'recaler': return l.had_previous_season && !l.current_season_events && open
+    case 'relais': return open && (l.ambassadeurs_bons > 0 || l.inscrits_2526 > 0 || l.alumni_declares > 0)
     case 'prioritaires': return !l.assigned_to && open && (l.priority === 'tres_important' || l.priority === 'important' || l.score >= 65)
     case 'obtenus': return l.status === 'obtenu'
     default: return true
@@ -64,7 +66,7 @@ export const EMPTY_FILTERS: LyceeFilters = {
   q: '', dept: '', status: '', priority: '', assignee: '', mode: '', voie: '', secteur: '', quick: '',
 }
 
-type SortKey = 'score' | 'name' | 'next' | 'last' | 'rappel'
+type SortKey = 'score' | 'name' | 'next' | 'last' | 'rappel' | 'relais'
 
 export function applyLyceeFilters(items: LyceeListItem[], f: LyceeFilters, me: string | null, today: string): LyceeListItem[] {
   const q = normalizeName(f.q)
@@ -116,6 +118,7 @@ export default function LyceesTable({
         case 'next': return l.next_event?.date ?? (sort.dir === 1 ? '9999' : '0000')
         case 'last': return l.last_contact_at ?? ''
         case 'rappel': return l.next_action_at ?? (sort.dir === 1 ? '9999' : '0000')
+        case 'relais': return l.ambassadeurs_bons * 100 + l.inscrits_2526 * 10 + l.alumni_declares
         default: return l.score
       }
     }
@@ -339,6 +342,7 @@ export default function LyceesTable({
               <CrmV2Th>Statut</CrmV2Th>
               <CrmV2Th>Mode</CrmV2Th>
               {isManager && <CrmV2Th>Attribué à</CrmV2Th>}
+              {th('relais', 'Élèves relais')}
               {th('last', 'Dernier appel')}
               {th('rappel', 'Rappel')}
               {th('next', 'Forum 26-27')}
@@ -363,8 +367,6 @@ export default function LyceesTable({
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {l.city}{l.secteur !== 'public' ? ' · privé' : ''}{l.voie_generale === false ? ' · pro' : ''}
                         {l.past_events ? ` · ${l.past_events} déjà fait(s)${l.past_leads ? `, ${l.past_leads} leads` : ''}` : ''}
-                        {l.inscrits_2526 ? <b style={{ color: crmV2.goldDark }}>{` · ${l.inscrits_2526} inscrit${l.inscrits_2526 > 1 ? 's' : ''} 25-26`}</b> : null}
-                        {l.eleves_2627 ? <b style={{ color: '#16a34a' }}>{` · ${l.eleves_2627} élève${l.eleves_2627 > 1 ? 's' : ''} 26-27${l.ambassadeurs_bons ? ` (${l.ambassadeurs_bons} ambassadeur${l.ambassadeurs_bons > 1 ? 's' : ''})` : ''}`}</b> : null}
                       </span>
                     </div>
                   </CrmV2Td>
@@ -373,6 +375,7 @@ export default function LyceesTable({
                   <CrmV2Td><StatusPill status={l.status} /></CrmV2Td>
                   <CrmV2Td><ModePill mode={l.mode} /></CrmV2Td>
                   {isManager && <CrmV2Td style={{ maxWidth: 150 }}><UserChip user={usersById.get(l.assigned_to ?? '')} /></CrmV2Td>}
+                  <CrmV2Td><RelaisCell l={l} /></CrmV2Td>
                   <CrmV2Td><LastCallCell at={l.last_contact_at} outcome={l.last_outcome} note={l.last_note} count={l.calls_count || 0} /></CrmV2Td>
                   <CrmV2Td><NextCallCell date={l.next_action_at} today={today} /></CrmV2Td>
                   <CrmV2Td>
@@ -397,6 +400,25 @@ export default function LyceesTable({
         </CrmV2Table>
       )}
     </CrmV2TableCard>
+    </div>
+  )
+}
+
+/** Élèves qui peuvent nous ouvrir la porte du lycée. */
+function RelaisCell({ l }: { l: LyceeListItem }) {
+  const chips: { n: number; label: string; color: string; title: string }[] = [
+    { n: l.ambassadeurs_bons, label: '26-27 contents', color: '#16a34a', title: `Élèves Diploma 2026-27 venant du lycée, assidus et contents (sur ${l.eleves_2627} élève(s) 26-27)` },
+    { n: l.inscrits_2526, label: 'inscrits 25-26', color: '#8a6d22', title: 'Élèves Diploma 2025-26 venant du lycée (plateforme d’inscription)' },
+    { n: l.alumni_declares, label: 'anciens (fichier)', color: '#7e22ce', title: 'Anciens élèves relais notés dans le fichier de prospection (non vérifiés)' },
+  ].filter(c => c.n > 0)
+  if (!chips.length) return <span style={{ color: crmV2.textFaint }}>—</span>
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, whiteSpace: 'nowrap' }}>
+      {chips.map(c => (
+        <span key={c.label} title={c.title} style={{ fontSize: 12, color: c.color, fontWeight: 600 }}>
+          <b style={{ fontSize: 13 }}>{c.n}</b> {c.label}
+        </span>
+      ))}
     </div>
   )
 }
