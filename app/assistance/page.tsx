@@ -16,7 +16,7 @@ const FAQ: { q: string; a: string }[] = [
   },
   {
     q: 'J’ai oublié mon mot de passe',
-    a: 'Sur l’écran de connexion, utilisez « Mot de passe oublié » : un lien de réinitialisation est envoyé sur votre adresse e-mail professionnelle.',
+    a: 'Demandez à l’administration Diploma Santé (contact@diploma-sante.fr) : un lien de réinitialisation vous est envoyé sur votre adresse e-mail professionnelle.',
   },
   {
     q: 'Je n’ai pas encore de compte',
