@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo, type ReactNode } from 'react'
-import { ChevronLeft, ChevronRight, Users, LayoutDashboard, Plus, Check, MapPin, Video, X, Pin } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Users, LayoutDashboard, Plus, Check, MapPin, Video, Phone, X, Pin } from 'lucide-react'
 import { format, startOfWeek, addDays, addWeeks, subWeeks, isSameDay, isToday } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import StatusBadge, { AppointmentStatus } from './StatusBadge'
@@ -676,7 +676,9 @@ export default function WeekCalendar({
       ? <Video size={iconSize} strokeWidth={2.2} style={{ flexShrink: 0 }} />
       : appt.meeting_type === 'presentiel'
         ? <MapPin size={iconSize} strokeWidth={2.2} style={{ flexShrink: 0 }} />
-        : null
+        : appt.meeting_type === 'telephone'
+          ? <Phone size={iconSize} strokeWidth={2.2} style={{ flexShrink: 0 }} />
+          : null
 
     return (
       <div
@@ -757,6 +759,10 @@ export default function WeekCalendar({
             }}
           />
           {!compact && <MediboxBadge brand={appt.brand} compact={!isDay} style={isDay ? undefined : { fontSize: 10 }} />}
+          {/* Vue semaine : mode du RDV (visio / tél / présentiel) avant le nom */}
+          {!isDay && !compact && meetingIcon && (
+            <span title={meetingLabel} style={{ display: 'inline-flex', color: subtleOnFill, flexShrink: 0 }}>{meetingIcon}</span>
+          )}
           <span style={{
             fontSize: nameSize, fontWeight: 700, color: textOnFill, minWidth: 0,
             overflow: 'hidden', textOverflow: compact ? 'clip' : 'ellipsis', whiteSpace: 'nowrap',
@@ -1585,6 +1591,7 @@ export default function WeekCalendar({
                       {format(new Date(appt.end_at), 'HH:mm')}
                       {appt.meeting_type === 'visio' && <Video size={12} />}
                       {appt.meeting_type === 'presentiel' && <MapPin size={12} />}
+                      {appt.meeting_type === 'telephone' && <Phone size={12} />}
                     </div>
                     {(() => {
                       const niveau = getNiveau(appt.classe_actuelle, appt.prospect_name)
