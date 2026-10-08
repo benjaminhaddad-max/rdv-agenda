@@ -3,6 +3,15 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
+// Page de connexion — design V2 (tokens .crm-v2 : fond #f5f8fa, bordures
+// #dfe3eb, texte #2d3e50, accent or #C9A84C, marine Hub Diploma #12314D).
+// Premier écran de l'app mobile Hub Diploma (App Store) : liens Assistance /
+// Confidentialité obligatoires et champs compatibles remplissage auto iOS.
+
+const NAVY = '#12314D'
+const BORDER = '#dfe3eb'
+const GOLD = '#C9A84C'
+
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -45,119 +54,112 @@ export default function LoginPage() {
     }
   }
 
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    background: '#ffffff',
+    border: `1px solid ${BORDER}`,
+    borderRadius: 8,
+    padding: '12px 14px',
+    color: '#2d3e50',
+    fontSize: 16, // ≥ 16px : évite le zoom automatique de Safari iOS
+    outline: 'none',
+    boxSizing: 'border-box',
+    fontFamily: 'inherit',
+    transition: 'border-color .15s, box-shadow .15s',
+  }
+  const focus = (e: React.FocusEvent<HTMLInputElement>) => {
+    e.currentTarget.style.borderColor = GOLD
+    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(201,168,76,0.18)'
+  }
+  const blur = (e: React.FocusEvent<HTMLInputElement>) => {
+    e.currentTarget.style.borderColor = BORDER
+    e.currentTarget.style.boxShadow = 'none'
+  }
+  const labelStyle: React.CSSProperties = {
+    fontSize: 13, fontWeight: 600, color: '#2d3e50', marginBottom: 6, display: 'block',
+  }
+
   return (
     <div style={{
-      minHeight: '100vh',
-      background: '#f7f4ee',
+      minHeight: '100dvh',
+      background: '#f5f8fa',
       display: 'flex',
+      flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center',
+      gap: 20,
+      padding: 'max(24px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom))',
+      boxSizing: 'border-box',
       fontFamily: '-apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif',
+      color: '#2d3e50',
     }}>
       <form onSubmit={handleLogin} style={{
         background: '#ffffff',
-        border: '1px solid #e5ddc8',
-        borderRadius: 16,
-        padding: '40px 36px',
-        width: 380,
-        boxShadow: '0 4px 24px -8px rgba(11, 22, 40, 0.1)',
+        border: `1px solid ${BORDER}`,
+        borderRadius: 12,
+        padding: '36px 28px 28px',
+        width: '100%',
+        maxWidth: 400,
+        boxSizing: 'border-box',
+        boxShadow: '0 1px 3px rgba(45,62,80,0.06), 0 8px 24px -12px rgba(45,62,80,0.12)',
       }}>
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: 48, height: 48,
-            borderRadius: 12,
-            background: 'linear-gradient(168deg, #0e1e35 0%, #1a3350 100%)',
-            marginBottom: 14,
-            boxShadow: '0 4px 12px rgba(14, 30, 53, 0.25)',
-          }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#C9A84C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-              <line x1="16" y1="2" x2="16" y2="6" />
-              <line x1="8" y1="2" x2="8" y2="6" />
-              <line x1="3" y1="10" x2="21" y2="10" />
-            </svg>
-          </div>
-          <div style={{ fontSize: 20, fontWeight: 800, color: '#0e1e35', letterSpacing: '-0.3px' }}>
-            Diploma Santé
-          </div>
-          <div style={{ fontSize: 13, color: '#7d8c9e', marginTop: 4 }}>
-            Outil de gestion des RDV
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logo-hub-diploma-horizontal.svg"
+            alt="Hub Diploma"
+            width={200}
+            height={48}
+            style={{ height: 48, width: 'auto', display: 'inline-block' }}
+          />
+          <div style={{ fontSize: 14, color: '#516f90', marginTop: 12 }}>
+            CRM et rendez-vous des équipes Diploma Santé
           </div>
         </div>
 
         <div style={{ marginBottom: 16 }}>
-          <label style={{
-            fontSize: 11, fontWeight: 700, color: '#4a6070',
-            marginBottom: 6, display: 'block',
-            textTransform: 'uppercase', letterSpacing: '0.06em',
-          }}>
-            Email
-          </label>
+          <label htmlFor="login-email" style={labelStyle}>E-mail</label>
           <input
+            id="login-email"
             type="email"
+            inputMode="email"
+            autoComplete="username"
+            autoCapitalize="none"
+            autoCorrect="off"
             value={email}
             onChange={e => setEmail(e.target.value)}
             required
             autoFocus
-            style={{
-              width: '100%',
-              background: '#fbf8f1',
-              border: '1.5px solid #e5ddc8',
-              borderRadius: 10,
-              padding: '11px 14px',
-              color: '#0e1e35',
-              fontSize: 14,
-              outline: 'none',
-              boxSizing: 'border-box',
-              fontFamily: 'inherit',
-            }}
-            placeholder="votre@email.com"
-            onFocus={e => { e.currentTarget.style.borderColor = '#C9A84C' }}
-            onBlur={e => { e.currentTarget.style.borderColor = '#e5ddc8' }}
+            style={inputStyle}
+            placeholder="prenom@diploma-sante.fr"
+            onFocus={focus}
+            onBlur={blur}
           />
         </div>
 
-        <div style={{ marginBottom: 24 }}>
-          <label style={{
-            fontSize: 11, fontWeight: 700, color: '#4a6070',
-            marginBottom: 6, display: 'block',
-            textTransform: 'uppercase', letterSpacing: '0.06em',
-          }}>
-            Mot de passe
-          </label>
+        <div style={{ marginBottom: 22 }}>
+          <label htmlFor="login-password" style={labelStyle}>Mot de passe</label>
           <input
+            id="login-password"
             type="password"
+            autoComplete="current-password"
             value={password}
             onChange={e => setPassword(e.target.value)}
             required
-            style={{
-              width: '100%',
-              background: '#fbf8f1',
-              border: '1.5px solid #e5ddc8',
-              borderRadius: 10,
-              padding: '11px 14px',
-              color: '#0e1e35',
-              fontSize: 14,
-              outline: 'none',
-              boxSizing: 'border-box',
-              fontFamily: 'inherit',
-            }}
+            style={inputStyle}
             placeholder="••••••••"
-            onFocus={e => { e.currentTarget.style.borderColor = '#C9A84C' }}
-            onBlur={e => { e.currentTarget.style.borderColor = '#e5ddc8' }}
+            onFocus={focus}
+            onBlur={blur}
           />
         </div>
 
         {error && (
-          <div style={{
-            background: 'rgba(239,68,68,0.06)',
-            border: '1px solid rgba(239,68,68,0.22)',
+          <div role="alert" style={{
+            background: '#fdedee',
+            border: '1px solid #f2b8bd',
             borderRadius: 8,
             padding: '10px 14px',
-            color: '#dc2626',
+            color: '#c0392b',
             fontSize: 13,
             marginBottom: 16,
           }}>
@@ -170,34 +172,33 @@ export default function LoginPage() {
           disabled={loading}
           style={{
             width: '100%',
-            background: 'linear-gradient(168deg, #0e1e35 0%, #1a3350 100%)',
-            color: '#f7f4ee',
+            background: NAVY,
+            color: '#ffffff',
             border: 'none',
-            borderRadius: 10,
+            borderRadius: 8,
             padding: '13px',
-            fontSize: 14,
-            fontWeight: 700,
+            fontSize: 15,
+            fontWeight: 600,
             cursor: loading ? 'wait' : 'pointer',
             opacity: loading ? 0.7 : 1,
             fontFamily: 'inherit',
-            letterSpacing: '0.02em',
-            boxShadow: '0 4px 14px rgba(14, 30, 53, 0.22)',
           }}
         >
-          {loading ? 'Connexion...' : 'Se connecter'}
+          {loading ? 'Connexion…' : 'Se connecter'}
         </button>
 
-        <div style={{
-          marginTop: 20,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-        }}>
-          <div style={{ flex: 1, height: 1, background: '#e5ddc8' }} />
-          <span style={{ fontSize: 10, color: '#a89e8a', fontWeight: 600, letterSpacing: '0.1em' }}>DIPLOMA SANTÉ</span>
-          <div style={{ flex: 1, height: 1, background: '#e5ddc8' }} />
-        </div>
+        <p style={{ fontSize: 12.5, color: '#7c98b6', textAlign: 'center', margin: '18px 0 0', lineHeight: 1.5 }}>
+          Accès réservé aux collaborateurs Diploma Santé.
+          <br />
+          Mot de passe oublié ? Contactez l’administration.
+        </p>
       </form>
+
+      <nav style={{ fontSize: 13, display: 'flex', gap: 16 }}>
+        <a href="/assistance" style={{ color: '#516f90', textDecoration: 'none' }}>Assistance</a>
+        <span style={{ color: '#cbd6e2' }}>·</span>
+        <a href="/confidentialite" style={{ color: '#516f90', textDecoration: 'none' }}>Confidentialité</a>
+      </nav>
     </div>
   )
 }
