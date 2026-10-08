@@ -152,55 +152,60 @@ export async function GET(req: NextRequest) {
     : ''
 
   // ── Charger TOUS les deals pipeline 2026-2027 (pas de limit) ─────────────
-  // On pagine côté Supabase pour contourner la limite max_rows (1000 par défaut)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const allDeals: any[] = []
+  // On pagine côté Supabase pour contourner la limite max_rows (1000 par
+  // défaut) : un comptage, puis toutes les pages en parallèle.
   const PAGE_SIZE = 1000
-  let from = 0
-  let hasMore = true
-
-  while (hasMore) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let q: any = db
-      .from('crm_deals')
-      .select('hubspot_deal_id, hubspot_contact_id, dealname, dealstage, pipeline, formation, hubspot_owner_id, teleprospecteur, closedate, createdate, description')
-    if (pipelineParam !== 'all') q = q.eq('pipeline', pipelineParam)
-    const { data: batch, error } = await q
-      .order('createdate', { ascending: false, nullsFirst: false })
-      .range(from, from + PAGE_SIZE - 1)
-
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-    allDeals.push(...(batch ?? []))
-    hasMore = (batch?.length ?? 0) === PAGE_SIZE
-    from += PAGE_SIZE
-  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const dealsBase = (q: any) => (pipelineParam !== 'all' ? q.eq('pipeline', pipelineParam) : q)
+  const { count: dealsCount, error: countErr } = await dealsBase(
+    db.from('crm_deals').select('hubspot_deal_id', { count: 'exact', head: true }),
+  )
+  if (countErr) return NextResponse.json({ error: countErr.message }, { status: 500 })
+  const pageStarts = Array.from({ length: Math.ceil((dealsCount ?? 0) / PAGE_SIZE) }, (_, i) => i * PAGE_SIZE)
+  const dealPages = await Promise.all(pageStarts.map(from => dealsBase(
+    db.from('crm_deals')
+      .select('hubspot_deal_id, hubspot_contact_id, dealname, dealstage, pipeline, formation, hubspot_owner_id, teleprospecteur, closedate, createdate, description'),
+  )
+    .order('createdate', { ascending: false, nullsFirst: false })
+    .order('hubspot_deal_id', { ascending: true })
+    .range(from, from + PAGE_SIZE - 1)))
+  const pageErr = dealPages.find((r: { error: unknown }) => r.error)
+  if (pageErr) return NextResponse.json({ error: (pageErr.error as { message: string }).message }, { status: 500 })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const allDeals: any[] = dealPages.flatMap((r: { data: unknown[] | null }) => r.data ?? [])
 
   // ── Charger les contacts associés en batch ────────────────────────────────
   const contactIds = [...new Set(allDeals.map(d => d.hubspot_contact_id).filter(Boolean))]
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const contactMap: Record<string, any> = {}
+  // Verdict Parcoursup chargé pendant les contacts.
+  const parcoursupPromise: Promise<Record<string, ParcoursupVerdictCell>> =
+    contactIds.length > 0
+      ? fetchParcoursupVerdictsByContactId(db, contactIds as string[])
+      : Promise.resolve({})
 
   if (contactIds.length > 0) {
+    // Lots de 300 ids (limite de longueur d'URL), 8 requêtes à la fois.
     const BATCH = 300
-    for (let i = 0; i < contactIds.length; i += BATCH) {
-      const batch = contactIds.slice(i, i + BATCH)
-      const { data: contacts } = await db
+    const CONCURRENCY = 8
+    const batches: string[][] = []
+    for (let i = 0; i < contactIds.length; i += BATCH) batches.push(contactIds.slice(i, i + BATCH))
+    for (let i = 0; i < batches.length; i += CONCURRENCY) {
+      const results = await Promise.all(batches.slice(i, i + CONCURRENCY).map(batch => db
         .from('crm_contacts')
         .select('hubspot_contact_id, firstname, lastname, email, phone, departement, classe_actuelle, zone_localite, hubspot_owner_id, telepro_user_id, closer_du_contact_owner_id')
-        .in('hubspot_contact_id', batch)
-      for (const c of contacts ?? []) {
-        contactMap[c.hubspot_contact_id] = c
+        .in('hubspot_contact_id', batch)))
+      for (const { data: contacts } of results) {
+        for (const c of contacts ?? []) {
+          contactMap[c.hubspot_contact_id] = c
+        }
       }
     }
   }
 
   // Verdict Parcoursup par contact (saison 2026-2027). Une seule passe pour
   // que les cartes du board affichent le badge tant qu'on connait le verdict.
-  const parcoursupByContactId: Record<string, ParcoursupVerdictCell> =
-    contactIds.length > 0
-      ? await fetchParcoursupVerdictsByContactId(db, contactIds as string[])
-      : {}
+  const parcoursupByContactId: Record<string, ParcoursupVerdictCell> = await parcoursupPromise
 
   // ── Merge deals + contacts ────────────────────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

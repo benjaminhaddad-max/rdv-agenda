@@ -56,6 +56,41 @@ export const PARCOURSUP_VERDICT_OPTIONS: Array<{ value: string; label: string }>
   { value: 'aucun',      label: 'Sans verdict' },
 ]
 
+// Seuls l'override CRM et le verdict sont lus : external_data complet pèse
+// ~25 Mo pour 1 000 pré-inscriptions (contre ~100 Ko pour ces 2 chemins).
+const VERDICT_SELECT = 'hubspot_contact_id, ov:external_data->parcoursup_crm_override, rv:external_data->parcoursup->verdict'
+
+type VerdictRow = {
+  hubspot_contact_id: string | null
+  ov: Record<string, unknown> | null
+  rv: Record<string, unknown> | null
+}
+
+// Override CRM prioritaire sur le verdict de la plateforme.
+function rowVerdict(row: VerdictRow): Record<string, unknown> | undefined {
+  const v = row.ov != null ? row.ov.verdict : row.rv
+  return v && typeof v === 'object' ? (v as Record<string, unknown>) : undefined
+}
+
+// Toutes les pré-inscriptions de la saison, pages chargées en parallèle.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function fetchSeasonVerdictRows(db: any): Promise<VerdictRow[]> {
+  const PAGE = 1000
+  const { count, error } = await db
+    .from('crm_pre_inscriptions')
+    .select('id', { count: 'exact', head: true })
+    .eq('saison', PARCOURSUP_SAISON)
+  if (error || !count) return []
+  const pages = Array.from({ length: Math.ceil(count / PAGE) }, (_, i) => i * PAGE)
+  const results = await Promise.all(pages.map(from => db
+    .from('crm_pre_inscriptions')
+    .select(VERDICT_SELECT)
+    .eq('saison', PARCOURSUP_SAISON)
+    .order('id', { ascending: true })
+    .range(from, from + PAGE - 1)))
+  return results.flatMap(({ data, error: e }: { data: VerdictRow[] | null; error: unknown }) => (e ? [] : data ?? []))
+}
+
 // Récupère la liste des hubspot_contact_id qui ont un verdict Parcoursup
 // correspondant à l'un des statuts demandés (saison 2026-2027).
 // Si la valeur "aucun" est demandée, on retourne l'ensemble des contacts
@@ -72,33 +107,13 @@ export async function fetchContactIdsByParcoursupVerdict(
   const wantsAny = wanted.has('__any__') || wanted.has('any')
 
   const out = new Set<string>()
-  const PAGE = 1000
-  let offset = 0
-  while (true) {
-    const { data, error } = await db
-      .from('crm_pre_inscriptions')
-      .select('hubspot_contact_id, external_data')
-      .eq('saison', PARCOURSUP_SAISON)
-      .range(offset, offset + PAGE - 1)
-    if (error) break
-    const rows = (data ?? []) as Array<{
-      hubspot_contact_id: string | null
-      external_data: Record<string, unknown> | null
-    }>
-    for (const row of rows) {
-      const cid = row.hubspot_contact_id
-      if (!cid) continue
-      const ext = row.external_data || {}
-      const override = ext.parcoursup_crm_override as Record<string, unknown> | undefined
-      const raw = ext.parcoursup as Record<string, unknown> | undefined
-      const source = (override ?? raw) || null
-      const verdict = source ? (source.verdict as Record<string, unknown> | undefined) : undefined
-      const status = typeof verdict?.status === 'string' ? verdict.status.toLowerCase() : ''
-      if (status && (wantsAny || wanted.has(status))) out.add(cid)
-      else if (!status && wantsNoVerdict) out.add(cid)
-    }
-    if (rows.length < PAGE) break
-    offset += PAGE
+  for (const row of await fetchSeasonVerdictRows(db)) {
+    const cid = row.hubspot_contact_id
+    if (!cid) continue
+    const verdict = rowVerdict(row)
+    const status = typeof verdict?.status === 'string' ? verdict.status.toLowerCase() : ''
+    if (status && (wantsAny || wanted.has(status))) out.add(cid)
+    else if (!status && wantsNoVerdict) out.add(cid)
   }
   return Array.from(out)
 }
@@ -111,38 +126,34 @@ export async function fetchParcoursupVerdictsByContactId(
   const out: Record<string, ParcoursupVerdictCell> = {}
   if (!contactIds || contactIds.length === 0) return out
 
-  const BATCH = 200
-  for (let i = 0; i < contactIds.length; i += BATCH) {
-    const batch = contactIds.slice(i, i + BATCH)
-    const { data, error } = await db
+  let rows: VerdictRow[]
+  if (contactIds.length > 1500) {
+    // Board Transactions (~11 000 contacts) : la saison entière tient en
+    // 2-3 pages, bien moins d'allers-retours que 55 lots de 200 ids.
+    const wanted = new Set(contactIds)
+    rows = (await fetchSeasonVerdictRows(db)).filter(r => r.hubspot_contact_id && wanted.has(r.hubspot_contact_id))
+  } else {
+    const BATCH = 200
+    const batches: string[][] = []
+    for (let i = 0; i < contactIds.length; i += BATCH) batches.push(contactIds.slice(i, i + BATCH))
+    const results = await Promise.all(batches.map(batch => db
       .from('crm_pre_inscriptions')
-      .select('hubspot_contact_id, external_data, updated_at')
+      .select(VERDICT_SELECT)
       .in('hubspot_contact_id', batch)
-      .eq('saison', PARCOURSUP_SAISON)
+      .eq('saison', PARCOURSUP_SAISON)))
+    rows = results.flatMap(({ data, error }: { data: VerdictRow[] | null; error: unknown }) => (error ? [] : data ?? []))
+  }
 
-    if (error) continue
-
-    const rows = (data ?? []) as Array<{
-      hubspot_contact_id: string | null
-      external_data: Record<string, unknown> | null
-      updated_at: string | null
-    }>
-    for (const row of rows) {
-      const cid = row.hubspot_contact_id
-      if (!cid) continue
-      const ext = row.external_data || {}
-      const override = ext.parcoursup_crm_override as Record<string, unknown> | undefined
-      const raw = ext.parcoursup as Record<string, unknown> | undefined
-      const source = (override ?? raw) || null
-      if (!source) continue
-      const verdict = source.verdict as Record<string, unknown> | undefined
-      if (!verdict) continue
-      const status = typeof verdict.status === 'string' ? verdict.status : null
-      const label = typeof verdict.label === 'string' ? verdict.label : null
-      if (!status && !label) continue
-      if (!out[cid]) {
-        out[cid] = { status, label }
-      }
+  for (const row of rows) {
+    const cid = row.hubspot_contact_id
+    if (!cid) continue
+    const verdict = rowVerdict(row)
+    if (!verdict) continue
+    const status = typeof verdict.status === 'string' ? verdict.status : null
+    const label = typeof verdict.label === 'string' ? verdict.label : null
+    if (!status && !label) continue
+    if (!out[cid]) {
+      out[cid] = { status, label }
     }
   }
   return out
