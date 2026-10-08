@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { addParisDays, parisMidnightUtc, parisWeekStartKey } from '@/lib/date-paris'
 import { sendBrevoEmail } from '@/lib/brevo'
 import { logger } from '@/lib/logger'
+import { loadSlots, markSlotAlerted } from '@/lib/telepro-planning'
 
 export const PLANNING_SETTING_KEY = 'suivi_telepro_planning'
 export const DEFAULT_DIRECTOR_EMAIL = 'pascal@diploma-sante.fr'
@@ -32,6 +33,8 @@ export type PlanningSlot = {
   start: string
   end: string
   alerted_at: string | null
+  /** Imposé par un admin (table telepro_planning_slots, v57) */
+  locked?: boolean
 }
 
 export type PlanningPerson = {
@@ -211,21 +214,31 @@ function normalizeSlot(raw: unknown): PlanningSlot | null {
   }
 }
 
+/**
+ * Réglages (contrats, e-mail d'alerte) dans crm_settings ; créneaux dans la
+ * table telepro_planning_slots (v57, cf. lib/telepro-planning.ts) sur une
+ * fenêtre de 8 semaines passées à 8 semaines à venir.
+ */
 export async function loadPlanningStore(db: SupabaseClient): Promise<PlanningStore> {
   const { data } = await db
     .from('crm_settings')
     .select('value')
     .eq('key', PLANNING_SETTING_KEY)
     .maybeSingle()
-  return parsePlanningStore(data?.value)
+  const store = parsePlanningStore(data?.value)
+  const monday = parisWeekStartKey(new Date())
+  const { slots } = await loadSlots(db, addParisDays(monday, -56), addParisDays(monday, 63))
+  store.slots = slots.map(s => ({
+    id: s.id, user_id: s.user_id, date: s.date, start: s.start, end: s.end, alerted_at: s.alerted_at, locked: s.locked,
+  }))
+  return store
 }
 
+/** Enregistre les réglages uniquement (les créneaux vivent dans leur table). */
 export async function savePlanningStore(db: SupabaseClient, store: PlanningStore): Promise<void> {
-  const cutoff = addParisDays(parisWeekStartKey(new Date()), -56)
-  const slots = store.slots.filter(s => s.date >= cutoff)
   const { error } = await db.from('crm_settings').upsert({
     key: PLANNING_SETTING_KEY,
-    value: { director_email: store.director_email, slots, people: store.people },
+    value: { director_email: store.director_email, slots: [], people: store.people },
     description: 'Planning horaires télépros (suivi commercial) + alertes absence d’appels',
     updated_at: new Date().toISOString(),
   }, { onConflict: 'key' })
@@ -296,7 +309,6 @@ export async function runPlanningAbsenceAlerts(db: SupabaseClient): Promise<{ ch
   const names = await loadTeleproNames(db)
   let mailed = 0
   let checked = 0
-  let dirty = false
 
   const rosterIds = new Set(store.people.map(p => p.user_id))
 
@@ -331,19 +343,18 @@ export async function runPlanningAbsenceAlerts(db: SupabaseClient): Promise<{ ch
         tags: ['suivi-planning', 'absence-appels'],
       })
       slot.alerted_at = new Date().toISOString()
+      await markSlotAlerted(db, slot.id)
       mailed += 1
-      dirty = true
     } catch (err) {
       logger.warn('suivi-planning-mail', err instanceof Error ? err.message : String(err), { userId: slot.user_id })
     }
   }
 
-  if (dirty) await savePlanningStore(db, store)
   return { checked, mailed }
 }
 
 async function loadTeleproNames(db: SupabaseClient): Promise<Map<string, string>> {
-  const { data } = await db.from('rdv_users').select('id, name').eq('role', 'telepro')
+  const { data } = await db.from('rdv_users').select('id, name')
   return new Map((data ?? []).map(u => [u.id as string, String(u.name || '')]))
 }
 

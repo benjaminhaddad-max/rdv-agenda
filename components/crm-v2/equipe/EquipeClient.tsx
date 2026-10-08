@@ -33,6 +33,7 @@ import {
 import { AdminIconButton, AdminNotice, AdminSpin } from '@/components/crm-v2/admin/AdminUi'
 import { PanelCard } from '@/components/crm-v2/panels/PanelUi'
 import { CredentialBox, type TeamMember } from '@/components/crm-v2/panels/TeamMemberManager'
+import PlanningWeek from '@/components/crm-v2/equipe/PlanningWeek'
 import { addParisDays, parisDateKey, parisMonthEndKey, parisWeekStartKey } from '@/lib/date-paris'
 import { RDV_BRANDS, type RdvBrand } from '@/lib/rdv-brand'
 import { TEAM_ROLE_LABELS, TEAM_ROLES, teamRolesOf, type TeamRole } from '@/lib/team-roles'
@@ -189,6 +190,7 @@ type Row = {
 type SortKey =
   | 'name' | 'calls' | 'answered' | 'talk2' | 'talk' | 'rdv' | 'minPerRdv' | 'conv'
   | 'honored' | 'noShow' | 'cancelled' | 'showRate' | 'closingRate' | 'lastSignIn'
+  | 'talk2Rdv' | 'venus' | 'preinscrits'
 
 function sortValue(r: Row, key: SortKey): number | string {
   const s = r.stats
@@ -208,6 +210,9 @@ function sortValue(r: Row, key: SortKey): number | string {
     case 'cancelled': return s.rdv_annules
     case 'showRate': return s.show_rate ?? -1
     case 'closingRate': return s.closing_rate ?? -1
+    case 'talk2Rdv': return s.conversion_talk_2min ?? -1
+    case 'venus': return s.rdv_venus
+    case 'preinscrits': return s.rdv_preinscrits
     default: return 0
   }
 }
@@ -235,13 +240,25 @@ export default function EquipeClient() {
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'rdv', dir: 'desc' })
   const [expanded, setExpanded] = useState<string | null>(null)
   const [showBanned, setShowBanned] = useState(false)
+  const [teleproView, setTeleproView] = useState<'perf' | 'planning'>('perf')
 
   const team = TEAMS[tab]
   const isAdmins = tab === 'admins'
+  const isPlanning = tab === 'telepros' && teleproView === 'planning'
+
+  function changeTeleproView(v: 'perf' | 'planning') {
+    setTeleproView(v)
+    if (v === 'planning') setPeriod('week')
+    const url = new URL(window.location.href)
+    if (v === 'planning') url.searchParams.set('view', 'planning'); else url.searchParams.delete('view')
+    window.history.replaceState(null, '', url.toString())
+  }
 
   // Onglet depuis l'URL (?tab=closers), sans Suspense
   useEffect(() => {
-    const t = new URLSearchParams(window.location.search).get('tab')
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('view') === 'planning') { setTeleproView('planning'); setPeriod('week') }
+    const t = params.get('tab')
     if (t === 'closers' || t === 'telepros' || t === 'admins') {
       setTab(t)
       if (t === 'admins') setSort({ key: 'name', dir: 'asc' })
@@ -385,17 +402,21 @@ export default function EquipeClient() {
         title="Équipe"
         subtitle={isAdmins
           ? 'Comptes admin et manager · accès complet au CRM'
-          : `${formatRange(period, from, to)} · comptes, accès et performance`}
+          : isPlanning
+            ? `${formatRange(period, from, to)} · horaires d'appel et bilan de chaque journée`
+            : `${formatRange(period, from, to)} · comptes, accès et performance`}
         actions={
           <>
             {!isAdmins && (
               <>
-                <CrmV2Segmented<Period>
-                  size="sm"
-                  items={[{ id: 'day', label: 'Jour' }, { id: 'week', label: 'Semaine' }, { id: 'month', label: 'Mois' }]}
-                  value={period}
-                  onChange={setPeriod}
-                />
+                {!isPlanning && (
+                  <CrmV2Segmented<Period>
+                    size="sm"
+                    items={[{ id: 'day', label: 'Jour' }, { id: 'week', label: 'Semaine' }, { id: 'month', label: 'Mois' }]}
+                    value={period}
+                    onChange={setPeriod}
+                  />
+                )}
                 <div style={{ display: 'inline-flex', gap: 4 }}>
                   <AdminIconButton icon={<ChevronLeft size={15} />} title="Période précédente" onClick={() => setAnchor(a => shiftAnchor(period, a, -1))} />
                   <CrmV2Button size="sm" onClick={() => setAnchor(parisDateKey(new Date()))}>Aujourd&apos;hui</CrmV2Button>
@@ -424,6 +445,19 @@ export default function EquipeClient() {
       </CrmV2Header>
 
       <CrmV2Body>
+        {tab === 'telepros' && (
+          <div>
+            <CrmV2Segmented<'perf' | 'planning'>
+              items={[{ id: 'perf', label: 'Performance' }, { id: 'planning', label: "Planning d'appel" }]}
+              value={teleproView}
+              onChange={changeTeleproView}
+            />
+          </div>
+        )}
+        {isPlanning ? (
+          <PlanningWeek weekStart={from} refreshKey={refreshTick} search="" />
+        ) : (
+        <>
         {!isAdmins && statsError && <AdminNotice tone="error">{statsError}</AdminNotice>}
         {!isAdmins && statsReady && stats?.needs_lines && tab === 'telepros' && (
           <AdminNotice tone="warning" icon={<AlertTriangle size={15} />}>
@@ -475,6 +509,8 @@ export default function EquipeClient() {
             )}
           </div>
         )}
+        </>
+        )}
       </CrmV2Body>
     </CrmV2Page>
   )
@@ -490,17 +526,20 @@ function TeamKpis({ tab, totals, loading }: { tab: Tab; totals: SuiviCommercialR
   if (tab === 'telepros') {
     const t = totals
     const mpr = t ? minPerRdv(t.talk_time_sec, t.rdv_total) : null
+    const venus = t?.rdv_venus ?? 0
+    const pre = t?.rdv_preinscrits ?? 0
     return (
       <CrmV2KpiGrid>
         <CrmV2KpiCard icon={<PhoneOutgoing size={15} />} label="Appels sortants" value={t ? fmtInt(t.calls_outbound) : dash}
-          detail={t ? `${fmtPct(t.answer_rate)} décrochés · ${fmtInt(t.calls_outbound_talk_2min)} conv. ≥ 2 min` : undefined} />
-        <CrmV2KpiCard icon={<Clock size={15} />} label="Temps d'appel" value={t ? fmtMinutes(t.talk_time_sec) : dash} />
+          detail={t ? `${fmtInt(t.calls_outbound_talk_2min)} ≥ 2 min (${fmtPct(t.talk_2min_rate)}) · ${fmtMinutes(t.talk_time_sec)}` : undefined} />
         <CrmV2KpiCard icon={<CalendarCheck size={15} />} label="RDV placés" color={crmV2.goldDark} value={t ? fmtInt(t.rdv_total) : dash}
+          detail={t ? `${fmtPct(t.conversion_talk_2min)} des appels ≥ 2 min → RDV · ${mpr != null ? `${mpr} min / RDV` : '—'}` : undefined} />
+        <CrmV2KpiCard icon={<UserCheck size={15} />} label="RDV venus" value={t ? fmtInt(venus) : dash}
+          detail={t ? `${fmtPct(pct(venus, t.rdv_total))} des RDV placés · ${fmtInt(t.rdv_no_show)} no-show` : undefined} />
+        <CrmV2KpiCard icon={<Trophy size={15} />} label="Préinscriptions" color={crmV2.successStrong} value={t ? fmtInt(pre) : dash}
+          detail={t ? `${fmtPct(pct(pre, venus))} des venus · ${fmtPct(pct(pre, t.rdv_total))} des placés` : undefined} />
+        <CrmV2KpiCard icon={<Clock size={15} />} label="Par marque" value={t ? fmtInt(t.rdv_total) : dash}
           detail={brandSplit(t?.by_brand, s => s.rdv_total)} />
-        <CrmV2KpiCard icon={<Clock size={15} />} label="Minutes / RDV" value={t ? (mpr != null ? `${mpr} min` : '—') : dash}
-          detail={t ? `${fmtPct(t.conversion_talk_2min)} des conv. ≥ 2 min → RDV` : undefined} />
-        <CrmV2KpiCard icon={<Trophy size={15} />} label="RDV convertis" color={crmV2.successStrong} value={t ? fmtInt(converted(t)) : dash}
-          detail={t ? `${fmtPct(pct(converted(t), t.rdv_total))} des RDV placés` : undefined} />
       </CrmV2KpiGrid>
     )
   }
@@ -533,12 +572,12 @@ type Col = { key: SortKey; label: string; title?: string }
 
 const TELEPRO_COLS: Col[] = [
   { key: 'calls', label: 'Appels', title: 'Appels sortants (lignes Aircall suivies)' },
-  { key: 'answered', label: 'Décrochés', title: 'Décrochés humains ≥ 10 s' },
-  { key: 'talk2', label: 'Conv. ≥ 2 min' },
+  { key: 'talk2', label: 'Appels ≥ 2 min', title: 'Conversations de 2 minutes ou plus (et part des appels)' },
+  { key: 'rdv', label: 'RDV placés', title: 'Tous les RDV placés, même sans appel (SMS, etc.)' },
+  { key: 'talk2Rdv', label: '≥ 2 min → RDV', title: 'RDV placés / appels ≥ 2 min : une conversation de 2 min doit se transformer en RDV' },
+  { key: 'venus', label: 'RDV venus', title: 'Le closer a saisi une issue (ni no-show ni annulé) — et part des RDV placés' },
+  { key: 'preinscrits', label: 'Préinscrits', title: 'Contact pré-inscrit / inscrit (plateforme d’inscription) — et part des RDV venus' },
   { key: 'talk', label: "Temps d'appel" },
-  { key: 'rdv', label: 'RDV placés' },
-  { key: 'minPerRdv', label: 'Min / RDV', title: 'Minutes de conversation par RDV placé' },
-  { key: 'conv', label: 'Convertis', title: 'RDV placés devenus positifs ou préinscriptions' },
 ]
 
 const CLOSER_COLS: Col[] = [
@@ -695,7 +734,16 @@ function cellValue(tab: Tab, key: SortKey, s: AgentMetrics): ReactNode {
       const n = s.calls_outbound_talk_2min + s.calls_outbound_talk_short
       return n ? <>{fmtInt(n)} <Faint>{fmtPct(s.answer_rate)}</Faint></> : '—'
     }
-    case 'talk2': return fmtInt(s.calls_outbound_talk_2min)
+    case 'talk2': return s.calls_outbound_talk_2min
+      ? <>{fmtInt(s.calls_outbound_talk_2min)} <Faint>{fmtPct(s.talk_2min_rate)}</Faint></>
+      : '—'
+    case 'talk2Rdv': return <strong style={{ color: rateColor(s.conversion_talk_2min, 60, 35) }}>{fmtPct(s.conversion_talk_2min)}</strong>
+    case 'venus': return s.rdv_venus
+      ? <>{fmtInt(s.rdv_venus)} <Faint>{fmtPct(pct(s.rdv_venus, s.rdv_total))}</Faint></>
+      : '—'
+    case 'preinscrits': return s.rdv_preinscrits
+      ? <><strong style={{ color: crmV2.successStrong }}>{fmtInt(s.rdv_preinscrits)}</strong> <Faint>{fmtPct(pct(s.rdv_preinscrits, s.rdv_venus))}</Faint></>
+      : '—'
     case 'talk': return fmtMinutes(s.talk_time_sec)
     case 'rdv': return <strong style={{ color: s.rdv_total ? crmV2.text : crmV2.textFaint }}>{fmtInt(s.rdv_total)}</strong>
     case 'minPerRdv': {
@@ -715,6 +763,14 @@ function cellValue(tab: Tab, key: SortKey, s: AgentMetrics): ReactNode {
     case 'closingRate': return <strong>{fmtPct(s.closing_rate)}</strong>
     default: return '—'
   }
+}
+
+/** Vert au-dessus de `good`, orange entre les deux, rouge sous `bad`. */
+function rateColor(v: number | null | undefined, good: number, bad: number): string {
+  if (v == null) return crmV2.textFaint
+  if (v >= good) return crmV2.successStrong
+  if (v < bad) return '#dc2626'
+  return '#d97706'
 }
 
 function Faint({ children }: { children: ReactNode }) {
@@ -901,7 +957,7 @@ function BrandPerf({ tab, row, statsLoading }: { tab: Tab; row: Row; statsLoadin
   const isCloser = tab === 'closers'
   const headers = isCloser
     ? ['Marque', 'RDV', 'Honorés', 'No-show', 'Annulés', 'Convertis', 'Closing']
-    : ['Marque', 'RDV placés', 'Maintenus', 'No-show', 'Annulés', 'Convertis', 'Conversion']
+    : ['Marque', 'RDV placés', 'Venus', 'No-show', 'Annulés', 'Préinscrits', 'Préinscr. / venus']
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ overflowX: 'auto' }}>
@@ -920,10 +976,9 @@ function BrandPerf({ tab, row, statsLoading }: { tab: Tab; row: Row; statsLoadin
             {BRANDS.map(k => {
               const b = s.by_brand[k]
               const conv = converted(b)
-              const kept = b.rdv_total - b.rdv_annules - b.rdv_no_show
               const cells: ReactNode[] = isCloser
                 ? [fmtInt(b.rdv_total), fmtInt(b.rdv_honored), fmtInt(b.rdv_no_show), fmtInt(b.rdv_annules), fmtInt(conv), fmtPct(pct(conv, b.rdv_honored))]
-                : [fmtInt(b.rdv_total), fmtInt(Math.max(0, kept)), fmtInt(b.rdv_no_show), fmtInt(b.rdv_annules), fmtInt(conv), fmtPct(pct(conv, b.rdv_total))]
+                : [fmtInt(b.rdv_total), fmtInt(b.rdv_venus), fmtInt(b.rdv_no_show), fmtInt(b.rdv_annules), fmtInt(b.rdv_preinscrits), fmtPct(pct(b.rdv_preinscrits, b.rdv_venus))]
               return (
                 <tr key={k} style={{ borderTop: `1px solid ${crmV2.border}` }}>
                   <td style={{ padding: '6px 12px', fontWeight: 700, color: RDV_BRANDS[k].color, whiteSpace: 'nowrap' }}>{RDV_BRANDS[k].label}</td>
@@ -940,9 +995,10 @@ function BrandPerf({ tab, row, statsLoading }: { tab: Tab; row: Row; statsLoadin
         {isCloser
           ? <>Présence {fmtPct(s.show_rate)}</>
           : <>
-              {fmtInt(s.calls_outbound)} appels sortants · {fmtInt(s.calls_outbound_talk_2min)} conversations ≥ 2 min
+              {fmtInt(s.calls_outbound)} appels sortants · {fmtInt(s.calls_outbound_talk_2min + s.calls_outbound_talk_short)} décrochés ({fmtPct(s.answer_rate)}) · {fmtInt(s.calls_outbound_talk_2min)} conversations ≥ 2 min
               {s.avg_talk_2min_sec ? ` (moy. ${Math.round(s.avg_talk_2min_sec / 60)} min)` : ''}
               {' · '}{fmtPct(s.conversion_talk_2min)} des conversations ≥ 2 min deviennent un RDV
+              {minPerRdv(s.talk_time_sec, s.rdv_total) != null && ` · ${minPerRdv(s.talk_time_sec, s.rdv_total)} min d'appel par RDV`}
             </>}
         {s.delta_rdv !== 0 && ` · ${s.delta_rdv > 0 ? '+' : ''}${s.delta_rdv} RDV vs période précédente`}
       </div>

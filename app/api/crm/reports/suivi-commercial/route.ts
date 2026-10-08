@@ -137,6 +137,7 @@ async function buildReport(req: NextRequest, startedAt: number) {
     ? await resolveContactTelepros(db, [...currentAppts, ...prevAppts], hsUserToTelepro)
     : new Map<string, string>()
 
+  const preinscritContacts = await resolvePreinscritContacts(db, currentAppts)
   const validIds = new Set(userList.map(u => u.id))
   const nowMs = Date.now()
 
@@ -169,7 +170,8 @@ async function buildReport(req: NextRequest, startedAt: number) {
       bumpUnassigned(row.status)
       continue
     }
-    applyRdv(agents.get(id)!, row.status, row.start_at, row.created_at, nowMs, dayIndex, role, row.brand)
+    applyRdv(agents.get(id)!, row.status, row.start_at, row.created_at, nowMs, dayIndex, role, row.brand,
+      !!row.hubspot_contact_id && preinscritContacts.has(row.hubspot_contact_id))
   }
 
   const prevRdv = new Map<string, number>()
@@ -235,6 +237,8 @@ async function buildReport(req: NextRequest, startedAt: number) {
     rdv_no_show: 0,
     rdv_positifs: 0,
     rdv_preinscriptions: 0,
+    rdv_venus: 0,
+    rdv_preinscrits: 0,
     calls_answered_outbound: 0,
     calls_answered: 0,
     talk_time_sec: 0,
@@ -361,4 +365,33 @@ async function resolveContactTelepros(
     }
   }
   return map
+}
+
+/**
+ * Contacts pré-inscrits / inscrits : dossier sur la plateforme d'inscription
+ * (crm_pre_inscriptions, hors annulés) ou statut du lead « Pré-inscrit … » /
+ * « Inscrit ».
+ */
+async function resolvePreinscritContacts(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  db: any,
+  rows: ApptRow[],
+): Promise<Set<string>> {
+  const ids = [...new Set(rows.map(r => r.hubspot_contact_id).filter((x): x is string => !!x))]
+  const out = new Set<string>()
+  for (let i = 0; i < ids.length; i += 200) {
+    const batch = ids.slice(i, i + 200)
+    const [{ data: pre }, { data: contacts }] = await Promise.all([
+      db.from('crm_pre_inscriptions').select('hubspot_contact_id, paiement_status').in('hubspot_contact_id', batch),
+      db.from('crm_contacts').select('hubspot_contact_id, hs_lead_status').in('hubspot_contact_id', batch),
+    ])
+    for (const p of (pre ?? []) as Array<{ hubspot_contact_id: string; paiement_status: string | null }>) {
+      if ((p.paiement_status || '') !== 'annulee') out.add(p.hubspot_contact_id)
+    }
+    for (const c of (contacts ?? []) as Array<{ hubspot_contact_id: string; hs_lead_status: string | null }>) {
+      const st = (c.hs_lead_status || '').trim()
+      if (st === 'Inscrit' || st.startsWith('Pré-inscrit')) out.add(c.hubspot_contact_id)
+    }
+  }
+  return out
 }

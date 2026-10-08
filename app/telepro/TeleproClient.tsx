@@ -26,6 +26,7 @@ import type { MyAppointment, TeleproUser } from '@/components/telepro-v2/types'
 import { useNewRdvForm } from '@/components/telepro-v2/useNewRdvForm'
 import NewRdvFlow, { RdvSuccess } from '@/components/telepro-v2/NewRdvFlow'
 import PlanningView from '@/components/telepro-v2/PlanningView'
+import MyCallSchedule from '@/components/telepro-v2/MyCallSchedule'
 import RdvDetailDrawer from '@/components/telepro-v2/RdvDetailDrawer'
 import TeleproContactsMobile from '@/components/telepro-v2/TeleproContactsMobile'
 import {
@@ -36,7 +37,7 @@ import {
 const PLANNING_FETCH_TIMEOUT_MS = 2500
 const PLANNING_LOADING_GUARD_MS = 3000
 
-type TeleproTab = 'form' | 'rdvs' | 'suivi' | 'agenda' | 'historique' | 'repop' | 'contacts' | 'transactions'
+type TeleproTab = 'form' | 'rdvs' | 'horaires' | 'suivi' | 'agenda' | 'historique' | 'repop' | 'contacts' | 'transactions'
 
 export default function TeleproClient({
   teleproUser,
@@ -547,6 +548,16 @@ export default function TeleproClient({
       case 'form': return newRdvContent
       case 'rdvs': return planningContent
       case 'historique': return historiqueContent
+      case 'horaires':
+        // Horaires d'appel de la semaine (saisis par le télépro ou imposés) + bilan Aircall
+        return (
+          <>
+            {isMobile && <TpMobileHeader title="Mes horaires" subtitle="Tes horaires d'appel de la semaine et le bilan de chaque journée." />}
+            <div style={isMobile ? undefined : { maxWidth: 1280, margin: '0 auto', padding: '20px 28px 32px', width: '100%', boxSizing: 'border-box' }}>
+              <MyCallSchedule userId={previewMode ? teleproUser.id : undefined} readOnly={previewMode} />
+            </div>
+          </>
+        )
       case 'agenda':
         // Tous les RDV de la semaine (toute l'équipe) : permet au télépro de
         // repérer où il reste de la place avant de placer un RDV.
@@ -747,6 +758,7 @@ export default function TeleproClient({
       : activeTab === 'form' ? 'form'
       : 'plus'
     const plusItems: TpMenuItem[] = [
+      { key: 'horaires', label: 'Mes horaires', icon: <Clock size={18} />, onClick: () => goTab('horaires'), active: activeTab === 'horaires' },
       { key: 'agenda', label: 'Agenda équipe', icon: <CalendarDays size={18} />, onClick: () => goTab('agenda'), active: activeTab === 'agenda' },
       { key: 'transactions', label: 'Mes transactions', icon: <Briefcase size={18} />, onClick: () => goTab('transactions'), active: activeTab === 'transactions', badge: txTotal },
       { key: 'repop', label: 'Repop', icon: <Repeat2 size={18} />, onClick: () => goTab('repop'), active: activeTab === 'repop' },
@@ -808,6 +820,7 @@ export default function TeleproClient({
   const tabs = [
     { id: 'rdvs', label: 'Mon planning', count: myRdvs.length > 0 ? myRdvs.length : undefined },
     { id: 'form', label: newRdvLabel },
+    { id: 'horaires', label: 'Mes horaires' },
     { id: 'suivi', label: 'Suivi RDV' },
     { id: 'agenda', label: 'Agenda équipe' },
     { id: 'contacts', label: 'Mes contacts', count: crmTotal > 0 ? crmTotal : undefined },

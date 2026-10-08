@@ -49,6 +49,8 @@ export type BrandRdvStats = {
   rdv_annules: number
   rdv_no_show: number
   rdv_honored: number
+  rdv_venus: number
+  rdv_preinscrits: number
 }
 
 export type BrandBreakdown = Record<RdvBrand, BrandRdvStats>
@@ -56,6 +58,7 @@ export type BrandBreakdown = Record<RdvBrand, BrandRdvStats>
 export function emptyBrandBreakdown(): BrandBreakdown {
   const empty = (): BrandRdvStats => ({
     rdv_total: 0, rdv_positifs: 0, rdv_preinscriptions: 0, rdv_annules: 0, rdv_no_show: 0, rdv_honored: 0,
+    rdv_venus: 0, rdv_preinscrits: 0,
   })
   return { diploma: empty(), medibox: empty() }
 }
@@ -92,6 +95,10 @@ export type AgentMetrics = {
   rdv_no_show: number
   rdv_autres: number
   rdv_honored: number
+  /** RDV venus : le closer a saisi une issue (ni no-show ni annulé). */
+  rdv_venus: number
+  /** RDV dont le contact est pré-inscrit / inscrit (plateforme d'inscription ou statut du lead). */
+  rdv_preinscrits: number
   conversion_outbound: number | null
   conversion_answered: number | null
   conversion_talk_2min: number | null
@@ -130,6 +137,8 @@ export type TeamTotals = {
   show_rate: number | null
   closing_rate: number | null
   rdv_honored?: number
+  rdv_venus?: number
+  rdv_preinscrits?: number
   by_brand?: BrandBreakdown
 }
 
@@ -229,6 +238,8 @@ export function emptyAgent(
     rdv_no_show: 0,
     rdv_autres: 0,
     rdv_honored: 0,
+    rdv_venus: 0,
+    rdv_preinscrits: 0,
     conversion_outbound: null,
     conversion_answered: null,
     conversion_talk_2min: null,
@@ -308,6 +319,8 @@ export function totalsFromAgents(agents: AgentMetrics[], role: SuiviRole): TeamT
     show_rate: role === 'closer' ? rate(rdv_honored, rdv_honored + rdv_no_show) : null,
     closing_rate: role === 'closer' ? rate(rdv_positifs + rdv_preinscriptions, rdv_honored) : null,
     rdv_honored,
+    rdv_venus: mapped.reduce((s, a) => s + (a.rdv_venus ?? 0), 0),
+    rdv_preinscrits: mapped.reduce((s, a) => s + (a.rdv_preinscrits ?? 0), 0),
     by_brand: sumBrandBreakdowns(mapped.map(a => a.by_brand)),
   }
 }
@@ -380,6 +393,9 @@ export function applyCall(agent: AgentMetrics, call: CallRow, dayIndex: Map<stri
   else agent.lines.push({ line_id: call.line_id, line_name: call.line_name, calls: 1 })
 }
 
+/** Issues saisies par le closer après un RDV où le prospect est venu. */
+export const VENU_STATUSES = new Set(['a_travailler', 'pre_positif', 'positif', 'negatif', 'va_reflechir', 'preinscription'])
+
 export type RdvBucket = 'positifs' | 'preinscriptions' | 'annules' | 'no_show' | 'autres'
 
 export function rdvBucket(status: string | null): RdvBucket {
@@ -400,10 +416,13 @@ export function applyRdv(
   dayIndex: Map<string, number>,
   role: SuiviRole,
   brand?: string | null,
+  preinscrit = false,
 ): void {
   const b = agent.by_brand[normalizeRdvBrand(brand)]
   agent.rdv_total += 1
   b.rdv_total += 1
+  if (VENU_STATUSES.has((status || '').toLowerCase())) { agent.rdv_venus += 1; b.rdv_venus += 1 }
+  if (preinscrit) { agent.rdv_preinscrits += 1; b.rdv_preinscrits += 1 }
   const bucket = rdvBucket(status)
   if (bucket === 'positifs') { agent.rdv_positifs += 1; b.rdv_positifs += 1 }
   else if (bucket === 'preinscriptions') { agent.rdv_preinscriptions += 1; b.rdv_preinscriptions += 1 }

@@ -4,7 +4,6 @@ import { requireApiRole } from '@/lib/api-auth'
 import { addParisDays, parisRangeUtcBounds } from '@/lib/date-paris'
 import {
   loadPlanningStore,
-  mergeWeekSlots,
   outboundCallCount,
   parisHmUtc,
   planningRoster,
@@ -15,6 +14,7 @@ import {
   slotsInWeek,
   type PlanningSlot,
 } from '@/lib/suivi-planning'
+import { PlanningError, replaceDaySlots } from '@/lib/telepro-planning'
 
 export const dynamic = 'force-dynamic'
 
@@ -89,17 +89,39 @@ export async function PUT(req: NextRequest) {
   const db = createServiceClient()
   try {
     const store = await loadPlanningStore(db)
-    store.slots = mergeWeekSlots(store.slots, weekStart, incoming)
-    if (body.people !== undefined) store.people = replacePeople(body.people)
-    await savePlanningStore(db, store)
+    // Remplace jour par jour (table v57) ; un créneau déjà présent garde son
+    // drapeau « imposé », un nouveau créneau saisi ici par un admin est imposé.
+    const weekEnd = addParisDays(weekStart, 7)
+    const previous = slotsInWeek(store.slots, weekStart)
+    const lockedByKey = new Map(previous.map(s => [`${s.user_id}|${s.date}|${s.start}|${s.end}`, s.locked ?? true]))
+    const byDay = new Map<string, Array<{ start: string; end: string; locked: boolean }>>()
+    for (const s of previous) byDay.set(`${s.user_id}|${s.date}`, byDay.get(`${s.user_id}|${s.date}`) ?? [])
+    for (const raw of incoming) {
+      if (!raw?.user_id || !raw.date || raw.date < weekStart || raw.date >= weekEnd) continue
+      const k = `${raw.user_id}|${raw.date}`
+      const list = byDay.get(k) ?? []
+      list.push({ start: raw.start, end: raw.end, locked: lockedByKey.get(`${k}|${raw.start}|${raw.end}`) ?? true })
+      byDay.set(k, list)
+    }
+    let saved = 0
+    for (const [k, slots] of byDay) {
+      const [userId, date] = k.split('|')
+      const rows = await replaceDaySlots(db, { userId, date, slots, actorId: authz.ctx.appUserId, asAdmin: true })
+      saved += rows.length
+    }
+    if (body.people !== undefined) {
+      store.people = replacePeople(body.people)
+      await savePlanningStore(db, store)
+    }
 
     return NextResponse.json({
       ok: true,
       week_start: weekStart,
-      saved: slotsInWeek(store.slots, weekStart).length,
+      saved,
       people: store.people.length,
     })
   } catch (e) {
+    if (e instanceof PlanningError) return NextResponse.json({ error: e.message }, { status: e.status })
     const msg = e instanceof Error ? e.message : String(e)
     return NextResponse.json({ error: msg }, { status: 500 })
   }
