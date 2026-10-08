@@ -6,8 +6,8 @@ import {
   Users, Briefcase, Mail, FileText, LayoutDashboard,
   ChevronLeft, ChevronRight, ChevronDown, LogOut, Calendar, CalendarDays,
   BarChart3, CheckSquare, Workflow, Upload, GitMerge, Settings as SettingsIcon,
-  Database, Facebook, AlertTriangle, MessageSquare, Search, Menu, X, List,
-  Palette, Repeat2, FileSignature, Phone, ExternalLink, Presentation, PhoneCall, LifeBuoy, Star, ChevronsDownUp, ChevronsUpDown,
+  Database, Facebook, AlertTriangle, MessageSquare, Menu, X, List,
+  Palette, Repeat2, FileSignature, Phone, ExternalLink, Presentation, PhoneCall, LifeBuoy, Star, ChevronsDownUp, ChevronsUpDown, School,
 } from 'lucide-react'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { crmV2 } from '@/lib/crm-v2-theme'
@@ -47,10 +47,10 @@ const NAV_SECTIONS: NavSection[] = [
       { key: 'contacts', label: 'Contacts', href: '/admin/crm-v2', icon: Users, ready: true },
       { key: 'transactions', label: 'Transactions', href: '/admin/crm-v2/transactions', icon: Briefcase, ready: true },
       { key: 'tasks', label: 'Mes tâches', href: '/admin/crm-v2/tasks', icon: CheckSquare, ready: true },
+      { key: 'lycees', label: 'Lycées', href: '/admin/crm-v2/lycees', icon: School, ready: true },
       { key: 'service-technique', label: 'Service technique', href: '/admin/crm-v2/service-technique', icon: LifeBuoy, badgeKey: 'support', ready: true },
       { key: 'import', label: 'Import CSV', href: '/admin/crm-v2/import', icon: Upload, ready: true },
       { key: 'doublons', label: 'Doublons', href: '/admin/crm-v2/doublons', icon: GitMerge, ready: true },
-      { key: 'recherche-prop', label: 'Recherche propriété', href: '/admin/crm-v2/recherche-prop', icon: Search, ready: true },
       { key: 'proprietes', label: 'Propriétés', href: '/admin/crm-v2/proprietes', icon: Database, ready: true },
       { key: 'users', label: 'Équipe', href: '/admin/crm-v2/equipe', icon: Users, ready: true },
       { key: 'parametres', label: 'Paramètres', href: '/admin/crm-v2/parametres', icon: SettingsIcon, ready: true },

@@ -101,6 +101,7 @@ Statuts deal mappés :
 | 2026-03-12 | `app/telepro/TeleproClient.tsx` | Fix : onglet par défaut changé de "Nouveau RDV" → "Mon Planning" pour que les télépros voient directement leur planning |
 | 2026-10-08 | `lib/competitor-events.ts`, `components/crm/EventsAgendaCalendar.tsx`, `app/api/crm/competitor-events/*`, `app/api/cron/competitor-events-scan` | Veille concurrents (Antémed Epsilon, Médisup, CPCM) : table `competitor_events` (v55), bot quotidien (Claude + recherche web), affichage violet pointillé dans l'agenda Événements, ajout manuel / masquage |
 | 2026-10-08 | `components/WeekCalendar.tsx`, `app/api/events-studio/agenda` | Rappel épinglé de nos événements (JPO, salons, webinaires) en haut des jours de l'agenda RDV (télépro, closer, admin), hors grille horaire |
+| 2026-10-08 | `app/admin/crm-v2/lycees`, `components/crm-v2/lycees/*`, `app/api/crm/lycees/*`, `lib/lycees*.ts`, `lib/lycee-forums-scan.ts`, `app/api/cron/lycee-forums-scan` | Onglet **Lycées** (v58 : `lycees`, `lycee_contacts`, `lycee_events`, `lycee_activities`, `lycee_forum_scans`) : ~816 lycées IDF (open data + fichier LEADS_LYCEES_2027), score de potentiel (spé SVT, IPS, mentions, historique, flying), statut / priorité / mode Diploma ou AFEM / attribution, journal, agenda des forums 2026-27, alertes « à ne pas louper », classement flying, bot quotidien de veille des forums (3 départements/jour). Télépros : accès aux seuls lycées attribués (middleware + bouton « Mes lycées ») |
 
 ---
 

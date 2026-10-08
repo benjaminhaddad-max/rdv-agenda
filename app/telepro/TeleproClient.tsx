@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback, useMemo, type ReactNode } fro
 import { format, startOfWeek } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import {
-  ArrowLeft, Briefcase, CalendarDays, Clock, LifeBuoy, LogOut, Phone, Plus, RefreshCw, Repeat2, RotateCcw, Tag, X,
+  ArrowLeft, Briefcase, CalendarDays, Clock, LifeBuoy, LogOut, Phone, Plus, RefreshCw, Repeat2, RotateCcw, School, Tag, X,
 } from 'lucide-react'
 import Link from 'next/link'
 import WeekCalendar from '@/components/WeekCalendar'
@@ -68,6 +68,15 @@ export default function TeleproClient({
   const [contactsAdvanced, setContactsAdvanced] = useState(false)
   const supportUnread = useSupportUnread(!previewMode)
   const logout = useLogout()
+  // Lycées attribués (onglet CRM « Lycées ») : bouton affiché seulement s'il y en a
+  const [myLyceesCount, setMyLyceesCount] = useState(0)
+  useEffect(() => {
+    if (previewMode) return
+    fetch('/api/crm/lycees?mine=count')
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => setMyLyceesCount(d?.count ?? 0))
+      .catch(() => {})
+  }, [previewMode])
 
   // ── Prise de RDV (recherche contact, créneaux, envoi) ─────────────────
   const form = useNewRdvForm({ teleproUser, isLinovaBrandUser })
@@ -763,6 +772,7 @@ export default function TeleproClient({
       { key: 'transactions', label: 'Mes transactions', icon: <Briefcase size={18} />, onClick: () => goTab('transactions'), active: activeTab === 'transactions', badge: txTotal },
       { key: 'repop', label: 'Repop', icon: <Repeat2 size={18} />, onClick: () => goTab('repop'), active: activeTab === 'repop' },
       ...(!previewMode ? [
+        ...(myLyceesCount > 0 ? [{ key: 'lycees', label: 'Mes lycées', icon: <School size={18} />, href: '/admin/crm-v2/lycees', badge: myLyceesCount }] : []),
         { key: 'support', label: 'Service technique', icon: <LifeBuoy size={18} />, href: '/support', badge: supportUnread },
         { key: 'logout', label: 'Déconnexion', icon: <LogOut size={18} />, onClick: () => { void logout() }, danger: true },
       ] : []),
@@ -851,6 +861,14 @@ export default function TeleproClient({
             )}
             {isAdmin && !previewMode && (
               <CrmV2Button icon={<ArrowLeft size={14} />} onClick={() => { window.location.href = '/admin' }}>Admin</CrmV2Button>
+            )}
+            {!previewMode && myLyceesCount > 0 && (
+              <a href="/admin/crm-v2/lycees" style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6, borderRadius: 999, padding: '8px 16px',
+                fontSize: 13, fontWeight: 600, color: crmV2.goldDark, background: crmV2.goldSoft, border: `1px solid ${crmV2.goldBorder}`, textDecoration: 'none',
+              }}>
+                <School size={14} /> Mes lycées ({myLyceesCount})
+              </a>
             )}
             {!previewMode && (
               <a href="/support" style={{

@@ -113,7 +113,9 @@ export async function middleware(request: NextRequest) {
   // leur journal de repop, etc. — pour traiter un lead même non attribué).
   if (pathname.startsWith('/admin')) {
     const isSharedCrmRecordView = /^\/admin\/crm(?:-v2)?\/(contacts|deals)\/[^/]+\/?$/.test(pathname)
-    if (dbUser.role !== 'admin' && !isSharedCrmRecordView) {
+    // Onglet Lycées : les télépros / closers y travaillent les lycées qu'on leur attribue
+    const isLyceesView = /^\/admin\/crm-v2\/lycees\/?$/.test(pathname)
+    if (dbUser.role !== 'admin' && !isSharedCrmRecordView && !isLyceesView) {
       return redirectByRole(dbUser, request)
     }
   }
