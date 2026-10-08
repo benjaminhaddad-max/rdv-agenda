@@ -116,6 +116,12 @@ const CANCELLED_PALETTE: CardPalette = { base: '#9aa5b1', bg: '#f5f6f8', border:
 
 const SNAP_MIN = 15          // aimantation du glisser-déposer (minutes)
 const GRID_TOTAL_MIN = (GRID_END_HOUR - GRID_START_HOUR) * 60
+/** Pastille du mode de RDV : bleu = visio, orange = téléphone, vert = présentiel */
+const MEETING_PILL: Record<string, { Icon: typeof Video; bg: string; label: string }> = {
+  visio: { Icon: Video, bg: '#2563eb', label: 'Visio' },
+  telephone: { Icon: Phone, bg: '#ea580c', label: 'Téléphone' },
+  presentiel: { Icon: MapPin, bg: '#059669', label: 'Présentiel' },
+}
 const COLORS = ['#C9A84C','#22c55e','#C9A84C','#a855f7','#06b6d4','#ef4444','#f97316']
 
 function getInitials(name: string) {
@@ -709,16 +715,22 @@ export default function WeekCalendar({
     const nameSize = isDay ? (isMobile ? 13 : 14) : compact ? 10 : 12
     const metaSize = isDay ? 12 : 11
     const badgeSize = isDay ? 11 : 10
-    const iconSize = isDay ? 12 : 10
 
     const isDragging = draggingId === appt.id
-    const meetingIcon = appt.meeting_type === 'visio'
-      ? <Video size={iconSize} strokeWidth={2.2} style={{ flexShrink: 0 }} />
-      : appt.meeting_type === 'presentiel'
-        ? <MapPin size={iconSize} strokeWidth={2.2} style={{ flexShrink: 0 }} />
-        : appt.meeting_type === 'telephone'
-          ? <Phone size={iconSize} strokeWidth={2.2} style={{ flexShrink: 0 }} />
-          : null
+    const meetingMode = appt.meeting_type ? MEETING_PILL[appt.meeting_type] : null
+    const pillSize = isDay ? 20 : compact ? 13 : 17
+    const meetingIcon = meetingMode && (
+      <span
+        title={meetingLabel}
+        style={{
+          width: pillSize, height: pillSize, borderRadius: compact ? 3 : 5, flexShrink: 0,
+          background: isCancelled ? '#94a3b8' : meetingMode.bg, color: '#fff',
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        }}
+      >
+        <meetingMode.Icon size={isDay ? 13 : compact ? 9 : 11} strokeWidth={2.6} />
+      </span>
+    )
 
     return (
       <div
@@ -799,10 +811,8 @@ export default function WeekCalendar({
             }}
           />
           {!compact && <MediboxBadge brand={appt.brand} compact={!isDay} style={isDay ? undefined : { fontSize: 10 }} />}
-          {/* Vue semaine : mode du RDV (visio / tél / présentiel) avant le nom */}
-          {!isDay && !compact && meetingIcon && (
-            <span title={meetingLabel} style={{ display: 'inline-flex', color: subtleOnFill, flexShrink: 0 }}>{meetingIcon}</span>
-          )}
+          {/* Mode du RDV (visio / tél / présentiel) avant le nom */}
+          {meetingIcon}
           <span style={{
             fontSize: nameSize, fontWeight: 700, color: textOnFill, minWidth: 0,
             overflow: 'hidden', textOverflow: compact ? 'clip' : 'ellipsis', whiteSpace: 'nowrap',
@@ -832,7 +842,6 @@ export default function WeekCalendar({
             lineHeight: isDay && !isMobile ? '16px' : '12px',
           }}>
             <span style={{ flexShrink: 0 }}>{rangeTime}</span>
-            {isDay && meetingIcon}
             {!inline && isDay && niveau && (
               <span style={{ color: subtleOnFill, overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>
                 · {niveau}{isDay && formation ? ` · ${formation}` : ''}
@@ -1695,9 +1704,14 @@ export default function WeekCalendar({
                       {format(new Date(appt.start_at), 'HH:mm')}
                       {' – '}
                       {format(new Date(appt.end_at), 'HH:mm')}
-                      {appt.meeting_type === 'visio' && <Video size={12} />}
-                      {appt.meeting_type === 'presentiel' && <MapPin size={12} />}
-                      {appt.meeting_type === 'telephone' && <Phone size={12} />}
+                      {appt.meeting_type && MEETING_PILL[appt.meeting_type] && (() => {
+                        const m = MEETING_PILL[appt.meeting_type!]
+                        return (
+                          <span title={m.label} style={{ width: 18, height: 18, borderRadius: 5, background: m.bg, color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <m.Icon size={12} strokeWidth={2.6} />
+                          </span>
+                        )
+                      })()}
                     </div>
                     {(() => {
                       const niveau = getNiveau(appt.classe_actuelle, appt.prospect_name)
