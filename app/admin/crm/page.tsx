@@ -899,6 +899,13 @@ export default function CRMPage() {
 
   // ── Récupérer les contacts ───────────────────────────────────────────────────
 
+  // Seuls le nom et le preset de la vue active servent au fetch : dépendre de
+  // crmViews entier relançait la liste (requête annulée puis refaite) à
+  // l'arrivée de /api/crm/views, même quand la vue active n'avait pas changé.
+  const activeViewForFetch = crmViews.find(v => v.id === activeViewId)
+  const activeViewNameForFetch = activeViewForFetch?.name ?? ''
+  const activeViewIncludeEmptyLeadStatus = !!activeViewForFetch?.presetFlags?.includeEmptyLeadStatus
+
   const fetchContacts = useCallback(async (resetPage = false) => {
     // Si une sélection « toute la vue » est en cours, on l'annule : les filtres
     // viennent de changer et les IDs en cours de chargement ne seraient plus valides.
@@ -912,8 +919,7 @@ export default function CRMPage() {
 
     const currentPage = resetPage ? 0 : page
     if (resetPage) setPage(0)
-    const activeView = crmViews.find(v => v.id === activeViewId)
-    const activeViewName = (activeView?.name ?? '').toLowerCase()
+    const activeViewName = activeViewNameForFetch.toLowerCase()
     const isLinovaView = activeViewName.includes('linova')
     const forceMetaAdsOnly = activeViewId === 'v_meta_ads_all' || activeViewName.includes('meta ads')
     const requestSignature = JSON.stringify({
@@ -963,7 +969,7 @@ export default function CRMPage() {
       extraColumns,
       customFilterParam,
       forceMetaAdsOnly,
-      includeEmptyLeadStatus: !!activeView?.presetFlags?.includeEmptyLeadStatus,
+      includeEmptyLeadStatus: activeViewIncludeEmptyLeadStatus,
     })
 
     // Évite une requête inutile : si les filtres changent hors page 0,
@@ -1042,7 +1048,7 @@ export default function CRMPage() {
     if (contactOwnerHsId)     params.set('contact_owner_hs_id', contactOwnerHsId)
     if (teleproHsId)          params.set('telepro_hs_id', teleproHsId)
     if (noTelepro)            params.set('no_telepro', '1')
-    if (crmViews.find(v => v.id === activeViewId)?.presetFlags?.includeEmptyLeadStatus) {
+    if (activeViewIncludeEmptyLeadStatus) {
       params.set('include_empty_lead_status', '1')
     }
     if (ownerExclude)         params.set('owner_exclude', ownerExclude)
@@ -1313,7 +1319,7 @@ export default function CRMPage() {
       if (requestSeq === contactsFetchSeqRef.current) setLoading(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearch, stage, closerHsId, closerContactHsId, closerContactNot, contactOwnerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, recentFormDays, createdBeforeDays, showExternal, allClasses, leadStatus, source, formEvent, parcoursupVerdict, zoneFilter, deptFilter, stageNot, leadStatusNot, sourceNot, formEventNot, zoneNot, deptNot, closerNot, contactOwnerNot, teleproNot, formationNot, pipeline, pipelineNot, priorPreinscription, emptyFields, notEmptyFields, formation, classe, period, sortBy, sortDir, limit, page, extraColumns, customFilterParam, activeViewId, crmViews])
+  }, [debouncedSearch, stage, closerHsId, closerContactHsId, closerContactNot, contactOwnerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, recentFormDays, createdBeforeDays, showExternal, allClasses, leadStatus, source, formEvent, parcoursupVerdict, zoneFilter, deptFilter, stageNot, leadStatusNot, sourceNot, formEventNot, zoneNot, deptNot, closerNot, contactOwnerNot, teleproNot, formationNot, pipeline, pipelineNot, priorPreinscription, emptyFields, notEmptyFields, formation, classe, period, sortBy, sortDir, limit, page, extraColumns, customFilterParam, activeViewId, activeViewNameForFetch, activeViewIncludeEmptyLeadStatus])
 
   useEffect(() => { fetchContacts() }, [fetchContacts])
   useEffect(() => () => contactsAbortRef.current?.abort(), [])
