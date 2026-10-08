@@ -23,7 +23,7 @@ import { persistAdminViewLayout } from '@/lib/crm-views'
 import { isTopLevelCatalogId } from '@/lib/crm-admin-view-layout'
 import {
   CRM_FILTER_FIELDS, opsForField, opsForKind, opNeedsValue, opIsMulti, opIsRange, propertyKindOf,
-  defaultOpForField, shouldRenderMultiSelect, coerceMultiSelectOperator,
+  defaultOpForField, shouldRenderMultiSelect, coerceMultiSelectOperator, LEAD_STATUS_OPTIONS_FALLBACK,
   type CRMFilterField, type CRMFilterOp, type SelectOption,
 } from '@/lib/crm-constants'
 
@@ -536,7 +536,9 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
   const [telepros, setTelePros] = useState<RdvUser[]>([])
 
   // ─ Field options
-  const [leadStatusOpts, setLeadStatusOpts] = useState<string[]>([])
+  // Liste standard affichée tout de suite ; complétée par /api/crm/field-options
+  // (valeurs réellement présentes en base) quand la réponse arrive.
+  const [leadStatusOpts, setLeadStatusOpts] = useState<string[]>(() => LEAD_STATUS_OPTIONS_FALLBACK.map(o => o.id))
   const [formationOpts, setFormationOpts]   = useState<string[]>([])
   const [sourceOpts, setSourceOpts]         = useState<string[]>([])
   const [zoneOpts, setZoneOpts]             = useState<string[]>([])
@@ -743,12 +745,14 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
       .catch(() => {})
   }, [])
 
-  // Fetch field options (force-cache : profite du Cache-Control s-maxage=3600 côté CDN Vercel)
+  // Options des filtres (réponse immédiate : résultat enregistré côté serveur)
   useEffect(() => {
-    fetch('/api/crm/field-options', { cache: 'force-cache' })
+    fetch('/api/crm/field-options')
       .then(r => r.json())
       .then(d => {
-        if (d.leadStatuses?.length) setLeadStatusOpts(d.leadStatuses)
+        if (d.leadStatuses?.length) {
+          setLeadStatusOpts(prev => [...prev, ...(d.leadStatuses as string[]).filter(v => !prev.includes(v))])
+        }
         if (d.formations?.length)   setFormationOpts(d.formations)
         if (d.sources?.length)      setSourceOpts(d.sources)
         if (d.zones?.length)        setZoneOpts(d.zones)
