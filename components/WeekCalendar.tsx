@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo, type ReactNode } from 'react'
-import { ChevronLeft, ChevronRight, Users, LayoutDashboard, Plus, Check, MapPin, Video, Phone, X, Pin, Ban } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Users, LayoutDashboard, Plus, Check, MapPin, Video, Phone, X, Pin, Ban, List, CalendarDays, CalendarRange } from 'lucide-react'
 import { format, startOfWeek, addDays, addWeeks, subWeeks, isSameDay, isToday } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import StatusBadge, { AppointmentStatus } from './StatusBadge'
@@ -12,7 +12,7 @@ import { parseExtraParticipants } from '@/lib/appointment-participants'
 import { campusShortLabel } from '@/lib/campus'
 import { RDV_BRANDS, normalizeRdvBrand, type RdvBrand } from '@/lib/rdv-brand'
 import MediboxBadge from './MediboxBadge'
-import { CrmV2Button, CrmV2Segmented } from '@/components/crm-v2/primitives'
+import { CrmV2Button, CrmV2Tabs } from '@/components/crm-v2/primitives'
 import { AgendaLegendChip, AgendaRoundButton, AgendaSelectPill } from '@/components/crm-v2/agenda/AgendaControls'
 import { crmV2, crmV2AgendaCards } from '@/lib/crm-v2-theme'
 import { EVENT_TYPE_COLORS } from '@/components/crm/EventsAgendaCalendar'
@@ -153,6 +153,9 @@ function durationToPercent(startStr: string, endStr: string, refDate: Date): num
 }
 
 const MAX_SIDE_COLS = 2
+
+/** Issues saisies par le closer quand le prospect est venu (cf. lib/suivi-commercial). */
+const VENU_STATUSES = new Set(['a_travailler', 'pre_positif', 'positif', 'negatif', 'va_reflechir', 'preinscription'])
 
 const NIVEAU_PREFIX_RE = /^(Terminale|Première|Premiere|Etudes Sup\.?|PASS|LAS|Seconde|Reorientation|Réorientation)\s*[-–]\s*(.+)$/i
 
@@ -442,8 +445,40 @@ export default function WeekCalendar({
   // Compteurs semaine (hors annulés et non-assignés)
   const activeAppointments = appointments.filter(a => a.status !== 'annule' && a.status !== 'non_assigne')
   const rdvCount = activeAppointments.length
-  const rdvEffectues = activeAppointments.filter(a => ['va_reflechir', 'preinscription'].includes(a.status)).length
-  const weekIsDense = rdvCount > 28
+  // Présence au prorata : RDV de la semaine déjà passés (lundi → maintenant).
+  // Venu = le closer a saisi une issue (ni no-show ni annulé).
+  const presence = useMemo(() => {
+    const now = Date.now()
+    const weekStartMs = activeWeekStart.getTime()
+    const weekEndMs = addDays(activeWeekStart, 7).getTime()
+    let venus = 0, noShow = 0, pending = 0
+    for (const a of activeAppointments) {
+      const t = new Date(a.start_at).getTime()
+      if (t < weekStartMs || t >= weekEndMs || t > now) continue
+      if (a.status === 'no_show') noShow++
+      else if (VENU_STATUSES.has(a.status)) venus++
+      else pending++
+    }
+    const lastDay = now >= weekEndMs ? null : now < weekStartMs ? undefined : new Date(now)
+    return { venus, noShow, pending, rate: venus + noShow > 0 ? Math.round((venus / (venus + noShow)) * 100) : null, lastDay }
+  }, [activeAppointments, activeWeekStart])
+
+  // RDV placés (créés) cette semaine, mêmes filtres que l'agenda
+  const [placedCount, setPlacedCount] = useState<number | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    const params = new URLSearchParams({
+      from: activeWeekStart.toISOString(),
+      to: addDays(activeWeekStart, 7).toISOString(),
+    })
+    if (brandFilter !== 'all') params.set('brand', brandFilter)
+    if (selectedCommercial !== 'all') params.set('commercial_id', selectedCommercial)
+    fetch(`/api/appointments/week-stats?${params}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(j => { if (!cancelled) setPlacedCount(typeof j?.placed === 'number' ? j.placed : null) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [weekKey, brandFilter, selectedCommercial]) // eslint-disable-line react-hooks/exhaustive-deps
   const rangeCount = dayBased
     ? activeAppointments.filter(a => visibleDays.some(d => isSameDay(new Date(a.start_at), d))).length
     : rdvCount
@@ -1319,12 +1354,40 @@ export default function WeekCalendar({
     </>
   ) : null
 
+  const presenceTitle = presence.lastDay === undefined
+    ? 'Semaine à venir : pas encore de RDV passés'
+    : `RDV passés ${presence.lastDay ? `du lundi à aujourd'hui` : 'sur toute la semaine'} : ${presence.venus} venus, ${presence.noShow} no-show${presence.pending ? `, ${presence.pending} fiche${presence.pending > 1 ? 's' : ''} non mise${presence.pending > 1 ? 's' : ''} à jour (non comptée${presence.pending > 1 ? 's' : ''})` : ''}`
+  const counters = (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'nowrap' }}>
+      <span title="RDV pris (créés) par l'équipe entre lundi et dimanche de cette semaine" style={{
+        display: 'inline-flex', alignItems: 'center', gap: 5, borderRadius: 999, padding: '2px 10px', fontSize: 12, fontWeight: 700,
+        background: crmV2.goldSoft, border: `1px solid ${crmV2.goldBorder}`, color: crmV2.goldDark, whiteSpace: 'nowrap',
+      }}>
+        {placedCount ?? '…'} RDV placés cette semaine
+      </span>
+      <span title={presenceTitle} style={{
+        display: 'inline-flex', alignItems: 'center', gap: 5, borderRadius: 999, padding: '2px 10px', fontSize: 12, fontWeight: 700,
+        whiteSpace: 'nowrap',
+        background: presence.rate == null ? crmV2.bgSoft : presence.rate >= 70 ? 'rgba(22,163,74,0.10)' : presence.rate >= 50 ? 'rgba(217,119,6,0.10)' : 'rgba(220,38,38,0.08)',
+        color: presence.rate == null ? crmV2.textMuted : presence.rate >= 70 ? crmV2.successStrong : presence.rate >= 50 ? '#b45309' : '#dc2626',
+        border: `1px solid ${crmV2.border}`,
+      }}>
+        Présence {presence.rate == null ? '—' : `${presence.rate} %`}
+        {presence.rate != null && (
+          <span style={{ fontWeight: 500 }}>
+            · {presence.venus}/{presence.venus + presence.noShow}
+            {presence.lastDay ? ` · lun → ${format(presence.lastDay, 'EEE', { locale: fr })}` : ''}
+          </span>
+        )}
+      </span>
+    </span>
+  )
+
   const subtitle = (
-    <>
-      {rangeLabel()}
-      <span> · {rangeCount} RDV</span>
-      {!isMobile && <span style={{ color: crmV2.successStrong, fontWeight: 600 }}> · {rdvEffectues} avancés</span>}
-    </>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+      <span>{rangeLabel()} · {rangeCount} RDV au planning</span>
+      {counters}
+    </span>
   )
 
   return (
@@ -1335,7 +1398,7 @@ export default function WeekCalendar({
       {/* En-tête V2 : titre, période, navigation, vues, action principale, filtres */}
       <div style={{
         background: crmV2.bg, borderBottom: `1px solid ${crmV2.border}`,
-        padding: isMobile ? '14px 12px 10px' : '20px 28px 16px', flexShrink: 0,
+        padding: isMobile ? '14px 12px 0' : '20px 28px 0', flexShrink: 0,
       }}>
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -1361,6 +1424,7 @@ export default function WeekCalendar({
               }}>
                 {rangeLabel()}
                 <span style={{ fontSize: 13, fontWeight: 500, color: crmV2.textMuted }}> · {rangeCount} RDV</span>
+                {!isMobile && <span style={{ marginLeft: 8, verticalAlign: 'middle' }}>{counters}</span>}
               </div>
             )}
           </div>
@@ -1378,11 +1442,6 @@ export default function WeekCalendar({
             <AgendaRoundButton onClick={goNext} label="Période suivante">
               <ChevronRight size={15} />
             </AgendaRoundButton>
-            {!isMobile && (
-              <div style={{ marginLeft: 4 }}>
-                <CrmV2Segmented items={viewItems} value={view} onChange={setView} />
-              </div>
-            )}
             {!isMobile && newRdvAction && (
               <CrmV2Button variant="primary" icon={<Plus size={14} />} onClick={newRdvAction} style={{ marginLeft: 4 }}>
                 Nouveau RDV
@@ -1403,11 +1462,6 @@ export default function WeekCalendar({
           </div>
         </div>
 
-        {isMobile && (
-          <div style={{ marginTop: 12 }}>
-            <CrmV2Segmented items={viewItems} value={view} onChange={setView} stretch />
-          </div>
-        )}
 
         {/* Filtres : closers, marque, légende, outils */}
         <div
@@ -1461,26 +1515,25 @@ export default function WeekCalendar({
             </div>
           )}
         </div>
-      </div>
 
-      {weekIsDense && view === 'week' && !isMobile && (
-        <div style={{
-          padding: `8px ${padX}px`,
-          background: crmV2.goldSoft,
-          borderBottom: `1px solid ${crmV2.goldBorder}`,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          flexShrink: 0,
-        }}>
-          <span style={{ fontSize: 12, color: crmV2.goldDark, fontWeight: 600 }}>
-            Semaine chargée ({rdvCount} RDV) — la vue liste est plus lisible.
-          </span>
-          <CrmV2Button variant="secondary" size="sm" onClick={() => setView('list')}>
-            Passer en vue Liste
-          </CrmV2Button>
+        {/* Vues : onglets soulignés, comme les vues du CRM */}
+        <div style={{ marginTop: isMobile ? 6 : 10 }}>
+          <CrmV2Tabs
+            bordered={false}
+            value={view}
+            onChange={id => setView(id as CalendarView)}
+            items={viewItems.map(v => ({
+              id: v.id,
+              label: (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  {v.id === 'list' ? <List size={14} /> : v.id === 'day' ? <CalendarDays size={14} /> : <CalendarRange size={14} />}
+                  {v.label}
+                </span>
+              ),
+            }))}
+          />
         </div>
-      )}
+      </div>
 
       {/* Calendrier */}
       {view !== 'list' ? (
