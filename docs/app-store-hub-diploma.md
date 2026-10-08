@@ -37,6 +37,7 @@ Ce que change le fait d'être « non listée / usage interne » :
 | SKU | `hub-diploma` |
 | Accès utilisateurs | Accès complet |
 | Équipe | DIPLOMA SANTE — `GA963MW8WV` (provider ASC 129038276) |
+| Apple ID de l'app | **6820461341** — lien futur : `https://apps.apple.com/app/id6820461341` |
 | Version | 1.0.0 (build 1) |
 | Copyright | `2026 Diploma Santé` |
 | Catégorie principale | **Économie et entreprise** (Business) |
@@ -155,18 +156,18 @@ The app contains no ads, no tracking and no in-app purchases.
 ## 8. Checklist de mise en ligne
 
 ### Bloquant actuel
-- [ ] **Accepter le nouveau Contrat de licence du Apple Developer Program** — à faire par le *titulaire du compte* sur `developer.apple.com/account`. Tant que ce n'est pas fait : impossible de créer l'identifiant, l'app ou d'envoyer une build (constaté le 8/10/2026 : « Access Unavailable »).
+- [x] **Accepter le nouveau Contrat de licence du Apple Developer Program** — à faire par le *titulaire du compte* sur `developer.apple.com/account`. Tant que ce n'est pas fait : impossible de créer l'identifiant, l'app ou d'envoyer une build (constaté le 8/10/2026 : « Access Unavailable »).
 
 ### Apple Developer / App Store Connect
-- [ ] Identifiant `fr.diplomasante.hub` (Certificates, Identifiers & Profiles → Identifiers → App IDs), sans capacité particulière.
-- [ ] Nouvelle app dans App Store Connect avec les valeurs du §2.
-- [ ] Fiche (§3), classification (§4), confidentialité (§5), prix & disponibilité (§2).
+- [x] Identifiant `fr.diplomasante.hub` (Certificates, Identifiers & Profiles → Identifiers → App IDs), sans capacité particulière.
+- [x] Nouvelle app dans App Store Connect avec les valeurs du §2.
+- [x] Fiche (§3), classification (§4), confidentialité (§5), prix & disponibilité (§2) — remplis le 8/10/2026.
 - [ ] Compte de démo + notes (§6).
 - [ ] Captures d'écran (§9).
 - [ ] Demande de distribution non listée (§7).
 
 ### Build
-- [ ] Mac avec **Xcode** (le Mac d'Aaron n'a que les Command Line Tools au 8/10/2026), compte de l'équipe dans Xcode > Settings > Accounts.
+- [x] Mac avec **Xcode 27** (iOS 27 impose le cycle de vie UIScene → `SceneDelegate.swift`, cible minimale iOS 15), compte de l'équipe dans Xcode > Settings > Accounts.
 - [ ] `cd mobile && bash scripts/release-ios.sh 1.0.0 1`
 - [ ] Build visible dans TestFlight → tester en interne (connexion, recherche, fiche, RDV, visio, hors ligne, iPad).
 - [ ] Sélectionner la build dans la version 1.0.0 → *Ajouter pour vérification* → *Soumettre*.
