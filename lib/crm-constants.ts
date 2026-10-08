@@ -148,9 +148,18 @@ export const LAB_CALLBACK_OPS: { key: CRMFilterOp; label: string }[] = [
 
 // Lead app Lab : téléchargements / leads des apps Diplomalab et Medibox Lab
 // (formulaires Lab soumis + origine Lab, toutes casses). Résolu côté API.
+// Familles combinées en ET (app + ville + action), valeurs d'une famille en OU.
 export const LAB_APP_FILTER_OPTIONS: SelectOption[] = [
-  { id: 'diplomalab', label: 'Diplomalab' },
-  { id: 'medibox',    label: 'Medibox Lab' },
+  { id: 'diplomalab',        label: 'Diplomalab' },
+  { id: 'medibox',           label: 'Medibox Lab' },
+  { id: 'ville_marseille',   label: 'Medibox Lab · Marseille' },
+  { id: 'ville_montpellier', label: 'Medibox Lab · Montpellier' },
+  { id: 'ville_lille',       label: 'Medibox Lab · Lille' },
+  { id: 'ville_bordeaux',    label: 'Medibox Lab · Bordeaux' },
+  { id: 'ville_autre',       label: 'Medibox Lab · Autre / sans ville' },
+  { id: 'essai',             label: "Inscrit à l'essai gratuit" },
+  { id: 'rappel',            label: 'A demandé à être rappelé' },
+  { id: 'candidature',       label: 'A déposé sa candidature' },
 ]
 
 export const CRM_FILTER_FIELDS: { key: CRMFilterField; label: string; type: 'select' | 'text' }[] = [

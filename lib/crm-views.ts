@@ -235,7 +235,7 @@ export async function persistViewCreate(view: CRMSavedView, position: number) {
 
 export async function persistViewUpdate(
   id: string,
-  patch: { name?: string; filter_groups?: unknown; position?: number },
+  patch: { name?: string; filter_groups?: unknown; position?: number; preset_flags?: unknown },
 ) {
   await fetch(`/api/crm/views/${id}`, {
     method: 'PATCH',

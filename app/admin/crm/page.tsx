@@ -27,8 +27,9 @@ import {
 import {
   type CRMSavedView,
   CRM_DEFAULT_VIEWS, loadCRMViews, viewToParams,
-  persistViewCreate, persistViewUpdate, persistAdminViewLayout,
+  persistViewCreate, persistViewUpdate, persistViewDelete, persistAdminViewLayout,
 } from '@/lib/crm-views'
+import { recomposeSubview } from '@/lib/crm-subviews'
 import { MultiSelectDropdown, SearchableSelect } from '@/components/crm/CRMSelects'
 const ExportCSVModal = dynamic(() => import('@/components/crm/CRMExportModal'), { ssr: false })
 import { CRMFieldPicker, isCustomField, type CrmPropertyMeta } from '@/components/crm/CRMFieldPicker'
@@ -500,8 +501,9 @@ export default function CRMPage() {
     if (v.parentId) return v.parentId
     const inferred = parseAttributionParentId(v.id)
     if (inferred) return inferred
-    if (v.kind === 'bucket' || isAttributionBucketId(v.id)) return v.id
-    return null
+    // Toute vue peut avoir ses sous-vues (créées en cliquant) : la vue active
+    // est donc toujours le parent de la barre « Sous-vues ».
+    return v.id
   }, [crmViews, activeViewId])
   // Filtres rapides Classe / Zone du bucket actif (non sauvegardés dans la vue).
   const [bucketFacets, setBucketFacets] = useState<BucketFacetSelection>(EMPTY_BUCKET_FACETS)
@@ -1559,6 +1561,26 @@ export default function CRMPage() {
     setNewViewName('')
   }
 
+  /** Sous-vues créées en cliquant (barre « Sous-vues ») : on ouvre la 1re. */
+  function createSubviews(views: CRMSavedView[]) {
+    if (views.length === 0) return
+    const base = crmViews.filter(v => !v.isDefault).length
+    setCrmViews(prev => [...prev, ...views])
+    void Promise.all(views.map((v, i) => persistViewCreate(v, base + i))).then(() => {
+      void fetchViewCounts(views.map(v => v.id))
+    })
+    applyCRMView(views[0])
+  }
+
+  function deleteSubview(view: CRMSavedView) {
+    setCrmViews(prev => prev.filter(v => v.id !== view.id))
+    void persistViewDelete(view.id)
+    if (activeViewId === view.id) {
+      const parent = crmViews.find(v => v.id === view.parentId)
+      if (parent) applyCRMView(parent)
+    }
+  }
+
   function unpinCRMView(viewId: string) {
     const nextLayout = layoutViewIds.filter(id => id !== viewId)
     setLayoutViewIds(nextLayout)
@@ -1587,13 +1609,27 @@ export default function CRMPage() {
   }
 
   function updateCRMViewFilters(viewId: string) {
+    const parentView = crmViews.find(v => v.id === viewId)
+    const nextParent = parentView ? { ...parentView, groups: [...filterGroups] } : null
+    // Les sous-vues créées en cliquant suivent les filtres de leur parent.
+    const recomposed = new Map<string, CRMSavedView>()
+    if (nextParent) {
+      for (const child of crmViews) {
+        if (child.parentId !== viewId) continue
+        const next = recomposeSubview(nextParent, child)
+        if (next) recomposed.set(child.id, next)
+      }
+    }
     const updated = crmViews.map(v =>
-      v.id === viewId ? { ...v, groups: [...filterGroups] } : v
+      v.id === viewId ? { ...v, groups: [...filterGroups] } : (recomposed.get(v.id) ?? v)
     )
     setCrmViews(updated)
     forceFreshListRef.current = true
+    for (const child of recomposed.values()) {
+      void persistViewUpdate(child.id, { filter_groups: child.groups, preset_flags: child.presetFlags ?? null })
+    }
     void persistViewUpdate(viewId, { filter_groups: filterGroups }).then(() => {
-      void fetchViewCounts([viewId])
+      void fetchViewCounts([viewId, ...recomposed.keys()])
     })
     scheduleRefetch()
   }
@@ -2435,7 +2471,7 @@ export default function CRMPage() {
 
           {shownTopLevelViews.map(view => {
             const isBucket = view.kind === 'bucket' || isAttributionBucketId(view.id)
-            const isActive = activeViewId === view.id || (isBucket && activeBucketId === view.id)
+            const isActive = activeViewId === view.id || activeBucketId === view.id
             const isRenaming = renamingViewId === view.id
             const isDraggable = !view.isDefault && !isRenaming
             const isDragOver = dragOverViewId === view.id && draggedViewId && draggedViewId !== view.id
@@ -2624,6 +2660,9 @@ export default function CRMPage() {
           onSelect={applyCRMView}
           facets={activeBucketHasFacets ? bucketFacets : undefined}
           onFacetsChange={activeBucketHasFacets ? changeBucketFacets : undefined}
+          onCreateSubviews={createSubviews}
+          onDeleteSubview={deleteSubview}
+          onRenameSubview={(view, name) => renameCRMView(view.id, name)}
         />
       )}
 

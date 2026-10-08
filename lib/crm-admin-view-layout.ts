@@ -22,14 +22,14 @@ export function parseLayoutViewIds(raw: unknown): string[] | null {
 export async function snapshotCatalogIds(db: SupabaseClient): Promise<string[]> {
   const { data, error } = await db
     .from('crm_saved_views')
-    .select('id, position')
+    .select('*')
     .is('owner_id', null)
     .eq('scope', 'contacts')
     .order('position')
   if (error) return []
 
-  return (data ?? [])
-    .filter(row => isTopLevelCatalogId(String(row.id), null, null))
+  return ((data ?? []) as Array<{ id: string; parent_id?: string | null; kind?: string | null }>)
+    .filter(row => isTopLevelCatalogId(String(row.id), row.parent_id ?? null, row.kind ?? null))
     .filter(row => !String(row.id).startsWith('alayout_'))
     .map(row => String(row.id))
 }

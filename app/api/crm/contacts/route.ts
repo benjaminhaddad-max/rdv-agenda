@@ -12,7 +12,7 @@ import { fetchParcoursupVerdictsByContactId, fetchContactIdsByParcoursupVerdict 
 import { expandOrigineFilterValues } from '@/lib/origine-normalization'
 import { META_BACKFILL_TERM_IDF_VIEW_ID, resolveMetaBackfillTermIdfContactIds } from '@/lib/meta-backfill-view'
 import { overlaySavedViewParams, type CRMSavedView } from '@/lib/crm-views'
-import { resolveLabCallbackContactIds, resolveLabAppLeadContactIds } from '@/lib/crm-lab-callbacks'
+import { resolveLabCallbackContactIds, fetchLabAppLeadAggregates, filterLabAppLeads } from '@/lib/crm-lab-callbacks'
 
 // Classes prioritaires — filtre SQL via .in()
 const PRIORITY_CLASSES = ['Seconde', 'Première', 'Terminale']
@@ -742,27 +742,24 @@ export async function GET(req: NextRequest) {
   }
   // ── Resolver dédié : « Lead app Lab » (Diplomalab + Medibox Lab) ─────────
   // Filtre activé via cf : [{ field: "lab_app", operator: "is_any",
-  // value: "diplomalab,medibox" }]. Même mécanique que « lab_callback » :
-  // on combine (ET) avec les IDs déjà résolus pour réutiliser son application.
+  // value: "medibox,ville_marseille,rappel" }]. Une vue et ses sous-vues
+  // peuvent cumuler plusieurs règles lab_app : toutes s'appliquent (ET).
+  // Même mécanique que « lab_callback » pour réutiliser son application.
   {
-    const positive = customFilters.find(
-      r => r.field === 'lab_app' && (r.operator === 'is' || r.operator === 'is_any'),
-    )
-    const negative = customFilters.find(
-      r => r.field === 'lab_app' && (r.operator === 'is_not' || r.operator === 'is_none'),
-    )
-    if (positive) {
-      const ids = await resolveLabAppLeadContactIds(db, positive.value)
-      if (labCallbackContactIds === null) {
-        labCallbackContactIds = ids
-      } else {
-        const b = new Set(ids)
-        labCallbackContactIds = labCallbackContactIds.filter(id => b.has(id))
+    const labAppRules = customFilters.filter(r => r.field === 'lab_app')
+    if (labAppRules.length > 0) {
+      const byContact = await fetchLabAppLeadAggregates(db)
+      for (const rule of labAppRules) {
+        const ids = filterLabAppLeads(byContact, rule.value)
+        if (rule.operator === 'is_not' || rule.operator === 'is_none') {
+          labCallbackExcludedIds = [...new Set([...(labCallbackExcludedIds ?? []), ...ids])]
+        } else if (labCallbackContactIds === null) {
+          labCallbackContactIds = ids
+        } else {
+          const b = new Set(ids)
+          labCallbackContactIds = labCallbackContactIds.filter(id => b.has(id))
+        }
       }
-    }
-    if (negative) {
-      const ids = await resolveLabAppLeadContactIds(db, negative.value)
-      labCallbackExcludedIds = [...new Set([...(labCallbackExcludedIds ?? []), ...ids])]
     }
     customFilters = customFilters.filter(r => r.field !== 'lab_app')
   }

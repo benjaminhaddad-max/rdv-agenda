@@ -157,75 +157,141 @@ export async function resolveLabCallbackContactIds(
   return ids
 }
 
-/** Valeurs acceptées par le filtre « Lead app Lab ». */
-export const LAB_APP_LEAD_VALUES = ['diplomalab', 'medibox'] as const
+/**
+ * Valeurs acceptées par le filtre « Lead app Lab », par famille.
+ * OU entre les valeurs d'une même famille, ET entre familles :
+ * « Medibox Lab » + « Marseille » + « A demandé un rappel ».
+ */
+export const LAB_APP_LEAD_APPS = ['diplomalab', 'medibox'] as const
+export const LAB_APP_LEAD_CITIES = ['ville_marseille', 'ville_montpellier', 'ville_lille', 'ville_bordeaux', 'ville_autre'] as const
+export const LAB_APP_LEAD_ACTIONS = ['essai', 'rappel', 'candidature'] as const
+export const LAB_APP_LEAD_VALUES = [...LAB_APP_LEAD_APPS, ...LAB_APP_LEAD_CITIES, ...LAB_APP_LEAD_ACTIONS] as const
+
+type LabAppAgg = { apps: Set<string>; cities: Set<string>; actions: Set<string> }
+
+const KNOWN_CITIES = ['marseille', 'montpellier', 'lille', 'bordeaux']
+
+/** « Medibox Lab - Marseille » → marseille ; sinon null. */
+function labCityOf(origine: unknown): string | null {
+  const m = String(origine ?? '').toLowerCase().match(/^medibox lab\s*[-–—]\s*(.+)$/)
+  if (!m) return null
+  const city = KNOWN_CITIES.find(c => m[1].includes(c))
+  return city ?? null
+}
+
+function labAppOf(text: unknown): 'diplomalab' | 'medibox' | null {
+  const t = String(text ?? '').toLowerCase().trim()
+  if (t.startsWith('medibox lab')) return 'medibox'
+  if (t.startsWith('diploma lab')) return 'diplomalab'
+  return null
+}
+
+/**
+ * Agrège, par contact, les apps Lab / villes Medibox / actions faites dans
+ * l'app. Sources :
+ *   1. soumissions des formulaires « Diploma Lab … » / « Medibox Lab … »
+ *      (historique complet) : app = formulaire, ville = data.origine,
+ *      action = data.demande (essai gratuit, « Être rappelé », candidature) ;
+ *   2. contacts dont l'origine ou le dernier formulaire est Lab (toutes casses).
+ */
+export async function fetchLabAppLeadAggregates(db: SupabaseClient): Promise<Map<string, LabAppAgg>> {
+  const byContact = new Map<string, LabAppAgg>()
+  const agg = (id: string) => {
+    let a = byContact.get(id)
+    if (!a) { a = { apps: new Set(), cities: new Set(), actions: new Set() }; byContact.set(id, a) }
+    return a
+  }
+  const PAGE = 1000
+
+  const { data: forms, error: formsErr } = await db
+    .from('forms')
+    .select('id, name')
+    .or('name.ilike.diploma lab*,name.ilike.medibox lab*')
+  if (formsErr) throw new Error(formsErr.message)
+  const formApp = new Map((forms ?? []).map(f => [f.id as string, labAppOf(f.name)]))
+  if (formApp.size > 0) {
+    for (let off = 0; off < 100000; off += PAGE) {
+      const { data: subs, error } = await db
+        .from('form_submissions')
+        .select('form_id, contact_id:data->>_contact_id, origine:data->>origine, demande:data->>demande')
+        .in('form_id', [...formApp.keys()])
+        .neq('status', 'spam')
+        .order('submitted_at', { ascending: true })
+        .range(off, off + PAGE - 1)
+      if (error) throw new Error(error.message)
+      const rows = (subs ?? []) as Array<{ form_id: string; contact_id: string | null; origine: string | null; demande: string | null }>
+      for (const s of rows) {
+        if (!s.contact_id) continue
+        const a = agg(s.contact_id)
+        const app = formApp.get(s.form_id) ?? labAppOf(s.origine)
+        if (app) a.apps.add(app)
+        const city = labCityOf(s.origine)
+        if (city) a.cities.add(city)
+        const demande = String(s.demande ?? '').toLowerCase()
+        if (demande.includes('rappel')) a.actions.add('rappel')
+        if (demande.includes('candidature')) a.actions.add('candidature')
+        if (!demande || demande.includes('essai')) a.actions.add('essai')
+      }
+      if (rows.length < PAGE) break
+    }
+  }
+
+  for (let off = 0; off < 100000; off += PAGE) {
+    const { data: rows, error } = await db
+      .from('crm_contacts')
+      .select('hubspot_contact_id, origine, recent_conversion_event')
+      .or('origine.ilike.diploma lab*,origine.ilike.medibox lab*,recent_conversion_event.ilike.diploma lab*,recent_conversion_event.ilike.medibox lab*')
+      .order('hubspot_contact_id', { ascending: true })
+      .range(off, off + PAGE - 1)
+    if (error) throw new Error(error.message)
+    const list = (rows ?? []) as Array<{ hubspot_contact_id: string | null; origine: string | null; recent_conversion_event: string | null }>
+    for (const r of list) {
+      if (!r.hubspot_contact_id) continue
+      const a = agg(r.hubspot_contact_id)
+      const app = labAppOf(r.origine) ?? labAppOf(r.recent_conversion_event)
+      if (app) a.apps.add(app)
+      const city = labCityOf(r.origine)
+      if (city) a.cities.add(city)
+    }
+    if (list.length < PAGE) break
+  }
+
+  return byContact
+}
 
 /**
  * Résout le filtre « Lead app Lab » (téléchargements / leads des apps
- * Diplomalab et Medibox Lab) en liste de contact_id. Un contact est retenu
- * s'il remplit au moins une de ces conditions :
- *   1. il a soumis un formulaire « Diploma Lab … » / « Medibox Lab … »
- *      (historique complet de form_submissions, pas seulement le dernier) ;
- *   2. son origine est une origine Lab (Diploma LAB, Medibox LAB,
- *      Medibox Lab - Marseille…, quelle que soit la casse) ;
- *   3. son dernier formulaire HubSpot est un formulaire Lab.
- * Valeurs : diplomalab / medibox (OU entre elles) ; vide = les deux apps.
+ * Diplomalab et Medibox Lab) en liste de contact_id.
+ * Valeurs vides ou inconnues = tous les leads des deux apps.
  */
 export async function resolveLabAppLeadContactIds(
   db: SupabaseClient,
   rawValue: string,
 ): Promise<string[]> {
+  return filterLabAppLeads(await fetchLabAppLeadAggregates(db), rawValue)
+}
+
+/** Applique une valeur du filtre « Lead app Lab » à des agrégats déjà chargés. */
+export function filterLabAppLeads(byContact: Map<string, LabAppAgg>, rawValue: string): string[] {
   const values = rawValue.split(',').map(v => v.trim().toLowerCase()).filter(Boolean)
-  const wanted = values.filter(v => (LAB_APP_LEAD_VALUES as readonly string[]).includes(v))
-  const apps = wanted.length > 0 ? wanted : [...LAB_APP_LEAD_VALUES]
-  const prefixes = apps.map(a => (a === 'medibox' ? 'medibox lab' : 'diploma lab'))
+  const apps = values.filter(v => (LAB_APP_LEAD_APPS as readonly string[]).includes(v))
+  const cities = values
+    .filter(v => (LAB_APP_LEAD_CITIES as readonly string[]).includes(v))
+    .map(v => v.replace(/^ville_/, ''))
+  const actions = values.filter(v => (LAB_APP_LEAD_ACTIONS as readonly string[]).includes(v))
 
-  const ids = new Set<string>()
-
-  // 1. Soumissions des formulaires Lab
-  const { data: forms, error: formsErr } = await db
-    .from('forms')
-    .select('id')
-    .or(prefixes.map(p => `name.ilike.${p}*`).join(','))
-  if (formsErr) throw new Error(formsErr.message)
-  const formIds = (forms ?? []).map(f => f.id as string)
-  if (formIds.length > 0) {
-    const PAGE = 1000
-    for (let off = 0; off < 100000; off += PAGE) {
-      const { data: subs, error } = await db
-        .from('form_submissions')
-        .select('contact_id:data->>_contact_id')
-        .in('form_id', formIds)
-        .neq('status', 'spam')
-        .order('submitted_at', { ascending: true })
-        .range(off, off + PAGE - 1)
-      if (error) throw new Error(error.message)
-      for (const s of (subs ?? []) as Array<{ contact_id: string | null }>) {
-        if (s.contact_id) ids.add(s.contact_id)
-      }
-      if (!subs || subs.length < PAGE) break
+  const ids: string[] = []
+  for (const [id, a] of byContact) {
+    if (a.apps.size === 0) continue
+    if (apps.length > 0 && !apps.some(x => a.apps.has(x))) continue
+    if (cities.length > 0) {
+      // Une ville = un lead Medibox Lab ; « autre » = Medibox Lab sans ville connue.
+      if (!a.apps.has('medibox')) continue
+      const ok = cities.some(c => (c === 'autre' ? a.cities.size === 0 : a.cities.has(c)))
+      if (!ok) continue
     }
+    if (actions.length > 0 && !actions.some(x => a.actions.has(x))) continue
+    ids.push(id)
   }
-
-  // 2 + 3. Origine Lab ou dernier formulaire Lab
-  const orClauses = prefixes.flatMap(p => [
-    `origine.ilike.${p}*`,
-    `recent_conversion_event.ilike.${p}*`,
-  ])
-  const PAGE = 1000
-  for (let off = 0; off < 100000; off += PAGE) {
-    const { data: rows, error } = await db
-      .from('crm_contacts')
-      .select('hubspot_contact_id')
-      .or(orClauses.join(','))
-      .order('hubspot_contact_id', { ascending: true })
-      .range(off, off + PAGE - 1)
-    if (error) throw new Error(error.message)
-    for (const r of (rows ?? []) as Array<{ hubspot_contact_id: string | null }>) {
-      if (r.hubspot_contact_id) ids.add(r.hubspot_contact_id)
-    }
-    if (!rows || rows.length < PAGE) break
-  }
-
-  return [...ids]
+  return ids
 }

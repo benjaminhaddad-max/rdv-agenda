@@ -81,6 +81,21 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const auth = await authorizeViewMutation(id)
   if (!auth.ok) return auth.response
 
+  // Sous-vue (pastille sous les onglets) : suppression réelle, elle n'existe
+  // que dans la barre « Sous-vues » de sa vue parente.
+  const { data: meta } = await auth.db
+    .from('crm_saved_views')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle()
+  const isSubview = !!(meta && ((meta as { parent_id?: string | null }).parent_id ||
+    (meta as { kind?: string | null }).kind === 'subview'))
+  if (!auth.ownerId && isSubview) {
+    const { error } = await auth.db.from('crm_saved_views').delete().eq('id', id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ ok: true })
+  }
+
   if (!auth.ownerId) {
     const { error } = await unpinViewFromAdminLayout(auth.db, auth.ctx.appUserId, id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
