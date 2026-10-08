@@ -1,4 +1,5 @@
 import { parisDateKey } from '@/lib/date-paris'
+import { normalizeRdvBrand, type RdvBrand } from '@/lib/rdv-brand'
 
 export type SuiviRole = 'telepro' | 'closer'
 
@@ -40,11 +41,32 @@ export type LineUsage = {
   calls: number
 }
 
+/** RDV d'un agent pour une marque (Diploma Santé / Medibox). */
+export type BrandRdvStats = {
+  rdv_total: number
+  rdv_positifs: number
+  rdv_preinscriptions: number
+  rdv_annules: number
+  rdv_no_show: number
+  rdv_honored: number
+}
+
+export type BrandBreakdown = Record<RdvBrand, BrandRdvStats>
+
+export function emptyBrandBreakdown(): BrandBreakdown {
+  const empty = (): BrandRdvStats => ({
+    rdv_total: 0, rdv_positifs: 0, rdv_preinscriptions: 0, rdv_annules: 0, rdv_no_show: 0, rdv_honored: 0,
+  })
+  return { diploma: empty(), medibox: empty() }
+}
+
 export type AgentMetrics = {
   user_id: string
   name: string
   avatar_color: string | null
   unmapped: boolean
+  /** Rôle du compte (rdv_users.role) : un admin qui close (ex. Pascal) apparaît avec les closers. */
+  user_role?: string | null
   calls_total: number
   calls_outbound: number
   calls_inbound: number
@@ -81,6 +103,7 @@ export type AgentMetrics = {
   delta_rdv: number
   by_day: DayPoint[]
   lines: LineUsage[]
+  by_brand: BrandBreakdown
 }
 
 export type TeamTotals = {
@@ -106,6 +129,8 @@ export type TeamTotals = {
   conversion_talk_2min: number | null
   show_rate: number | null
   closing_rate: number | null
+  rdv_honored?: number
+  by_brand?: BrandBreakdown
 }
 
 export type SuiviCommercialResponse = {
@@ -215,6 +240,7 @@ export function emptyAgent(
     delta_rdv: 0,
     by_day: dates.map(emptyDay),
     lines: [],
+    by_brand: emptyBrandBreakdown(),
   }
 }
 
@@ -281,7 +307,20 @@ export function totalsFromAgents(agents: AgentMetrics[], role: SuiviRole): TeamT
     conversion_talk_2min: rate(rdv_total, calls_outbound_talk_2min),
     show_rate: role === 'closer' ? rate(rdv_honored, rdv_honored + rdv_no_show) : null,
     closing_rate: role === 'closer' ? rate(rdv_positifs + rdv_preinscriptions, rdv_honored) : null,
+    rdv_honored,
+    by_brand: sumBrandBreakdowns(mapped.map(a => a.by_brand)),
   }
+}
+
+export function sumBrandBreakdowns(list: Array<BrandBreakdown | undefined>): BrandBreakdown {
+  const out = emptyBrandBreakdown()
+  for (const b of list) {
+    if (!b) continue
+    for (const brand of ['diploma', 'medibox'] as const) {
+      for (const k of Object.keys(out[brand]) as Array<keyof BrandRdvStats>) out[brand][k] += b[brand][k]
+    }
+  }
+  return out
 }
 
 export type CallRow = {
@@ -360,19 +399,23 @@ export function applyRdv(
   nowMs: number,
   dayIndex: Map<string, number>,
   role: SuiviRole,
+  brand?: string | null,
 ): void {
+  const b = agent.by_brand[normalizeRdvBrand(brand)]
   agent.rdv_total += 1
+  b.rdv_total += 1
   const bucket = rdvBucket(status)
-  if (bucket === 'positifs') agent.rdv_positifs += 1
-  else if (bucket === 'preinscriptions') agent.rdv_preinscriptions += 1
-  else if (bucket === 'annules') agent.rdv_annules += 1
-  else if (bucket === 'no_show') agent.rdv_no_show += 1
+  if (bucket === 'positifs') { agent.rdv_positifs += 1; b.rdv_positifs += 1 }
+  else if (bucket === 'preinscriptions') { agent.rdv_preinscriptions += 1; b.rdv_preinscriptions += 1 }
+  else if (bucket === 'annules') { agent.rdv_annules += 1; b.rdv_annules += 1 }
+  else if (bucket === 'no_show') { agent.rdv_no_show += 1; b.rdv_no_show += 1 }
   else agent.rdv_autres += 1
 
   if (role === 'closer') {
     const when = startAt ? new Date(startAt).getTime() : 0
     if (when > 0 && when <= nowMs && bucket !== 'annules' && bucket !== 'no_show') {
       agent.rdv_honored += 1
+      b.rdv_honored += 1
     }
   }
 

@@ -5,8 +5,6 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { Clock, Users, Briefcase, Inbox, Link2 } from 'lucide-react'
 import WeekCalendar from '@/components/WeekCalendar'
 import AdminAvailability from '@/components/AdminAvailability'
-import TeleproManager from '@/components/TeleproManager'
-import CloserManager from '@/components/CloserManager'
 import UnassignedQueue from '@/components/UnassignedQueue'
 import SiteContenusPanel from '@/components/SiteContenusPanel'
 import { CrmV2CloseButton, CrmV2Drawer, CrmV2Page } from '@/components/crm-v2/primitives'
@@ -18,19 +16,15 @@ function AgendaV2Inner() {
   const router = useRouter()
   const [calendarKey, setCalendarKey] = useState(0)
   const [showAvailability, setShowAvailability] = useState(false)
-  const [showTelepros, setShowTelepros] = useState(false)
-  const [showClosers, setShowClosers] = useState(false)
   const [showQueue, setShowQueue] = useState(false)
   const [showSite, setShowSite] = useState(false)
   const [unassignedCount, setUnassignedCount] = useState<number | null>(null)
 
-  // Ouverture directe des panneaux depuis la sidebar (?open=telepros|closers)
+  // Anciens liens ?open=telepros|closers → page « Télépros / Closers »
   useEffect(() => {
     const open = searchParams.get('open')
-    if (open === 'telepros') setShowTelepros(true)
-    if (open === 'closers') setShowClosers(true)
     if (open === 'telepros' || open === 'closers') {
-      router.replace('/admin/crm-v2/agenda', { scroll: false })
+      router.replace(`/admin/crm-v2/equipe?tab=${open}`, { scroll: false })
     }
   }, [searchParams, router])
 
@@ -60,8 +54,8 @@ function AgendaV2Inner() {
         badge={unassignedCount}
         warn={!!unassignedCount && unassignedCount > 0}
       />
-      <AgendaToolButton icon={<Users size={14} />} label="Télépros" onClick={() => setShowTelepros(true)} />
-      <AgendaToolButton icon={<Briefcase size={14} />} label="Closers" onClick={() => setShowClosers(true)} />
+      <AgendaToolButton icon={<Users size={14} />} label="Télépros" onClick={() => router.push('/admin/crm-v2/equipe?tab=telepros')} />
+      <AgendaToolButton icon={<Briefcase size={14} />} label="Closers" onClick={() => router.push('/admin/crm-v2/equipe?tab=closers')} />
       <AgendaToolButton icon={<Clock size={14} />} label="Disponibilités" onClick={() => setShowAvailability(true)} />
       <AgendaToolButton icon={<Link2 size={14} />} label="Site & Contenus" onClick={() => setShowSite(true)} />
     </>
@@ -97,8 +91,6 @@ function AgendaV2Inner() {
       </CrmV2Drawer>
 
       {showAvailability && <AdminAvailability onClose={() => setShowAvailability(false)} />}
-      {showTelepros && <TeleproManager onClose={() => setShowTelepros(false)} />}
-      {showClosers && <CloserManager onClose={() => setShowClosers(false)} />}
       {showSite && <SiteContenusPanel onClose={() => setShowSite(false)} />}
     </CrmV2Page>
   )

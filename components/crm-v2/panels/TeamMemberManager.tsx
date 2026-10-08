@@ -295,7 +295,7 @@ function MemberList({ column, isMobile, children }: { column: string; isMobile: 
 }
 
 /** Encadré e-mail + mot de passe avec bouton « Copier ». */
-function CredentialBox({ email, password, passwordLabel }: { email: string; password: string; passwordLabel: string }) {
+export function CredentialBox({ email, password, passwordLabel }: { email: string; password: string; passwordLabel: string }) {
   return (
     <div style={{
       marginTop: 10, background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: 12,

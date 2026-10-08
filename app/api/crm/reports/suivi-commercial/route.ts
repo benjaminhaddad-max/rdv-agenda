@@ -18,6 +18,7 @@ import {
   applyCall,
   applyRdv,
   emptyAgent,
+  emptyBrandBreakdown,
   finalizeAgent,
   totalsFromAgents,
   unmappedKey,
@@ -32,9 +33,19 @@ export const dynamic = 'force-dynamic'
 type UserRow = {
   id: string
   name: string
+  role: string | null
   avatar_color: string | null
   hubspot_user_id: string | null
 }
+
+/**
+ * Comptes qui peuvent closer sans avoir le rôle « closer » : Pascal (admin,
+ * responsable de la cellule commerciale) est closer par défaut de beaucoup de
+ * RDV. Ils n'apparaissent que s'ils ont au moins un RDV sur la période ou la
+ * précédente. Une réassignation remplace commercial_id : le RDV compte pour le
+ * closer final, pas pour celui qui l'avait au départ.
+ */
+const CLOSER_EXTRA_ROLES = ['admin', 'manager']
 
 type ApptRow = {
   id: string
@@ -42,6 +53,7 @@ type ApptRow = {
   commercial_id: string | null
   hubspot_contact_id: string | null
   status: string | null
+  brand: string | null
   created_at: string
   start_at: string | null
 }
@@ -95,8 +107,8 @@ async function buildReport(req: NextRequest, startedAt: number) {
   const db = createServiceClient()
   const [{ data: users, error: usersErr }, currentAppts, prevAppts, currentCalls, prevCalls] = await Promise.all([
     db.from('rdv_users')
-      .select('id, name, avatar_color, hubspot_user_id')
-      .eq('role', role)
+      .select('id, name, role, avatar_color, hubspot_user_id')
+      .in('role', role === 'closer' ? ['closer', ...CLOSER_EXTRA_ROLES] : [role])
       .order('name'),
     fetchAppointments(db, start, end, role),
     fetchAppointments(db, prevBounds.start, prevBounds.end, role),
@@ -111,7 +123,9 @@ async function buildReport(req: NextRequest, startedAt: number) {
   const userList = (users ?? []) as UserRow[]
   const agents = new Map<string, AgentMetrics>()
   for (const u of userList) {
-    agents.set(u.id, emptyAgent(u.id, u.name, u.avatar_color, false, dates))
+    const agent = emptyAgent(u.id, u.name, u.avatar_color, false, dates)
+    agent.user_role = u.role
+    agents.set(u.id, agent)
   }
 
   const hsUserToTelepro = new Map<string, string>()
@@ -157,7 +171,7 @@ async function buildReport(req: NextRequest, startedAt: number) {
       bumpUnassigned(row.status)
       continue
     }
-    applyRdv(agents.get(id)!, row.status, row.start_at, row.created_at, nowMs, dayIndex, role)
+    applyRdv(agents.get(id)!, row.status, row.start_at, row.created_at, nowMs, dayIndex, role, row.brand)
   }
 
   const prevRdv = new Map<string, number>()
@@ -206,6 +220,14 @@ async function buildReport(req: NextRequest, startedAt: number) {
     finalizeAgent(agent, role)
   }
 
+  // Admins / managers sans aucun RDV closé : hors du rapport closers.
+  if (role === 'closer') {
+    for (const [id, agent] of agents) {
+      if (agent.unmapped || !agent.user_role || agent.user_role === 'closer') continue
+      if (agent.rdv_total === 0 && agent.previous_rdv_total === 0) agents.delete(id)
+    }
+  }
+
   const rows = [...agents.values()].sort((a, b) => {
     if (a.unmapped !== b.unmapped) return a.unmapped ? 1 : -1
     if (b.calls_outbound !== a.calls_outbound) return b.calls_outbound - a.calls_outbound
@@ -227,6 +249,7 @@ async function buildReport(req: NextRequest, startedAt: number) {
     talk_time_sec: 0,
     calls_total: 0,
     calls_inbound: 0,
+    by_brand: emptyBrandBreakdown(),
   }))
 
   return NextResponse.json({
@@ -304,7 +327,7 @@ async function fetchAppointments(
   while (from < 100_000) {
     const { data, error } = await db
       .from('rdv_appointments')
-      .select('id, telepro_id, commercial_id, hubspot_contact_id, status, created_at, start_at')
+      .select('id, telepro_id, commercial_id, hubspot_contact_id, status, brand, created_at, start_at')
       .gte(dateCol, start)
       .lt(dateCol, end)
       .order(dateCol, { ascending: true })
