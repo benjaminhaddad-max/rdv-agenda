@@ -17,7 +17,7 @@ import { AdminNotice, AdminSpin } from '@/components/crm-v2/admin/AdminUi'
 
 export type CauseDef = { id: string; label: string; hint: string }
 export type TeamCallStats = {
-  talk2: number; no_rdv: number; analyzed: number; pending: number
+  talk2: number; no_rdv: number; recorded: number; analyzed: number; pending: number
   causes: Record<string, number>; score_sum: number; proposed: number
 }
 export type AnalyzedCall = {
@@ -41,6 +41,8 @@ export type CallAnalysisData = {
   ai_ready: boolean
   causes: CauseDef[]
   team: Record<string, TeamCallStats>
+  /** Appels sans RDV sur des lignes Aircall qui n'enregistrent pas */
+  unrecorded_lines?: Record<string, number>
   calls: AnalyzedCall[]
 }
 
@@ -136,7 +138,7 @@ export function CallTeamSummary({ data, loading, from, to, onDone }: {
         done += j.processed ?? 0
         setProgress({ done, remaining: j.remaining ?? 0 })
         onDone()
-        if (!j.processed || !j.remaining) break
+        if (!j.processed || !(j.remaining > 0)) break
       }
     } finally {
       setRunning(false)
@@ -150,10 +152,12 @@ export function CallTeamSummary({ data, loading, from, to, onDone }: {
   }
 
   const totals = Object.values(data.team).reduce((t, s) => {
-    t.talk2 += s.talk2; t.noRdv += s.no_rdv; t.analyzed += s.analyzed; t.pending += s.pending
+    t.talk2 += s.talk2; t.noRdv += s.no_rdv; t.recorded += s.recorded ?? 0; t.analyzed += s.analyzed; t.pending += s.pending
     for (const [k, v] of Object.entries(s.causes)) t.causes[k] = (t.causes[k] ?? 0) + v
     return t
-  }, { talk2: 0, noRdv: 0, analyzed: 0, pending: 0, causes: {} as Record<string, number> })
+  }, { talk2: 0, noRdv: 0, recorded: 0, analyzed: 0, pending: 0, causes: {} as Record<string, number> })
+  const unrecorded = Object.entries(data.unrecorded_lines ?? {}).sort((a, b) => b[1] - a[1])
+  const unrecordedTotal = unrecorded.reduce((t, [, n]) => t + n, 0)
   const ranked = topCauses(totals.causes, 10)
 
   return (
@@ -165,11 +169,11 @@ export function CallTeamSummary({ data, loading, from, to, onDone }: {
         <div style={{ fontSize: 14, color: crmV2.text }}>
           <strong>{totals.noRdv}</strong> appel{totals.noRdv > 1 ? 's' : ''} de 2 min et plus sans RDV
           <span style={{ color: crmV2.textMuted }}> sur {totals.talk2} ({totals.talk2 ? Math.round((totals.noRdv / totals.talk2) * 100) : 0} %)</span>
-          <span style={{ color: crmV2.textMuted }}> · {totals.analyzed} analysé{totals.analyzed > 1 ? 's' : ''}</span>
+          <span style={{ color: crmV2.textMuted }}> · {totals.recorded} enregistré{totals.recorded > 1 ? 's' : ''} (analysables) · {totals.analyzed} analysé{totals.analyzed > 1 ? 's' : ''}</span>
           {totals.pending > 0 && <span style={{ color: crmV2.goldDark }}> · {totals.pending} à analyser</span>}
         </div>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-          {progress && <span style={{ fontSize: 12, color: crmV2.textMuted }}>{progress.done} analysé{progress.done > 1 ? 's' : ''}{running ? ` · ${progress.remaining} restant${progress.remaining > 1 ? 's' : ''}` : ''}</span>}
+          {progress && <span style={{ fontSize: 12, color: crmV2.textMuted }}>{progress.done} traité{progress.done > 1 ? 's' : ''}{running ? ` · ${progress.remaining} restant${progress.remaining > 1 ? 's' : ''}` : ''}</span>}
           {running ? (
             <CrmV2Button size="sm" onClick={() => { stopRef.current = true }}>Arrêter</CrmV2Button>
           ) : (
@@ -181,6 +185,13 @@ export function CallTeamSummary({ data, loading, from, to, onDone }: {
           {running && <AdminSpin />}
         </span>
       </div>
+      {unrecordedTotal > 0 && (
+        <AdminNotice tone="warning">
+          <strong>{unrecordedTotal} appel{unrecordedTotal > 1 ? 's' : ''} sans RDV ne peuvent pas être analysés</strong> : l&apos;enregistrement des appels est désactivé dans Aircall sur {unrecorded.length > 1 ? 'ces lignes' : 'cette ligne'} —{' '}
+          {unrecorded.map(([name, n]) => `${name} (${n})`).join(', ')}.
+          {' '}À activer dans Aircall : Numéros › la ligne › Enregistrement des appels.
+        </AdminNotice>
+      )}
       {!data.ai_ready && <AdminNotice tone="warning">Clés DEEPGRAM_API_KEY / ANTHROPIC_API_KEY manquantes sur Vercel : l&apos;analyse ne peut pas tourner.</AdminNotice>}
       {error && <AdminNotice tone="error">{error}</AdminNotice>}
       {ranked.length > 0 && (
@@ -218,7 +229,12 @@ export function CallCells({ data, userId }: { data: CallAnalysisData | null; use
     <>
       <CrmV2Td style={num}>{s.talk2 || '—'}</CrmV2Td>
       <CrmV2Td style={num}>
-        {s.no_rdv ? <><strong>{s.no_rdv}</strong> <span style={{ fontSize: 12, color: crmV2.textFaint }}>{s.talk2 ? Math.round((s.no_rdv / s.talk2) * 100) : 0} %</span></> : '—'}
+        {s.no_rdv
+          ? <span title={s.no_rdv - (s.recorded ?? 0) > 0 ? `${s.no_rdv - (s.recorded ?? 0)} sur une ligne sans enregistrement (non analysables)` : undefined}>
+              <strong>{s.no_rdv}</strong> <span style={{ fontSize: 12, color: crmV2.textFaint }}>{s.talk2 ? Math.round((s.no_rdv / s.talk2) * 100) : 0} %</span>
+              {s.no_rdv - (s.recorded ?? 0) > 0 && <span style={{ fontSize: 11, color: '#b45309' }}> · {s.no_rdv - (s.recorded ?? 0)} non enreg.</span>}
+            </span>
+          : '—'}
       </CrmV2Td>
       <CrmV2Td style={num}>{s.analyzed || '—'}{s.pending ? <span style={{ fontSize: 12, color: crmV2.goldDark }}> +{s.pending}</span> : null}</CrmV2Td>
       <CrmV2Td style={{ ...num, color: propRate == null ? crmV2.textFaint : propRate >= 70 ? crmV2.successStrong : propRate >= 40 ? '#d97706' : '#dc2626', fontWeight: 700 }}>

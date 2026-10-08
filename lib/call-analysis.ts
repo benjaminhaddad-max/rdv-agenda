@@ -43,6 +43,9 @@ export type Candidate = {
   hubspot_contact_id: string
   started_at: string
   talk_sec: number
+  /** L'appel a un enregistrement Aircall (sinon : ligne sans enregistrement) */
+  has_recording: boolean
+  line_name: string | null
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -62,10 +65,10 @@ export async function findCandidates(
   db: SupabaseClient,
   opts: { fromIso: string; toIso: string; userIds?: string[]; excludeAnalyzed?: boolean },
 ): Promise<{ candidates: Candidate[]; talk2Total: Map<string, number> }> {
-  const calls: Array<CallRow & { aircall_call_id: number }> = []
+  const calls: Array<CallRow & { aircall_call_id: number; recording_url: string | null }> = []
   for (let from = 0; from < 20_000; from += 1000) {
     let q = db.from('aircall_calls')
-      .select('aircall_call_id, rdv_user_id, agent_email, agent_name, direction, answered, status, duration_sec, started_at, ended_at, answered_at:payload->answered_at, hubspot_contact_id, line_id, line_name, aircall_user_id')
+      .select('aircall_call_id, rdv_user_id, agent_email, agent_name, direction, answered, status, duration_sec, started_at, ended_at, answered_at:payload->answered_at, hubspot_contact_id, line_id, line_name, aircall_user_id, recording_url')
       .eq('direction', 'outbound')
       .gte('duration_sec', MIN_TALK_SEC)
       .not('rdv_user_id', 'is', null)
@@ -76,7 +79,7 @@ export async function findCandidates(
     if (opts.userIds?.length) q = q.in('rdv_user_id', opts.userIds)
     const { data, error } = await q
     if (error) throw new Error(error.message)
-    calls.push(...((data ?? []) as Array<CallRow & { aircall_call_id: number }>))
+    calls.push(...((data ?? []) as Array<CallRow & { aircall_call_id: number; recording_url: string | null }>))
     if (!data || data.length < 1000) break
   }
 
@@ -111,6 +114,8 @@ export async function findCandidates(
       hubspot_contact_id: c.hubspot_contact_id as string,
       started_at: c.started_at,
       talk_sec: talkSeconds(c),
+      has_recording: !!c.recording_url,
+      line_name: c.line_name ?? null,
     }))
 
   if (opts.excludeAnalyzed && candidates.length) {
@@ -244,8 +249,10 @@ export async function runCallAnalysis(
 ): Promise<{ processed: number; remaining: number; results: Record<string, number> }> {
   if (!process.env.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY non configurée')
   if (!process.env.DEEPGRAM_API_KEY) throw new Error('DEEPGRAM_API_KEY non configurée')
-  const { candidates } = await findCandidates(db, { ...opts, excludeAnalyzed: true })
-  // Les plus récents d'abord
+  const all = (await findCandidates(db, { ...opts, excludeAnalyzed: true })).candidates
+  // Seuls les appels enregistrés sont analysables (les lignes Aircall sans
+  // enregistrement n'ont pas d'audio) ; les plus récents d'abord.
+  const candidates = all.filter(c => c.has_recording)
   const batch = candidates.sort((a, b) => b.started_at.localeCompare(a.started_at)).slice(0, opts.limit)
   const client = new Anthropic()
   const results: Record<string, number> = {}

@@ -78,15 +78,23 @@ export async function GET(req: NextRequest) {
 
     // Agrégats par télépro
     const team: Record<string, {
-      talk2: number; no_rdv: number; analyzed: number; pending: number
+      talk2: number; no_rdv: number; recorded: number; analyzed: number; pending: number
       causes: Record<string, number>; score_sum: number; proposed: number
     }> = {}
-    const get = (id: string) => (team[id] ??= { talk2: 0, no_rdv: 0, analyzed: 0, pending: 0, causes: {}, score_sum: 0, proposed: 0 })
+    const get = (id: string) => (team[id] ??= { talk2: 0, no_rdv: 0, recorded: 0, analyzed: 0, pending: 0, causes: {}, score_sum: 0, proposed: 0 })
+    // Lignes Aircall sans enregistrement (appels sans RDV non analysables)
+    const unrecordedLines: Record<string, number> = {}
     for (const [id, n] of talk2Total) get(id).talk2 = n
     const treated = new Set(rows.map(r => Number(r.aircall_call_id)))
     for (const c of candidates) {
       const t = get(c.rdv_user_id)
       t.no_rdv++
+      if (!c.has_recording) {
+        const k = c.line_name || 'Ligne inconnue'
+        unrecordedLines[k] = (unrecordedLines[k] ?? 0) + 1
+        continue
+      }
+      t.recorded++
       if (!treated.has(c.aircall_call_id)) t.pending++
     }
     for (const r of rows) {
@@ -103,6 +111,7 @@ export async function GET(req: NextRequest) {
       ai_ready: aiReady(),
       causes: CALL_CAUSES,
       team,
+      unrecorded_lines: unrecordedLines,
       calls: rows.map(r => ({ ...r, contact_name: r.hubspot_contact_id ? names.get(r.hubspot_contact_id) ?? null : null })),
     })
   } catch (e) {
