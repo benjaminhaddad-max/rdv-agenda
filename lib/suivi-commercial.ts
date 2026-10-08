@@ -1,5 +1,5 @@
 import { parisDateKey } from '@/lib/date-paris'
-import { normalizeRdvBrand, type RdvBrand } from '@/lib/rdv-brand'
+import { RDV_BRAND_IDS, normalizeRdvBrand, type RdvBrand } from '@/lib/rdv-brand'
 
 export type SuiviRole = 'telepro' | 'closer'
 
@@ -60,7 +60,7 @@ export function emptyBrandBreakdown(): BrandBreakdown {
     rdv_total: 0, rdv_positifs: 0, rdv_preinscriptions: 0, rdv_annules: 0, rdv_no_show: 0, rdv_honored: 0,
     rdv_venus: 0, rdv_preinscrits: 0,
   })
-  return { diploma: empty(), medibox: empty() }
+  return Object.fromEntries(RDV_BRAND_IDS.map(b => [b, empty()])) as BrandBreakdown
 }
 
 export type AgentMetrics = {
@@ -329,8 +329,9 @@ export function sumBrandBreakdowns(list: Array<BrandBreakdown | undefined>): Bra
   const out = emptyBrandBreakdown()
   for (const b of list) {
     if (!b) continue
-    for (const brand of ['diploma', 'medibox'] as const) {
-      for (const k of Object.keys(out[brand]) as Array<keyof BrandRdvStats>) out[brand][k] += b[brand][k]
+    for (const brand of RDV_BRAND_IDS) {
+      if (!b[brand]) continue
+      for (const k of Object.keys(out[brand]) as Array<keyof BrandRdvStats>) out[brand][k] += b[brand][k] ?? 0
     }
   }
   return out

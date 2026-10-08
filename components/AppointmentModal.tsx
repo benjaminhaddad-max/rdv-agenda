@@ -17,6 +17,7 @@ import { crmV2, crmV2Outcomes } from '@/lib/crm-v2-theme'
 import VisioParticipantsBlock from './VisioParticipantsBlock'
 import { appointmentPlacedByTelepro, formatAppointmentPlacementLabel } from '@/lib/appointment-display'
 import MediboxBadge from './MediboxBadge'
+import { RDV_BRANDS, RDV_BRAND_IDS, normalizeRdvBrand, type RdvBrand } from '@/lib/rdv-brand'
 import type { ExtraParticipant } from '@/lib/appointment-participants'
 
 const JitsiMeeting = lazy(() => import('./JitsiMeeting'))
@@ -577,6 +578,13 @@ export default function AppointmentModal({
               {format(displayStart, 'EEEE d MMMM', { locale: fr })} · {format(displayStart, 'HH:mm')} · {durationMin} min
             </span>
           </div>
+          {canQualify && (
+            <BrandPicker
+              appointmentId={appointment.id}
+              brand={appointment.brand}
+              onChanged={updated => onUpdate(updated as Partial<Appointment>)}
+            />
+          )}
         </div>
 
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
@@ -1321,4 +1329,64 @@ function choiceStyle(selected: boolean, color: string, error = false): React.CSS
     fontSize: 13, fontWeight: selected ? 700 : 500,
     cursor: 'pointer', fontFamily: 'inherit',
   }
+}
+
+/** Marque du RDV (Diploma Santé par défaut) : corrigeable, ex. un RDV passé qui concernait Medibox. */
+function BrandPicker({ appointmentId, brand, onChanged }: {
+  appointmentId: string
+  brand?: string | null
+  onChanged: (updated: Record<string, unknown>) => void
+}) {
+  const [current, setCurrent] = useState<RdvBrand>(normalizeRdvBrand(brand))
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => { setCurrent(normalizeRdvBrand(brand)) }, [brand])
+
+  async function choose(b: RdvBrand) {
+    if (b === current || busy) return
+    const prev = current
+    setCurrent(b)
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/appointments/${appointmentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ brand: b }),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) { setCurrent(prev); setError(j.error || 'Modification impossible'); return }
+      onChanged({ ...j, brand: b })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div style={{ marginTop: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: crmV2.textMuted, marginRight: 2 }}>Marque</span>
+        {RDV_BRAND_IDS.map(b => {
+          const on = b === current
+          const c = RDV_BRANDS[b].color
+          return (
+            <button key={b} type="button" onClick={() => choose(b)} disabled={busy} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 999,
+              fontSize: 12, fontWeight: on ? 700 : 500, cursor: busy ? 'default' : 'pointer', fontFamily: 'inherit',
+              border: `1px solid ${on ? c : crmV2.border}`, background: on ? `${c}18` : crmV2.bg,
+              color: on ? c : crmV2.textMuted,
+            }}>
+              {b !== 'diploma' && (
+                <span style={{ background: c, color: '#fff', fontSize: 9, fontWeight: 800, borderRadius: 3, padding: '0 4px', lineHeight: 1.5 }}>
+                  {RDV_BRANDS[b].letter}
+                </span>
+              )}
+              {RDV_BRANDS[b].label}
+            </button>
+          )
+        })}
+      </div>
+      {error && <div style={{ fontSize: 12, color: '#d13a41', marginTop: 4 }}>{error}</div>}
+    </div>
+  )
 }

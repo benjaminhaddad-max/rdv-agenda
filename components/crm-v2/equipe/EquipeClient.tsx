@@ -36,7 +36,7 @@ import { CredentialBox, type TeamMember } from '@/components/crm-v2/panels/TeamM
 import PlanningWeek from '@/components/crm-v2/equipe/PlanningWeek'
 import { SlotChip, VERDICTS, VerdictPill, WEEKDAYS, fmtMinutes as fmtPlannedMinutes, type DayReport } from '@/components/planning/PlanningUi'
 import { addParisDays, parisDateKey, parisMonthEndKey, parisWeekStartKey } from '@/lib/date-paris'
-import { RDV_BRANDS, type RdvBrand } from '@/lib/rdv-brand'
+import { RDV_BRANDS, RDV_BRAND_IDS, type RdvBrand } from '@/lib/rdv-brand'
 import { TEAM_ROLE_LABELS, TEAM_ROLES, teamRolesOf, type TeamRole } from '@/lib/team-roles'
 import type { AgentMetrics, BrandBreakdown, SuiviCommercialResponse } from '@/lib/suivi-commercial'
 
@@ -83,7 +83,12 @@ const TEAMS: Record<Tab, {
   },
 }
 
+/** Marques toujours affichées ; Linova / Edumove seulement s'il y a des RDV. */
 const BRANDS: RdvBrand[] = ['diploma', 'medibox']
+
+function brandsWithData(b: BrandBreakdown | undefined): RdvBrand[] {
+  return RDV_BRAND_IDS.filter(k => BRANDS.includes(k) || (b?.[k]?.rdv_total ?? 0) > 0)
+}
 const MAIN_ROLES = ['admin', 'manager', 'closer', 'telepro'] as const
 const CRM_BRAND_OPTIONS = [
   { id: '', label: 'Toutes marques' },
@@ -535,7 +540,7 @@ export default function EquipeClient() {
 function TeamKpis({ tab, totals, loading }: { tab: Tab; totals: SuiviCommercialResponse['totals'] | null; loading: boolean }) {
   const dash = loading ? <AdminSpin size={18} /> : '—'
   const brandSplit = (b: BrandBreakdown | undefined, pick: (s: BrandBreakdown[RdvBrand]) => number) =>
-    b ? BRANDS.map(k => `${RDV_BRANDS[k].label} ${pick(b[k])}`).join(' · ') : undefined
+    b ? brandsWithData(b).map(k => `${RDV_BRANDS[k].label} ${pick(b[k])}`).join(' · ') : undefined
 
   if (tab === 'telepros') {
     const t = totals
@@ -864,7 +869,7 @@ function Faint({ children }: { children: ReactNode }) {
 
 function BrandChips({ b }: { b: BrandBreakdown | undefined }) {
   if (!b) return <span style={{ color: crmV2.textFaint }}>—</span>
-  const items = BRANDS.filter(k => b[k].rdv_total > 0)
+  const items = RDV_BRAND_IDS.filter(k => (b[k]?.rdv_total ?? 0) > 0)
   if (!items.length) return <span style={{ color: crmV2.textFaint }}>—</span>
   return (
     <span style={{ display: 'inline-flex', gap: 4, flexWrap: 'wrap' }}>
@@ -873,7 +878,7 @@ function BrandChips({ b }: { b: BrandBreakdown | undefined }) {
           display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 700,
           color: RDV_BRANDS[k].color, background: `${RDV_BRANDS[k].color}1a`, border: `1px solid ${RDV_BRANDS[k].color}40`, whiteSpace: 'nowrap',
         }}>
-          {k === 'diploma' ? 'Diploma' : 'Medibox'} {b[k].rdv_total}
+          {k === 'diploma' ? 'Diploma' : RDV_BRANDS[k].label} {b[k].rdv_total}
         </span>
       ))}
     </span>
@@ -1064,7 +1069,7 @@ function BrandPerf({ tab, row, statsLoading }: { tab: Tab; row: Row; statsLoadin
             </tr>
           </thead>
           <tbody>
-            {BRANDS.map(k => {
+            {brandsWithData(s.by_brand).map(k => {
               const b = s.by_brand[k]
               const conv = converted(b)
               const cells: ReactNode[] = isCloser

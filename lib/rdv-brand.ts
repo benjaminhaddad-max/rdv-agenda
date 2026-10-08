@@ -6,12 +6,17 @@
  * dans l'agenda, SMS / emails aux couleurs et au nom de Medibox.
  */
 
-export type RdvBrand = 'diploma' | 'medibox'
+export type RdvBrand = 'diploma' | 'medibox' | 'linova' | 'edumove'
+
+/** Ordre d'affichage (sélecteur de marque d'un RDV, stats). */
+export const RDV_BRAND_IDS: RdvBrand[] = ['diploma', 'medibox', 'linova', 'edumove']
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://rdv-agenda.vercel.app').replace(/\/$/, '')
 
 export const RDV_BRANDS: Record<RdvBrand, {
   label: string
+  /** Lettre du logo sur les cartes de l'agenda (Diploma : pas de logo) */
+  letter: string
   /** Couleur du badge dans l'agenda. */
   color: string
   /** Sender SMS Factor (pré-validé). undefined = sender par défaut. */
@@ -25,22 +30,41 @@ export const RDV_BRANDS: Record<RdvBrand, {
 }> = {
   diploma: {
     label: 'Diploma Santé',
+    letter: 'D',
     color: '#C9A84C',
     bookingPath: '/book/diploma',
     origine: 'Prise de RDV - Site web',
   },
   medibox: {
     label: 'Medibox',
+    letter: 'M',
     color: '#6D4FD0',
     smsSender: 'MEDIBOX',
     emailSender: { email: 'contact@medibox.fr', name: 'Medibox' },
     bookingPath: '/book/medibox',
     origine: 'MEDIBOX DIGITAL RDV',
   },
+  // Linova / Edumove : posées à la main sur la fiche RDV (pas de page de prise
+  // de RDV dédiée ; SMS et emails restent ceux de Diploma Santé).
+  linova: {
+    label: 'Linova',
+    letter: 'L',
+    color: '#0e9f8f',
+    bookingPath: '/book/diploma',
+    origine: 'Prise de RDV - Site web',
+  },
+  edumove: {
+    label: 'Edumove',
+    letter: 'E',
+    color: '#e05d2a',
+    bookingPath: '/book/diploma',
+    origine: 'Prise de RDV - Site web',
+  },
 }
 
 export function normalizeRdvBrand(value: unknown): RdvBrand {
-  return String(value || '').toLowerCase().trim() === 'medibox' ? 'medibox' : 'diploma'
+  const v = String(value || '').toLowerCase().trim()
+  return v === 'medibox' || v === 'linova' || v === 'edumove' ? v : 'diploma'
 }
 
 export function isMediboxBrand(value: unknown): boolean {

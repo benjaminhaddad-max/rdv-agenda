@@ -1,23 +1,28 @@
-import { RDV_BRANDS, isMediboxBrand } from '@/lib/rdv-brand'
+import { RDV_BRANDS, normalizeRdvBrand } from '@/lib/rdv-brand'
 
-/** Pastille « Medibox » : distingue les RDV Medibox des RDV Diploma Santé. */
+/**
+ * Logo de marque d'un RDV : « M » Medibox, « L » Linova, « E » Edumove.
+ * Rien pour Diploma Santé (marque par défaut de l'agenda).
+ */
 export default function MediboxBadge({
   brand,
   compact = false,
   style,
 }: {
   brand?: string | null
-  /** true = simple « M » (blocs étroits de l'agenda semaine) */
+  /** true = lettre seule (blocs étroits de l'agenda semaine) */
   compact?: boolean
   style?: React.CSSProperties
 }) {
-  if (!isMediboxBrand(brand)) return null
+  const b = normalizeRdvBrand(brand)
+  if (b === 'diploma') return null
+  const conf = RDV_BRANDS[b]
   return (
     <span
-      title="RDV Medibox"
+      title={`RDV ${conf.label}`}
       style={{
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-        background: RDV_BRANDS.medibox.color, color: '#fff',
+        background: conf.color, color: '#fff',
         fontSize: compact ? 8.5 : 10.5, fontWeight: 800, letterSpacing: '0.04em',
         lineHeight: 1.5, textTransform: 'uppercase',
         padding: compact ? '0 4px' : '1px 7px', borderRadius: 4,
@@ -25,7 +30,7 @@ export default function MediboxBadge({
         ...style,
       }}
     >
-      {compact ? 'M' : 'Medibox'}
+      {compact ? conf.letter : conf.label}
     </span>
   )
 }

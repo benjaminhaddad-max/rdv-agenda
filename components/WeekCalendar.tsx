@@ -10,10 +10,10 @@ import CloserNewRdvModal from './CloserNewRdvModal'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { parseExtraParticipants } from '@/lib/appointment-participants'
 import { campusShortLabel } from '@/lib/campus'
-import { RDV_BRANDS, normalizeRdvBrand, type RdvBrand } from '@/lib/rdv-brand'
+import { RDV_BRANDS, normalizeRdvBrand } from '@/lib/rdv-brand'
 import MediboxBadge from './MediboxBadge'
 import { CrmV2Button, CrmV2Tabs } from '@/components/crm-v2/primitives'
-import { AgendaLegendChip, AgendaRoundButton, AgendaSelectPill } from '@/components/crm-v2/agenda/AgendaControls'
+import { AgendaRoundButton, AgendaSelectPill } from '@/components/crm-v2/agenda/AgendaControls'
 import { crmV2, crmV2AgendaCards } from '@/lib/crm-v2-theme'
 import { EVENT_TYPE_COLORS } from '@/components/crm/EventsAgendaCalendar'
 import {
@@ -304,29 +304,8 @@ export default function WeekCalendar({
     startOfWeek(new Date(), { weekStartsOn: 1 })
   )
   const [allAppointments, setAppointments] = useState<Appointment[]>([])
-  // Filtre marque : les RDV Medibox partagent l'agenda mais restent isolables.
-  const [brandFilter, setBrandFilterState] = useState<'all' | RdvBrand>('all')
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('rdv-brand-filter')
-      if (saved === 'diploma' || saved === 'medibox') setBrandFilterState(saved)
-    } catch { /* stockage indisponible */ }
-  }, [])
-  const setBrandFilter = useCallback((b: 'all' | RdvBrand) => {
-    setBrandFilterState(b)
-    try { localStorage.setItem('rdv-brand-filter', b) } catch { /* stockage indisponible */ }
-  }, [])
-  const brandCounts = useMemo(() => {
-    let medibox = 0
-    for (const a of allAppointments) if (normalizeRdvBrand(a.brand) === 'medibox') medibox++
-    return { all: allAppointments.length, diploma: allAppointments.length - medibox, medibox }
-  }, [allAppointments])
-  const appointments = useMemo(
-    () => brandFilter === 'all'
-      ? allAppointments
-      : allAppointments.filter(a => normalizeRdvBrand(a.brand) === brandFilter),
-    [allAppointments, brandFilter],
-  )
+  // Marque d'un RDV : logo M / L / E sur la carte (plus de filtre par marque).
+  const appointments = allAppointments
   const [commerciaux, setCommerciaux] = useState<Commercial[]>([])
   // closerId = verrouillé sur un closer, adminMode = 'all', sinon persiste via localStorage
   const [selectedCommercial, setSelectedCommercial] = useState<string>(() => {
@@ -444,7 +423,6 @@ export default function WeekCalendar({
 
   // Compteurs semaine (hors annulés et non-assignés)
   const activeAppointments = appointments.filter(a => a.status !== 'annule' && a.status !== 'non_assigne')
-  const rdvCount = activeAppointments.length
   // Présence au prorata : RDV de la semaine déjà passés (lundi → maintenant).
   // Venu = le closer a saisi une issue (ni no-show ni annulé).
   const presence = useMemo(() => {
@@ -471,17 +449,13 @@ export default function WeekCalendar({
       from: activeWeekStart.toISOString(),
       to: addDays(activeWeekStart, 7).toISOString(),
     })
-    if (brandFilter !== 'all') params.set('brand', brandFilter)
     if (selectedCommercial !== 'all') params.set('commercial_id', selectedCommercial)
     fetch(`/api/appointments/week-stats?${params}`)
       .then(r => (r.ok ? r.json() : null))
       .then(j => { if (!cancelled) setPlacedCount(typeof j?.placed === 'number' ? j.placed : null) })
       .catch(() => {})
     return () => { cancelled = true }
-  }, [weekKey, brandFilter, selectedCommercial]) // eslint-disable-line react-hooks/exhaustive-deps
-  const rangeCount = dayBased
-    ? activeAppointments.filter(a => visibleDays.some(d => isSameDay(new Date(a.start_at), d))).length
-    : rdvCount
+  }, [weekKey, selectedCommercial]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchAppointments = useCallback(async () => {
     setLoading(true)
@@ -708,7 +682,6 @@ export default function WeekCalendar({
     const height = durationToPercent(appt.start_at, appt.end_at, day)
     // RDV hors plage (avant 9 h / après 21 h) : collé au bord plutôt que hors grille
     const top = Math.min(timeToPercent(appt.start_at, day), 100 - Math.min(height, 100))
-    const closerColor = getColorForCommercial(appt.users?.id || '')
     const palette = getCardPalette(appt)
     const isCancelled = appt.status === 'annule'
     const isConfirmed = appt.status === 'confirme_prospect'
@@ -727,7 +700,7 @@ export default function WeekCalendar({
         : appt.meeting_type === 'telephone' ? 'Téléphone' : ''
     // Infobulle : nom, heure, niveau, closer
     const tooltip = [
-      `${normalizeRdvBrand(appt.brand) === 'medibox' ? '[Medibox] ' : ''}${appt.prospect_name}${niveau ? ` — ${niveau}` : ''}${formation ? ` · ${formation}` : ''}`,
+      `${normalizeRdvBrand(appt.brand) !== 'diploma' ? `[${RDV_BRANDS[normalizeRdvBrand(appt.brand)].label}] ` : ''}${appt.prospect_name}${niveau ? ` — ${niveau}` : ''}${formation ? ` · ${formation}` : ''}`,
       [rangeTime, meetingLabel].filter(Boolean).join(' · '),
       appt.users?.name ? `Closer : ${appt.users.name}` : 'Closer : non assigné',
       isConfirmed ? 'Présence confirmée par le prospect' : '',
@@ -836,16 +809,7 @@ export default function WeekCalendar({
           flex: inline ? 1 : undefined, flexShrink: 0,
           lineHeight: compact ? '12px' : isDay && !isMobile ? '18px' : '14px',
         }}>
-          <span
-            title={appt.users?.name ? `Closer : ${appt.users.name}` : 'Non assigné'}
-            style={{
-              width: compact ? 5 : 7, height: compact ? 5 : 7, borderRadius: '50%', flexShrink: 0,
-              background: appt.users ? closerColor : 'transparent',
-              border: appt.users ? 'none' : `1.5px solid ${palette.base}`,
-              boxSizing: 'border-box',
-            }}
-          />
-          {!compact && <MediboxBadge brand={appt.brand} compact={!isDay} style={isDay ? undefined : { fontSize: 10 }} />}
+          <MediboxBadge brand={appt.brand} compact={!isDay} style={isDay ? undefined : { fontSize: compact ? 8 : 10 }} />
           {/* Mode du RDV (visio / tél / présentiel) avant le nom */}
           {meetingIcon}
           <span style={{
@@ -1263,42 +1227,6 @@ export default function WeekCalendar({
     )
   }
 
-  // Filtre RDV Diploma / RDV Medibox, dans la barre d'outils de toutes les vues.
-  const brandToggle = (
-    <div
-      role="group"
-      aria-label="Filtrer par marque"
-      style={{
-        display: 'inline-flex', gap: 2, background: crmV2.bgSoft, borderRadius: 999, padding: 3,
-        border: `1px solid ${crmV2.border}`, flexShrink: 0,
-      }}
-    >
-      {(['all', 'diploma', 'medibox'] as const).map(b => {
-        const active = brandFilter === b
-        return (
-          <button
-            key={b}
-            type="button"
-            onClick={() => setBrandFilter(b)}
-            aria-pressed={active}
-            style={{
-              background: active ? (b === 'all' ? crmV2.primary : RDV_BRANDS[b].color) : 'transparent',
-              border: 'none', borderRadius: 999, padding: '4px 10px', fontFamily: 'inherit',
-              color: active ? '#fff' : crmV2.textMuted,
-              fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
-              display: 'inline-flex', alignItems: 'center', gap: 5,
-            }}
-          >
-            {b !== 'all' && !active && (
-              <span style={{ width: 7, height: 7, borderRadius: '50%', background: RDV_BRANDS[b].color }} />
-            )}
-            {b === 'all' ? 'Tous' : b === 'diploma' ? 'RDV Diploma' : 'RDV Medibox'}
-            <span style={{ opacity: 0.7, fontVariantNumeric: 'tabular-nums' }}>{brandCounts[b]}</span>
-          </button>
-        )
-      })}
-    </div>
-  )
 
   // Filtre closers selon le contexte (admin, closer en vue équipe, page autonome)
   const closerFilter = adminMode || (!closerId) ? (
@@ -1336,59 +1264,67 @@ export default function WeekCalendar({
   const showAdminLink = !adminMode && !closerId && !teamView
   const showLegend = teamView || adminMode
 
+  // Légende : la couleur de fond d'un RDV passé = son issue ; le logo = sa marque.
   const legend = showLegend ? (
-    <>
-      <span style={{ fontSize: 12, color: crmV2.textMuted, fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
-        Couleur = closer · RDV passés = issue
-      </span>
-      <AgendaLegendChip swatch={<MediboxBadge brand="medibox" compact style={{ fontSize: 10 }} />} label="RDV Medibox" />
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', flexShrink: 0 }}>
       {POST_RDV_LEGEND.map(item => (
-        <span key={item.label} style={{
-          display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0, whiteSpace: 'nowrap',
-          background: cardPalette(item.color).bg, color: item.color, borderRadius: 999, padding: '4px 10px', fontSize: 12, fontWeight: 700,
-        }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: item.color }} />
+        <span key={item.label} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', fontSize: 12, fontWeight: 600, color: crmV2.text }}>
+          <span style={{
+            width: 14, height: 14, borderRadius: 4, flexShrink: 0,
+            background: cardPalette(item.color).bg, border: `2px solid ${item.color}`, boxSizing: 'border-box',
+          }} />
           {item.label}
         </span>
       ))}
-    </>
+      <span style={{ width: 1, height: 16, background: crmV2.border }} />
+      {(['medibox', 'linova', 'edumove'] as const).map(b => (
+        <span key={b} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap', fontSize: 12, fontWeight: 600, color: crmV2.text }}>
+          <MediboxBadge brand={b} compact style={{ fontSize: 10 }} />
+          {RDV_BRANDS[b].label}
+        </span>
+      ))}
+    </span>
   ) : null
 
   const presenceTitle = presence.lastDay === undefined
     ? 'Semaine à venir : pas encore de RDV passés'
     : `RDV passés ${presence.lastDay ? `du lundi à aujourd'hui` : 'sur toute la semaine'} : ${presence.venus} venus, ${presence.noShow} no-show${presence.pending ? `, ${presence.pending} fiche${presence.pending > 1 ? 's' : ''} non mise${presence.pending > 1 ? 's' : ''} à jour (non comptée${presence.pending > 1 ? 's' : ''})` : ''}`
-  const counters = (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'nowrap' }}>
-      <span title="RDV pris (créés) par l'équipe entre lundi et dimanche de cette semaine" style={{
-        display: 'inline-flex', alignItems: 'center', gap: 5, borderRadius: 999, padding: '2px 10px', fontSize: 12, fontWeight: 700,
-        background: crmV2.goldSoft, border: `1px solid ${crmV2.goldBorder}`, color: crmV2.goldDark, whiteSpace: 'nowrap',
-      }}>
-        {placedCount ?? '…'} RDV placés cette semaine
-      </span>
-      <span title={presenceTitle} style={{
-        display: 'inline-flex', alignItems: 'center', gap: 5, borderRadius: 999, padding: '2px 10px', fontSize: 12, fontWeight: 700,
-        whiteSpace: 'nowrap',
-        background: presence.rate == null ? crmV2.bgSoft : presence.rate >= 70 ? 'rgba(22,163,74,0.10)' : presence.rate >= 50 ? 'rgba(217,119,6,0.10)' : 'rgba(220,38,38,0.08)',
-        color: presence.rate == null ? crmV2.textMuted : presence.rate >= 70 ? crmV2.successStrong : presence.rate >= 50 ? '#b45309' : '#dc2626',
-        border: `1px solid ${crmV2.border}`,
-      }}>
-        Présence {presence.rate == null ? '—' : `${presence.rate} %`}
-        {presence.rate != null && (
-          <span style={{ fontWeight: 500 }}>
-            · {presence.venus}/{presence.venus + presence.noShow}
-            {presence.lastDay ? ` · lun → ${format(presence.lastDay, 'EEE', { locale: fr })}` : ''}
-          </span>
-        )}
-      </span>
-    </span>
+  // Barre de chiffres juste au-dessus du planning (mêmes filtres que l'agenda)
+  const weekRangeShort = `${format(activeWeekStart, 'EEE d', { locale: fr })} → ${format(addDays(activeWeekStart, 6), 'EEE d MMM', { locale: fr })}`
+  const presenceColor = presence.rate == null ? crmV2.textMuted : presence.rate >= 70 ? crmV2.successStrong : presence.rate >= 50 ? '#b45309' : '#dc2626'
+  const statBox = (label: ReactNode, value: ReactNode, detail: ReactNode, color: string, title: string) => (
+    <div title={title} style={{
+      display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap',
+      background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: 12, padding: isMobile ? '8px 12px' : '10px 16px',
+      boxShadow: crmV2.shadow, minWidth: 0,
+    }}>
+      <span style={{ fontSize: 11, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</span>
+      <span style={{ fontSize: isMobile ? 20 : 24, fontWeight: 700, color, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }}>{value}</span>
+      <span style={{ fontSize: 12, color: crmV2.textMuted }}>{detail}</span>
+    </div>
+  )
+  const statsBar = (
+    <div style={{ display: 'flex', gap: isMobile ? 8 : 12, flexWrap: 'wrap', padding: isMobile ? '10px 12px 0' : '14px 28px 0', flexShrink: 0 }}>
+      {statBox(
+        'RDV placés cette semaine',
+        placedCount ?? '…',
+        `pris du ${weekRangeShort}`,
+        crmV2.goldDark,
+        "RDV pris (créés) par l'équipe entre lundi et dimanche de cette semaine, quelle que soit leur date",
+      )}
+      {statBox(
+        'Taux de présence',
+        presence.rate == null ? '—' : `${presence.rate} %`,
+        presence.lastDay === undefined
+          ? 'aucun RDV passé pour l’instant'
+          : `${presence.venus} venus / ${presence.venus + presence.noShow} RDV passés · ${presence.lastDay ? `lun → ${format(presence.lastDay, 'EEE', { locale: fr })}` : 'semaine complète'}`,
+        presenceColor,
+        presenceTitle,
+      )}
+    </div>
   )
 
-  const subtitle = (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-      <span>{rangeLabel()} · {rangeCount} RDV au planning</span>
-      {counters}
-    </span>
-  )
+  const subtitle = <>{rangeLabel()}</>
 
   return (
     <div style={{
@@ -1423,8 +1359,6 @@ export default function WeekCalendar({
                 whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
               }}>
                 {rangeLabel()}
-                <span style={{ fontSize: 13, fontWeight: 500, color: crmV2.textMuted }}> · {rangeCount} RDV</span>
-                {!isMobile && <span style={{ marginLeft: 8, verticalAlign: 'middle' }}>{counters}</span>}
               </div>
             )}
           </div>
@@ -1474,7 +1408,6 @@ export default function WeekCalendar({
           }}
         >
           {closerFilter}
-          {brandToggle}
           {legend}
           {isMobile && showAdminLink && (
             <a
@@ -1534,6 +1467,8 @@ export default function WeekCalendar({
           />
         </div>
       </div>
+
+      {statsBar}
 
       {/* Calendrier */}
       {view !== 'list' ? (

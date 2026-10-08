@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { sendRdvSms, buildBookingSms, buildModeChangeSms } from '@/lib/smsfactor'
-import { RDV_BRANDS, normalizeRdvBrand } from '@/lib/rdv-brand'
+import { RDV_BRANDS, RDV_BRAND_IDS, normalizeRdvBrand } from '@/lib/rdv-brand'
 import {
   sendBookingConfirmationEmail,
   sendMeetingModeChangeEmail,
@@ -54,6 +54,24 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   if (fetchErr || !appointment) {
     return NextResponse.json({ error: 'RDV introuvable' }, { status: 404 })
+  }
+
+  // === CAS B : MARQUE DU RDV (Diploma Santé / Medibox / Linova / Edumove) ===
+  // Corrigée depuis la fiche RDV de l'agenda (logo M / L / E sur la carte).
+  if (body.brand !== undefined && Object.keys(body).length === 1) {
+    const raw = String(body.brand || '').toLowerCase().trim()
+    if (!(RDV_BRAND_IDS as string[]).includes(raw)) {
+      return NextResponse.json({ error: 'Marque inconnue' }, { status: 400 })
+    }
+    const { error: brandErr } = await db.from('rdv_appointments').update({ brand: raw }).eq('id', id)
+    if (brandErr) {
+      const msg = /brand_check/i.test(brandErr.message)
+        ? 'Marque pas encore activée (migration BDD v59 à appliquer dans Supabase).'
+        : brandErr.message
+      return NextResponse.json({ error: msg }, { status: /brand_check/i.test(brandErr.message) ? 503 : 500 })
+    }
+    const { data: finalRow } = await fetchAppointmentEnriched(db, id)
+    return NextResponse.json(finalRow ?? { id, brand: raw })
   }
 
   // === CAS 0 : DÉPLACEMENT (glisser-déposer dans l'agenda) ===
