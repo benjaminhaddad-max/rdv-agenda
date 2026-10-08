@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { logger } from '@/lib/logger'
 import { requireCronSecret } from '@/lib/api-auth'
+import { isIntegrationEnabled } from '@/lib/settings'
 
 // Aligne `crm_contacts.hs_lead_status` avec l'étape des transactions Diploma.
 //
@@ -47,6 +48,9 @@ const SKIP_STATUSES = new Set<string>([STATUS_PREINSCRIT, 'Pré-inscrit 2027/202
 export async function GET(req: NextRequest) {
   const cronAuth = requireCronSecret(req)
   if (!cronAuth.ok) return cronAuth.response
+  if (!(await isIntegrationEnabled('diploma'))) {
+    return NextResponse.json({ ok: true, skipped: true, reason: 'Intégration en pause (Paramètres)' })
+  }
 
   const startMs = Date.now()
   const db = createServiceClient()

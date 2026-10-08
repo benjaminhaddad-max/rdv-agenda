@@ -1,2 +1,6 @@
-/** Re-export classic page inside CRM V2 shell (Design B). */
-export { default } from '../../crm/proprietes/page'
+import { redirect } from 'next/navigation'
+
+/** Les propriétés sont désormais un onglet de Paramètres (recherche de contacts incluse dans la fiche). */
+export default function Page() {
+  redirect('/admin/crm-v2/parametres?tab=proprietes')
+}

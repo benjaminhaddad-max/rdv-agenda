@@ -14,6 +14,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { handleAircallCallCreated, handleAircallCallEnded } from '@/lib/aircall-crm'
+import { isIntegrationEnabled } from '@/lib/settings'
 
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
@@ -65,6 +66,10 @@ export async function POST(req: NextRequest) {
 
   if (!call || !call.id) {
     return NextResponse.json({ ok: true, ignored: 'no call data' })
+  }
+
+  if (!(await isIntegrationEnabled('aircall'))) {
+    return NextResponse.json({ ok: true, ignored: 'Intégration en pause (Paramètres)' })
   }
 
   const db = createServiceClient()

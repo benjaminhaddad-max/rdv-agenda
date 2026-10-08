@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireCronSecret, verifyEventPlatformApiKey } from '@/lib/api-auth'
+import { isIntegrationEnabled } from '@/lib/settings'
 import {
   sendDueEventReminders,
   sendEventPendingConfirmations,
@@ -25,6 +26,9 @@ function authorized(req: NextRequest): boolean {
 export async function POST(req: NextRequest) {
   if (!authorized(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+  if (!(await isIntegrationEnabled('events'))) {
+    return NextResponse.json({ ok: true, skipped: true, reason: 'Intégration en pause (Paramètres)' })
   }
 
   const body = await req.json().catch(() => ({}))

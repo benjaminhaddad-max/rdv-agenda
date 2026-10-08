@@ -22,6 +22,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { requireCronSecret } from '@/lib/api-auth'
 import { isAircallEnabled } from '@/lib/aircall'
+import { isIntegrationEnabled } from '@/lib/settings'
 import {
   pushCrmContactToAircall,
   type CrmContactForAircall,
@@ -42,6 +43,9 @@ type TeleproRow = { id: string; name: string | null }
 export async function GET(req: NextRequest) {
   const cronAuth = requireCronSecret(req)
   if (!cronAuth.ok) return cronAuth.response
+  if (!(await isIntegrationEnabled('aircall'))) {
+    return NextResponse.json({ ok: true, skipped: true, reason: 'Intégration en pause (Paramètres)' })
+  }
 
   if (!isAircallEnabled()) {
     return NextResponse.json({

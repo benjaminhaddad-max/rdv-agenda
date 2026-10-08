@@ -6,7 +6,7 @@ import {
   Users, Briefcase, Mail, FileText, LayoutDashboard,
   ChevronLeft, ChevronRight, ChevronDown, LogOut, Calendar, CalendarDays,
   BarChart3, CheckSquare, Workflow, Upload, GitMerge, Settings as SettingsIcon,
-  Database, Facebook, AlertTriangle, MessageSquare, Menu, X, List,
+  Facebook, AlertTriangle, MessageSquare, Menu, X, List,
   Palette, Repeat2, FileSignature, Phone, ExternalLink, Presentation, PhoneCall, LifeBuoy, Star, ChevronsDownUp, ChevronsUpDown, School,
 } from 'lucide-react'
 import { useIsMobile } from '@/lib/useIsMobile'
@@ -51,7 +51,6 @@ const NAV_SECTIONS: NavSection[] = [
       { key: 'service-technique', label: 'Service technique', href: '/admin/crm-v2/service-technique', icon: LifeBuoy, badgeKey: 'support', ready: true },
       { key: 'import', label: 'Import CSV', href: '/admin/crm-v2/import', icon: Upload, ready: true },
       { key: 'doublons', label: 'Doublons', href: '/admin/crm-v2/doublons', icon: GitMerge, ready: true },
-      { key: 'proprietes', label: 'Propriétés', href: '/admin/crm-v2/proprietes', icon: Database, ready: true },
       { key: 'users', label: 'Équipe', href: '/admin/crm-v2/equipe', icon: Users, ready: true },
       { key: 'parametres', label: 'Paramètres', href: '/admin/crm-v2/parametres', icon: SettingsIcon, ready: true },
     ],

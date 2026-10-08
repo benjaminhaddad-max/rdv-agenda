@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { requireCronSecret } from '@/lib/api-auth'
 import { isAircallEnabled, listAircallCalls } from '@/lib/aircall'
+import { isIntegrationEnabled } from '@/lib/settings'
 import { handleAircallCallEnded } from '@/lib/aircall-crm'
 
 export const maxDuration = 60
@@ -20,6 +21,9 @@ const MAX_PAGES = 8
 export async function GET(req: NextRequest) {
   const cronAuth = requireCronSecret(req)
   if (!cronAuth.ok) return cronAuth.response
+  if (!(await isIntegrationEnabled('aircall'))) {
+    return NextResponse.json({ ok: true, skipped: true, reason: 'Intégration en pause (Paramètres)' })
+  }
 
   if (!isAircallEnabled()) {
     return NextResponse.json({ ok: true, skipped: true, reason: 'aircall_disabled' })

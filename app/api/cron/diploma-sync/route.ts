@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { logger } from '@/lib/logger'
 import { requireCronSecret } from '@/lib/api-auth'
+import { isIntegrationEnabled } from '@/lib/settings'
 
 // Sync Diploma Sante (plateforme de pre-inscription 2026-2027)
 // Source : https://admission.diploma-sante.fr/api/list-inscriptions
@@ -161,6 +162,9 @@ function buildNotes(ins: DiplomaInscription): string | null {
 export async function GET(req: NextRequest) {
   const cronAuth = requireCronSecret(req)
   if (!cronAuth.ok) return cronAuth.response
+  if (!(await isIntegrationEnabled('diploma'))) {
+    return NextResponse.json({ ok: true, skipped: true, reason: 'Intégration en pause (Paramètres)' })
+  }
   if (!DIPLOMA_KEY) {
     return NextResponse.json({ error: 'DIPLOMA_API_KEY missing' }, { status: 500 })
   }

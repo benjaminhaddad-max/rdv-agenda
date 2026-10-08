@@ -104,3 +104,11 @@ export async function setSetting(key: string, value: unknown): Promise<void> {
 export function clearSettingsCache(): void {
   for (const k of Object.keys(cache)) delete cache[k]
 }
+
+/**
+ * Interrupteur d'une intégration (Paramètres → Intégrations).
+ * Absent de crm_settings = activée : rien ne change tant que personne n'a mis en pause.
+ */
+export async function isIntegrationEnabled(id: string): Promise<boolean> {
+  return getSettingBool(`integration_${id}_enabled`, `INTEGRATION_${id.toUpperCase()}_ENABLED`, true)
+}

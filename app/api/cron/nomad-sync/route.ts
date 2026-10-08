@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireCronSecret } from '@/lib/api-auth'
+import { isIntegrationEnabled } from '@/lib/settings'
 import { importNomadRows } from '@/app/api/crm/contacts/nomad-import/route'
 
 export const maxDuration = 300
@@ -154,6 +155,9 @@ async function runSync(req: NextRequest, dryRun: boolean) {
 export async function GET(req: NextRequest) {
   const cronAuth = requireCronSecret(req)
   if (!cronAuth.ok) return cronAuth.response
+  if (!(await isIntegrationEnabled('nomad'))) {
+    return NextResponse.json({ ok: true, skipped: true, reason: 'Intégration en pause (Paramètres)' })
+  }
   const dryRun = req.nextUrl.searchParams.get('dry_run') === '1'
   return runSync(req, dryRun)
 }

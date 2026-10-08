@@ -10,6 +10,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { requireCronSecret } from '@/lib/api-auth'
+import { isIntegrationEnabled } from '@/lib/settings'
 import {
   sendDueEventReminders,
   sendPendingConfirmationsForPublishedEvents,
@@ -21,6 +22,9 @@ export const maxDuration = 300
 export async function GET(req: NextRequest) {
   const cronAuth = requireCronSecret(req)
   if (!cronAuth.ok) return cronAuth.response
+  if (!(await isIntegrationEnabled('events'))) {
+    return NextResponse.json({ ok: true, skipped: true, reason: 'Intégration en pause (Paramètres)' })
+  }
 
   try {
     const confirmations = await sendPendingConfirmationsForPublishedEvents()
