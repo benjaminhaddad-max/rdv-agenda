@@ -36,3 +36,9 @@ UPDATE rdv_users
    SET extra_roles = array_append(extra_roles, 'closer')
  WHERE hubspot_owner_id = '76299546'
    AND NOT ('closer' = ANY(extra_roles));
+
+-- Paola Kai (télépro) close aussi
+UPDATE rdv_users
+   SET extra_roles = array_append(extra_roles, 'closer')
+ WHERE id = '08f87be6-5d3a-434d-a348-3fbfd48f12dd'
+   AND NOT ('closer' = ANY(extra_roles));
