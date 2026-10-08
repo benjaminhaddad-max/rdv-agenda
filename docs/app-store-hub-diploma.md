@@ -162,13 +162,13 @@ The app contains no ads, no tracking and no in-app purchases.
 - [x] Identifiant `fr.diplomasante.hub` (Certificates, Identifiers & Profiles → Identifiers → App IDs), sans capacité particulière.
 - [x] Nouvelle app dans App Store Connect avec les valeurs du §2.
 - [x] Fiche (§3), classification (§4), confidentialité (§5), prix & disponibilité (§2) — remplis le 8/10/2026.
-- [ ] Compte de démo + notes (§6).
-- [ ] Captures d'écran (§9).
+- [x] Compte de démo `apple-review@diploma-sante.fr` (mode démo cloisonné, BDD v54, `scripts/seed-demo-apple-review.ts`) + notes (§6). Mot de passe : `mobile/.demo-account.local` (non commité), à coller dans App Store Connect.
+- [x] Captures d'écran (§9) — `mobile/store-screenshots/` (iPhone 1206×2622, iPad 2064×2752), chargées dans App Store Connect.
 - [ ] Demande de distribution non listée (§7).
 
 ### Build
 - [x] Mac avec **Xcode 27** (iOS 27 impose le cycle de vie UIScene → `SceneDelegate.swift`, cible minimale iOS 15), compte de l'équipe dans Xcode > Settings > Accounts.
-- [ ] `cd mobile && bash scripts/release-ios.sh 1.0.0 1`
+- [x] `cd mobile && bash scripts/release-ios.sh 1.0.0 1` — build 1 envoyée, validée et rattachée à la version 1.0.0
 - [ ] Build visible dans TestFlight → tester en interne (connexion, recherche, fiche, RDV, visio, hors ligne, iPad).
 - [ ] Sélectionner la build dans la version 1.0.0 → *Ajouter pour vérification* → *Soumettre*.
 - [ ] Après validation : *Publier cette version* (sortie manuelle), puis diffuser le lien.
@@ -181,7 +181,7 @@ Obligatoires car l'app est universelle (iPhone + iPad). PNG/JPEG sans transparen
 
 | Appareil | Taille (portrait) |
 |---|---|
-| iPhone 6,9" | 1320 × 2868 (ou 1290 × 2796) |
+| iPhone 6,1/6,3" (Dynamic Island) | 1206 × 2622 (ou 1179 × 2556) — exigence App Store Connect 2026 |
 | iPad 13" | 2064 × 2752 (ou 2048 × 2732) |
 
 À réaliser **avec le compte de démo** (données fictives) : 1. liste des contacts · 2. fiche contact · 3. agenda / prise de RDV · 4. recherche globale · 5. tableau de bord.
