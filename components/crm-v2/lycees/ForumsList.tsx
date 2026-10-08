@@ -7,7 +7,7 @@
  */
 
 import { useMemo, useState } from 'react'
-import { Check, EyeOff, Phone } from 'lucide-react'
+import { Check, ExternalLink, EyeOff, Phone } from 'lucide-react'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import { useIsMobile } from '@/lib/useIsMobile'
 import {
@@ -195,6 +195,12 @@ export default function ForumsList({
                     <EventStatusPill status={e.status} /> <NextCallCell date={e.next_action_at} today={today} />
                   </div>
                   {e.last_note && <div style={{ fontSize: 12, color: crmV2.textMuted, marginTop: 2 }}>{e.last_note}</div>}
+                  {e.source_url && (
+                    <a href={e.source_url} target="_blank" rel="noreferrer" onClick={ev => ev.stopPropagation()}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 12, color: crmV2.link, fontWeight: 600, textDecoration: 'none', marginTop: 2 }}>
+                      Source <ExternalLink size={11} />
+                    </a>
+                  )}
                 </div>
                 <span onClick={ev => { ev.stopPropagation(); onCall(e) }} style={{
                   width: 38, height: 38, borderRadius: 999, background: crmV2.goldSoft, color: crmV2.goldDark,
@@ -235,7 +241,7 @@ export default function ForumsList({
                 <CrmV2Th>Dernier appel</CrmV2Th>
                 <CrmV2Th>Rappel</CrmV2Th>
                 <CrmV2Th>Intervenants</CrmV2Th>
-                <CrmV2Th style={{ width: 150 }}> </CrmV2Th>
+                <CrmV2Th style={{ width: 230 }}> </CrmV2Th>
               </tr>
             </thead>
             <tbody>
@@ -287,6 +293,12 @@ export default function ForumsList({
                     <CrmV2Td>
                       <span onClick={ev => ev.stopPropagation()} style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
                         <CrmV2Button size="sm" variant="gold" icon={<Phone size={12} />} onClick={() => onCall(e)}>Appel</CrmV2Button>
+                        {e.source_url ? (
+                          <a href={e.source_url} target="_blank" rel="noreferrer" title={e.source_url} style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 4, padding: '6px 10px', borderRadius: 999, fontSize: 12, fontWeight: 600,
+                            border: `1px solid ${crmV2.borderStrong}`, color: crmV2.link, textDecoration: 'none', whiteSpace: 'nowrap', background: crmV2.bg,
+                          }}>Source <ExternalLink size={11} /></a>
+                        ) : null}
                         {detectedActions(e)}
                       </span>
                     </CrmV2Td>
