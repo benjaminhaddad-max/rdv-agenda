@@ -363,6 +363,7 @@ export default function LyceesTable({
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {l.city}{l.secteur !== 'public' ? ' · privé' : ''}{l.voie_generale === false ? ' · pro' : ''}
                         {l.past_events ? ` · ${l.past_events} déjà fait(s)${l.past_leads ? `, ${l.past_leads} leads` : ''}` : ''}
+                        {l.inscrits_2526 ? <b style={{ color: crmV2.goldDark }}>{` · ${l.inscrits_2526} inscrit${l.inscrits_2526 > 1 ? 's' : ''} 25-26`}</b> : null}
                       </span>
                     </div>
                   </CrmV2Td>

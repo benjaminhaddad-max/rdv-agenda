@@ -95,7 +95,7 @@ export async function logLyceeActivity(
 }
 
 type EventLite = Pick<LyceeEventRow, 'id' | 'uai' | 'season' | 'kind' | 'status' | 'date' | 'leads_count' | 'date_confirmed' | 'hidden'>
-type ContactLite = Pick<LyceeContactRow, 'uai' | 'is_key'>
+type ContactLite = Pick<LyceeContactRow, 'uai' | 'is_key' | 'source'>
 
 /** Agrégats + score pour la liste (et la fiche). */
 export function buildListItems(
@@ -104,11 +104,12 @@ export function buildListItems(
   events: EventLite[],
   today: string,
 ): LyceeListItem[] {
-  const contactsBy = new Map<string, { n: number; key: number }>()
+  const contactsBy = new Map<string, { n: number; key: number; ins: number }>()
   for (const c of contacts) {
-    const v = contactsBy.get(c.uai) || { n: 0, key: 0 }
+    const v = contactsBy.get(c.uai) || { n: 0, key: 0, ins: 0 }
     v.n++
     if (c.is_key) v.key++
+    if (c.source === 'plateforme_2526') v.ins++
     contactsBy.set(c.uai, v)
   }
   const eventsBy = new Map<string, EventLite[]>()
@@ -122,8 +123,8 @@ export function buildListItems(
     const evs = eventsBy.get(l.uai) || []
     const past = evs.filter(e => e.status === 'realise' && e.kind !== 'flying')
     const pastLeads = past.reduce((s, e) => s + (e.leads_count || 0), 0)
-    const c = contactsBy.get(l.uai) || { n: 0, key: 0 }
-    const { score, parts } = computeLyceeScore(l, { pastLeads, pastEvents: past.length, keyContacts: c.key })
+    const c = contactsBy.get(l.uai) || { n: 0, key: 0, ins: 0 }
+    const { score, parts } = computeLyceeScore(l, { pastLeads, pastEvents: past.length, keyContacts: c.key, inscrits: c.ins })
     const current = evs.filter(e => e.season === CURRENT_SEASON && e.status !== 'annule' && e.status !== 'refuse')
     const upcoming = current
       .filter(e => !e.date || e.date >= today)
@@ -135,6 +136,7 @@ export function buildListItems(
       contacts_count: c.n,
       past_events: past.length,
       past_leads: pastLeads,
+      inscrits_2526: c.ins,
       flying_per_session: l.flying_leads_total && l.flying_sessions ? Math.round(l.flying_leads_total / l.flying_sessions) : null,
       next_event: upcoming
         ? { id: upcoming.id, date: upcoming.date, kind: upcoming.kind, status: upcoming.status, date_confirmed: upcoming.date_confirmed }

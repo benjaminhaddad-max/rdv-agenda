@@ -245,6 +245,8 @@ export type LyceeListItem = LyceeRow & {
   past_events: number
   /** Leads récupérés en forum / inter par le passé */
   past_leads: number
+  /** Élèves Diploma 2025-26 venant de ce lycée (plateforme d'inscription, dossiers validés) */
+  inscrits_2526: number
   /** Leads attendus par session de flying (historique) */
   flying_per_session: number | null
   /** Prochain événement de la saison en cours (date ≥ aujourd'hui) */
@@ -267,11 +269,13 @@ const clamp = (v: number, a = 0, b = 1) => Math.max(a, Math.min(b, v))
  *  - Niveau (taux de mentions au bac)                               10 pts
  *  - Historique : leads récupérés en forum / inter                  15 pts
  *  - Flying : leads par session devant le lycée                     10 pts
+ *  - Nos inscrits 2025-26 venant du lycée (plateforme)             10 pts
  *  - Relationnel : ancien élève relais, contact clé, priorité       ±10 pts
+ * (total plafonné à 100)
  */
 export function computeLyceeScore(
   l: Pick<LyceeRow, 'eff_svt' | 'eff_terminale' | 'voie_generale' | 'ips' | 'taux_mentions' | 'priority' | 'alumni_help' | 'status' | 'flying_leads_total' | 'flying_sessions'>,
-  extra: { pastLeads: number; pastEvents: number; keyContacts: number },
+  extra: { pastLeads: number; pastEvents: number; keyContacts: number; inscrits: number },
 ): { score: number; parts: ScorePart[] } {
   const parts: ScorePart[] = []
   // Cible SVT ; à défaut, une estimation à partir des terminales (≈ 25 % en SVT)
@@ -282,6 +286,7 @@ export function computeLyceeScore(
   parts.push({ label: 'Leads récupérés en forum / inter', points: Math.round(clamp(extra.pastLeads / 40) * 12 + (extra.pastEvents > 0 ? 3 : 0)), max: 15 })
   const perSession = l.flying_leads_total && l.flying_sessions ? l.flying_leads_total / l.flying_sessions : 0
   parts.push({ label: 'Leads par session de flying', points: Math.round(clamp(perSession / 45) * 10), max: 10 })
+  parts.push({ label: 'Élèves Diploma 2025-26 venant du lycée', points: Math.round(clamp(extra.inscrits / 6) * 10), max: 10 })
   let rel = 0
   if (l.alumni_help) rel += 3
   if (extra.keyContacts > 0) rel += 3

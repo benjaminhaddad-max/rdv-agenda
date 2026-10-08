@@ -280,6 +280,7 @@ function Indicateurs({ l }: { l: LyceeListItem }) {
         <Stat label="PC + SVT" value={l.eff_pc_svt || null} hint="doublette santé" />
         <Stat label="IPS" value={l.ips != null ? Math.round(l.ips) : null} hint="profil social (moy. ≈ 100)" />
         <Stat label="Mentions" value={l.taux_mentions != null ? `${l.taux_mentions} %` : null} hint={l.taux_reussite != null ? `réussite ${l.taux_reussite} %` : undefined} />
+        <Stat label="Nos inscrits 25-26" value={l.inscrits_2526 || null} hint="venant de ce lycée (plateforme)" />
         <Stat label="Leads passés" value={l.past_leads || null} hint={`${l.past_events} forum(s) / inter(s)`} />
         <Stat label="Flying" value={l.flying_per_session != null ? `${l.flying_per_session}/session` : null}
           hint={l.flying_sessions ? `${l.flying_leads_total ?? '?'} leads · ${l.flying_sessions} session(s)` : undefined} />

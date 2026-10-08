@@ -33,8 +33,8 @@ export async function GET(req: NextRequest) {
 
   const uais = new Set(lyc.data.map(l => l.uai))
   const [contacts, events] = await Promise.all([
-    fetchAllRows<Pick<LyceeContactRow, 'uai' | 'is_key'>>((from, to) =>
-      db.from('lycee_contacts').select('uai, is_key').order('id').range(from, to)),
+    fetchAllRows<Pick<LyceeContactRow, 'uai' | 'is_key' | 'source'>>((from, to) =>
+      db.from('lycee_contacts').select('uai, is_key, source').order('id').range(from, to)),
     fetchAllRows<Pick<LyceeEventRow, 'id' | 'uai' | 'season' | 'kind' | 'status' | 'date' | 'leads_count' | 'date_confirmed' | 'hidden'>>((from, to) =>
       db.from('lycee_events').select('id, uai, season, kind, status, date, leads_count, date_confirmed, hidden').order('id').range(from, to)),
   ])
