@@ -1773,11 +1773,15 @@ export async function GET(req: NextRequest) {
   // Filtre Telepro (exclusion) — "is_not X" = NULL OU différent de X.
   // Les leads sans télépro (non assignés) sont sémantiquement ≠ X
   // et doivent rester dans les vues d'exclusion (ex : "pas Benjamin").
+  // telepro_user_id est bigint : les ids rdv_users (uuid) d'une vue sont
+  // traduits en owner id HubSpot, sinon Postgres rejette la requête (500).
   if (teleproNot) {
-    const vals = splitMulti(teleproNot)
-    query = vals.length > 1
-      ? query.or(`telepro_user_id.is.null,telepro_user_id.not.in.${toPostgrestInList(vals)}`)
-      : query.or(`telepro_user_id.is.null,telepro_user_id.neq.${teleproNot}`)
+    const vals = [...new Set((await expandTeleproFilterValues(teleproNot)).filter(v => /^\d+$/.test(v)))]
+    if (vals.length > 1) {
+      query = query.or(`telepro_user_id.is.null,telepro_user_id.not.in.${toPostgrestInList(vals)}`)
+    } else if (vals.length === 1) {
+      query = query.or(`telepro_user_id.is.null,telepro_user_id.neq.${vals[0]}`)
+    }
   }
 
   // withTelepro = a un telepro renseigne
