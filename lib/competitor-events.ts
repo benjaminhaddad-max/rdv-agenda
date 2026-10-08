@@ -238,6 +238,8 @@ async function scanCompetitor(
     const res = await client.messages.create(params)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const content = res.content as any[]
+    // SDK 0.39 : son type ne connaît pas encore 'pause_turn'
+    const stop = res.stop_reason as string | null
     const report = content.find((b) => b.type === 'tool_use' && b.name === 'report_events')
     if (report) {
       const list: Record<string, unknown>[] = Array.isArray(report.input?.events) ? report.input.events : []
@@ -246,17 +248,17 @@ async function scanCompetitor(
         .filter((e): e is CompetitorEventInput => !!e && (e.end_date || e.start_date) >= today)
       return { competitor: c.id, events }
     }
-    if (res.stop_reason === 'pause_turn') {
+    if (stop === 'pause_turn') {
       messages.push({ role: 'assistant', content })
       continue
     }
-    if (res.stop_reason === 'end_turn') {
+    if (stop === 'end_turn') {
       // Le modèle a répondu en texte sans appeler l'outil : on le lui redemande.
       messages.push({ role: 'assistant', content })
       messages.push({ role: 'user', content: "Appelle maintenant l'outil report_events avec la liste finale." })
       continue
     }
-    return { competitor: c.id, events: [], error: `stop_reason=${res.stop_reason}` }
+    return { competitor: c.id, events: [], error: `stop_reason=${stop}` }
   }
   return { competitor: c.id, events: [], error: 'trop de tours sans résultat' }
 }
