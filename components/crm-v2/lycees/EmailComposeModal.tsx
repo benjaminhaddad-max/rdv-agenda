@@ -5,10 +5,12 @@
  * boîte de la marque (partenariat@diploma-sante.fr ou partenariat@afem-edu.fr)
  * avec la plaquette jointe ; le modèle choisi pré-remplit l'objet et le texte,
  * tout reste modifiable avant l'envoi. Les réponses reviennent dans la fiche.
+ * Depuis un forum, l'IA rédige d'office un mail adapté à l'événement (date
+ * sûre ou probable, type de forum, historique) et recommande la marque.
  */
 
 import { useEffect, useMemo, useState } from 'react'
-import { CheckCircle2, FileText, Mail, Paperclip, Send, TriangleAlert } from 'lucide-react'
+import { CheckCircle2, FileText, Mail, Paperclip, Send, Sparkles, TriangleAlert } from 'lucide-react'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import { CrmV2Button, CrmV2Input, CrmV2Segmented, CrmV2Select, CrmV2Textarea, CrmV2Toggle, hexA } from '@/components/crm-v2/primitives'
 import { AdminModal, AdminNotice } from '@/components/crm-v2/admin/AdminUi'
@@ -17,7 +19,11 @@ import {
   DEFAULT_MAILBOXES, MAIL_BRANDS, MAIL_PURPOSES, parseEmails, renderTemplate,
   type LyceeEmailTemplate, type MailPurpose, type TemplateContext,
 } from '@/lib/lycee-mail-shared'
+import type { LyceeMailDraft } from '@/lib/lycee-mail-ai'
 import { api, fmtDate, parisTodayKey } from './ui'
+
+/** Valeur du sélecteur de modèle pour le brouillon rédigé par l'IA */
+const AI = '__ai'
 
 export type ComposeTarget = {
   uai?: string | null
@@ -47,7 +53,12 @@ export default function EmailComposeModal({ target, onClose, onSent }: {
   const reply = target.replyTo ?? null
   const [mode, setMode] = useState<LyceeMode>(reply?.mode ?? target.mode ?? 'diploma')
   const [templates, setTemplates] = useState<LyceeEmailTemplate[] | null>(null)
-  const [templateId, setTemplateId] = useState<string>('')
+  const autoAi = !!target.eventId && !reply
+  const [templateId, setTemplateId] = useState<string>(autoAi ? AI : '')
+  const [aiDraft, setAiDraft] = useState<LyceeMailDraft | null>(null)
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState<string | null>(null)
+  const [loaded, setLoaded] = useState(false)
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [ctx, setCtx] = useState<TemplateContext>({})
   const [to, setTo] = useState(reply?.from_email ?? '')
@@ -100,7 +111,7 @@ export default function EmailComposeModal({ target, onClose, onSent }: {
       // Destinataire proposé : contact clé, sinon organisateur, sinon secrétariat
       if (!reply && list[0]) setTo(t => t || list[0].email)
     }
-    load().catch(() => {})
+    load().catch(() => {}).finally(() => setLoaded(true))
   }, [target.uai, target.eventId, reply])
 
   const modeTemplates = useMemo(() => (templates ?? []).filter(t => t.mode === mode), [templates, mode])
@@ -130,16 +141,51 @@ export default function EmailComposeModal({ target, onClose, onSent }: {
     }
   }, [chosen, fullCtx, edited, reply])
 
+  // Brouillon IA adapté au lycée / à l'événement (m = marque imposée, sinon celle recommandée)
+  const generate = async (m?: LyceeMode) => {
+    setAiLoading(true)
+    setAiError(null)
+    setTemplateId(AI)
+    try {
+      const { draft } = await api<{ draft: LyceeMailDraft }>('/api/crm/lycees/emails/draft', {
+        method: 'POST',
+        json: { event_id: target.eventId ?? null, uai: target.uai ?? null, mode: m ?? null, contact_name: contactName, purpose: target.purpose ?? null },
+      })
+      setAiDraft(draft)
+      setMode(draft.mode)
+      setSubject(draft.subject)
+      setBody(draft.body)
+      setAttach(true)
+      setEdited(false)
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : 'Erreur')
+      if (!subject && !body) setTemplateId('')
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
+  // Depuis un forum : brouillon IA dès que les destinataires sont connus
+  const [aiStarted, setAiStarted] = useState(false)
+  useEffect(() => {
+    if (!autoAi || !loaded || aiStarted) return
+    setAiStarted(true)
+    void generate(target.mode ?? undefined)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoAi, loaded, aiStarted])
+
   const pickTemplate = (id: string) => {
     if (edited && !confirm('Remplacer ton texte par ce modèle ?')) return
     setEdited(false)
+    if (id === AI) { void generate(mode); return }
     setTemplateId(id)
     if (!id) { setSubject(''); setBody('') }
   }
 
   const switchMode = (m: LyceeMode) => {
     if (m === mode) return
-    if (edited && !confirm('Changer de marque remplace ton texte par le modèle de l’autre marque. Continuer ?')) return
+    if (edited && !confirm('Changer de marque remplace ton texte par un nouveau mail dans l’autre marque. Continuer ?')) return
+    if (templateId === AI) { void generate(m); return }
     const purpose = chosen?.purpose
     setMode(m)
     setEdited(false)
@@ -196,7 +242,7 @@ export default function EmailComposeModal({ target, onClose, onSent }: {
             {next ? `Relance prévue le ${fmtDate(next, { weekday: true })}` : 'Pas de relance prévue'}
           </span>
           <CrmV2Button onClick={onClose} disabled={sending}>Annuler</CrmV2Button>
-          <CrmV2Button variant="primary" icon={<Send size={14} />} onClick={send} disabled={sending || missingMigration || !toList.length || !subject.trim() || !body.trim()}>
+          <CrmV2Button variant="primary" icon={<Send size={14} />} onClick={send} disabled={sending || aiLoading || missingMigration || !toList.length || !subject.trim() || !body.trim()}>
             {sending ? 'Envoi…' : 'Envoyer'}
           </CrmV2Button>
         </>
@@ -229,8 +275,15 @@ export default function EmailComposeModal({ target, onClose, onSent }: {
 
         {!reply && (
           <div>
-            <div style={label}>Modèle</div>
-            <CrmV2Select value={templateId} onChange={e => pickTemplate(e.target.value)} style={{ width: '100%' }}>
+            <div style={{ ...label, display: 'flex', alignItems: 'center' }}>
+              <span style={{ flex: 1 }}>Modèle</span>
+              <button type="button" disabled={aiLoading} onClick={() => { if (!edited || confirm('Remplacer ton texte par un mail rédigé par l’IA ?')) void generate(mode) }} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: '#7e22ce', fontWeight: 800, fontSize: 12,
+                cursor: aiLoading ? 'wait' : 'pointer', fontFamily: 'inherit',
+              }}><Sparkles size={13} /> {templateId === AI && aiDraft ? 'Réécrire avec l’IA' : 'Rédiger avec l’IA'}</button>
+            </div>
+            <CrmV2Select value={templateId} onChange={e => pickTemplate(e.target.value)} style={{ width: '100%' }} disabled={aiLoading}>
+              <option value={AI}>✨ Mail adapté par l’IA à ce {target.eventId ? 'forum' : 'lycée'}</option>
               <option value="">— Mail libre —</option>
               {MAIL_PURPOSES.map(p => {
                 const list = modeTemplates.filter(t => t.purpose === p.id)
@@ -241,6 +294,30 @@ export default function EmailComposeModal({ target, onClose, onSent }: {
                 ) : null
               })}
             </CrmV2Select>
+          </div>
+        )}
+
+        {aiLoading && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 10, background: hexA('#7e22ce', 0.06), border: `1px solid ${hexA('#7e22ce', 0.25)}`, fontSize: 12.5, color: '#7e22ce', fontWeight: 600 }}>
+            <Sparkles size={14} /> L’IA rédige un mail adapté ({target.eventId ? 'type de forum, date sûre ou probable, source, historique' : 'historique du lycée, échanges passés'})… 10 à 20 secondes.
+          </div>
+        )}
+        {aiError && <AdminNotice tone="warning" onClose={() => setAiError(null)}>{aiError} — choisis un modèle à la place.</AdminNotice>}
+        {!aiLoading && templateId === AI && aiDraft && (
+          <div style={{ padding: '10px 12px', borderRadius: 10, background: hexA('#7e22ce', 0.05), border: `1px solid ${hexA('#7e22ce', 0.2)}`, fontSize: 12.5, lineHeight: 1.5 }}>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start', color: crmV2.text }}>
+              <Sparkles size={14} color="#7e22ce" style={{ flexShrink: 0, marginTop: 2 }} />
+              <span><b>Situation :</b> {aiDraft.situation}</span>
+            </div>
+            {aiDraft.recommended_mode !== mode ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 6, color: '#b45309' }}>
+                <span style={{ flex: 1, minWidth: 220 }}><b>L’IA recommande plutôt {MAIL_BRANDS[aiDraft.recommended_mode].senderName}</b> — {aiDraft.mode_reason}</span>
+                {!reply && <CrmV2Button size="sm" variant="gold" onClick={() => switchMode(aiDraft.recommended_mode)}>Rédiger en {aiDraft.recommended_mode === 'afem' ? 'AFEM' : 'Diploma Santé'}</CrmV2Button>}
+              </div>
+            ) : (
+              <div style={{ marginTop: 4, color: crmV2.textMuted }}><b style={{ color: '#16a34a' }}>Marque recommandée : {MAIL_BRANDS[aiDraft.recommended_mode].senderName}</b> — {aiDraft.mode_reason}</div>
+            )}
+            <div style={{ marginTop: 4, color: crmV2.textFaint, fontSize: 11.5 }}>Brouillon : relis-le et ajuste avant d’envoyer.</div>
           </div>
         )}
 
@@ -279,7 +356,8 @@ export default function EmailComposeModal({ target, onClose, onSent }: {
 
         <div>
           <div style={label}>Message</div>
-          <CrmV2Textarea value={body} onChange={e => { setBody(e.target.value); setEdited(true) }} rows={16} style={{ width: '100%', lineHeight: 1.55 }} />
+          <CrmV2Textarea value={body} onChange={e => { setBody(e.target.value); setEdited(true) }} rows={16} style={{ width: '100%', lineHeight: 1.55, opacity: aiLoading ? 0.5 : 1 }}
+            disabled={aiLoading} placeholder={aiLoading ? 'Rédaction en cours…' : undefined} />
           <div style={{ fontSize: 11.5, color: crmV2.textFaint, marginTop: 4 }}>
             Ta signature ({brand.team}, {fromAddress}, {brand.websiteLabel}) et le logo sont ajoutés automatiquement en bas du mail.
           </div>

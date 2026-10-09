@@ -13,7 +13,7 @@ import { useIsMobile } from '@/lib/useIsMobile'
 import {
   CrmV2Button, CrmV2Empty, CrmV2Pagination, CrmV2Search, CrmV2StatusPill, CrmV2Table, CrmV2TableCard, CrmV2Td, CrmV2Th, CrmV2Tr,
 } from '@/components/crm-v2/primitives'
-import { AdminIconButton, AdminMobileList, AdminMobileRow, AdminPillSelect } from '@/components/crm-v2/admin/AdminUi'
+import { AdminMobileList, AdminMobileRow, AdminPillSelect } from '@/components/crm-v2/admin/AdminUi'
 import { DEPARTMENTS, EVENT_SCOPES, EVENT_STATUSES, lookup, normalizeName } from '@/lib/lycees'
 import {
   type AgendaEvent, Dept, EventStatusPill, KindPill, LastCallCell, NextCallCell, parisTodayKey, UserChip, type TeamUser,
@@ -173,10 +173,20 @@ export default function ForumsList({
 
   const footer = <><span>{list.length} forum(s)</span><CrmV2Pagination page={page} pageSize={pageSize} total={list.length} onChange={setPage} /></>
 
-  const detectedActions = (e: AgendaEvent) => e.status === 'detecte' && (
+  // « On y sera » → statut Confirmé : le forum passe dans « Nos dates » (et le lycée en « obtenu »)
+  const rowActions = (e: AgendaEvent) => (
     <>
-      <AdminIconButton icon={<Check size={14} />} title="Forum vérifié : à appeler" onClick={() => onQuickPatch(e.id, { status: 'a_confirmer' })} />
-      <AdminIconButton icon={<EyeOff size={14} />} title="Faux positif : masquer" tone="danger" onClick={() => onQuickPatch(e.id, { hidden: true })} />
+      {e.status === 'confirme' || e.status === 'realise' ? (
+        <span title="Ce forum est dans « Nos dates »" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 700, color: '#16a34a', whiteSpace: 'nowrap', padding: '0 4px' }}>
+          <Check size={13} /> {e.status === 'realise' ? 'Fait' : 'On y sera'}
+        </span>
+      ) : (
+        <CrmV2Button size="sm" icon={<Check size={12} />} onClick={() => onQuickPatch(e.id, { status: 'confirme' })}
+          style={{ color: '#16a34a', borderColor: 'rgba(22,163,74,.35)' }}>On y sera</CrmV2Button>
+      )}
+      {e.status === 'detecte' && (
+        <CrmV2Button size="sm" variant="ghost" icon={<EyeOff size={12} />} onClick={() => onQuickPatch(e.id, { hidden: true })}>Pas pour nous</CrmV2Button>
+      )}
     </>
   )
 
@@ -307,7 +317,7 @@ export default function ForumsList({
                             border: `1px solid ${crmV2.borderStrong}`, color: crmV2.link, textDecoration: 'none', whiteSpace: 'nowrap', background: crmV2.bg,
                           }}>Source <ExternalLink size={11} /></a>
                         ) : null}
-                        {detectedActions(e)}
+                        {rowActions(e)}
                       </span>
                     </CrmV2Td>
                   </CrmV2Tr>
