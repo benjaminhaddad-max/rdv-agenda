@@ -228,8 +228,8 @@ export default function AppointmentModal({
 
   const durationMin = Math.max(0, Math.round((displayEnd.getTime() - displayStart.getTime()) / 60000))
   const statusCfg = STATUS_CONFIG[status] || STATUS_CONFIG.confirme
-  // Le télépro voit le RDV mais ne qualifie pas l'issue
-  const canQualify = !teleproView
+  // Le télépro qualifie aussi l'issue (no-show, positif…) — seule la réassignation lui reste fermée (showAssign)
+  const canQualify = true
 
   const reportFilled = reportSummary.trim().length > 0 && reportTelepro.trim().length > 0
   // Rapport déjà sauvegardé en base (pas besoin de le re-remplir pour changer de statut)
@@ -792,7 +792,7 @@ export default function AppointmentModal({
           </div>
         </div>
 
-        {/* Retour prospect — visible si assigné, toujours réversible (pas pour le télépro) */}
+        {/* Retour prospect — visible si assigné, toujours réversible */}
         {canQualify && (status === 'confirme' || status === 'confirme_prospect' || status === 'annule') && (
           <div style={sectionPad}>
             <div style={sectionLabel}>Retour prospect</div>
@@ -846,7 +846,7 @@ export default function AppointmentModal({
           </div>
         )}
 
-        {/* Issue du RDV — masquée si non assigné, en lecture seule pour le télépro */}
+        {/* Issue du RDV — masquée si non assigné */}
         {canQualify && !isNonAssigne && (
           <div style={sectionPad}>
             <div style={sectionLabel}>Issue du RDV</div>
@@ -898,21 +898,6 @@ export default function AppointmentModal({
                 <Check size={12} /> Transaction mise à jour
               </div>
             )}
-          </div>
-        )}
-
-        {/* Télépro : issue visible en lecture seule */}
-        {teleproView && !isNonAssigne && (
-          <div style={sectionPad}>
-            <div style={sectionLabel}>Issue du RDV</div>
-            <span style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              background: statusCfg.bg, color: statusCfg.color, border: `1px solid ${statusCfg.border}`,
-              borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 700,
-            }}>
-              <span style={{ width: 7, height: 7, borderRadius: '50%', background: statusCfg.color }} />
-              {statusCfg.label}
-            </span>
           </div>
         )}
 
