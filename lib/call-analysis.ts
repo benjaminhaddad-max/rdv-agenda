@@ -198,8 +198,6 @@ Un bon appel : découverte du projet (classe, filière, objectif médecine/sant�
 Cet appel a duré plus de 2 minutes et n'a PAS débouché sur un RDV. Si le télépro a vendu ou proposé une petite offre / envoyé le lien d'inscription, choisis la cause offre_directe (ce n'est pas un échec) et note l'appel en conséquence. Si le prospect est en PASS / LAS (ou s'y destine) et que le télépro n'a proposé ni RDV ni petite offre, signale-le dans ce qui a manqué. Les locuteurs sont numérotés par la transcription automatique : déduis qui est le télépro (celui qui se présente au nom de Diploma Santé).
 Identifie la cause principale de l'échec, ce qui s'est passé, ce qui a manqué côté télépro et un conseil concret et actionnable pour la prochaine fois. Sois factuel, appuie-toi sur la transcription, en français, phrases courtes.`
 
-const SYSTEM_PROMPT = `${SYSTEM_PROMPT_HEAD}
-Note aussi le télépro sur 5 critères, de 0 (absent) à 2 (bien fait) : ${CALL_CRITERIA.map(c => `${c.label} (${c.hint})`).join(' ; ')}. Sois exigeant mais juste : 2 seulement si c'est vraiment bien fait.`
 
 const CAUSE_IDS = CALL_CAUSES.map(c => c.id)
 
@@ -218,6 +216,9 @@ export const CALL_CRITERIA = [
 export type CallCriteria = Record<typeof CALL_CRITERIA[number]['id'], number>
 
 const CRITERION_SCHEMA = { type: 'integer', enum: [0, 1, 2] }
+
+const SYSTEM_PROMPT = `${SYSTEM_PROMPT_HEAD}
+Note aussi le télépro sur 5 critères, de 0 (absent) à 2 (bien fait) : ${CALL_CRITERIA.map(c => `${c.label} (${c.hint})`).join(' ; ')}. Sois exigeant mais juste : 2 seulement si c'est vraiment bien fait.`
 
 const OUTPUT_SCHEMA = {
   type: 'object',
