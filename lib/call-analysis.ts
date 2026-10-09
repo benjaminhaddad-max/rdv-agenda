@@ -190,7 +190,7 @@ async function transcribe(audioUrl: string): Promise<string> {
 
 // ── Analyse Claude ──────────────────────────────────────────────────────────
 
-const SYSTEM_PROMPT = `Tu analyses des appels de téléprospection de Diploma Santé, une prépa aux études de santé (PASS, LAS, PAES, Terminale Santé, Première…).
+const SYSTEM_PROMPT_HEAD = `Tu analyses des appels de téléprospection de Diploma Santé, une prépa aux études de santé (PASS, LAS, PAES, Terminale Santé, Première…).
 Le télépro appelle un lead (lycéen, étudiant ou parent). Deux issues sont des réussites :
 1. un rendez-vous d'orientation avec un conseiller pour les préparations complètes (Terminale Santé, PAES, Première…) ;
 2. pour les petites offres, PAS besoin de RDV : le télépro peut les vendre directement au téléphone en envoyant le lien d'inscription (Préparation LAS 1, LAS 2 ou LAS 3 année complète à 490 €, Préparation PASS semestre à 490 € ou année complète à 690 €). Elles conviennent surtout aux étudiants déjà en PASS ou en LAS.
@@ -198,23 +198,52 @@ Un bon appel : découverte du projet (classe, filière, objectif médecine/sant�
 Cet appel a duré plus de 2 minutes et n'a PAS débouché sur un RDV. Si le télépro a vendu ou proposé une petite offre / envoyé le lien d'inscription, choisis la cause offre_directe (ce n'est pas un échec) et note l'appel en conséquence. Si le prospect est en PASS / LAS (ou s'y destine) et que le télépro n'a proposé ni RDV ni petite offre, signale-le dans ce qui a manqué. Les locuteurs sont numérotés par la transcription automatique : déduis qui est le télépro (celui qui se présente au nom de Diploma Santé).
 Identifie la cause principale de l'échec, ce qui s'est passé, ce qui a manqué côté télépro et un conseil concret et actionnable pour la prochaine fois. Sois factuel, appuie-toi sur la transcription, en français, phrases courtes.`
 
+const SYSTEM_PROMPT = `${SYSTEM_PROMPT_HEAD}
+Note aussi le télépro sur 5 critères, de 0 (absent) à 2 (bien fait) : ${CALL_CRITERIA.map(c => `${c.label} (${c.hint})`).join(' ; ')}. Sois exigeant mais juste : 2 seulement si c'est vraiment bien fait.`
+
 const CAUSE_IDS = CALL_CAUSES.map(c => c.id)
+
+/**
+ * Grille de notation : 5 critères de 0 à 2, note /10 = somme (calculée ici,
+ * pas laissée à l'appréciation du modèle).
+ */
+export const CALL_CRITERIA = [
+  { id: 'decouverte', label: 'Découverte', hint: 'Questions sur la classe, la filière, le projet, la situation, les motivations' },
+  { id: 'argumentation', label: 'Argumentation', hint: "Mise en valeur de l'accompagnement adaptée au besoin exprimé" },
+  { id: 'proposition', label: 'Proposition', hint: 'RDV avec créneau concret, ou petite offre + lien, clairement proposé' },
+  { id: 'objections', label: 'Objections', hint: 'Réponse aux freins (prix, temps, parents, autre prépa) au lieu de lâcher' },
+  { id: 'conclusion', label: 'Conclusion', hint: 'Prochaine étape fixée : rappel daté, lien envoyé, parent à rappeler…' },
+] as const
+
+export type CallCriteria = Record<typeof CALL_CRITERIA[number]['id'], number>
+
+const CRITERION_SCHEMA = { type: 'integer', enum: [0, 1, 2] }
 
 const OUTPUT_SCHEMA = {
   type: 'object',
   properties: {
+    criteria: {
+      type: 'object',
+      description: 'Note de 0 à 2 par critère (0 = absent, 1 = partiel, 2 = bien fait). '
+        + CALL_CRITERIA.map(c => `${c.id} = ${c.hint}`).join(' ; '),
+      properties: Object.fromEntries(CALL_CRITERIA.map(c => [c.id, CRITERION_SCHEMA])),
+      required: CALL_CRITERIA.map(c => c.id),
+      additionalProperties: false,
+    },
     cause: { type: 'string', enum: CAUSE_IDS, description: CALL_CAUSES.map(c => `${c.id} = ${c.hint}`).join(' ; ') },
     summary: { type: 'string', description: "Ce qui s'est passé pendant l'appel (2-3 phrases)" },
     missing: { type: 'string', description: "Ce qui a manqué côté télépro (1-2 phrases) ; vide si rien" },
     advice: { type: 'string', description: 'Un conseil concret pour la prochaine fois (1-2 phrases)' },
-    rdv_proposed: { type: 'boolean', description: 'Le télépro a-t-il proposé explicitement un RDV ?' },
-    score: { type: 'integer', description: "Qualité de l'appel côté télépro, de 1 (très mauvais) à 10 (excellent)" },
+    rdv_proposed: { type: 'boolean', description: 'Le télépro a-t-il proposé explicitement un RDV ou une petite offre ?' },
   },
-  required: ['cause', 'summary', 'missing', 'advice', 'rdv_proposed', 'score'],
+  required: ['criteria', 'cause', 'summary', 'missing', 'advice', 'rdv_proposed'],
   additionalProperties: false,
 }
 
-type Verdict = { cause: CallCause; summary: string; missing: string; advice: string; rdv_proposed: boolean; score: number }
+type Verdict = {
+  cause: CallCause; summary: string; missing: string; advice: string; rdv_proposed: boolean
+  criteria: CallCriteria; score: number
+}
 
 async function classify(client: Anthropic, transcript: string, talkSec: number): Promise<Verdict> {
   // SDK 0.39 : output_config / fallbacks pas encore typés → params non typés
@@ -238,13 +267,19 @@ async function classify(client: Anthropic, transcript: string, talkSec: number):
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const text = (res.content as any[]).filter(b => b.type === 'text').map(b => b.text).join('')
   const v = JSON.parse(text) as Verdict
+  const criteria = Object.fromEntries(CALL_CRITERIA.map(c => {
+    const n = Math.round(Number(v.criteria?.[c.id]))
+    return [c.id, Number.isFinite(n) ? Math.max(0, Math.min(2, n)) : 0]
+  })) as CallCriteria
   return {
+    criteria,
+    // Note /10 = somme des 5 critères (0-2 chacun)
+    score: Object.values(criteria).reduce((t, n) => t + n, 0),
     cause: (CAUSE_IDS as readonly string[]).includes(v.cause) ? v.cause : 'autre',
     summary: String(v.summary || '').slice(0, 2000),
     missing: String(v.missing || '').slice(0, 2000),
     advice: String(v.advice || '').slice(0, 2000),
     rdv_proposed: !!v.rdv_proposed,
-    score: Math.max(1, Math.min(10, Math.round(Number(v.score) || 5))),
   }
 }
 
@@ -259,7 +294,13 @@ export async function analyzeCandidate(db: SupabaseClient, client: Anthropic, c:
     updated_at: new Date().toISOString(),
   }
   const save = async (row: Record<string, unknown>) => {
-    const { error } = await db.from('call_analyses').upsert({ ...base, ...row }, { onConflict: 'aircall_call_id' })
+    let { error } = await db.from('call_analyses').upsert({ ...base, ...row }, { onConflict: 'aircall_call_id' })
+    // Avant la migration v64 (colonne criteria absente) : on enregistre sans
+    if (error && 'criteria' in row && /criteria/i.test(error.message)) {
+      const rest = { ...row }
+      delete rest.criteria
+      ;({ error } = await db.from('call_analyses').upsert({ ...base, ...rest }, { onConflict: 'aircall_call_id' }))
+    }
     if (error) throw new Error(error.message)
   }
   try {
@@ -296,4 +337,91 @@ export async function runCallAnalysis(
     for (const r of out) results[r] = (results[r] ?? 0) + 1
   }
   return { processed: batch.length, remaining: Math.max(0, candidates.length - batch.length), results }
+}
+
+// ── Synthèse coaching d'un télépro ──────────────────────────────────────────
+
+export type Coaching = {
+  forces: string[]
+  axes: Array<{ titre: string; detail: string; exemple: string }>
+  phrase_cle: string
+}
+
+const COACHING_SCHEMA = {
+  type: 'object',
+  properties: {
+    forces: { type: 'array', items: { type: 'string' }, description: '2 à 3 points forts récurrents, une phrase chacun' },
+    axes: {
+      type: 'array',
+      description: 'Les 3 axes de travail prioritaires, du plus important au moins important',
+      items: {
+        type: 'object',
+        properties: {
+          titre: { type: 'string', description: 'Axe en 3 à 6 mots' },
+          detail: { type: 'string', description: 'Ce qui revient dans ses appels (1-2 phrases)' },
+          exemple: { type: 'string', description: 'Phrase concrète à dire au téléphone la prochaine fois' },
+        },
+        required: ['titre', 'detail', 'exemple'],
+        additionalProperties: false,
+      },
+    },
+    phrase_cle: { type: 'string', description: "Le message principal à lui transmettre en débrief, en une phrase" },
+  },
+  required: ['forces', 'axes', 'phrase_cle'],
+  additionalProperties: false,
+}
+
+/**
+ * Synthèse de tous les débriefs d'un télépro sur la période (forces, 3 axes
+ * de travail avec une phrase à dire) — gardée dans call_coaching.
+ */
+export async function buildCoaching(
+  db: SupabaseClient,
+  userId: string,
+  fromDate: string,
+  toDate: string,
+  fromIso: string,
+  toIso: string,
+): Promise<{ content: Coaching; calls_count: number; created_at: string }> {
+  const { data, error } = await db.from('call_analyses')
+    .select('started_at, talk_sec, cause, summary, missing, advice, score, rdv_proposed, criteria')
+    .eq('rdv_user_id', userId).eq('status', 'done')
+    .gte('started_at', fromIso).lt('started_at', toIso)
+    .order('started_at', { ascending: false })
+    .limit(60)
+  if (error) throw new Error(error.message)
+  const rows = data ?? []
+  if (rows.length < 2) throw new Error('Pas assez d\'appels analysés sur la période (2 minimum)')
+
+  const causeLabel = (id: string | null) => CALL_CAUSES.find(c => c.id === id)?.label ?? id ?? '—'
+  const digest = rows.map((r, i) =>
+    `#${i + 1} · ${causeLabel(r.cause as string | null)} · ${r.score}/10 · RDV/offre proposé : ${r.rdv_proposed ? 'oui' : 'non'}\n`
+    + `Passé : ${r.summary}\nManqué : ${r.missing || '—'}\nConseil : ${r.advice}`).join('\n\n')
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const params: any = {
+    model: MODEL,
+    max_tokens: 4000,
+    system: `${SYSTEM_PROMPT_HEAD}
+Tu reçois maintenant les débriefs de plusieurs appels d'un même télépro sur une période. Fais-en une synthèse de coaching pour son manager : ce qui revient, pas un appel isolé. Concret, bienveillant, actionnable, en français.`,
+    output_config: { effort: 'medium', format: { type: 'json_schema', schema: COACHING_SCHEMA } },
+    fallbacks: 'default',
+    messages: [{ role: 'user', content: `${rows.length} appels de plus de 2 min sans RDV :\n\n${digest}` }],
+  }
+  const client = new Anthropic()
+  const res = await client.messages.create(params, { headers: { 'anthropic-beta': 'server-side-fallback-2026-07-01' } })
+  if ((res.stop_reason as string | null) === 'refusal') throw new Error('Synthèse refusée par le modèle')
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const text = (res.content as any[]).filter(b => b.type === 'text').map(b => b.text).join('')
+  const parsed = JSON.parse(text) as Coaching
+  const content: Coaching = {
+    forces: (parsed.forces ?? []).slice(0, 3).map(String),
+    axes: (parsed.axes ?? []).slice(0, 3).map(a => ({ titre: String(a.titre), detail: String(a.detail), exemple: String(a.exemple) })),
+    phrase_cle: String(parsed.phrase_cle ?? ''),
+  }
+  const created_at = new Date().toISOString()
+  await db.from('call_coaching').upsert({
+    rdv_user_id: userId, period_from: fromDate, period_to: toDate, calls_count: rows.length, content, created_at,
+  }, { onConflict: 'rdv_user_id,period_from,period_to' })
+  return { content, calls_count: rows.length, created_at }
 }

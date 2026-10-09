@@ -9,7 +9,7 @@
  *   conseil, écoute, transcription).
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { Headphones, Sparkles } from 'lucide-react'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import { CrmV2Button, CrmV2Td } from '@/components/crm-v2/primitives'
@@ -19,6 +19,13 @@ export type CauseDef = { id: string; label: string; hint: string }
 export type TeamCallStats = {
   talk2: number; no_rdv: number; recorded: number; analyzed: number; pending: number; direct_sales?: number
   causes: Record<string, number>; score_sum: number; proposed: number
+  criteria_sum?: Record<string, number>; criteria_n?: number
+}
+export type CriterionDef = { id: string; label: string; hint: string }
+export type CoachingEntry = {
+  content: { forces: string[]; axes: Array<{ titre: string; detail: string; exemple: string }>; phrase_cle: string }
+  calls_count: number
+  created_at: string
 }
 export type AnalyzedCall = {
   aircall_call_id: number
@@ -35,11 +42,14 @@ export type AnalyzedCall = {
   rdv_proposed: boolean | null
   score: number | null
   error: string | null
+  criteria?: Record<string, number> | null
 }
 export type CallAnalysisData = {
   ready: boolean
   ai_ready: boolean
   causes: CauseDef[]
+  criteria?: CriterionDef[]
+  coaching?: Record<string, CoachingEntry>
   team: Record<string, TeamCallStats>
   /** Appels sans RDV sur des lignes Aircall qui n'enregistrent pas */
   unrecorded_lines?: Record<string, number>
@@ -255,16 +265,52 @@ export function CallCells({ data, userId }: { data: CallAnalysisData | null; use
   )
 }
 
-/** Liste des appels analysés d'un télépro (ligne dépliée). */
-export function CallList({ data, userId }: { data: CallAnalysisData | null; userId: string }) {
-  const [openTranscript, setOpenTranscript] = useState<number | null>(null)
+/**
+ * Débrief des appels d'un télépro (ligne dépliée) : synthèse coaching, note
+ * moyenne par critère, causes, puis la liste compacte des appels (pires
+ * d'abord, filtrable par cause) — chaque appel s'ouvre au clic.
+ */
+export function CallDebrief({ data, userId, from, to, onChanged }: {
+  data: CallAnalysisData | null
+  userId: string
+  from: string
+  to: string
+  onChanged: () => void
+}) {
+  const [cause, setCause] = useState<string>('all')
+  const [showAll, setShowAll] = useState(false)
+  const [open, setOpen] = useState<number | null>(null)
   const [transcripts, setTranscripts] = useState<Record<number, string | null>>({})
-  const calls = (data?.calls ?? []).filter(c => c.rdv_user_id === userId && c.status === 'done')
-  const skipped = (data?.calls ?? []).filter(c => c.rdv_user_id === userId && c.status !== 'done').length
+  const [genLoading, setGenLoading] = useState(false)
+  const [genError, setGenError] = useState<string | null>(null)
+  const [coachingLocal, setCoachingLocal] = useState<CoachingEntry | null>(null)
 
-  async function toggleTranscript(id: number) {
-    if (openTranscript === id) { setOpenTranscript(null); return }
-    setOpenTranscript(id)
+  if (!data) return <div style={{ fontSize: 13, color: crmV2.textMuted }}>Chargement du débrief des appels…</div>
+  const s = data.team[userId]
+  const done = data.calls.filter(c => c.rdv_user_id === userId && c.status === 'done')
+  const coaching = coachingLocal ?? data.coaching?.[userId] ?? null
+
+  async function generate() {
+    setGenLoading(true)
+    setGenError(null)
+    try {
+      const r = await fetch('/api/admin/call-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'coaching', user_id: userId, from, to }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) { setGenError(j.error || 'Synthèse impossible'); return }
+      setCoachingLocal(j as CoachingEntry)
+      onChanged()
+    } finally {
+      setGenLoading(false)
+    }
+  }
+
+  async function toggle(id: number) {
+    if (open === id) { setOpen(null); return }
+    setOpen(id)
     if (transcripts[id] === undefined) {
       const r = await fetch(`/api/admin/call-analysis?call=${id}`)
       const j = await r.json().catch(() => ({}))
@@ -272,53 +318,199 @@ export function CallList({ data, userId }: { data: CallAnalysisData | null; user
     }
   }
 
-  if (!calls.length) {
-    return (
-      <div style={{ fontSize: 13, color: crmV2.textMuted }}>
-        Aucun appel analysé sur la période{skipped ? ` (${skipped} sans enregistrement exploitable)` : ''}.
-      </div>
-    )
-  }
+  const sectionTitle = (t: string) => (
+    <div style={{ fontSize: 11, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>{t}</div>
+  )
+  const avg = s?.analyzed ? Math.round((s.score_sum / s.analyzed) * 10) / 10 : null
+  const crit = (data.criteria ?? []).map(c => ({
+    ...c, value: s?.criteria_n ? (s.criteria_sum?.[c.id] ?? 0) / s.criteria_n : null,
+  }))
+  const weakest = crit.filter(c => c.value != null).sort((a, b) => (a.value ?? 0) - (b.value ?? 0))[0]
+
+  const causesHere = Object.entries(s?.causes ?? {}).sort((a, b) => b[1] - a[1])
+  const filtered = done
+    .filter(c => cause === 'all' || c.cause === cause)
+    .sort((a, b) => (a.score ?? 0) - (b.score ?? 0) || b.started_at.localeCompare(a.started_at))
+  const shown = showAll ? filtered : filtered.slice(0, 8)
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {calls.map(c => {
-        const when = new Date(c.started_at)
-        return (
-          <div key={c.aircall_call_id} style={{ background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: 12, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <strong style={{ fontSize: 13 }}>
-                {when.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Paris' })}{' '}
-                {when.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' })}
-              </strong>
-              <span style={{ fontSize: 13, color: crmV2.text }}>{c.contact_name ?? 'Contact'}</span>
-              <span style={{ fontSize: 12, color: crmV2.textMuted }}>{c.talk_sec ? `${Math.floor(c.talk_sec / 60)} min ${String(c.talk_sec % 60).padStart(2, '0')}` : ''}</span>
-              {c.cause && <CauseChip data={data} id={c.cause} />}
-              <span style={{ fontSize: 12, fontWeight: 700, color: (c.score ?? 0) >= 7 ? crmV2.successStrong : (c.score ?? 0) >= 4 ? '#d97706' : '#dc2626' }}>{c.score}/10</span>
-              <span style={{ fontSize: 12, color: c.rdv_proposed ? crmV2.successStrong : '#dc2626' }}>{c.rdv_proposed ? 'RDV proposé' : 'RDV pas proposé'}</span>
-              <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 10 }}>
-                <a href={`/api/crm/aircall/recording/${c.aircall_call_id}`} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: crmV2.link, fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                  <Headphones size={13} /> Écouter
-                </a>
-                <button type="button" onClick={() => toggleTranscript(c.aircall_call_id)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, color: crmV2.link, fontWeight: 600 }}>
-                  {openTranscript === c.aircall_call_id ? 'Masquer la transcription' : 'Transcription'}
-                </button>
-              </span>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: 12, padding: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <strong style={{ fontSize: 14 }}>Débrief des appels</strong>
+        <span style={{ fontSize: 12.5, color: crmV2.textMuted }}>
+          {s?.no_rdv ?? 0} appel{(s?.no_rdv ?? 0) > 1 ? 's' : ''} de 2 min et plus sans RDV · {done.length} analysé{done.length > 1 ? 's' : ''}
+          {s?.direct_sales ? ` · ${s.direct_sales} vente${s.direct_sales > 1 ? 's' : ''} directe${s.direct_sales > 1 ? 's' : ''}` : ''}
+          {s && s.no_rdv - (s.recorded ?? 0) > 0 ? ` · ${s.no_rdv - (s.recorded ?? 0)} non enregistré${s.no_rdv - (s.recorded ?? 0) > 1 ? 's' : ''}` : ''}
+        </span>
+        {avg != null && (
+          <span title="Moyenne des notes /10 (somme des 5 critères notés de 0 à 2)" style={{ marginLeft: 'auto', fontSize: 18, fontWeight: 800, color: avg >= 7 ? crmV2.successStrong : avg >= 4 ? '#d97706' : '#dc2626' }}>
+            {avg}/10
+          </span>
+        )}
+      </div>
+
+      {done.length === 0 ? (
+        <div style={{ fontSize: 13, color: crmV2.textMuted }}>Aucun appel analysé sur la période.</div>
+      ) : (
+        <>
+          {/* Synthèse coaching */}
+          <div>
+            {sectionTitle('Synthèse coaching')}
+            {coaching ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {coaching.content.phrase_cle && (
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: crmV2.text, background: crmV2.goldSoft, border: `1px solid ${crmV2.goldBorder}`, borderRadius: 10, padding: '8px 10px' }}>
+                    {coaching.content.phrase_cle}
+                  </div>
+                )}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 8 }}>
+                  {coaching.content.axes.map((a, i) => (
+                    <div key={i} style={{ border: `1px solid ${crmV2.border}`, borderRadius: 10, padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <span style={{ fontSize: 13, fontWeight: 800, color: '#b45309' }}>{i + 1}. {a.titre}</span>
+                      <span style={{ fontSize: 12.5, color: crmV2.text }}>{a.detail}</span>
+                      <span style={{ fontSize: 12.5, color: crmV2.successStrong }}>À dire : « {a.exemple} »</span>
+                    </div>
+                  ))}
+                </div>
+                {coaching.content.forces.length > 0 && (
+                  <div style={{ fontSize: 12.5, color: crmV2.textMuted }}>
+                    <strong style={{ color: crmV2.successStrong }}>Points forts :</strong> {coaching.content.forces.join(' · ')}
+                  </div>
+                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5, color: crmV2.textFaint }}>
+                  Sur {coaching.calls_count} appels · {new Date(coaching.created_at).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                  {coaching.calls_count < done.length && (
+                    <CrmV2Button size="sm" onClick={generate} disabled={genLoading}>{genLoading ? 'Mise à jour…' : `Mettre à jour (${done.length} appels)`}</CrmV2Button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <CrmV2Button size="sm" variant="primary" icon={<Sparkles size={13} />} onClick={generate} disabled={genLoading || done.length < 2}>
+                  {genLoading ? 'Synthèse en cours…' : `Synthèse de ses ${done.length} appels`}
+                </CrmV2Button>
+                <span style={{ fontSize: 12, color: crmV2.textMuted }}>Ses forces et ses 3 axes de travail, avec la phrase à dire.</span>
+              </div>
+            )}
+            {genError && <AdminNotice tone="error" style={{ marginTop: 6 }}>{genError}</AdminNotice>}
+          </div>
+
+          {/* Critères + causes */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
+            {crit.some(c => c.value != null) && (
+              <div>
+                {sectionTitle('Note moyenne par critère (sur 2)')}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  {crit.map(c => {
+                    const v = c.value ?? 0
+                    const color = v >= 1.5 ? crmV2.successStrong : v >= 0.8 ? '#d97706' : '#dc2626'
+                    return (
+                      <div key={c.id} title={c.hint} style={{ display: 'grid', gridTemplateColumns: '110px 1fr 36px', alignItems: 'center', gap: 8, fontSize: 12.5 }}>
+                        <span style={{ fontWeight: weakest?.id === c.id ? 800 : 500, color: weakest?.id === c.id ? '#dc2626' : crmV2.text }}>{c.label}</span>
+                        <span style={{ height: 8, background: crmV2.bgSoft, borderRadius: 999, overflow: 'hidden' }}>
+                          <span style={{ display: 'block', height: '100%', width: `${(v / 2) * 100}%`, background: color, borderRadius: 999 }} />
+                        </span>
+                        <span style={{ textAlign: 'right', fontWeight: 700, color }}>{c.value == null ? '—' : v.toFixed(1)}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+            <div>
+              {sectionTitle('Causes')}
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <button type="button" onClick={() => setCause('all')} style={chipBtn(cause === 'all')}>Toutes ({done.length})</button>
+                {causesHere.map(([id, n]) => (
+                  <button key={id} type="button" onClick={() => setCause(cause === id ? 'all' : id)} style={{ ...chipBtn(cause === id), padding: 0, border: 'none', background: 'none' }}>
+                    <span style={{ outline: cause === id ? `2px solid ${crmV2.text}` : 'none', borderRadius: 999, display: 'inline-flex' }}>
+                      <CauseChip data={data} id={id} count={n} />
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
-            {c.summary && <div style={{ fontSize: 13, color: crmV2.text }}><strong>Ce qui s&apos;est passé :</strong> {c.summary}</div>}
-            {c.missing && <div style={{ fontSize: 13, color: '#b45309' }}><strong>Ce qui a manqué :</strong> {c.missing}</div>}
-            {c.advice && <div style={{ fontSize: 13, color: crmV2.successStrong }}><strong>Conseil :</strong> {c.advice}</div>}
-            {openTranscript === c.aircall_call_id && (
-              <pre style={{
-                margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 12, color: crmV2.textMuted, background: crmV2.bgHover,
-                borderRadius: 8, padding: 10, maxHeight: 320, overflowY: 'auto',
-              }}>
-                {transcripts[c.aircall_call_id] === undefined ? 'Chargement…' : transcripts[c.aircall_call_id] ?? 'Transcription indisponible.'}
-              </pre>
+          </div>
+
+          {/* Liste compacte */}
+          <div>
+            {sectionTitle(`Appels (${filtered.length}) · les moins bien notés d'abord`)}
+            <div style={{ border: `1px solid ${crmV2.border}`, borderRadius: 10, overflow: 'hidden' }}>
+              {shown.map((c, idx) => {
+                const when = new Date(c.started_at)
+                const isOpen = open === c.aircall_call_id
+                const sc = c.score ?? 0
+                return (
+                  <div key={c.aircall_call_id} style={{ borderTop: idx ? `1px solid ${crmV2.borderLight}` : 'none' }}>
+                    <button type="button" onClick={() => toggle(c.aircall_call_id)} style={{
+                      width: '100%', display: 'grid', gridTemplateColumns: '120px minmax(0, 1fr) 64px auto 54px 22px', alignItems: 'center', gap: 10,
+                      padding: '7px 10px', background: isOpen ? crmV2.bgHover : 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+                    }}>
+                      <span style={{ fontSize: 12, color: crmV2.textMuted, whiteSpace: 'nowrap' }}>
+                        {when.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Paris' })}{' '}
+                        {when.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' })}
+                      </span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: crmV2.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {c.contact_name ?? 'Contact'}
+                        <span style={{ fontWeight: 400, color: crmV2.textMuted }}> — {c.summary}</span>
+                      </span>
+                      <span style={{ fontSize: 12, color: crmV2.textMuted, textAlign: 'right' }}>{c.talk_sec ? `${Math.floor(c.talk_sec / 60)}:${String(c.talk_sec % 60).padStart(2, '0')}` : ''}</span>
+                      {c.cause ? <CauseChip data={data} id={c.cause} /> : <span />}
+                      <span style={{ fontSize: 13, fontWeight: 800, textAlign: 'right', color: sc >= 7 ? crmV2.successStrong : sc >= 4 ? '#d97706' : '#dc2626' }}>{sc}/10</span>
+                      <span style={{ fontSize: 12, color: crmV2.textFaint }}>{isOpen ? '▴' : '▾'}</span>
+                    </button>
+                    {isOpen && (
+                      <div style={{ padding: '4px 12px 12px', display: 'flex', flexDirection: 'column', gap: 6, background: crmV2.bgHover }}>
+                        {c.criteria && (
+                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                            {(data.criteria ?? []).map(k => {
+                              const v = Number(c.criteria?.[k.id] ?? 0)
+                              const col = v === 2 ? crmV2.successStrong : v === 1 ? '#d97706' : '#dc2626'
+                              return (
+                                <span key={k.id} title={k.hint} style={{ fontSize: 11.5, fontWeight: 700, color: col, border: `1px solid ${col}40`, background: `${col}12`, borderRadius: 999, padding: '1px 8px' }}>
+                                  {k.label} {v}/2
+                                </span>
+                              )
+                            })}
+                            <span style={{ fontSize: 11.5, color: c.rdv_proposed ? crmV2.successStrong : '#dc2626', fontWeight: 700, padding: '1px 4px' }}>
+                              {c.rdv_proposed ? 'RDV / offre proposé' : 'RDV / offre pas proposé'}
+                            </span>
+                          </div>
+                        )}
+                        {c.missing && <div style={{ fontSize: 13, color: '#b45309' }}><strong>Ce qui a manqué :</strong> {c.missing}</div>}
+                        {c.advice && <div style={{ fontSize: 13, color: crmV2.successStrong }}><strong>Conseil :</strong> {c.advice}</div>}
+                        <div style={{ display: 'flex', gap: 14 }}>
+                          <a href={`/api/crm/aircall/recording/${c.aircall_call_id}`} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: crmV2.link, fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                            <Headphones size={13} /> Écouter
+                          </a>
+                        </div>
+                        <pre style={{
+                          margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 12, color: crmV2.textMuted, background: crmV2.bg,
+                          borderRadius: 8, padding: 10, maxHeight: 260, overflowY: 'auto', border: `1px solid ${crmV2.borderLight}`,
+                        }}>
+                          {transcripts[c.aircall_call_id] === undefined ? 'Chargement de la transcription…' : transcripts[c.aircall_call_id] ?? 'Transcription indisponible.'}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+            {filtered.length > shown.length && (
+              <button type="button" onClick={() => setShowAll(true)} style={{ marginTop: 6, background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5, color: crmV2.link, fontWeight: 600 }}>
+                Voir les {filtered.length - shown.length} autres appels
+              </button>
             )}
           </div>
-        )
-      })}
-      {skipped > 0 && <div style={{ fontSize: 12, color: crmV2.textFaint }}>{skipped} appel{skipped > 1 ? 's' : ''} sans enregistrement exploitable.</div>}
+        </>
+      )}
     </div>
   )
+}
+
+function chipBtn(active: boolean): CSSProperties {
+  return {
+    padding: '1px 9px', borderRadius: 999, fontSize: 11.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+    border: `1px solid ${active ? crmV2.text : crmV2.border}`, background: active ? crmV2.text : crmV2.bg, color: active ? '#fff' : crmV2.textMuted,
+  }
 }

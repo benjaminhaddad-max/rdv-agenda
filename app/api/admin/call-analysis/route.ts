@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { requireApiRole } from '@/lib/api-auth'
 import { parisRangeUtcBounds } from '@/lib/date-paris'
-import { CALL_CAUSES, findCandidates, isMissingAnalysisTable, runCallAnalysis } from '@/lib/call-analysis'
+import { CALL_CAUSES, CALL_CRITERIA, buildCoaching, findCandidates, isMissingAnalysisTable, runCallAnalysis } from '@/lib/call-analysis'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -32,6 +32,7 @@ type AnalysisRow = {
   rdv_proposed: boolean | null
   score: number | null
   error: string | null
+  criteria?: Record<string, number> | null
 }
 
 export async function GET(req: NextRequest) {
@@ -54,18 +55,21 @@ export async function GET(req: NextRequest) {
 
   try {
     const { candidates, talk2Total, directSales } = await findCandidates(db, { fromIso: start, toIso: end })
-    const { data, error } = await db.from('call_analyses')
-      .select('aircall_call_id, rdv_user_id, hubspot_contact_id, started_at, talk_sec, status, cause, summary, missing, advice, rdv_proposed, score, error')
+    const COLS = 'aircall_call_id, rdv_user_id, hubspot_contact_id, started_at, talk_sec, status, cause, summary, missing, advice, rdv_proposed, score, error'
+    const query = (cols: string) => db.from('call_analyses').select(cols)
       .gte('started_at', start).lt('started_at', end)
       .order('started_at', { ascending: false })
       .limit(2000)
+    // criteria (v64) : on retombe sans la colonne tant que la migration n'est pas passée
+    let { data, error } = await query(`${COLS}, criteria`)
+    if (error && /criteria/i.test(error.message)) ({ data, error } = await query(COLS))
     if (error) {
       if (isMissingAnalysisTable(error)) {
         return NextResponse.json({ ready: false, causes: CALL_CAUSES, team: {}, calls: [], ai_ready: aiReady() })
       }
       throw new Error(error.message)
     }
-    const rows = (data ?? []) as AnalysisRow[]
+    const rows = (data ?? []) as unknown as AnalysisRow[]
 
     // Noms des contacts
     const contactIds = [...new Set(rows.map(r => r.hubspot_contact_id).filter((x): x is string => !!x))]
@@ -80,8 +84,9 @@ export async function GET(req: NextRequest) {
     const team: Record<string, {
       talk2: number; no_rdv: number; recorded: number; analyzed: number; pending: number; direct_sales: number
       causes: Record<string, number>; score_sum: number; proposed: number
+      criteria_sum: Record<string, number>; criteria_n: number
     }> = {}
-    const get = (id: string) => (team[id] ??= { talk2: 0, no_rdv: 0, recorded: 0, analyzed: 0, pending: 0, direct_sales: 0, causes: {}, score_sum: 0, proposed: 0 })
+    const get = (id: string) => (team[id] ??= { talk2: 0, no_rdv: 0, recorded: 0, analyzed: 0, pending: 0, direct_sales: 0, causes: {}, score_sum: 0, proposed: 0, criteria_sum: {}, criteria_n: 0 })
     // Lignes Aircall sans enregistrement (appels sans RDV non analysables)
     const unrecordedLines: Record<string, number> = {}
     for (const [id, n] of talk2Total) get(id).talk2 = n
@@ -105,12 +110,18 @@ export async function GET(req: NextRequest) {
       if (r.cause) t.causes[r.cause] = (t.causes[r.cause] ?? 0) + 1
       t.score_sum += r.score ?? 0
       if (r.rdv_proposed) t.proposed++
+      if (r.criteria) {
+        t.criteria_n++
+        for (const c of CALL_CRITERIA) t.criteria_sum[c.id] = (t.criteria_sum[c.id] ?? 0) + (Number(r.criteria[c.id]) || 0)
+      }
     }
 
     return NextResponse.json({
       ready: true,
       ai_ready: aiReady(),
       causes: CALL_CAUSES,
+      criteria: CALL_CRITERIA,
+      coaching: await loadCoaching(db, from, to),
       team,
       unrecorded_lines: unrecordedLines,
       calls: rows.map(r => ({ ...r, contact_name: r.hubspot_contact_id ? names.get(r.hubspot_contact_id) ?? null : null })),
@@ -129,6 +140,20 @@ export async function POST(req: NextRequest) {
   if (!DATE_RE.test(from) || !DATE_RE.test(to)) return NextResponse.json({ error: 'from et to requis' }, { status: 400 })
   const { start, end } = parisRangeUtcBounds(from, to)
   const db = createServiceClient()
+
+  // Synthèse coaching d'un télépro sur la période
+  if (body.action === 'coaching') {
+    if (!body.user_id) return NextResponse.json({ error: 'user_id requis' }, { status: 400 })
+    try {
+      const result = await buildCoaching(db, String(body.user_id), from, to, start, end)
+      return NextResponse.json(result)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      if (/call_coaching/i.test(msg)) return NextResponse.json({ error: 'Synthèse pas encore activée (migration BDD v64 à appliquer dans Supabase).' }, { status: 503 })
+      return NextResponse.json({ error: msg }, { status: 400 })
+    }
+  }
+
   try {
     const result = await runCallAnalysis(db, {
       fromIso: start,
@@ -147,4 +172,13 @@ export async function POST(req: NextRequest) {
 
 function aiReady(): boolean {
   return !!process.env.ANTHROPIC_API_KEY && !!process.env.DEEPGRAM_API_KEY
+}
+
+/** Synthèses coaching déjà générées pour cette période, par télépro. */
+async function loadCoaching(db: ReturnType<typeof createServiceClient>, from: string, to: string) {
+  const { data, error } = await db.from('call_coaching')
+    .select('rdv_user_id, calls_count, content, created_at')
+    .eq('period_from', from).eq('period_to', to)
+  if (error) return {}
+  return Object.fromEntries((data ?? []).map(r => [r.rdv_user_id, { content: r.content, calls_count: r.calls_count, created_at: r.created_at }]))
 }

@@ -33,7 +33,7 @@ import {
 import { AdminIconButton, AdminNotice, AdminSpin } from '@/components/crm-v2/admin/AdminUi'
 import { PanelCard } from '@/components/crm-v2/panels/PanelUi'
 import { CredentialBox, type TeamMember } from '@/components/crm-v2/panels/TeamMemberManager'
-import { CALL_COLS, CallCells, CallList, CallTeamSummary, useCallAnalysis, type CallAnalysisData } from '@/components/crm-v2/equipe/CallAnalysis'
+import { CallDebrief, CallTeamSummary, useCallAnalysis, type CallAnalysisData } from '@/components/crm-v2/equipe/CallAnalysis'
 import { PlanningDayCell, PlanningDayHeader, PlanningLegend, PlanningWeekSummary, usePlanningWeek, type PlanningData } from '@/components/crm-v2/equipe/PlanningWeek'
 import { DayScheduleEditor, SlotChip, VERDICTS, VerdictPill, WEEKDAYS, fmtMinutes as fmtPlannedMinutes, type DayReport } from '@/components/planning/PlanningUi'
 import { addParisDays, parisDateKey, parisMonthEndKey, parisWeekStartKey } from '@/lib/date-paris'
@@ -47,7 +47,7 @@ type Period = 'day' | 'week' | 'month'
 type Mode = 'planning' | 'stats' | 'appels' | 'acces'
 
 const MODES: Record<Tab, Mode[]> = {
-  telepros: ['planning', 'stats', 'appels', 'acces'],
+  telepros: ['planning', 'stats', 'acces'],
   closers: ['stats', 'acces'],
   admins: ['acces'],
 }
@@ -370,8 +370,11 @@ export default function EquipeClient() {
   // Mode Planning : semaine (lundi → dimanche) contenant la période affichée
   const planningWeekStart = parisWeekStartKey(new Date(`${from}T12:00:00Z`))
   const planning = usePlanningWeek(planningWeekStart, refreshTick + presenceTick, tab === 'telepros' && mode === 'planning')
-  // Mode Appels : analyse IA des appels ≥ 2 min sans RDV sur la période
-  const calls = useCallAnalysis(from, to, refreshTick, tab === 'telepros' && mode === 'appels')
+  // Débrief des appels ≥ 2 min sans RDV (analyse IA), sur la semaine du
+  // planning ou la période des stats
+  const callFrom = mode === 'planning' ? planningWeekStart : from
+  const callTo = mode === 'planning' ? addParisDays(planningWeekStart, 6) : to
+  const calls = useCallAnalysis(callFrom, callTo, refreshTick, tab === 'telepros' && (mode === 'planning' || mode === 'stats'))
 
   async function saveDay(slots: Array<{ start: string; end: string; locked: boolean }>, applyTo: string[]): Promise<string | null> {
     if (!editingDay) return null
@@ -506,6 +509,7 @@ export default function EquipeClient() {
     presence, cols: visibleCols, allCols, hiddenCols: hidden, onToggleCol: toggleCol,
     onPresenceChanged: () => setPresenceTick(t => t + 1),
     mode, planning: planning.data, planningCounts: planning.dayCounts, ranks, calls: calls.data,
+    callRange: { from: callFrom, to: callTo }, onCallsChanged: calls.reload,
     periodNav: mode === 'acces' ? null : (
       <PeriodNav
         label={mode === 'planning'
@@ -538,14 +542,12 @@ export default function EquipeClient() {
             ? 'Comptes, rôles et accès'
             : mode === 'planning'
               ? `${formatRange('week', planningWeekStart, addParisDays(planningWeekStart, 6))} · horaires d'appel et présence`
-              : mode === 'appels'
-                ? `${formatRange(period, from, to)} · appels de 2 min et plus sans RDV, analysés par l'IA`
-                : `${formatRange(period, from, to)} · performance`}
+              : `${formatRange(period, from, to)} · performance`}
         actions={
           <>
             {!isAdmins && mode !== 'acces' && (
               <>
-                {(mode === 'stats' || mode === 'appels') && (
+                {mode === 'stats' && (
                   <CrmV2Segmented<Period>
                     size="sm"
                     items={[{ id: 'day', label: 'Jour' }, { id: 'week', label: 'Semaine' }, { id: 'month', label: 'Mois' }]}
@@ -594,9 +596,8 @@ export default function EquipeClient() {
         )}
 
         {mode === 'stats' && <TeamKpis tab={tab} totals={totals ?? null} loading={statsLoading} />}
-        {mode === 'appels' && calls.error && <AdminNotice tone="error">{calls.error}</AdminNotice>}
-        {mode === 'appels' && (
-          <CallTeamSummary data={calls.data} loading={calls.loading} from={from} to={to} onDone={calls.reload} />
+        {tab === 'telepros' && (mode === 'planning' || mode === 'stats') && (
+          <CallTeamSummary data={calls.data} loading={calls.loading} from={callFrom} to={callTo} onDone={calls.reload} />
         )}
 
         <MembersTable
@@ -772,8 +773,10 @@ type TableCommon = {
   periodNav: ReactNode
   /** Rang du meilleur au pire */
   ranks: Map<string, number>
-  /** Mode Appels : analyse IA des appels ≥ 2 min sans RDV */
+  /** Débrief IA des appels ≥ 2 min sans RDV */
   calls: CallAnalysisData | null
+  callRange: { from: string; to: string }
+  onCallsChanged: () => void
 }
 
 function MembersTable({
@@ -866,7 +869,7 @@ function MembersTable({
     )
   }
 
-  const colSpan = (mode === 'planning' ? 1 : 2) + (mode === 'stats' ? cols.length : mode === 'planning' ? planningDates.length + 1 : mode === 'appels' ? CALL_COLS.length : ACCES_COLS.length)
+  const colSpan = (mode === 'planning' ? 1 : 2) + (mode === 'stats' ? cols.length : mode === 'planning' ? planningDates.length + 1 : ACCES_COLS.length)
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {extras}
@@ -888,9 +891,6 @@ function MembersTable({
                 </CrmV2Th>
               ))}
               {mode === 'planning' && <CrmV2Th style={{ textAlign: 'right' }}>Semaine</CrmV2Th>}
-              {mode === 'appels' && CALL_COLS.map(c => (
-                <CrmV2Th key={c.key} style={{ textAlign: c.key === 'causes' ? 'left' : 'right' }}>{c.label}</CrmV2Th>
-              ))}
               {mode === 'acces' && ACCES_COLS.map(c => (
                 <CrmV2Th key={c.key} sorted={sort.key === c.key ? sort.dir : false} onClick={c.sortable ? () => onSort(c.key) : undefined}>{c.label}</CrmV2Th>
               ))}
@@ -1123,13 +1123,17 @@ function DualRoleBadge({ m }: { m: EquipeMember | null }) {
   )
 }
 
-function NameCell({ row, open, rank, compact = false }: { tab: Tab; row: Row; open: boolean; rank?: number; compact?: boolean }) {
+function NameCell({ tab, row, open, rank, compact = false }: { tab: Tab; row: Row; open: boolean; rank?: number; compact?: boolean }) {
   const banned = !!row.member?.is_banned
+  const st = row.stats
+  const rankTitle = rank == null || !st ? '' : tab === 'closers'
+    ? `Classement n°${rank} — ${Math.floor(perfScore(tab, st))} pts : ${converted(st)} convertis × 5 + ${st.rdv_honored} RDV honorés × 2 + ${st.rdv_total} RDV × 1`
+    : `Classement n°${rank} — ${Math.floor(perfScore(tab, st))} pts : ${st.rdv_preinscrits} préinscrits × 5 + ${st.rdv_venus} RDV venus × 3 + ${st.rdv_total} RDV placés × 1`
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 0, flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
       {open ? <ChevronUp size={14} color={crmV2.textFaint} style={{ flexShrink: 0 }} /> : <ChevronDown size={14} color={crmV2.textFaint} style={{ flexShrink: 0 }} />}
       {rank != null && (
-        <span title={`Classement : n°${rank}`} style={{
+        <span title={rankTitle} style={{
           minWidth: 26, textAlign: 'center', fontSize: 11.5, fontWeight: 800, borderRadius: 999, padding: '1px 5px', flexShrink: 0,
           color: rank <= 3 ? '#fff' : crmV2.textMuted,
           background: rank === 1 ? '#C9A84C' : rank === 2 ? '#94a3b8' : rank === 3 ? '#b87333' : crmV2.bgSoft,
@@ -1176,7 +1180,6 @@ function MemberRow({
           </CrmV2Td>
         )}
         {mode === 'acces' && <AccesCells row={row} />}
-        {mode === 'appels' && <CallCells data={common.calls} userId={row.id} />}
         {(mode === 'stats' ? cols : []).map(c => c.key === 'presence' ? (
           <CrmV2Td key={c.key} style={{ whiteSpace: 'nowrap' }}>
             <PresenceCell days={common.presence ? (common.presence[row.id] ?? []) : null} />
@@ -1269,10 +1272,12 @@ function MemberDetail({ row, actions, ...common }: TableCommon & { row: Row; act
         </span>
         {actions && <div onClick={e => e.stopPropagation()}>{actions}</div>}
       </div>
-      {tab === 'telepros' && mode === 'appels' && <CallList data={common.calls} userId={row.id} />}
-      {tab === 'telepros' && mode !== 'appels' && row.stats && <MemberStatsStrip s={row.stats} />}
-      {tab === 'telepros' && mode !== 'appels' && days.length > 0 && (
+      {tab === 'telepros' && row.stats && <MemberStatsStrip s={row.stats} />}
+      {tab === 'telepros' && days.length > 0 && (
         <MemberDaysTable days={days} onEdit={d => common.onEditDay(row, d)} />
+      )}
+      {tab === 'telepros' && (
+        <CallDebrief data={common.calls} userId={row.id} from={common.callRange.from} to={common.callRange.to} onChanged={common.onCallsChanged} />
       )}
       {row.member && (
         <AccountSettings
