@@ -74,6 +74,18 @@ export async function POST(req: NextRequest) {
       errors.push(`contacts chunk ${i / BATCH + 1}: ${contactUpdateError.message}`)
     }
 
+    // Lead réattribué = nouveau pour le télépro qui le reçoit : statut « Nouveau »
+    // (sinon il se perd dans ses filtres). On garde les inscrits / finalisés et
+    // les RDV en cours (pris / à replanifier).
+    const { error: statusUpdateError } = await db
+      .from('crm_contacts')
+      .update({ hs_lead_status: 'Nouveau' })
+      .in('hubspot_contact_id', chunk)
+      .or('hs_lead_status.is.null,and(hs_lead_status.not.ilike.*inscri*,hs_lead_status.not.ilike.*finalis*,hs_lead_status.not.ilike.*rdv*,hs_lead_status.not.ilike.*replanif*,hs_lead_status.not.ilike.nouveau*)')
+    if (statusUpdateError) {
+      errors.push(`statut chunk ${i / BATCH + 1}: ${statusUpdateError.message}`)
+    }
+
     // Update deals in Supabase (crm_deals.teleprospecteur = HubSpot deal property)
     if (deals && deals.length > 0) {
       const { error: dealsUpdateError } = await db
