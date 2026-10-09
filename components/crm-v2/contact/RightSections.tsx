@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import {
-  AlertTriangle, BookOpen, Briefcase, Calendar, CalendarPlus, Check, Copy, FileText, FlaskConical, Globe,
+  AlertTriangle, Archive, BookOpen, Briefcase, Calendar, CalendarPlus, Check, Copy, FileText, FlaskConical, Globe,
   GraduationCap, MonitorSmartphone, Pencil, Plus, SquareCheckBig, Target,
 } from 'lucide-react'
 import { CrmV2Button, CrmV2Section, CrmV2StatusPill, hexA } from '@/components/crm-v2/primitives'
@@ -193,6 +193,33 @@ export function DealCard({ deal, stageLabel, pipelineLabel, ownerLabel }: {
         </div>
       )}
     </div>
+  )
+}
+
+/* ───────── Archive télépro / closer (admins) ───────── */
+
+export function AssignmentArchiveSection({ rows, ownerLabel }: {
+  rows: Array<Record<string, Any>>
+  ownerLabel: (id?: string | null) => string
+}) {
+  if (rows.length === 0) return null
+  return (
+    <CrmV2Section title="Archive télépro / closer" icon={<Archive size={ICON} />} count={rows.length} storageKey={key('Archive attributions')}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {rows.map(r => (
+          <div key={r.campagne as string} style={softBox}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: crmV2.text }}>Campagne {r.campagne as string}</div>
+            <KV label="Télépro" value={ownerLabel((r.telepro_user_id ?? r.teleprospecteur) != null ? String(r.telepro_user_id ?? r.teleprospecteur) : null)} />
+            <KV label="Closer du contact" value={ownerLabel(r.closer_du_contact_owner_id as string | null)} />
+            <KV label="Propriétaire" value={ownerLabel(r.hubspot_owner_id as string | null)} />
+            {r.motif && <div style={{ fontSize: 11, color: crmV2.textMuted }}>{r.motif as string}</div>}
+            <div style={{ fontSize: 11, color: crmV2.textFaint }}>
+              Archivé le {format(new Date(r.archived_at as string), 'd MMM yyyy', { locale: fr })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </CrmV2Section>
   )
 }
 

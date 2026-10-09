@@ -25,7 +25,7 @@ import { CrmV2Button, CrmV2Page, CrmV2Pill, CrmV2Section, CrmV2Segmented, CrmV2S
 import ActivityTimeline from '@/components/crm-v2/contact/ActivityTimeline'
 import { AddPropertyPicker, FicheField } from '@/components/crm-v2/contact/Coordinates'
 import {
-  AdTrackingSection, AppointmentsSection, DealsSection, FormsSection, InscriptionSections, PlatformsSection,
+  AdTrackingSection, AppointmentsSection, AssignmentArchiveSection, DealsSection, FormsSection, InscriptionSections, PlatformsSection,
   TasksSection, WebActivitySection, normalizedParcoursup,
 } from '@/components/crm-v2/contact/RightSections'
 import type {
@@ -353,7 +353,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   if (err) return <MessageScreen text={`Erreur : ${err}`} error />
   if (!data) return <MessageScreen text="Aucune donnée." />
 
-  const { contact, deals, appointments, properties: rawProperties, dealProperties, groups, activities, formSubmissions, owners, tasks = [], emailStatsByMessageId = {}, preInscriptions = [], smsMessages = [], emailCampaigns = [] } = data
+  const { contact, deals, appointments, properties: rawProperties, dealProperties, groups, activities, formSubmissions, owners, tasks = [], emailStatsByMessageId = {}, preInscriptions = [], smsMessages = [], emailCampaigns = [], assignmentArchive = [] } = data
   const properties = rawProperties.map(p =>
     p.name === 'origine'
       ? { ...p, options: mergeCrmOrigineOptions(p.options) }
@@ -834,6 +834,8 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   const dealsSection = <DealsSection deals={deals} stageLabel={stageLabel} pipelineLabel={pipelineLabel} ownerLabel={ownerLabel} />
   const rdvSection = <AppointmentsSection appointments={appointments} isLinova={isLinovaContact} onSchedule={openAppointment} ownerLabel={ownerLabel} />
   const formsSection = <FormsSection forms={formSubmissions} />
+  // Télépro / closer des campagnes passées (envoyé par l'API aux admins seulement)
+  const archiveSection = <AssignmentArchiveSection rows={assignmentArchive} ownerLabel={ownerLabel} />
   // Inscription par saison — alimenté par la plateforme externe
   const inscriptionSections = preInscriptions.map(pi => (
     <InscriptionSections
@@ -1048,6 +1050,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
               {rdvSection}
               {tasksSection}
               {inscriptionSections}
+              {archiveSection}
             </>
           )}
         </div>
@@ -1138,6 +1141,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
           {rdvSection}
           {formsSection}
           {inscriptionSections}
+          {archiveSection}
           {platformsSection}
           {adsSection}
           {webSection}

@@ -29,6 +29,7 @@ import {
   type CallRow,
   type SuiviRole,
 } from '@/lib/suivi-commercial'
+import { fetchArchivedTeleproByContact } from '@/lib/assignment-archive'
 
 export const dynamic = 'force-dynamic'
 
@@ -424,6 +425,16 @@ async function resolveContactTelepros(
     for (const c of contacts ?? []) {
       const tpId = c.telepro_user_id ? hsUserToTelepro.get(String(c.telepro_user_id)) : undefined
       if (tpId) map.set(c.hubspot_contact_id, tpId)
+    }
+  }
+  // Inscrits dont le télépro a été archivé (fiche remise à neuf) : on garde
+  // l'attribution de la campagne passée pour les stats.
+  const unresolved = missingContactIds.filter(id => !map.has(id))
+  if (unresolved.length) {
+    const archived = await fetchArchivedTeleproByContact(db, unresolved)
+    for (const [cid, hsId] of archived) {
+      const tpId = hsUserToTelepro.get(hsId)
+      if (tpId) map.set(cid, tpId)
     }
   }
   return map

@@ -190,6 +190,8 @@ export interface ContactDetails {
   tasks: CRMTask[]
   emailStatsByMessageId?: Record<string, EmailStats>
   preInscriptions?: PreInscription[]
+  /** Télépro / closer des campagnes passées — admins uniquement. */
+  assignmentArchive?: Array<Record<string, Any>>
   smsMessages?: SMSMessage[]
   emailCampaigns?: EmailCampaign[]
 }

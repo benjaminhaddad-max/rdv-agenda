@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { fetchArchivedTeleproByContact } from '@/lib/assignment-archive'
 
 export type AppointmentTelepro = { id: string; name: string; avatar_color?: string | null }
 
@@ -108,12 +109,15 @@ export async function enrichAppointmentsTelepro(
     .select('hubspot_contact_id, telepro_user_id')
     .in('hubspot_contact_id', contactIds)
 
-  const hsIds = [...new Set(
-    (contacts ?? [])
-      .map(c => c.telepro_user_id)
-      .filter(Boolean)
-      .map(String),
-  )]
+  const contactToHs = new Map<string, string | null>(
+    (contacts ?? []).map(c => [c.hubspot_contact_id, c.telepro_user_id ? String(c.telepro_user_id) : null]),
+  )
+  // Fiche remise à neuf (inscrit) : le télépro de la campagne passée est archivé.
+  const withoutTelepro = contactIds.filter(cid => !contactToHs.get(cid))
+  if (withoutTelepro.length) {
+    for (const [cid, hsId] of await fetchArchivedTeleproByContact(db, withoutTelepro)) contactToHs.set(cid, hsId)
+  }
+  const hsIds = [...new Set([...contactToHs.values()].filter((v): v is string => !!v))]
   if (!hsIds.length) return mapped
 
   const { data: telepros } = await db
@@ -127,10 +131,6 @@ export async function enrichAppointmentsTelepro(
     if (tp.hubspot_user_id) byHsId.set(String(tp.hubspot_user_id), entry)
     if (tp.hubspot_owner_id) byHsId.set(String(tp.hubspot_owner_id), entry)
   }
-
-  const contactToHs = new Map(
-    (contacts ?? []).map(c => [c.hubspot_contact_id, c.telepro_user_id ? String(c.telepro_user_id) : null]),
-  )
 
   return mapped.map(r => {
     if (r.telepro) return r

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { getApiUserContext } from '@/lib/api-auth'
 import { isDemoContactId } from '@/lib/demo-mode'
+import { fetchAssignmentArchive } from '@/lib/assignment-archive'
 
 /**
  * GET /api/crm/contacts/[id]/details
@@ -494,6 +495,10 @@ export async function GET(
     payload.tasks = tasks
     payload.preInscriptions = dedupedPreInsc
     payload.duplicateContactIds = linkedContactIds.filter(id => id !== contactId)
+    // Archive télépro / closer des campagnes passées : admins uniquement.
+    if ((await getApiUserContext())?.role === 'admin') {
+      payload.assignmentArchive = await fetchAssignmentArchive(db, [contactId])
+    }
   }
   if (wantExtended) {
     payload.emailStatsByMessageId = emailStatsByMessageId
