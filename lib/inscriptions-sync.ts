@@ -86,6 +86,22 @@ function gmailKey(e: string): string {
   return e.slice(0, at).replace(/\./g, '') + '@gmail.com'
 }
 
+/** Variantes d'un numéro français tel qu'il peut être stocké dans le CRM. */
+function phoneVariants(p: string | null | undefined): string[] {
+  const d = String(p || '').replace(/\D/g, '')
+  let national = ''
+  if (d.startsWith('33') && d.length === 11) national = d.slice(2)
+  else if (d.startsWith('0') && d.length === 10) national = d.slice(1)
+  if (!national || /(\d)\1{6}/.test(national)) return []
+  const zero = `0${national}`
+  const spaced = zero.replace(/(\d{2})(?=\d)/g, '$1 ')
+  return [...new Set([`+33${national}`, zero, spaced, `+33 ${national[0]} ${national.slice(1).replace(/(\d{2})(?=\d)/g, '$1 ')}`])]
+}
+
+function normName(v: string | null | undefined): string {
+  return String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z]/g, '')
+}
+
 function isTestEmail(e: string): boolean {
   return /\+test|@example\.|@test\./.test(e)
 }
@@ -153,6 +169,15 @@ export async function runInscriptionsSync(crm: SupabaseClient): Promise<Inscript
     const { data: loose } = await crm.from('crm_contacts').select('hubspot_contact_id, email')
       .ilike('email', k.email.replace(/[\\%_]/g, '\\$&')).limit(1)
     if (loose?.length) { contactByEmail.set(key, String(loose[0].hubspot_contact_id)); continue }
+    // Même personne enregistrée avec un autre e-mail (parent, ancien e-mail) :
+    // même téléphone ET même nom de famille → on rattache au lieu de créer.
+    const variants = phoneVariants(k.ins.phone)
+    const last = normName(k.ins.last_name)
+    if (variants.length && last) {
+      const { data: byPhone } = await crm.from('crm_contacts').select('hubspot_contact_id, lastname').in('phone', variants).limit(10)
+      const hit = (byPhone ?? []).find(c => normName(c.lastname as string) === last)
+      if (hit) { contactByEmail.set(key, String(hit.hubspot_contact_id)); continue }
+    }
     if (created >= MAX_CREATES) continue
     const id = `${k.brand === 'medibox' ? 'mbx_c_' : 'dpl_c_'}${k.ins.id}`
     const { error } = await crm.from('crm_contacts').upsert([{
