@@ -12,7 +12,7 @@ import { parseExtraParticipants } from '@/lib/appointment-participants'
 import { campusShortLabel } from '@/lib/campus'
 import { RDV_BRANDS, normalizeRdvBrand } from '@/lib/rdv-brand'
 import MediboxBadge from './MediboxBadge'
-import { CrmV2Button, CrmV2Tabs } from '@/components/crm-v2/primitives'
+import { CrmV2Button, CrmV2Segmented, CrmV2Tabs } from '@/components/crm-v2/primitives'
 import { AgendaRoundButton, AgendaSelectPill } from '@/components/crm-v2/agenda/AgendaControls'
 import { crmV2, crmV2AgendaCards } from '@/lib/crm-v2-theme'
 import { EVENT_TYPE_COLORS } from '@/components/crm/EventsAgendaCalendar'
@@ -283,10 +283,12 @@ function capitalize(s: string): string {
 
 export default function WeekCalendar({
   adminMode = false, closerId, closerColor, closerName, teamView = false, allowAssign = false,
-  title, onNewRdv, toolbarExtra,
+  title, onNewRdv, toolbarExtra, mineId,
 }: {
   adminMode?: boolean
   closerId?: string
+  /** Espace télépro : active les sous-onglets « Équipe » / « Moi » (RDV placés ou closés par cette personne) */
+  mineId?: string
   closerColor?: string
   closerName?: string
   teamView?: boolean
@@ -316,6 +318,12 @@ export default function WeekCalendar({
     }
     return 'all'
   })
+  // Sous-onglet « Moi » de l'espace télépro (mémorisé dans le navigateur)
+  const [mineOnly, setMineOnly] = useState<boolean>(() => {
+    if (!mineId || typeof window === 'undefined') return false
+    try { return localStorage.getItem('rdv_agenda_scope') === 'mine' } catch { return false }
+  })
+  const mineScope = mineId && mineOnly ? mineId : null
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
   const [dayListModal, setDayListModal] = useState<{ day: Date; appts: Appointment[] } | null>(null)
   const [loading, setLoading] = useState(false)
@@ -449,13 +457,14 @@ export default function WeekCalendar({
       from: activeWeekStart.toISOString(),
       to: addDays(activeWeekStart, 7).toISOString(),
     })
-    if (selectedCommercial !== 'all') params.set('commercial_id', selectedCommercial)
+    if (mineScope) params.set('mine', mineScope)
+    else if (selectedCommercial !== 'all') params.set('commercial_id', selectedCommercial)
     fetch(`/api/appointments/week-stats?${params}`)
       .then(r => (r.ok ? r.json() : null))
       .then(j => { if (!cancelled) setPlacedCount(typeof j?.placed === 'number' ? j.placed : null) })
       .catch(() => {})
     return () => { cancelled = true }
-  }, [weekKey, selectedCommercial]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [weekKey, selectedCommercial, mineScope]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchAppointments = useCallback(async () => {
     setLoading(true)
@@ -463,7 +472,8 @@ export default function WeekCalendar({
       const keys = extraWeekKey ? [weekKey, extraWeekKey] : [weekKey]
       const results = await Promise.all(keys.map(async k => {
         const params = new URLSearchParams({ week: k })
-        if (selectedCommercial !== 'all') params.set('commercial_id', selectedCommercial)
+        if (mineScope) params.set('mine', mineScope)
+        else if (selectedCommercial !== 'all') params.set('commercial_id', selectedCommercial)
         const res = await fetch(`/api/appointments?${params}`, { cache: 'no-store' })
         return res.ok ? (await res.json() as Appointment[]) : null
       }))
@@ -474,7 +484,7 @@ export default function WeekCalendar({
     } finally {
       setLoading(false)
     }
-  }, [weekKey, extraWeekKey, selectedCommercial])
+  }, [weekKey, extraWeekKey, selectedCommercial, mineScope])
 
   useEffect(() => {
     fetch('/api/users', { cache: 'no-store' }).then(r => r.json()).then(setCommerciaux)
@@ -488,6 +498,11 @@ export default function WeekCalendar({
     if (!adminMode && typeof window !== 'undefined') {
       localStorage.setItem('rdv_selected_commercial', id)
     }
+  }
+
+  function selectMineOnly(on: boolean) {
+    setMineOnly(on)
+    try { localStorage.setItem('rdv_agenda_scope', on ? 'mine' : 'team') } catch { /* ignore */ }
   }
 
   function getAppointmentsForDay(day: Date) {
@@ -1228,8 +1243,25 @@ export default function WeekCalendar({
   }
 
 
-  // Filtre closers selon le contexte (admin, closer en vue équipe, page autonome)
-  const closerFilter = adminMode || (!closerId) ? (
+  // Sous-onglets « Équipe » / « Moi » : espace télépro (mineId) et closer en vue équipe
+  const scopeTabs = mineId ? (
+    <CrmV2Segmented
+      size="sm"
+      items={[{ id: 'team', label: 'Équipe' }, { id: 'mine', label: 'Moi' }]}
+      value={mineOnly ? 'mine' : 'team'}
+      onChange={id => selectMineOnly(id === 'mine')}
+    />
+  ) : closerId && teamView && !adminMode ? (
+    <CrmV2Segmented
+      size="sm"
+      items={[{ id: 'team', label: 'Équipe' }, { id: 'mine', label: 'Moi' }]}
+      value={selectedCommercial === closerId ? 'mine' : 'team'}
+      onChange={id => handleSelectCommercial(id === 'mine' ? closerId : 'all')}
+    />
+  ) : null
+
+  // Filtre closers (admin, agenda équipe du télépro) ; masqué sur « Moi » et côté closer
+  const closerFilter = scopeTabs && (mineScope || closerId) ? null : adminMode || (!closerId) ? (
     <AgendaSelectPill
       icon={<Users size={13} />}
       value={selectedCommercial}
@@ -1240,17 +1272,6 @@ export default function WeekCalendar({
       {closers.map(c => (
         <option key={c.id} value={c.id}>{c.name}</option>
       ))}
-    </AgendaSelectPill>
-  ) : teamView ? (
-    // Vue équipe closer : voir tous les RDV pour repérer où il reste de la place
-    <AgendaSelectPill
-      icon={<Users size={13} />}
-      value={selectedCommercial}
-      onChange={e => handleSelectCommercial(e.target.value)}
-      aria-label="Agenda affiché"
-    >
-      {closerId && <option value={closerId}>Mon agenda</option>}
-      <option value="all">Toute l&apos;équipe</option>
     </AgendaSelectPill>
   ) : null
 
@@ -1407,6 +1428,7 @@ export default function WeekCalendar({
             margin: isMobile ? '10px -12px 0' : undefined, padding: isMobile ? '0 12px' : undefined,
           }}
         >
+          {scopeTabs}
           {closerFilter}
           {legend}
           {isMobile && showAdminLink && (

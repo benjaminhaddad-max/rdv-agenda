@@ -1,5 +1,5 @@
 /**
- * GET /api/appointments/week-stats?from=ISO&to=ISO[&brand=diploma|medibox][&commercial_id=…]
+ * GET /api/appointments/week-stats?from=ISO&to=ISO[&brand=diploma|medibox][&commercial_id=…][&mine=…]
  *
  * Compteur de l'agenda : nombre de RDV placés (créés) sur la période, mêmes
  * filtres que l'agenda (marque, closer). La présence est calculée côté agenda
@@ -33,6 +33,9 @@ export async function GET(req: NextRequest) {
   else if (brand === 'diploma') q = q.neq('brand', 'medibox')
   const commercialId = sp.get('commercial_id')
   if (commercialId) q = q.eq('commercial_id', commercialId)
+  // Agenda « Moi » : RDV placés par la personne ou dont elle est le closer
+  const mine = sp.get('mine')
+  if (mine && /^[0-9a-f-]{36}$/i.test(mine)) q = q.or(`telepro_id.eq.${mine},commercial_id.eq.${mine}`)
 
   const { count, error } = await q
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

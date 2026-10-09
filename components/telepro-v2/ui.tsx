@@ -3,7 +3,7 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  CalendarCheck, Check, ListChecks, Menu, Phone, Plus, Users, X,
+  CalendarDays, Check, ListChecks, Menu, Phone, Plus, Users, X,
 } from 'lucide-react'
 import { crmV2, crmV2Navy } from '@/lib/crm-v2-theme'
 import { CrmV2BottomSheet } from '@/components/crm-v2/primitives'
@@ -281,13 +281,13 @@ export function useLogout() {
 
 /* ─── Barre d'onglets du bas (mobile) ───────────────────────────────────── */
 
-export type TpMobileTab = 'planning' | 'suivi' | 'contacts' | 'plus' | 'form' | null
+export type TpMobileTab = 'agenda' | 'suivi' | 'contacts' | 'plus' | 'form' | null
 
 export function TpTabBar({
-  active, onPlanning, onSuivi, onNew, onContacts, onPlus, newLabel = 'Nouveau RDV',
+  active, onAgenda, onSuivi, onNew, onContacts, onPlus, newLabel = 'Nouveau RDV',
 }: {
   active: TpMobileTab
-  onPlanning: () => void
+  onAgenda: () => void
   onSuivi: () => void
   onNew: () => void
   onContacts: () => void
@@ -318,7 +318,7 @@ export function TpTabBar({
       paddingBottom: 'env(safe-area-inset-bottom)', position: 'relative', zIndex: 20,
     }}>
       <div style={{ height: 60, display: 'flex', alignItems: 'center' }}>
-        {item('planning', 'Planning', <CalendarCheck size={18} />, onPlanning)}
+        {item('agenda', 'Agenda', <CalendarDays size={18} />, onAgenda)}
         {item('suivi', 'Suivi', <ListChecks size={18} />, onSuivi)}
         <button
           type="button"

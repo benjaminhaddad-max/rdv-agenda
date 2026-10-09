@@ -62,10 +62,13 @@ async function notifyQueueAlert(appointment: any, source: string): Promise<void>
 }
 
 // GET /api/appointments?commercial_id=xxx&week=2024-W10&unassigned=true&telepro_id=xxx
+// mine=<id> : RDV placés par cette personne OU dont elle est le closer (agenda « Moi »)
 export async function GET(req: NextRequest) {
   const startedAt = Date.now()
   const { searchParams } = new URL(req.url)
   let commercialId = (searchParams.get('commercial_id') || '').trim()
+  const mineRaw = (searchParams.get('mine') || '').trim()
+  let mineId = /^[0-9a-f-]{36}$/i.test(mineRaw) ? mineRaw : ''
   const week = searchParams.get('week') // e.g. "2025-03-10" (Monday of week)
   let unassigned = searchParams.get('unassigned') === 'true'
   let teleproId = (searchParams.get('telepro_id') || '').trim()
@@ -75,6 +78,7 @@ export async function GET(req: NextRequest) {
   if (apiUser?.isDemo) {
     teleproId = apiUser.appUserId
     commercialId = ''
+    mineId = ''
     unassigned = false
   }
   const scopedLimit = Math.min(Math.max(parseInt(searchParams.get('limit') || '2000', 10) || 2000, 1), 5000)
@@ -82,7 +86,7 @@ export async function GET(req: NextRequest) {
   // Safety net: avoid accidental full-table scans that can stall the UI.
   // Accepts week-scoped reads for the global agenda, but still blocks
   // completely unscoped queries.
-  if (!teleproId && !commercialId && !unassigned && !week) {
+  if (!teleproId && !commercialId && !mineId && !unassigned && !week) {
     return NextResponse.json([], {
       headers: {
         'Cache-Control': 'no-store',
@@ -97,6 +101,8 @@ export async function GET(req: NextRequest) {
 
   if (teleproId) {
     query = query.eq('telepro_id', teleproId)
+  } else if (mineId) {
+    query = query.or(`telepro_id.eq.${mineId},commercial_id.eq.${mineId}`)
   } else {
     // Les RDV fictifs des comptes démo n'apparaissent dans aucun agenda réel.
     const demoFilter = excludeDemoTeleproFilter(await getDemoUserIds(db))

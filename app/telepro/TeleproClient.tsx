@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback, useMemo, type ReactNode } from 'react'
-import { format, startOfWeek } from 'date-fns'
+import { useState, useEffect, useCallback, useMemo, type ReactNode } from 'react'
+import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import {
-  ArrowLeft, Briefcase, CalendarDays, Clock, LifeBuoy, LogOut, Phone, Plus, RefreshCw, Repeat2, RotateCcw, School, Tag, X,
+  ArrowLeft, Briefcase, Clock, LifeBuoy, LogOut, Phone, Plus, RefreshCw, Repeat2, RotateCcw, School, Tag, X,
 } from 'lucide-react'
 import Link from 'next/link'
 import WeekCalendar from '@/components/WeekCalendar'
@@ -25,19 +25,14 @@ import { usePageTitle } from '@/components/DocumentTitle'
 import type { MyAppointment, TeleproUser } from '@/components/telepro-v2/types'
 import { useNewRdvForm } from '@/components/telepro-v2/useNewRdvForm'
 import NewRdvFlow, { RdvSuccess } from '@/components/telepro-v2/NewRdvFlow'
-import PlanningView from '@/components/telepro-v2/PlanningView'
 import MyCallSchedule from '@/components/telepro-v2/MyCallSchedule'
-import RdvDetailDrawer from '@/components/telepro-v2/RdvDetailDrawer'
 import TeleproContactsMobile from '@/components/telepro-v2/TeleproContactsMobile'
 import {
   TpMobileHeader, TpPlusSheet, TpRoundButton, TpTabBar, useLogout, useSupportUnread,
   type TpMenuItem, type TpMobileTab,
 } from '@/components/telepro-v2/ui'
 
-const PLANNING_FETCH_TIMEOUT_MS = 2500
-const PLANNING_LOADING_GUARD_MS = 3000
-
-type TeleproTab = 'form' | 'rdvs' | 'horaires' | 'suivi' | 'agenda' | 'historique' | 'repop' | 'contacts' | 'transactions'
+type TeleproTab = 'form' | 'horaires' | 'suivi' | 'agenda' | 'historique' | 'repop' | 'contacts' | 'transactions'
 
 export default function TeleproClient({
   teleproUser,
@@ -58,7 +53,7 @@ export default function TeleproClient({
   const teleproCrmFilterId = teleproUser.id || ''
   // Les transactions restent filtrées côté deal avec l'ID externe existant.
   const teleproDealsFilterId = teleproUser.hubspot_user_id || teleproUser.hubspot_owner_id || ''
-  const [activeTab, setActiveTab] = useState<TeleproTab>('rdvs')
+  const [activeTab, setActiveTab] = useState<TeleproTab>('agenda')
   const [showGuide, setShowGuide] = useState(false)
   const [showResources, setShowResources] = useState(false)
   const [crmTotal, setCrmTotal] = useState(0)
@@ -81,25 +76,6 @@ export default function TeleproClient({
   // ── Prise de RDV (recherche contact, créneaux, envoi) ─────────────────
   const form = useNewRdvForm({ teleproUser, isLinovaBrandUser })
 
-  // ── Planning ──────────────────────────────────────────────────────────
-  const [myRdvs, setMyRdvs] = useState<MyAppointment[]>([])
-  const [myRdvsLoading, setMyRdvsLoading] = useState(false)
-  const [myRdvsError, setMyRdvsError] = useState<string | null>(null)
-  const myRdvsFetchInFlightRef = useRef(false)
-  const myRdvsFetchSeqRef = useRef(0)
-  const myRdvsLastFetchAtRef = useRef(0)
-  const [planningWeekStart, setPlanningWeekStart] = useState(() =>
-    startOfWeek(new Date(), { weekStartsOn: 1 })
-  )
-  const [statusFilter, setStatusFilter] = useState<AppointmentStatus | null>(null)
-  const [rebookLoading, setRebookLoading] = useState<string | null>(null)
-  const [planningView, setPlanningView] = useState<'week' | 'chrono'>('chrono')
-  const [editingNotes, setEditingNotes] = useState<Record<string, string>>({})
-  const [savingNote, setSavingNote] = useState<string | null>(null)
-  const [savedNote, setSavedNote] = useState<string | null>(null)
-  const [selectedRdv, setSelectedRdv] = useState<MyAppointment | null>(null)
-  const [confirmingRdv, setConfirmingRdv] = useState<string | null>(null)
-  const [cancellingRdv, setCancellingRdv] = useState<string | null>(null)
 
   // ── Historique ────────────────────────────────────────────────────────
   type HistRdv = MyAppointment & {
@@ -117,151 +93,7 @@ export default function TeleproClient({
   const [closingDeal, setClosingDeal]     = useState<string | null>(null)
   const [stageFilter, setStageFilter]     = useState<string | null>(null)
   const [savingSuivi, setSavingSuivi]     = useState<string | null>(null)
-
-  // ── Stats ─────────────────────────────────────────────────────────────
-  const [hsStats, setHsStats] = useState<{ total: number; thisMonth: number; positifs: number; aVenir: number } | null>(null)
-
-  const fetchMyRdvs = useCallback(async () => {
-    if (isAdmin) return
-    if (!teleproUser.id) {
-      setMyRdvsError('Compte télépro invalide (ID manquant)')
-      setMyRdvsLoading(false)
-      return
-    }
-    if (myRdvsFetchInFlightRef.current) return
-    const nowMs = Date.now()
-    if (nowMs - myRdvsLastFetchAtRef.current < 1200) return
-    myRdvsLastFetchAtRef.current = nowMs
-    myRdvsFetchInFlightRef.current = true
-    const seq = ++myRdvsFetchSeqRef.current
-    const ctrl = new AbortController()
-    let hardTimeout: ReturnType<typeof setTimeout> | null = null
-    setMyRdvsLoading(true)
-    setMyRdvsError(null)
-    try {
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        hardTimeout = setTimeout(() => {
-          ctrl.abort()
-          reject(new Error('Timeout chargement planning'))
-        }, PLANNING_FETCH_TIMEOUT_MS)
-      })
-      const res = await Promise.race([
-        fetch(`/api/appointments?telepro_id=${teleproUser.id}`, {
-          signal: ctrl.signal,
-          cache: 'no-store',
-        }),
-        timeoutPromise,
-      ])
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`)
-      }
-      const rows = await res.json()
-      // Ignore stale responses when a newer fetch has started.
-      if (seq === myRdvsFetchSeqRef.current) setMyRdvs(rows)
-    } catch (e) {
-      if (seq === myRdvsFetchSeqRef.current) {
-        const msg = e instanceof Error ? e.message : 'Erreur chargement planning'
-        setMyRdvsError(msg)
-      }
-    } finally {
-      if (hardTimeout) clearTimeout(hardTimeout)
-      myRdvsFetchInFlightRef.current = false
-      if (seq === myRdvsFetchSeqRef.current) setMyRdvsLoading(false)
-    }
-  }, [teleproUser.id, isAdmin])
-
-  async function saveNote(rdvId: string) {
-    const text = rdvId in editingNotes ? editingNotes[rdvId] : ''
-    setSavingNote(rdvId)
-    try {
-      const res = await fetch(`/api/appointments/${rdvId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notes: text.trim() || null }),
-      })
-      if (res.ok) {
-        setMyRdvs(prev => prev.map(r => r.id === rdvId ? { ...r, notes: text.trim() || null } : r))
-        setSavedNote(rdvId)
-        setTimeout(() => setSavedNote(null), 2000)
-      }
-    } finally {
-      setSavingNote(null)
-    }
-  }
-
-  async function confirmRdv(rdvId: string) {
-    setConfirmingRdv(rdvId)
-    try {
-      const res = await fetch(`/api/appointments/${rdvId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'confirme_prospect' }),
-      })
-      if (res.ok) {
-        setMyRdvs(prev => prev.map(r => r.id === rdvId ? { ...r, status: 'confirme_prospect' } : r))
-        setSelectedRdv(prev => prev?.id === rdvId ? { ...prev, status: 'confirme_prospect' } : prev)
-      }
-    } finally {
-      setConfirmingRdv(null)
-    }
-  }
-
-  async function cancelRdv(rdvId: string) {
-    setCancellingRdv(rdvId)
-    try {
-      const res = await fetch(`/api/appointments/${rdvId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'annule' }),
-      })
-      if (res.ok) {
-        setMyRdvs(prev => prev.map(r => r.id === rdvId ? { ...r, status: 'annule' } : r))
-        setSelectedRdv(prev => prev?.id === rdvId ? { ...prev, status: 'annule' } : prev)
-      }
-    } finally {
-      setCancellingRdv(null)
-    }
-  }
-
-  async function resetRdv(rdvId: string) {
-    try {
-      const res = await fetch(`/api/appointments/${rdvId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'confirme' }),
-      })
-      if (res.ok) {
-        setMyRdvs(prev => prev.map(r => r.id === rdvId ? { ...r, status: 'confirme' } : r))
-        setSelectedRdv(prev => prev?.id === rdvId ? { ...prev, status: 'confirme' } : prev)
-      }
-    } catch { /* silent */ }
-  }
-
-  useEffect(() => {
-    if (activeTab === 'rdvs' || previewMode) fetchMyRdvs()
-  }, [activeTab, previewMode, fetchMyRdvs])
-
-  // Garde-fou UI : ne jamais laisser un spinner infini côté planning.
-  useEffect(() => {
-    if (!myRdvsLoading) return
-    const guard = setTimeout(() => {
-      myRdvsFetchInFlightRef.current = false
-      setMyRdvsLoading(false)
-      setMyRdvsError(prev => prev || 'Timeout chargement planning')
-    }, PLANNING_LOADING_GUARD_MS)
-    return () => clearTimeout(guard)
-  }, [myRdvsLoading])
-
-  useEffect(() => {
-    const now = new Date()
-    const thisMonth = myRdvs.filter(r => {
-      const d = new Date(r.start_at)
-      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
-    }).length
-    const positifs = myRdvs.filter(r => r.status === 'positif' || r.status === 'preinscription').length
-    const aVenir = myRdvs.filter(r => new Date(r.start_at) > now).length
-    setHsStats({ total: myRdvs.length, thisMonth, positifs, aVenir })
-  }, [myRdvs])
+  const [rebookLoading, setRebookLoading] = useState<string | null>(null)
 
   // ── Historique ────────────────────────────────────────────────────────
   const fetchHistorique = useCallback(async () => {
@@ -350,7 +182,7 @@ export default function TeleproClient({
     { value: 'pre_positif',    label: 'Pré-positif',    color: '#06b6d4' },
   ]
 
-  // ── Reprendre un RDV (depuis le planning / l'historique) ──────────────
+  // ── Reprendre un RDV (depuis l'historique) ──────────────
   async function handleReprendre(rdv: MyAppointment) {
     if (isLinovaBrandUser) {
       form.setError('Prise de RDV classique desactivee pour la marque LINOVA. Utilise le flux Linova depuis le CRM.')
@@ -374,11 +206,6 @@ export default function TeleproClient({
     if (formSuccess && activeTab !== 'form' && !isAdmin) resetForm()
   }, [activeTab, formSuccess, isAdmin]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  function openRdv(rdv: MyAppointment) {
-    setSelectedRdv(rdv)
-    setEditingNotes(prev => ({ ...prev, [rdv.id]: rdv.notes || '' }))
-  }
-
   function goTab(tab: TeleproTab) {
     setActiveTab(tab)
     setPlusOpen(false)
@@ -396,30 +223,10 @@ export default function TeleproClient({
       form={form}
       isMobile={isMobile}
       onNew={form.reset}
-      onPlanning={() => { form.reset(); setActiveTab('rdvs'); fetchMyRdvs() }}
+      onPlanning={() => { form.reset(); setActiveTab('agenda') }}
     />
   ) : (
     <NewRdvFlow form={form} isMobile={isMobile} teleproUserId={teleproUser.id} linova={isLinovaBrandUser} />
-  )
-
-  const planningContent = (
-    <PlanningView
-      rdvs={myRdvs}
-      loading={myRdvsLoading}
-      error={myRdvsError}
-      onRefresh={fetchMyRdvs}
-      stats={hsStats}
-      statusFilter={statusFilter}
-      setStatusFilter={setStatusFilter}
-      planningView={planningView}
-      setPlanningView={setPlanningView}
-      planningWeekStart={planningWeekStart}
-      setPlanningWeekStart={setPlanningWeekStart}
-      rebookLoading={rebookLoading}
-      onOpen={openRdv}
-      onReprendre={handleReprendre}
-      isMobile={isMobile}
-    />
   )
 
   const historiqueContent = (
@@ -555,7 +362,6 @@ export default function TeleproClient({
     if (isAdmin) return newRdvContent
     switch (activeTab) {
       case 'form': return newRdvContent
-      case 'rdvs': return planningContent
       case 'historique': return historiqueContent
       case 'horaires':
         // Horaires d'appel de la semaine (saisis par le télépro ou imposés) + bilan Aircall
@@ -568,9 +374,9 @@ export default function TeleproClient({
           </>
         )
       case 'agenda':
-        // Tous les RDV de la semaine (toute l'équipe) : permet au télépro de
-        // repérer où il reste de la place avant de placer un RDV.
-        return <div style={{ ...fullHeight, minHeight: isMobile ? 0 : 560 }}><WeekCalendar teamView /></div>
+        // Agenda RDV : « Équipe » (repérer où il reste de la place avant de
+        // placer un RDV) ou « Moi » (les RDV qu'il a placés ou qu'il close).
+        return <div style={{ ...fullHeight, minHeight: isMobile ? 0 : 560 }}><WeekCalendar teamView mineId={teleproUser.id || undefined} /></div>
       case 'suivi':
         // Tableau de suivi rempli automatiquement à chaque RDV placé par le
         // télépro ; statut dérivé de l'agenda, modifiable à la main.
@@ -682,28 +488,6 @@ export default function TeleproClient({
       {showGuide && <PlatformGuide role="telepro" onClose={() => setShowGuide(false)} />}
       {showResources && <ResourcesPanel role="telepro" onClose={() => setShowResources(false)} />}
 
-      {/* Fiche RDV du planning */}
-      {selectedRdv && (
-        <RdvDetailDrawer
-          rdv={selectedRdv}
-          noteValue={selectedRdv.id in editingNotes ? editingNotes[selectedRdv.id] : (selectedRdv.notes || '')}
-          onNoteChange={val => setEditingNotes(prev => ({ ...prev, [selectedRdv.id]: val }))}
-          onNoteSave={() => saveNote(selectedRdv.id)}
-          saving={savingNote === selectedRdv.id}
-          saved={savedNote === selectedRdv.id}
-          onClose={() => setSelectedRdv(null)}
-          onConfirm={() => confirmRdv(selectedRdv.id)}
-          confirming={confirmingRdv === selectedRdv.id}
-          onCancel={() => cancelRdv(selectedRdv.id)}
-          cancelling={cancellingRdv === selectedRdv.id}
-          onReset={() => resetRdv(selectedRdv.id)}
-          onMeetingModeUpdated={(updated) => {
-            setSelectedRdv(prev => prev ? { ...prev, ...updated } : null)
-            setMyRdvs(prev => prev.map(r => r.id === selectedRdv.id ? { ...r, ...updated } : r))
-          }}
-        />
-      )}
-
       {form.showLinovaModal && form.contact && (
         <LinovaAppointmentModal
           contact={{
@@ -715,10 +499,7 @@ export default function TeleproClient({
             classe_actuelle: form.contact.properties.classe_actuelle ?? '',
           }}
           onClose={() => form.setShowLinovaModal(false)}
-          onSaved={() => {
-            form.setShowLinovaModal(false)
-            fetchMyRdvs()
-          }}
+          onSaved={() => form.setShowLinovaModal(false)}
         />
       )}
 
@@ -761,14 +542,13 @@ export default function TeleproClient({
   // ─── Mobile : en-têtes blancs + barre d'onglets navy en bas ────────────
   if (isMobile) {
     const mobileTab: TpMobileTab = isAdmin ? 'form'
-      : activeTab === 'rdvs' ? 'planning'
+      : activeTab === 'agenda' ? 'agenda'
       : activeTab === 'suivi' ? 'suivi'
       : activeTab === 'contacts' ? 'contacts'
       : activeTab === 'form' ? 'form'
       : 'plus'
     const plusItems: TpMenuItem[] = [
       { key: 'horaires', label: 'Mes horaires', icon: <Clock size={18} />, onClick: () => goTab('horaires'), active: activeTab === 'horaires' },
-      { key: 'agenda', label: 'Agenda équipe', icon: <CalendarDays size={18} />, onClick: () => goTab('agenda'), active: activeTab === 'agenda' },
       { key: 'transactions', label: 'Mes transactions', icon: <Briefcase size={18} />, onClick: () => goTab('transactions'), active: activeTab === 'transactions', badge: txTotal },
       { key: 'repop', label: 'Repop', icon: <Repeat2 size={18} />, onClick: () => goTab('repop'), active: activeTab === 'repop' },
       ...(!previewMode ? [
@@ -784,24 +564,6 @@ export default function TeleproClient({
       }}>
         {previewBanner}
         <main style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          {activeTab === 'rdvs' && !isAdmin && (
-            <div style={{
-              background: crmV2.bg, borderBottom: `1px solid ${crmV2.border}`, padding: 12, flexShrink: 0,
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-                <div style={{ width: 38, height: 38, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: '#241F3F', boxShadow: '0 0 0 2px rgba(94,188,227,0.35)' }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/logo-hub-diploma-mark.png" alt="Hub Diploma" width={38} height={38} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                </div>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: 16, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Bonjour {firstName}</div>
-                  <div style={{ fontSize: 12, color: crmV2.textMuted }}>Placement RDV — Télépro</div>
-                </div>
-              </div>
-              <TpRoundButton onClick={fetchMyRdvs} title="Actualiser" spinning={myRdvsLoading}><RefreshCw size={15} /></TpRoundButton>
-            </div>
-          )}
           {isAdmin && !previewMode && (
             <div style={{ padding: '10px 12px 0' }}>
               <CrmV2Button size="sm" icon={<ArrowLeft size={12} />} onClick={() => { window.location.href = '/admin' }}>Admin</CrmV2Button>
@@ -813,7 +575,7 @@ export default function TeleproClient({
           <TpTabBar
             active={plusOpen ? 'plus' : mobileTab}
             newLabel="Nouveau RDV"
-            onPlanning={() => goTab('rdvs')}
+            onAgenda={() => goTab('agenda')}
             onSuivi={() => goTab('suivi')}
             onNew={() => goTab('form')}
             onContacts={() => goTab('contacts')}
@@ -828,11 +590,10 @@ export default function TeleproClient({
 
   // ─── Ordinateur : en-tête blanc + onglets soulignés ────────────────────
   const tabs = [
-    { id: 'rdvs', label: 'Mon planning', count: myRdvs.length > 0 ? myRdvs.length : undefined },
+    { id: 'agenda', label: 'Agenda RDV' },
     { id: 'form', label: newRdvLabel },
     { id: 'horaires', label: 'Mes horaires' },
     { id: 'suivi', label: 'Suivi RDV' },
-    { id: 'agenda', label: 'Agenda équipe' },
     { id: 'contacts', label: 'Mes contacts', count: crmTotal > 0 ? crmTotal : undefined },
     { id: 'transactions', label: 'Mes transactions', count: txTotal > 0 ? txTotal : undefined },
     { id: 'repop', label: 'Repop' },

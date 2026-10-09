@@ -549,7 +549,7 @@ export function RdvSuccess({ form, onNew, onPlanning, isMobile }: {
         width: '100%', height: 48, borderRadius: 999, marginTop: 6, background: 'rgba(34,197,94,0.12)', color: '#15803d',
         border: '1px solid rgba(34,197,94,0.3)', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
       }}>
-        Voir mon planning
+        Voir l&apos;agenda
       </button>
     </div>
   )
