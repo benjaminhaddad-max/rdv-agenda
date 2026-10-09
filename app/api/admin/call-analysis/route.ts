@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
   const { start, end } = parisRangeUtcBounds(from, to)
 
   try {
-    const { candidates, talk2Total } = await findCandidates(db, { fromIso: start, toIso: end })
+    const { candidates, talk2Total, directSales } = await findCandidates(db, { fromIso: start, toIso: end })
     const { data, error } = await db.from('call_analyses')
       .select('aircall_call_id, rdv_user_id, hubspot_contact_id, started_at, talk_sec, status, cause, summary, missing, advice, rdv_proposed, score, error')
       .gte('started_at', start).lt('started_at', end)
@@ -78,13 +78,14 @@ export async function GET(req: NextRequest) {
 
     // Agrégats par télépro
     const team: Record<string, {
-      talk2: number; no_rdv: number; recorded: number; analyzed: number; pending: number
+      talk2: number; no_rdv: number; recorded: number; analyzed: number; pending: number; direct_sales: number
       causes: Record<string, number>; score_sum: number; proposed: number
     }> = {}
-    const get = (id: string) => (team[id] ??= { talk2: 0, no_rdv: 0, recorded: 0, analyzed: 0, pending: 0, causes: {}, score_sum: 0, proposed: 0 })
+    const get = (id: string) => (team[id] ??= { talk2: 0, no_rdv: 0, recorded: 0, analyzed: 0, pending: 0, direct_sales: 0, causes: {}, score_sum: 0, proposed: 0 })
     // Lignes Aircall sans enregistrement (appels sans RDV non analysables)
     const unrecordedLines: Record<string, number> = {}
     for (const [id, n] of talk2Total) get(id).talk2 = n
+    for (const [id, n] of directSales) get(id).direct_sales = n
     const treated = new Set(rows.map(r => Number(r.aircall_call_id)))
     for (const c of candidates) {
       const t = get(c.rdv_user_id)

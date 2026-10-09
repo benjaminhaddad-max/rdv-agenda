@@ -20,9 +20,16 @@ export const MIN_TALK_SEC = 120
 /** Un RDV créé dans cette fenêtre après l'appel = l'appel a converti. */
 const RDV_WINDOW_AFTER_MS = 3 * 86_400_000
 const RDV_WINDOW_BEFORE_MS = 30 * 60_000
+/**
+ * Petites offres (Préparation LAS 1/2/3 à 490 €, PASS semestre 490 € / année
+ * 690 €…) : vendues sans RDV, par le lien d'inscription. Une inscription sur
+ * la plateforme dans les 7 jours suivant l'appel = vente directe, pas un échec.
+ */
+const DIRECT_SALE_WINDOW_MS = 7 * 86_400_000
 const MODEL = 'claude-opus-5-5'
 
 export const CALL_CAUSES = [
+  { id: 'offre_directe', label: 'Petite offre proposée', hint: "Pas besoin de RDV : le télépro a vendu une petite offre (≈ 490-690 €) ou envoyé le lien d'inscription" },
   { id: 'rdv_non_propose', label: 'RDV pas proposé', hint: "Le télépro n'a pas proposé de RDV ou pas de créneau concret" },
   { id: 'decouverte_faible', label: 'Découverte insuffisante', hint: 'Besoins, projet, classe, motivations peu ou mal explorés' },
   { id: 'rdv_refuse', label: 'RDV refusé', hint: 'RDV proposé clairement mais refusé par le prospect' },
@@ -64,7 +71,7 @@ export function isMissingAnalysisTable(err: any): boolean {
 export async function findCandidates(
   db: SupabaseClient,
   opts: { fromIso: string; toIso: string; userIds?: string[]; excludeAnalyzed?: boolean },
-): Promise<{ candidates: Candidate[]; talk2Total: Map<string, number> }> {
+): Promise<{ candidates: Candidate[]; talk2Total: Map<string, number>; directSales: Map<string, number> }> {
   const calls: Array<CallRow & { aircall_call_id: number; recording_url: string | null }> = []
   for (let from = 0; from < 20_000; from += 1000) {
     let q = db.from('aircall_calls')
@@ -102,11 +109,36 @@ export async function findCandidates(
     }
   }
 
+  // Inscriptions sur la plateforme (petites offres vendues sans RDV)
+  const salesByContact = new Map<string, number[]>()
+  for (let i = 0; i < contactIds.length; i += 200) {
+    const { data } = await db.from('crm_pre_inscriptions')
+      .select('hubspot_contact_id, detected_at, paiement_status, ins_created:external_data->>created_at')
+      .in('hubspot_contact_id', contactIds.slice(i, i + 200))
+    for (const r of (data ?? []) as Array<{ hubspot_contact_id: string; detected_at: string | null; paiement_status: string | null; ins_created: string | null }>) {
+      if (r.paiement_status === 'annulee') continue
+      const at = Date.parse(r.ins_created || r.detected_at || '')
+      if (!Number.isFinite(at)) continue
+      const list = salesByContact.get(r.hubspot_contact_id) ?? []
+      list.push(at)
+      salesByContact.set(r.hubspot_contact_id, list)
+    }
+  }
+
+  const directSales = new Map<string, number>()
   let candidates: Candidate[] = withContact
     .filter(c => {
       const t = Date.parse(c.started_at)
-      return !(rdvByContact.get(c.hubspot_contact_id as string) ?? [])
+      const hasRdv = (rdvByContact.get(c.hubspot_contact_id as string) ?? [])
         .some(r => r >= t - RDV_WINDOW_BEFORE_MS && r <= t + RDV_WINDOW_AFTER_MS)
+      if (hasRdv) return false
+      const sold = (salesByContact.get(c.hubspot_contact_id as string) ?? [])
+        .some(r => r >= t - RDV_WINDOW_BEFORE_MS && r <= t + DIRECT_SALE_WINDOW_MS)
+      if (sold) {
+        directSales.set(c.rdv_user_id as string, (directSales.get(c.rdv_user_id as string) ?? 0) + 1)
+        return false
+      }
+      return true
     })
     .map(c => ({
       aircall_call_id: Number(c.aircall_call_id),
@@ -128,7 +160,7 @@ export async function findCandidates(
     }
     candidates = candidates.filter(c => !done.has(c.aircall_call_id))
   }
-  return { candidates, talk2Total }
+  return { candidates, talk2Total, directSales }
 }
 
 // ── Transcription ───────────────────────────────────────────────────────────
@@ -159,8 +191,11 @@ async function transcribe(audioUrl: string): Promise<string> {
 // ── Analyse Claude ──────────────────────────────────────────────────────────
 
 const SYSTEM_PROMPT = `Tu analyses des appels de téléprospection de Diploma Santé, une prépa aux études de santé (PASS, LAS, PAES, Terminale Santé, Première…).
-Le télépro appelle un lead (lycéen, étudiant ou parent) pour lui faire prendre un rendez-vous d'orientation avec un conseiller. Un bon appel : découverte du projet (classe, filière, objectif médecine/santé, situation), mise en valeur de l'accompagnement, puis proposition claire d'un RDV avec un créneau concret.
-Cet appel a duré plus de 2 minutes mais n'a PAS débouché sur un RDV. Les locuteurs sont numérotés par la transcription automatique : déduis qui est le télépro (celui qui se présente au nom de Diploma Santé).
+Le télépro appelle un lead (lycéen, étudiant ou parent). Deux issues sont des réussites :
+1. un rendez-vous d'orientation avec un conseiller pour les préparations complètes (Terminale Santé, PAES, Première…) ;
+2. pour les petites offres, PAS besoin de RDV : le télépro peut les vendre directement au téléphone en envoyant le lien d'inscription (Préparation LAS 1, LAS 2 ou LAS 3 année complète à 490 €, Préparation PASS semestre à 490 € ou année complète à 690 €). Elles conviennent surtout aux étudiants déjà en PASS ou en LAS.
+Un bon appel : découverte du projet (classe, filière, objectif médecine/santé, situation), mise en valeur de l'accompagnement, puis proposition claire d'un RDV avec un créneau concret, ou de la petite offre adaptée avec envoi du lien.
+Cet appel a duré plus de 2 minutes et n'a PAS débouché sur un RDV. Si le télépro a vendu ou proposé une petite offre / envoyé le lien d'inscription, choisis la cause offre_directe (ce n'est pas un échec) et note l'appel en conséquence. Si le prospect est en PASS / LAS (ou s'y destine) et que le télépro n'a proposé ni RDV ni petite offre, signale-le dans ce qui a manqué. Les locuteurs sont numérotés par la transcription automatique : déduis qui est le télépro (celui qui se présente au nom de Diploma Santé).
 Identifie la cause principale de l'échec, ce qui s'est passé, ce qui a manqué côté télépro et un conseil concret et actionnable pour la prochaine fois. Sois factuel, appuie-toi sur la transcription, en français, phrases courtes.`
 
 const CAUSE_IDS = CALL_CAUSES.map(c => c.id)

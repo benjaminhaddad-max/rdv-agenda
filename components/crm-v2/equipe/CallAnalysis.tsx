@@ -17,7 +17,7 @@ import { AdminNotice, AdminSpin } from '@/components/crm-v2/admin/AdminUi'
 
 export type CauseDef = { id: string; label: string; hint: string }
 export type TeamCallStats = {
-  talk2: number; no_rdv: number; recorded: number; analyzed: number; pending: number
+  talk2: number; no_rdv: number; recorded: number; analyzed: number; pending: number; direct_sales?: number
   causes: Record<string, number>; score_sum: number; proposed: number
 }
 export type AnalyzedCall = {
@@ -47,6 +47,7 @@ export type CallAnalysisData = {
 }
 
 const CAUSE_COLORS: Record<string, string> = {
+  offre_directe: '#16a34a',
   rdv_non_propose: '#dc2626',
   decouverte_faible: '#ea580c',
   rdv_refuse: '#d97706',
@@ -152,10 +153,10 @@ export function CallTeamSummary({ data, loading, from, to, onDone }: {
   }
 
   const totals = Object.values(data.team).reduce((t, s) => {
-    t.talk2 += s.talk2; t.noRdv += s.no_rdv; t.recorded += s.recorded ?? 0; t.analyzed += s.analyzed; t.pending += s.pending
+    t.talk2 += s.talk2; t.noRdv += s.no_rdv; t.recorded += s.recorded ?? 0; t.analyzed += s.analyzed; t.pending += s.pending; t.sales += s.direct_sales ?? 0
     for (const [k, v] of Object.entries(s.causes)) t.causes[k] = (t.causes[k] ?? 0) + v
     return t
-  }, { talk2: 0, noRdv: 0, recorded: 0, analyzed: 0, pending: 0, causes: {} as Record<string, number> })
+  }, { talk2: 0, noRdv: 0, recorded: 0, analyzed: 0, pending: 0, sales: 0, causes: {} as Record<string, number> })
   const unrecorded = Object.entries(data.unrecorded_lines ?? {}).sort((a, b) => b[1] - a[1])
   const unrecordedTotal = unrecorded.reduce((t, [, n]) => t + n, 0)
   const ranked = topCauses(totals.causes, 10)
@@ -169,6 +170,10 @@ export function CallTeamSummary({ data, loading, from, to, onDone }: {
         <div style={{ fontSize: 14, color: crmV2.text }}>
           <strong>{totals.noRdv}</strong> appel{totals.noRdv > 1 ? 's' : ''} de 2 min et plus sans RDV
           <span style={{ color: crmV2.textMuted }}> sur {totals.talk2} ({totals.talk2 ? Math.round((totals.noRdv / totals.talk2) * 100) : 0} %)</span>
+          {totals.sales > 0 && (
+            <span title="Petites offres (≈ 490-690 €) achetées dans les 7 jours suivant l'appel, sans RDV : comptées comme réussies"
+              style={{ color: crmV2.successStrong }}> · {totals.sales} vente{totals.sales > 1 ? 's' : ''} directe{totals.sales > 1 ? 's' : ''} (petites offres) exclue{totals.sales > 1 ? 's' : ''}</span>
+          )}
           <span style={{ color: crmV2.textMuted }}> · {totals.recorded} enregistré{totals.recorded > 1 ? 's' : ''} (analysables) · {totals.analyzed} analysé{totals.analyzed > 1 ? 's' : ''}</span>
           {totals.pending > 0 && <span style={{ color: crmV2.goldDark }}> · {totals.pending} à analyser</span>}
         </div>
