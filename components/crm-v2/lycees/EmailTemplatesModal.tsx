@@ -92,7 +92,7 @@ export default function EmailTemplatesModal({ onClose }: { onClose: () => void }
 
   return (
     <AdminModal open onClose={onClose} width={820} title="Mails partenariat — boîtes & modèles" closeDisabled={saving}
-      footer={draft ? (
+      footer={draft && tab === 'modeles' ? (
         <>
           {draft.id && <CrmV2Button variant="danger" onClick={archive} disabled={saving} style={{ marginRight: 'auto' }}>Retirer</CrmV2Button>}
           <CrmV2Button onClick={() => setDraft(null)} disabled={saving}>Annuler</CrmV2Button>
@@ -125,6 +125,14 @@ export default function EmailTemplatesModal({ onClose }: { onClose: () => void }
                 </div>
               </div>
             ))}
+            {boxes.mailboxes.some(b => /API Gmail/.test(b.error ?? '')) && (
+              <AdminNotice tone="warning">
+                Dernière étape : l’API Gmail doit être activée une fois dans le projet Google Cloud du compte de service (avec le compte propriétaire du projet).{' '}
+                <a href="https://console.developers.google.com/apis/api/gmail.googleapis.com/overview?project=77694306982" target="_blank" rel="noreferrer" style={{ color: crmV2.link, fontWeight: 800 }}>
+                  Activer l’API Gmail →
+                </a>
+              </AdminNotice>
+            )}
             {boxes.setup && (
               <div style={{ padding: 14, borderRadius: 12, background: crmV2.bgHover, border: `1px solid ${crmV2.border}`, fontSize: 13, lineHeight: 1.55 }}>
                 <div style={{ fontWeight: 800, marginBottom: 6 }}>Connecter une boîte (une seule fois, aucun mot de passe à donner)</div>

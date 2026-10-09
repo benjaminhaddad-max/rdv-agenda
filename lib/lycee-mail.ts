@@ -76,7 +76,7 @@ export function explainGoogleError(e: unknown): string {
   const raw = [typeof apiErr === 'string' ? apiErr : apiErr?.message, err.response?.data?.error_description, err.message]
     .filter(Boolean).join(' — ')
   if (isGmailApiDisabled(raw)) {
-    return 'API Gmail pas encore activée dans le projet Google Cloud du compte de service (activation automatique en cours, quelques minutes).'
+    return 'API Gmail désactivée dans le projet Google Cloud du compte de service : cliquer sur « Activer l’API Gmail » ci-dessous (propriétaire du projet), puis attendre quelques minutes.'
   }
   if (/unauthorized_client/i.test(raw)) {
     return 'Délégation Google pas encore autorisée pour Gmail (ajouter les scopes dans la console d’administration Google).'
