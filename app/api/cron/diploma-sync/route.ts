@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { logger } from '@/lib/logger'
@@ -68,6 +69,68 @@ function normalizeEmail(e: string | null | undefined): string {
 
 function escapeLike(s: string): string {
   return s.replace(/[\\%_]/g, '\\$&')
+}
+
+type ExistingDplDeal = {
+  hubspot_deal_id: string
+  hubspot_contact_id: string | null
+  dealname: string | null
+  dealstage: string | null
+  pipeline: string | null
+  amount: number | string | null
+  formation: string | null
+  createdate: string | null
+}
+
+/** Toutes les lignes d'une requête, par pages de 1 000 (limite max_rows). */
+async function fetchAllPages<T>(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  build: () => any,
+): Promise<T[]> {
+  const PAGE = 1000
+  const out: T[] = []
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await build().range(from, from + PAGE - 1)
+    if (error) throw new Error(`lecture paginée: ${error.message}`)
+    out.push(...((data ?? []) as T[]))
+    if ((data?.length ?? 0) < PAGE) break
+  }
+  return out
+}
+
+function sameValue(a: unknown, b: unknown): boolean {
+  if (a == null || a === '') return b == null || b === ''
+  return String(a) === String(b ?? '')
+}
+
+function sameInstant(a: unknown, b: unknown): boolean {
+  if (a == null || b == null) return a == null && b == null
+  return Date.parse(String(a)) === Date.parse(String(b))
+}
+
+/** Le deal dpl_* calculé diffère-t-il de celui déjà en base ? */
+function dealDiffers(prev: ExistingDplDeal, next: Record<string, unknown>): boolean {
+  return !sameValue(prev.hubspot_contact_id, next.hubspot_contact_id)
+    || !sameValue(prev.dealname, next.dealname)
+    || !sameValue(prev.dealstage, next.dealstage)
+    || !sameValue(prev.pipeline, next.pipeline)
+    || !(prev.amount == null ? next.amount == null : Number(prev.amount) === Number(next.amount))
+    || !sameValue(prev.formation, next.formation)
+    || !sameInstant(prev.createdate, next.createdate)
+}
+
+/** Empreinte du contenu venu de la plateforme (hors horodatages du sync). */
+function syncHash(row: {
+  saison: string
+  paiement_status: string
+  formation: string | null
+  montant: number | null
+  notes: string | null
+  external_data: Record<string, unknown>
+}): string {
+  return createHash('sha1')
+    .update(JSON.stringify([row.saison, row.paiement_status, row.formation, row.montant, row.notes, row.external_data]))
+    .digest('hex')
 }
 
 function stageFor(ins: { status: string; finalisation_step: number | null }): string | null {
@@ -352,41 +415,81 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Upsert les deals dpl_* (1 par inscription Diploma cible)
+    // Upsert des deals dpl_* (1 par inscription Diploma cible) : seuls les
+    // deals nouveaux ou modifiés sont réécrits (la quasi-totalité est
+    // identique d'un passage à l'autre).
+    const existingDeals = await fetchAllPages<ExistingDplDeal>(() => db
+      .from('crm_deals')
+      .select('hubspot_deal_id, hubspot_contact_id, dealname, dealstage, pipeline, amount, formation, createdate')
+      .like('hubspot_deal_id', 'dpl_%')
+      .order('hubspot_deal_id'))
+    const existingDealById = new Map(existingDeals.map(d => [d.hubspot_deal_id, d]))
+    const changedDeals = dealsToCreate.filter(d => {
+      const prev = existingDealById.get(String(d.hubspot_deal_id))
+      return !prev || dealDiffers(prev, d)
+    })
     let dealsUpserted = 0
-    for (let k = 0; k < dealsToCreate.length; k += 100) {
-      const chunk = dealsToCreate.slice(k, k + 100)
-      await db.from('crm_deals').upsert(chunk, { onConflict: 'hubspot_deal_id' })
-      dealsUpserted += chunk.length
+    for (let k = 0; k < changedDeals.length; k += 100) {
+      const chunk = changedDeals.slice(k, k + 100)
+      const { error } = await db.from('crm_deals').upsert(chunk, { onConflict: 'hubspot_deal_id' })
+      if (error) logger.error('diploma-sync', new Error(`upsert deals: ${error.message}`))
+      else dealsUpserted += chunk.length
     }
 
     const rowsToUpsert = [...dedupMap.values()]
-    const contactIdsForRows = [...new Set(rowsToUpsert.map(r => String(r.hubspot_contact_id)).filter(Boolean))]
+    const saisons = [...new Set(rowsToUpsert.map(r => r.saison))]
+
+    // Empreinte du contenu plateforme déjà enregistré (external_data._sync_hash) :
+    // un dossier identique au passage précédent n'est pas réécrit.
+    const existingMeta = await fetchAllPages<{ hubspot_contact_id: string; saison: string; h: string | null }>(() => db
+      .from('crm_pre_inscriptions')
+      .select('hubspot_contact_id, saison, h:external_data->>_sync_hash')
+      .in('saison', saisons)
+      .order('id'))
+    const existingHash = new Map(existingMeta.map(r => [`${r.hubspot_contact_id}|${r.saison}`, r.h]))
+
+    const newRows: typeof rowsToUpsert = []
+    const changedRows: typeof rowsToUpsert = []
+    const hashByKey = new Map<string, string>()
+    for (const row of rowsToUpsert) {
+      const key = `${row.hubspot_contact_id}|${row.saison}`
+      const hash = syncHash(row)
+      hashByKey.set(key, hash)
+      if (!existingHash.has(key)) newRows.push(row)
+      else if (existingHash.get(key) !== hash) changedRows.push(row)
+    }
 
     // Preserve les éventuelles éditions manuelles CRM (API externe = read-only)
     // et garde-fou: ne jamais écraser un parcoursup existant avec null.
+    // Relu par lots de 200 (une seule requête avec ~2 000 ids dépassait la
+    // longueur d'URL acceptée : l'erreur était ignorée et les overrides perdus).
     const existingByContact = new Map<string, Record<string, unknown>>()
-    const saisons = [...new Set(rowsToUpsert.map(r => r.saison))]
-    if (contactIdsForRows.length > 0) {
-      const { data: existingRows } = await db
+    for (let k = 0; k < changedRows.length; k += 200) {
+      const batch = changedRows.slice(k, k + 200)
+      const { data: existingRows, error } = await db
         .from('crm_pre_inscriptions')
         .select('hubspot_contact_id, saison, external_data')
-        .in('saison', saisons)
-        .in('hubspot_contact_id', contactIdsForRows)
-
+        .in('saison', [...new Set(batch.map(r => r.saison))])
+        .in('hubspot_contact_id', [...new Set(batch.map(r => String(r.hubspot_contact_id)))])
+      if (error) throw new Error(`lookup pre_inscriptions: ${error.message}`)
       for (const row of existingRows ?? []) {
         if (!row.hubspot_contact_id) continue
         existingByContact.set(`${row.hubspot_contact_id}|${row.saison}`, (row.external_data as Record<string, unknown>) || {})
       }
     }
-    const mergedRowsToUpsert = rowsToUpsert.map(row => {
-      const previousExternal = existingByContact.get(`${row.hubspot_contact_id}|${row.saison}`) || {}
-      const nextExternal = { ...(row.external_data as Record<string, unknown>) }
-      const previousOverride = previousExternal.parcoursup_crm_override
+    const mergeRow = (row: (typeof rowsToUpsert)[number]) => {
+      const key = `${row.hubspot_contact_id}|${row.saison}`
+      const previousExternal = existingByContact.get(key) || {}
+      const nextExternal: Record<string, unknown> = {
+        ...(row.external_data as Record<string, unknown>),
+        _sync_hash: hashByKey.get(key),
+      }
       const previousParcoursup = previousExternal.parcoursup
 
-      if (previousOverride) {
-        nextExternal.parcoursup_crm_override = previousOverride
+      // Métadonnées posées par l'édition Parcoursup du CRM (override, dates
+      // et statut de la synchro vers la plateforme).
+      for (const [k, v] of Object.entries(previousExternal)) {
+        if (k.startsWith('parcoursup_crm_') || k.startsWith('parcoursup_last_remote_sync_')) nextExternal[k] = v
       }
       if ((nextExternal.parcoursup == null) && previousParcoursup != null) {
         nextExternal.parcoursup = previousParcoursup
@@ -396,19 +499,26 @@ export async function GET(req: NextRequest) {
         ...row,
         external_data: nextExternal,
       }
-    })
+    }
 
-    // 4. Upsert pre_inscriptions
-    if (mergedRowsToUpsert.length > 0) {
-      const CHUNK = 200
-      for (let k = 0; k < mergedRowsToUpsert.length; k += CHUNK) {
-        const chunk = mergedRowsToUpsert.slice(k, k + CHUNK)
+    // 4. Upsert pre_inscriptions : nouveaux dossiers (date de détection posée)
+    //    puis dossiers modifiés (date de première détection conservée).
+    const toInsert = newRows.map(mergeRow)
+    const toUpdate = changedRows.map(row => {
+      const { detected_at: _keep, ...rest } = mergeRow(row)
+      return rest
+    })
+    const CHUNK = 200
+    for (const list of [toInsert, toUpdate]) {
+      for (let k = 0; k < list.length; k += CHUNK) {
+        const chunk = list.slice(k, k + CHUNK)
         const { error } = await db
           .from('crm_pre_inscriptions')
           .upsert(chunk, { onConflict: 'hubspot_contact_id,saison' })
         if (error) throw new Error(`upsert pre_inscriptions: ${error.message}`)
       }
     }
+    const preInscriptionsWritten = toInsert.length + toUpdate.length
 
     // 5. Campagnes futures (2027-2028…) : ranger les dossiers mal classés et
     //    poser le statut de lead de leur année.
@@ -420,8 +530,8 @@ export async function GET(req: NextRequest) {
     // 6. Log dans crm_sync_log (best-effort, on ne fait pas echouer le cron si log echoue)
     try {
       await db.from('crm_sync_log').insert({
-        contacts_upserted: mergedRowsToUpsert.length, // proxy : nb pre_inscriptions upsertes
-        deals_upserted:    dealsUpdated,         // nb deals mis a jour
+        contacts_upserted: preInscriptionsWritten, // proxy : nb pre_inscriptions réécrites
+        deals_upserted:    dealsUpdated,         // nb deals réécrits
         duration_ms:       durationMs,
         error_message:     null,
       })
@@ -433,9 +543,12 @@ export async function GET(req: NextRequest) {
       durationMs,
       diploma_total: all.length,
       targets: targets.length,
-      pre_inscriptions_upserted: mergedRowsToUpsert.length,
-      pre_inscriptions_dedup_dropped: targets.length - mergedRowsToUpsert.length - skipNoEmail - skipStubFailed,
+      pre_inscriptions_upserted: preInscriptionsWritten,
+      pre_inscriptions_new: toInsert.length,
+      pre_inscriptions_unchanged: rowsToUpsert.length - preInscriptionsWritten,
+      pre_inscriptions_dedup_dropped: targets.length - rowsToUpsert.length - skipNoEmail - skipStubFailed,
       deals_updated: dealsUpdated,
+      deals_unchanged: dealsToCreate.length - dealsUpdated,
       deals_skip_no_deal_id: 0,
       skip_no_email: skipNoEmail,
       skip_no_contact_match: skipNoContact,
