@@ -8,6 +8,9 @@
  *   premier / dernier appel, couverture de chaque créneau (part des demi-heures
  *   avec au moins un appel), RDV placés → verdict ok / partiel / absent.
  *
+ * - RDV où la personne est closer (télépro qui close aussi) : affichés sur ses
+ *   horaires pour savoir où elle est (en RDV plutôt qu'au téléphone).
+ *
  * Tant que la migration v57 n'est pas appliquée, la table est absente :
  * lecture vide (ready = false), écritures refusées avec un message clair.
  */
@@ -52,6 +55,16 @@ export type SlotReport = PlanningSlotRow & {
   verdict: SlotVerdict
 }
 
+/** RDV d'un jour où la personne est le closer (heures de Paris). */
+export type DayMeeting = {
+  id: string
+  start: string
+  end: string
+  name: string | null
+  meeting_type: string | null
+  status: string | null
+}
+
 export type DayReport = {
   date: string
   calls: number
@@ -63,6 +76,8 @@ export type DayReport = {
   rdv: number
   planned_min: number
   slots: SlotReport[]
+  /** RDV où la personne est closer ce jour-là */
+  meetings: DayMeeting[]
   verdict: DayVerdict
 }
 
@@ -336,13 +351,23 @@ export async function buildPlanningReport(
 
   const userMap = await getAircallUserMap()
   const mappedAircallIds = [...userMap.entries()].filter(([, uid]) => ids.has(uid)).map(([aid]) => aid)
-  const [{ slots, ready }, calls, rdvRows] = await Promise.all([
+  const noIds = ['00000000-0000-0000-0000-000000000000']
+  const [{ slots, ready }, calls, rdvRows, meetingRows] = await Promise.all([
     loadSlots(db, weekStart, weekEnd, userIds),
     fetchOutboundCalls(db, start, end, userIds, mappedAircallIds),
     db.from('rdv_appointments').select('telepro_id, created_at')
-      .in('telepro_id', userIds.length ? userIds : ['00000000-0000-0000-0000-000000000000'])
+      .in('telepro_id', userIds.length ? userIds : noIds)
       .gte('created_at', start).lt('created_at', end)
       .then(r => (r.data ?? []) as Array<{ telepro_id: string; created_at: string }>),
+    db.from('rdv_appointments').select('id, commercial_id, start_at, end_at, prospect_name, meeting_type, status')
+      .in('commercial_id', userIds.length ? userIds : noIds)
+      .gte('start_at', start).lt('start_at', end)
+      .not('status', 'in', '(annule,non_assigne)')
+      .order('start_at')
+      .then(r => (r.data ?? []) as Array<{
+        id: string; commercial_id: string; start_at: string; end_at: string | null
+        prospect_name: string | null; meeting_type: string | null; status: string | null
+      }>),
   ])
 
   const nowMs = Date.now()
@@ -351,7 +376,7 @@ export async function buildPlanningReport(
   for (const id of userIds) {
     report[id] = dates.map(date => ({
       date, calls: 0, answered: 0, talk2: 0, talk_sec: 0, first_call: null, last_call: null,
-      rdv: 0, planned_min: 0, slots: [], verdict: 'repos',
+      rdv: 0, planned_min: 0, slots: [], meetings: [], verdict: 'repos',
     }))
   }
   const dayIdx = new Map(dates.map((d, i) => [d, i]))
@@ -382,6 +407,17 @@ export async function buildPlanningReport(
   for (const r of rdvRows) {
     const i = dayIdx.get(parisDateKey(new Date(r.created_at)))
     if (i != null && report[r.telepro_id]) report[r.telepro_id][i].rdv += 1
+  }
+
+  for (const m of meetingRows) {
+    const startAt = new Date(m.start_at)
+    const i = dayIdx.get(parisDateKey(startAt))
+    if (i == null || !report[m.commercial_id]) continue
+    const endAt = m.end_at ? new Date(m.end_at) : new Date(startAt.getTime() + 60 * 60_000)
+    report[m.commercial_id][i].meetings.push({
+      id: m.id, start: parisHm(startAt), end: parisHm(endAt), name: m.prospect_name,
+      meeting_type: m.meeting_type, status: m.status,
+    })
   }
 
   for (const s of slots) {

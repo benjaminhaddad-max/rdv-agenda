@@ -5,7 +5,8 @@
  * colonne par jour du lundi au dimanche dans le tableau des télépros.
  * - horaires prévus (imposés 🔒 ou saisis par le télépro) ;
  * - sans horaires : activité réelle d'après Aircall (1er → dernier appel) ;
- * - journée passée : bilan (bien fait / partiel / pas d'appel).
+ * - journée passée : bilan (bien fait / partiel / pas d'appel) ;
+ * - RDV où le télépro est closer : savoir où il est.
  * En tête de chaque jour : télépros présents (au moins un appel) et prévus.
  */
 
@@ -120,6 +121,18 @@ export function PlanningDayCell({ day, today, onClick }: { day: DayReport; today
         <span style={{ fontSize: 11, color: crmV2.textFaint }}>{past ? '—' : '+'}</span>
       )}
       {day.slots.length > 0 && (past || day.date === today) && <VerdictPill verdict={day.verdict} small />}
+      {(day.meetings ?? []).length > 0 && (
+        <span style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+          {day.meetings.map(m => (
+            <span key={m.id} title={`En RDV (closer) ${m.start}–${m.end}${m.name ? ` · ${m.name}` : ''}`} style={{
+              padding: '1px 6px', borderRadius: 8, fontSize: 11, fontWeight: 700, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap',
+              color: '#1e40af', background: 'rgba(37,99,235,0.1)', border: '1px solid rgba(37,99,235,0.3)',
+            }}>
+              RDV {m.start}
+            </span>
+          ))}
+        </span>
+      )}
       {day.calls > 0 && (
         <span style={{ fontSize: 10.5, color: crmV2.textMuted, whiteSpace: 'nowrap' }}>
           {day.calls} app. · {day.talk2} ≥2m · <span style={{ color: day.rdv ? crmV2.goldDark : undefined, fontWeight: day.rdv ? 700 : 400 }}>{day.rdv} RDV</span>
@@ -151,6 +164,9 @@ export function PlanningLegend() {
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Lock size={11} color="#7c3aed" /> imposé</span>
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
         <span style={{ width: 14, height: 10, border: '1px dashed #94a3b8', borderRadius: 3 }} /> activité réelle sans horaires
+      </span>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+        <span style={{ width: 14, height: 10, borderRadius: 3, background: 'rgba(37,99,235,0.1)', border: '1px solid rgba(37,99,235,0.3)' }} /> en RDV (closer)
       </span>
       {(['ok', 'partiel', 'absent'] as const).map(v => <span key={v} title={VERDICTS[v].hint}><VerdictPill verdict={v} small /></span>)}
     </span>

@@ -12,7 +12,7 @@ import { Lock, Plus, Trash2 } from 'lucide-react'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import { CrmV2Button, CrmV2Input } from '@/components/crm-v2/primitives'
 import { AdminModal, AdminNotice } from '@/components/crm-v2/admin/AdminUi'
-import { addParisDays } from '@/lib/date-paris'
+import { addParisDays, parisDateKey } from '@/lib/date-paris'
 import type { DayReport, DayVerdict, SlotReport } from '@/lib/telepro-planning'
 
 export type { DayReport, SlotReport }
@@ -99,15 +99,17 @@ export function DayStats({ day, compact = false }: { day: DayReport; compact?: b
 type EditSlot = { start: string; end: string; locked: boolean }
 
 export function DayScheduleEditor({
-  open, title, day, weekDates, canImpose, onClose, onSave,
+  open, title, day, weekDates, canImpose, canRepeat = canImpose, onClose, onSave,
 }: {
   open: boolean
   title: ReactNode
   day: DayReport | null
-  /** Jours de la semaine affichée (pour « recopier sur ») — admin seulement */
+  /** Jours de la semaine affichée (pour « recopier sur ») */
   weekDates?: string[]
-  /** Admin : case « imposer » + recopie sur d'autres jours */
+  /** Admin : case « imposer » */
   canImpose: boolean
+  /** Recopie sur d'autres jours + répétition chaque semaine (admin, et télépro pour ses horaires) */
+  canRepeat?: boolean
   onClose: () => void
   onSave: (slots: EditSlot[], applyTo: string[]) => Promise<string | null>
 }) {
@@ -148,7 +150,9 @@ export function DayScheduleEditor({
     if (err) setError(err)
   }
 
-  const otherDays = (weekDates ?? []).filter(d => d !== day?.date)
+  // Télépro : pas de recopie sur un jour déjà passé (refusé côté serveur)
+  const todayKey = parisDateKey(new Date())
+  const otherDays = (weekDates ?? []).filter(d => d !== day?.date && (canImpose || d >= todayKey))
 
   return (
     <AdminModal
@@ -212,7 +216,7 @@ export function DayScheduleEditor({
           {!slots.length && <div style={{ fontSize: 12, color: crmV2.textMuted }}>Aucune plage : journée non travaillée.</div>}
         </div>
 
-        {canImpose && otherDays.length > 0 && (
+        {canRepeat && otherDays.length > 0 && (
           <div>
             <div style={{ fontSize: 12, fontWeight: 700, color: crmV2.textMuted, marginBottom: 6 }}>Recopier aussi sur</div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -233,7 +237,7 @@ export function DayScheduleEditor({
             </div>
           </div>
         )}
-        {canImpose && (
+        {canRepeat && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: crmV2.textMuted }}>Répéter chaque semaine</span>
             {[0, 4, 8, 12, 26].map(n => (
