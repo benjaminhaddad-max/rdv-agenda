@@ -17,6 +17,7 @@ import { loadFormExtraSettings, mergeFormWithExtra } from '@/lib/form-extra-sett
 import { canOverrideOrigine, collectAdAttribution, detectAdOrigine, detectChatGptOrigine } from '@/lib/ad-attribution'
 import { loadVisitorAttribution } from '@/lib/web-visitor-attribution'
 import { origineLabDeclaree } from '@/lib/origine-normalization'
+import { normalizeClasseActuelle } from '@/lib/classe-actuelle'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -421,7 +422,17 @@ export async function POST(req: Request, { params }: Params) {
     // Priorité : crm_field explicite, sinon mapping auto par field_key
     const target = f.crm_field || AUTO_MAP_FIELDS[f.field_key]
     if (!target) continue
-    if (NATIVE_CONTACT_COLUMNS.has(target)) {
+    if (target === 'classe_actuelle') {
+      // Les selects des formulaires salons stockent un slug (« premiere ») :
+      // on enregistre le libellé CRM (« Première »), sinon les vues par classe le ratent.
+      const option = Array.isArray(f.options)
+        ? (f.options as Array<{ value?: unknown; label?: unknown }>).find(o => String(o?.value ?? '') === String(value))
+        : undefined
+      contactData[target] =
+        normalizeClasseActuelle(value) ??
+        normalizeClasseActuelle(option?.label) ??
+        (option?.label ? String(option.label) : value)
+    } else if (NATIVE_CONTACT_COLUMNS.has(target)) {
       contactData[target] = value
     } else {
       // Propriété custom (créée via /admin/crm/proprietes ou nom HubSpot custom).
