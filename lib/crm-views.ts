@@ -92,7 +92,7 @@ export function viewToParams(view: CRMSavedView): URLSearchParams {
       }
 
       // Demande de rappel Lab : résolu côté API en liste de contact_id.
-      if (rule.field === 'lab_callback' || rule.field === 'lab_app') {
+      if (rule.field === 'lab_callback' || rule.field === 'lab_app' || rule.field === 'inscription_programme') {
         customFilters.push({ field: rule.field, operator: rule.operator, value: val })
         continue
       }

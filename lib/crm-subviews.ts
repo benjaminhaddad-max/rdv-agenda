@@ -21,6 +21,7 @@ import {
   NRP_LEAD_STATUSES,
   UNTREATED_LEAD_STATUSES,
 } from './crm-attribution-buckets'
+import { INSCRIPTION_PROGRAMMES } from './inscription-programmes'
 
 export const SUBVIEW_RULE_PREFIX = 'sv_'
 
@@ -47,7 +48,7 @@ export interface SubviewSection {
 const POSITIVE_OPS: CRMFilterOp[] = ['is', 'is_any']
 const NEGATIVE_OPS: CRMFilterOp[] = ['is_not', 'is_none']
 /** Champs résolus côté API par familles : jamais fusionnés entre règles. */
-const RESOLVED_FIELDS = new Set<string>(['lab_app', 'lab_callback'])
+const RESOLVED_FIELDS = new Set<string>(['lab_app', 'lab_callback', 'inscription_programme'])
 
 const splitValues = (v: string) => v.split(',').map(s => s.trim()).filter(Boolean)
 
@@ -105,6 +106,26 @@ export function subviewSectionsFor(parent: CRMSavedView): SubviewSection[] {
         { key: 'essai', label: 'Essai gratuit', field: 'lab_app', operator: 'is_any', values: ['essai'] },
         { key: 'rappel', label: 'A demandé un rappel', field: 'lab_app', operator: 'is_any', values: ['rappel'] },
         { key: 'candidature', label: 'A déposé sa candidature', field: 'lab_app', operator: 'is_any', values: ['candidature'] },
+      ],
+    })
+  }
+
+  // Vue « inscrits » : sous-vues par programme et par étape d'inscription.
+  if (parentRules(parent).some(r => r.field === 'inscription_programme')) {
+    sections.push({
+      key: 'inscription_programme',
+      label: 'Programme',
+      choices: INSCRIPTION_PROGRAMMES.map(p => ({
+        key: p.key, label: p.label, field: 'inscription_programme' as RuleField, operator: 'is_any' as CRMFilterOp, values: [p.key],
+      })),
+    })
+    sections.push({
+      key: 'inscription_etape',
+      label: 'Étape',
+      choices: [
+        { key: 'preinscrit', label: 'Pré-inscrit', field: 'inscription_programme', operator: 'is_any', values: ['etape_preinscrit'] },
+        { key: 'finalisation', label: 'En finalisation', field: 'inscription_programme', operator: 'is_any', values: ['etape_finalisation'] },
+        { key: 'finalise', label: 'Finalisé', field: 'inscription_programme', operator: 'is_any', values: ['etape_finalise'] },
       ],
     })
   }

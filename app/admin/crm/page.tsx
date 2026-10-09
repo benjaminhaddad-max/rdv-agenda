@@ -19,6 +19,7 @@ import {
   CRM_FILTER_FIELDS, LEAD_STATUS_OPTIONS_FALLBACK, PARCOURSUP_VERDICT_FILTER_OPTIONS,
   LAB_CALLBACK_FILTER_OPTIONS,
   LAB_APP_FILTER_OPTIONS,
+  INSCRIPTION_PROGRAMME_FILTER_OPTIONS,
   opsForField, opsForKind, opNeedsValue, opIsMulti, opIsRange, propertyKindOf,
   defaultOpForField, shouldRenderMultiSelect, coerceMultiSelectOperator,
   type SelectOption,
@@ -1451,7 +1452,7 @@ export default function CRMPage() {
         }
         // Demande de rappel Lab : résolu côté API en liste de contact_id
         // (la source est une soumission de formulaire, pas une colonne).
-        if (ruleField === 'lab_callback' || ruleField === 'lab_app') {
+        if (ruleField === 'lab_callback' || ruleField === 'lab_app' || ruleField === 'inscription_programme') {
           customFilters.push({ field: ruleField, operator: rule.operator, value: val })
           continue
         }
@@ -2928,6 +2929,7 @@ export default function CRMPage() {
                         case 'parcoursup_verdict': valueOptions = PARCOURSUP_VERDICT_FILTER_OPTIONS; break
                         case 'lab_callback': valueOptions = LAB_CALLBACK_FILTER_OPTIONS; break
                         case 'lab_app':      valueOptions = LAB_APP_FILTER_OPTIONS; break
+                        case 'inscription_programme': valueOptions = INSCRIPTION_PROGRAMME_FILTER_OPTIONS; break
                       }
                     }
 

@@ -13,6 +13,7 @@ import { expandOrigineFilterValues } from '@/lib/origine-normalization'
 import { META_BACKFILL_TERM_IDF_VIEW_ID, resolveMetaBackfillTermIdfContactIds } from '@/lib/meta-backfill-view'
 import { overlaySavedViewParams, type CRMSavedView } from '@/lib/crm-views'
 import { resolveLabCallbackContactIds, fetchLabAppLeadAggregatesCached, filterLabAppLeads } from '@/lib/crm-lab-callbacks'
+import { resolveInscriptionProgrammeContactIds } from '@/lib/inscription-programmes'
 
 // Classes prioritaires — filtre SQL via .in()
 const PRIORITY_CLASSES = ['Seconde', 'Première', 'Terminale']
@@ -431,6 +432,12 @@ export async function GET(req: NextRequest) {
         customFilters.push({ field: 'form_event', operator: op, value: val })
         continue
       }
+      if (fieldRaw === 'inscription_programme') {
+        if (!customFilters.some(c => c.field === fieldRaw && c.operator === op && c.value === val)) {
+          customFilters.push({ field: fieldRaw, operator: op, value: val })
+        }
+        continue
+      }
       if (fieldRaw === 'custom:meta_lead_ads' || fieldRaw === 'meta_lead_ads') {
         customFilters.push({ field: 'meta_lead_ads', operator: op, value: val })
         continue
@@ -763,9 +770,29 @@ export async function GET(req: NextRequest) {
     }
     customFilters = customFilters.filter(r => r.field !== 'lab_app')
   }
-  // La vue Meta ADS doit toujours inclure toutes les classes.
+  // ── Resolver dédié : « Programme d'inscription » (inscrits PAES, Terminale
+  // Santé…, lib/inscription-programmes.ts) depuis crm_pre_inscriptions. Même
+  // application que lab_app (liste de contact_id, règles cumulées en ET).
+  const inscriptionProgrammeRules = customFilters.filter(r => r.field === 'inscription_programme')
+  if (inscriptionProgrammeRules.length > 0) {
+    for (const rule of inscriptionProgrammeRules) {
+      const ids = await resolveInscriptionProgrammeContactIds(db, rule.value)
+      if (rule.operator === 'is_not' || rule.operator === 'is_none') {
+        labCallbackExcludedIds = [...new Set([...(labCallbackExcludedIds ?? []), ...ids])]
+      } else if (labCallbackContactIds === null) {
+        labCallbackContactIds = ids
+      } else {
+        const b = new Set(ids)
+        labCallbackContactIds = labCallbackContactIds.filter(id => b.has(id))
+      }
+    }
+    customFilters = customFilters.filter(r => r.field !== 'inscription_programme')
+  }
+  // La vue Meta ADS doit toujours inclure toutes les classes (idem inscrits :
+  // un étudiant inscrit n'est plus forcément en Seconde/Première/Terminale).
   const effectiveAllClasses =
-    effectiveAllClassesInput || metaAdsOnlyParam || metaLeadAdsOnly || metaLeadAdsContactIds !== null
+    effectiveAllClassesInput || metaAdsOnlyParam || metaLeadAdsOnly || metaLeadAdsContactIds !== null ||
+    inscriptionProgrammeRules.some(r => r.operator === 'is' || r.operator === 'is_any')
 
   // Tri dynamique
   // Défaut : dernière soumission de formulaire desc → les leads qui viennent
