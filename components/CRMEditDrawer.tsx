@@ -1,5 +1,7 @@
 'use client'
 
+import { allInscriptionLeadStatuses } from '@/lib/inscription-status'
+
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Save, ExternalLink, Calendar, ChevronLeft, ChevronRight, Clock, Video, MapPin, CheckCircle, ChevronDown, Check, Pencil, User, Users, Tag, Briefcase } from 'lucide-react'
@@ -46,6 +48,10 @@ const LEAD_STATUS_LIST = [
      'NRP1','NRP2','NRP3','NRP4','Nouveau','Nouveau - Chaud',
      'Pré-inscrit 2025/2026','Pré-inscrit 2026/2027','Pré-inscrit 2027/2028','Raccroche au nez','Rdv pris',
   ].map(v => ({ id: v, label: v })),
+  // Statuts pilotés par la plateforme d'inscription (Diploma + Medibox)
+  ...allInscriptionLeadStatuses()
+    .filter(v => !['Pré-inscrit 2025/2026', 'Pré-inscrit 2026/2027', 'Pré-inscrit 2027/2028'].includes(v))
+    .map(v => ({ id: v, label: v })),
 ]
 
 const SOURCE_LIST = [

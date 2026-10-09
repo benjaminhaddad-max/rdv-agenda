@@ -512,9 +512,13 @@ export async function GET(req: NextRequest) {
     for (const list of [toInsert, toUpdate]) {
       for (let k = 0; k < list.length; k += CHUNK) {
         const chunk = list.slice(k, k + CHUNK)
-        const { error } = await db
+        // v66 : unicité (contact, saison, marque) ; avant : (contact, saison)
+        let { error } = await db
           .from('crm_pre_inscriptions')
-          .upsert(chunk, { onConflict: 'hubspot_contact_id,saison' })
+          .upsert(chunk, { onConflict: 'hubspot_contact_id,saison,brand' })
+        if (error && /no unique or exclusion constraint|brand/i.test(error.message)) {
+          ({ error } = await db.from('crm_pre_inscriptions').upsert(chunk, { onConflict: 'hubspot_contact_id,saison' }))
+        }
         if (error) throw new Error(`upsert pre_inscriptions: ${error.message}`)
       }
     }
@@ -599,6 +603,11 @@ async function applyFutureCampaigns(
     removed += data?.length ?? 0
   }
 
+  // Statut du lead : posé par /api/cron/inscriptions-sync (étape par étape,
+  // Diploma + Medibox) dès que la base d'inscription est configurée.
+  if (process.env.INSCRIPTION_SUPABASE_URL) {
+    return { inscriptions: futureRows.length, misfiled_removed: removed, lead_status_updated: 0 }
+  }
   const currentSeasonContacts = new Set(rows.filter(r => r.saison === SAISON).map(r => r.hubspot_contact_id))
   const now = new Date().toISOString()
   let updated = 0

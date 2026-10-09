@@ -1,3 +1,4 @@
+import { allInscriptionLeadStatuses, isEnrolledLeadStatus } from '@/lib/inscription-status'
 /**
  * Buckets d'attribution CRM.
  *
@@ -35,12 +36,18 @@ export const NRP_LEAD_STATUSES = ['NRP1', 'NRP2', 'NRP3', 'NRP4'] as const
 
 export const NOUVEAU_LEAD_STATUSES = ['Nouveau', 'Nouveau - Chaud'] as const
 
-export const INSCRIT_LEAD_STATUSES = [
+const INSCRIT_LEAD_STATUSES_BASE = [
   'Inscrit',
   'Pré-inscrit 2026/2027',
   'Pré-inscrit 2027/2028',
   'Pré-inscrit 2025/2026',
 ] as const
+
+/** Inscrits = ancien « Inscrit » / « Pré-inscrit … » + pré-inscrits, en finalisation, finalisés (plateforme). */
+export const INSCRIT_LEAD_STATUSES: readonly string[] = [
+  ...INSCRIT_LEAD_STATUSES_BASE,
+  ...allInscriptionLeadStatuses().filter(v => isEnrolledLeadStatus(v) && !(INSCRIT_LEAD_STATUSES_BASE as readonly string[]).includes(v)),
+]
 
 /** Toutes les orthographes d'origine Thotis présentes en base ou posées par le webhook. */
 export const THOTIS_ORIGINES = [

@@ -48,6 +48,15 @@ const SKIP_STATUSES = new Set<string>([STATUS_PREINSCRIT, 'Pré-inscrit 2027/202
 export async function GET(req: NextRequest) {
   const cronAuth = requireCronSecret(req)
   if (!cronAuth.ok) return cronAuth.response
+
+  // Neutralisé (2026-10-09) : le statut du lead suit désormais la plateforme
+  // d'inscription, dossier par dossier (/api/cron/inscriptions-sync →
+  // « Pré-inscrit / En finalisation / Finalisé / Annulé … »). Ce cron
+  // remettait « Pré-inscrit 2026/2027 » à partir des transactions et aurait
+  // écrasé ces statuts.
+  if (process.env.LEGACY_PREINSCRIT_LEAD_STATUS !== '1') {
+    return NextResponse.json({ ok: true, skipped: 'remplacé par /api/cron/inscriptions-sync' })
+  }
   if (!(await isIntegrationEnabled('diploma'))) {
     return NextResponse.json({ ok: true, skipped: true, reason: 'Intégration en pause (Paramètres)' })
   }

@@ -116,7 +116,8 @@ export async function findCandidates(
       .select('hubspot_contact_id, detected_at, paiement_status, ins_created:external_data->>created_at')
       .in('hubspot_contact_id', contactIds.slice(i, i + 200))
     for (const r of (data ?? []) as Array<{ hubspot_contact_id: string; detected_at: string | null; paiement_status: string | null; ins_created: string | null }>) {
-      if (r.paiement_status === 'annulee') continue
+      // Vente = dossier payé (pas une inscription seulement commencée ni annulée)
+      if (!['payee', 'en_cours', 'archivee'].includes(r.paiement_status || '')) continue
       const at = Date.parse(r.ins_created || r.detected_at || '')
       if (!Number.isFinite(at)) continue
       const list = salesByContact.get(r.hubspot_contact_id) ?? []

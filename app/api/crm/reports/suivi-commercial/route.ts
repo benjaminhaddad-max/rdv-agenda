@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { requireApiRole } from '@/lib/api-auth'
 import { hasTeamRole } from '@/lib/team-roles'
+import { isEnrolledLeadStatus } from '@/lib/inscription-status'
 import { getAircallTrackedLineIds, getAircallTrackedUserIds, getAircallUserMap } from '@/lib/settings'
 import {
   addParisDays,
@@ -443,15 +444,16 @@ async function resolvePreinscritContacts(
   for (let i = 0; i < ids.length; i += 200) {
     const batch = ids.slice(i, i + 200)
     const [{ data: pre }, { data: contacts }] = await Promise.all([
-      db.from('crm_pre_inscriptions').select('hubspot_contact_id, paiement_status').in('hubspot_contact_id', batch),
+      db.from('crm_pre_inscriptions').select('*').in('hubspot_contact_id', batch),
       db.from('crm_contacts').select('hubspot_contact_id, hs_lead_status').in('hubspot_contact_id', batch),
     ])
+    // Dossier payé (pré-inscrit, en finalisation, finalisé) — pas les
+    // inscriptions seulement commencées ni les annulées
     for (const p of (pre ?? []) as Array<{ hubspot_contact_id: string; paiement_status: string | null }>) {
-      if ((p.paiement_status || '') !== 'annulee') out.add(p.hubspot_contact_id)
+      if (['payee', 'en_cours', 'archivee'].includes(p.paiement_status || '')) out.add(p.hubspot_contact_id)
     }
     for (const c of (contacts ?? []) as Array<{ hubspot_contact_id: string; hs_lead_status: string | null }>) {
-      const st = (c.hs_lead_status || '').trim()
-      if (st === 'Inscrit' || st.startsWith('Pré-inscrit')) out.add(c.hubspot_contact_id)
+      if (isEnrolledLeadStatus(c.hs_lead_status)) out.add(c.hubspot_contact_id)
     }
   }
   return out

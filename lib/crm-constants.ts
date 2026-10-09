@@ -1,3 +1,4 @@
+import { allInscriptionLeadStatuses } from '@/lib/inscription-status'
 /**
  * Constantes et types statiques utilisés sur la page CRM principale.
  * Extraits de app/admin/crm/page.tsx — pas de logique, juste des données.
@@ -62,7 +63,7 @@ export const PERIOD_OPTIONS: SelectOption[] = [
 // Fallback de "Statut du lead" : tant que /api/crm/field-options n'a pas répondu
 // (elle peut prendre ~20s en prod car elle scanne crm_contacts), on a déjà la
 // liste connue dans le dropdown. Évite que le filtre tombe en input texte.
-export const LEAD_STATUS_OPTIONS_FALLBACK: SelectOption[] = [
+const LEAD_STATUS_OPTIONS_BASE: SelectOption[] = [
   { id: 'Nouveau',                     label: 'Nouveau' },
   { id: 'Nouveau - Chaud',             label: 'Nouveau - Chaud' },
   { id: 'En cours',                    label: 'En cours' },
@@ -84,6 +85,14 @@ export const LEAD_STATUS_OPTIONS_FALLBACK: SelectOption[] = [
   { id: 'Inscrit',                     label: 'Inscrit' },
   { id: 'Doublon',                     label: 'Doublon' },
   { id: 'Disqualifié',                 label: 'Disqualifié' },
+]
+
+/** + statuts pilotés par la plateforme d'inscription (lib/inscription-status.ts) */
+export const LEAD_STATUS_OPTIONS_FALLBACK: SelectOption[] = [
+  ...LEAD_STATUS_OPTIONS_BASE,
+  ...allInscriptionLeadStatuses()
+    .filter(v => !LEAD_STATUS_OPTIONS_BASE.some(o => o.id === v))
+    .map(v => ({ id: v, label: v })),
 ]
 
 // ── Système de filtres avancés ─────────────────────────────────────────────

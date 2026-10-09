@@ -1,5 +1,7 @@
 'use client'
 
+import { allInscriptionLeadStatuses } from '@/lib/inscription-status'
+
 /**
  * Picker searchable pour choisir une propriété CRM à éditer en masse.
  * Les props métier courantes sont TOUJOURS proposées en tête (libellés FR),
@@ -39,6 +41,12 @@ const LEAD_STATUS_OPTIONS: Array<{ label: string; value: string }> = [
   { value: 'Doublon', label: 'Doublon' },
   { value: 'Disqualifié', label: 'Disqualifié' },
 ]
+const LEAD_STATUS_OPTIONS_ALL: Array<{ label: string; value: string }> = [
+  ...LEAD_STATUS_OPTIONS,
+  ...allInscriptionLeadStatuses()
+    .filter(v => !LEAD_STATUS_OPTIONS.some(o => o.value === v))
+    .map(v => ({ label: v, value: v })),
+]
 
 const FREQUENT_PROPS: BulkProp[] = [
   {
@@ -47,7 +55,7 @@ const FREQUENT_PROPS: BulkProp[] = [
     group_name: 'Fréquentes',
     type: 'enumeration',
     field_type: 'select',
-    options: LEAD_STATUS_OPTIONS,
+    options: LEAD_STATUS_OPTIONS_ALL,
     aliases: ['statut', 'statut lead', 'statut du lead', 'lead status', 'status', 'lead'],
   },
   {
