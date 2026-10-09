@@ -281,6 +281,7 @@ export function CallDebrief({ data, userId, from, to, onChanged }: {
   const [showAll, setShowAll] = useState(false)
   const [open, setOpen] = useState<number | null>(null)
   const [transcripts, setTranscripts] = useState<Record<number, string | null>>({})
+  const [showTranscript, setShowTranscript] = useState<number | null>(null)
   const [genLoading, setGenLoading] = useState(false)
   const [genError, setGenError] = useState<string | null>(null)
   const [coachingLocal, setCoachingLocal] = useState<CoachingEntry | null>(null)
@@ -308,9 +309,15 @@ export function CallDebrief({ data, userId, from, to, onChanged }: {
     }
   }
 
-  async function toggle(id: number) {
-    if (open === id) { setOpen(null); return }
-    setOpen(id)
+  function toggle(id: number) {
+    setOpen(open === id ? null : id)
+    setShowTranscript(null)
+  }
+
+  /** Transcription chargée seulement quand on la demande. */
+  async function toggleTranscript(id: number) {
+    if (showTranscript === id) { setShowTranscript(null); return }
+    setShowTranscript(id)
     if (transcripts[id] === undefined) {
       const r = await fetch(`/api/admin/call-analysis?call=${id}`)
       const j = await r.json().catch(() => ({}))
@@ -483,13 +490,16 @@ export function CallDebrief({ data, userId, from, to, onChanged }: {
                           <a href={`/api/crm/aircall/recording/${c.aircall_call_id}`} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: crmV2.link, fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                             <Headphones size={13} /> Écouter
                           </a>
+                          <button type="button" onClick={() => toggleTranscript(c.aircall_call_id)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, color: crmV2.link, fontWeight: 600 }}>
+                            {showTranscript === c.aircall_call_id ? 'Masquer la transcription' : 'Voir la transcription'}
+                          </button>
                         </div>
-                        <pre style={{
+                        {showTranscript === c.aircall_call_id && <pre style={{
                           margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 12, color: crmV2.textMuted, background: crmV2.bg,
                           borderRadius: 8, padding: 10, maxHeight: 260, overflowY: 'auto', border: `1px solid ${crmV2.borderLight}`,
                         }}>
                           {transcripts[c.aircall_call_id] === undefined ? 'Chargement de la transcription…' : transcripts[c.aircall_call_id] ?? 'Transcription indisponible.'}
-                        </pre>
+                        </pre>}
                       </div>
                     )}
                   </div>
