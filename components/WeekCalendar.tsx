@@ -80,6 +80,7 @@ type Commercial = {
   role: string
   extra_roles?: string[] | null
   is_demo?: boolean | null
+  disabled?: boolean
   hubspot_owner_id?: string | null
 }
 
@@ -429,7 +430,9 @@ export default function WeekCalendar({
   }
 
   // Vrais closers : rôle closer ou casquette closer (Pascal, télépro qui close), hors démo
+  // (les désactivés restent pour garder leur couleur sur les anciens RDV, mais sortent du filtre)
   const closers = commerciaux.filter(c => hasTeamRole(c, 'closer') && !c.is_demo)
+  const activeClosers = closers.filter(c => !c.disabled)
 
   // Compteurs semaine (hors annulés et non-assignés)
   const activeAppointments = appointments.filter(a => a.status !== 'annule' && a.status !== 'non_assigne')
@@ -489,7 +492,7 @@ export default function WeekCalendar({
   }, [weekKey, extraWeekKey, selectedCommercial, mineScope])
 
   useEffect(() => {
-    fetch('/api/users', { cache: 'no-store' }).then(r => r.json()).then(setCommerciaux)
+    fetch('/api/users?with_status=1', { cache: 'no-store' }).then(r => r.json()).then(setCommerciaux)
   }, [])
 
   useEffect(() => { fetchAppointments() }, [fetchAppointments])
@@ -1271,7 +1274,7 @@ export default function WeekCalendar({
       aria-label="Filtrer par closer"
     >
       <option value="all">{adminMode ? 'Tous les closers' : 'Toute l’équipe'}</option>
-      {closers.map(c => (
+      {activeClosers.map(c => (
         <option key={c.id} value={c.id}>{c.name}</option>
       ))}
     </AgendaSelectPill>

@@ -40,7 +40,8 @@ function normalizeBrand(value: unknown): string | null {
   return v
 }
 
-// GET /api/users — List users (optionnel: ?role=telepro ou ?roles=closer,admin)
+// GET /api/users — List users (optionnel: ?role=telepro ou ?roles=closer,admin ;
+// ?with_status=1 ajoute disabled: true sur les comptes désactivés, ex. listes de closers)
 // Session requise (tous rôles : les pages closer/telepro listent les owners).
 export async function GET(req: NextRequest) {
   const authz = await requireApiUser()
@@ -65,6 +66,15 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (url.searchParams.get('with_status') === '1') {
+    try {
+      const { data: authList } = await db.auth.admin.listUsers({ perPage: 1000 })
+      const now = Date.now()
+      const banned = new Set((authList?.users ?? [])
+        .filter(u => u.banned_until && new Date(u.banned_until).getTime() > now).map(u => u.id))
+      return NextResponse.json((data ?? []).map(u => ({ ...u, disabled: !!u.auth_id && banned.has(u.auth_id) })))
+    } catch { /* sans statut en repli */ }
+  }
   return NextResponse.json(data)
 }
 

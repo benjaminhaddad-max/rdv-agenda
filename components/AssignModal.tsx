@@ -34,6 +34,7 @@ type Commercial = {
   role: string
   extra_roles?: string[] | null
   is_demo?: boolean | null
+  disabled?: boolean
   hubspot_owner_id?: string | null
   rdv_count?: number
   is_available?: boolean
@@ -75,12 +76,12 @@ export function AssignCloserPanel({
 
   useEffect(() => {
     setLoadingClosers(true)
-    fetch('/api/users')
+    fetch('/api/users?with_status=1')
       .then(r => (r.ok ? r.json() : Promise.reject(new Error('Liste des closers indisponible'))))
       .then(async (users: Commercial[]) => {
-        // Vrais closers : rôle closer ou casquette closer (Pascal, Sofia…), hors comptes démo.
-        // (Pas « tous les admins » : Aaron, Benjamin… ne closent pas.)
-        const closersList = users.filter(u => hasTeamRole(u, 'closer') && !u.is_demo)
+        // Vrais closers : rôle closer ou casquette closer (Pascal, Sofia…), hors comptes
+        // démo et désactivés. (Pas « tous les admins » : Aaron, Benjamin… ne closent pas.)
+        const closersList = users.filter(u => hasTeamRole(u, 'closer') && !u.is_demo && !u.disabled)
 
         const weekStart = new Date(appointment.start_at)
         weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1)
