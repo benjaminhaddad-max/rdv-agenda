@@ -8,7 +8,9 @@
  *  - Lycées : liste d'appels (vues rapides à rappeler / jamais appelés / à
  *    recaler…), attribution, résultat du dernier appel, rappel, fiche lycée ;
  *  - Forums : les forums (organisateurs) à appeler, en liste ou en cartes ;
- *  - Nos dates : récap des endroits où on sera.
+ *  - Nos dates : récap des endroits où on sera ;
+ *  - Mails : échanges des boîtes partenariat (Diploma Santé / AFEM), réponses
+ *    rangées dans la fiche du lycée.
  * Les télépros / closers ne voient que ce qui leur est attribué.
  */
 
@@ -28,9 +30,13 @@ import OurDates from './OurDates'
 import AmbassadeursList, { type AmbassadeurItem } from './AmbassadeursList'
 import EventModal, { type EventDraft } from './EventModal'
 import CallLogModal, { type CallTarget } from './CallLogModal'
+import EmailComposeModal, { type ComposeTarget } from './EmailComposeModal'
+import EmailThreadModal from './EmailThreadModal'
+import EmailTemplatesModal from './EmailTemplatesModal'
+import MailsTab from './MailsTab'
 import { api, parisTodayKey, type AgendaEvent, type TeamUser } from './ui'
 
-type Tab = 'lycees' | 'forums' | 'dates' | 'ambassadeurs'
+type Tab = 'lycees' | 'forums' | 'dates' | 'ambassadeurs' | 'mails'
 type ListResponse = { lycees: LyceeListItem[]; is_manager: boolean; me: string }
 type EventsResponse = {
   events: AgendaEvent[]
@@ -55,6 +61,11 @@ export default function LyceesClient() {
   const [ambsMissing, setAmbsMissing] = useState(false)
   const [forumMode, setForumMode] = useState<'liste' | 'cartes'>('liste')
   const [notice, setNotice] = useState<string | null>(null)
+  const [compose, setCompose] = useState<ComposeTarget | null>(null)
+  const [openEmail, setOpenEmail] = useState<string | null>(null)
+  const [manageMail, setManageMail] = useState(false)
+  const [mailRefresh, setMailRefresh] = useState(0)
+  const [unreadMails, setUnreadMails] = useState<number | undefined>(undefined)
   const [filters, setFiltersState] = useState<LyceeFilters>(() => {
     if (typeof window === 'undefined') return EMPTY_FILTERS
     try {
@@ -92,7 +103,13 @@ export default function LyceesClient() {
       if ((e as { missingMigration?: boolean }).missingMigration) { setAmbsMissing(true); setAmbs([]) }
     }
   }, [])
-  const reload = useCallback(() => { void loadList(); void loadAgenda(); void loadAmbs() }, [loadList, loadAgenda, loadAmbs])
+  const loadUnread = useCallback(async () => {
+    try {
+      setUnreadMails((await api<{ unread: number }>('/api/crm/lycees/emails?filter=unread&limit=1')).unread)
+    } catch { /* migration v65 pas encore passée */ }
+  }, [])
+  const reload = useCallback(() => { void loadList(); void loadAgenda(); void loadAmbs(); void loadUnread() }, [loadList, loadAgenda, loadAmbs, loadUnread])
+  const mailChanged = useCallback(() => { setMailRefresh(n => n + 1); void loadUnread() }, [loadUnread])
 
   useEffect(() => { reload() }, [reload])
   useEffect(() => {
@@ -187,6 +204,7 @@ export default function LyceesClient() {
     { id: 'forums', label: `Forums ${seasonLabel(CURRENT_SEASON)}`, count: kpis.forumsToCall },
     { id: 'dates', label: 'Nos dates', count: kpis.confirmed },
     { id: 'ambassadeurs', label: 'Ambassadeurs 26-27', count: ambs ? ambs.filter(a => a.status === 'a_appeler' && (a.label === 'top' || a.label === 'bon')).length : undefined },
+    { id: 'mails', label: unreadMails ? 'Mails · réponses' : 'Mails', count: unreadMails || undefined },
   ]
   const eventName = (e: AgendaEvent) => `${e.lycee?.name ?? e.title ?? 'Forum'}${e.date ? ` · ${e.date.split('-').reverse().join('/')}` : ''}`
 
@@ -262,6 +280,7 @@ export default function LyceesClient() {
                       onOpenLycee={setOpenUai}
                       onEdit={e => setEventDraft(e)}
                       onCall={e => setCallTarget({ type: 'event', id: e.id, name: eventName(e) })}
+                      onMail={e => setCompose({ eventId: e.id, uai: e.uai, name: eventName(e), mode: e.mode ?? e.lycee?.mode ?? null, purpose: 'forum' })}
                       onQuickPatch={quickPatchEvent}
                       onBulk={bulkEvents}
                     />
@@ -295,6 +314,16 @@ export default function LyceesClient() {
                 />
               )
             )}
+            {tab === 'mails' && (
+              <MailsTab
+                isManager={isManager}
+                refreshKey={mailRefresh}
+                onOpenEmail={setOpenEmail}
+                onOpenLycee={setOpenUai}
+                onManage={() => setManageMail(true)}
+                onUnread={setUnreadMails}
+              />
+            )}
             {tab === 'dates' && (
               !agenda ? <CrmV2Spinner /> : <OurDates events={events} onOpenLycee={setOpenUai} onEdit={e => setEventDraft(e)} />
             )}
@@ -306,7 +335,10 @@ export default function LyceesClient() {
       </CrmV2Body>
 
       <LyceeDrawer uai={openUai} onClose={() => setOpenUai(null)} onChanged={() => { void loadList(); void loadAgenda() }} users={users} lycees={lyceeOptions}
+        refreshKey={mailRefresh}
         onCall={(uai, name) => setCallTarget({ type: 'lycee', uai, name })}
+        onCompose={setCompose}
+        onOpenEmail={setOpenEmail}
         onCallAmbassadeur={(id, name) => setCallTarget({ type: 'ambassadeur', id, name })} />
       {eventDraft && (
         <EventModal
@@ -320,6 +352,14 @@ export default function LyceesClient() {
             setEventDraft(null)
             setCallTarget({ type: 'event', id: ev.id!, name: ev.title ?? lycees.find(l => l.uai === ev.uai)?.name ?? 'Forum' })
           } : undefined}
+          onMail={eventDraft.id ? () => {
+            const ev = eventDraft
+            setEventDraft(null)
+            setCompose({
+              eventId: ev.id!, uai: ev.uai ?? null, purpose: 'forum',
+              name: ev.title ?? lycees.find(l => l.uai === ev.uai)?.name ?? 'Forum', mode: ev.mode ?? null,
+            })
+          } : undefined}
           onClose={() => setEventDraft(null)}
           onSaved={reload}
         />
@@ -332,6 +372,25 @@ export default function LyceesClient() {
           onSaved={() => { reload(); setNotice('Appel enregistré.') }}
         />
       )}
+      {compose && (
+        <EmailComposeModal
+          target={compose}
+          onClose={() => setCompose(null)}
+          onSent={msg => { setNotice(msg); reload(); mailChanged() }}
+        />
+      )}
+      {openEmail && (
+        <EmailThreadModal
+          key={openEmail}
+          emailId={openEmail}
+          lycees={lyceeOptions}
+          onClose={() => setOpenEmail(null)}
+          onOpenLycee={setOpenUai}
+          onReply={setCompose}
+          onChanged={mailChanged}
+        />
+      )}
+      {manageMail && <EmailTemplatesModal onClose={() => setManageMail(false)} />}
     </CrmV2Page>
   )
 }

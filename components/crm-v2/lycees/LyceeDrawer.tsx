@@ -3,13 +3,14 @@
 /**
  * Fiche d'un lycée (tiroir de droite) : pilotage (statut, priorité, mode
  * Diploma / AFEM, attribution, prochaine action), coordonnées, indicateurs,
- * contacts, forums & interventions par saison, journal d'échanges, notes.
+ * contacts, mails partenariat (envoyés / réponses), forums & interventions par
+ * saison, journal d'échanges, notes.
  */
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
-  CalendarPlus, ChevronDown, ExternalLink, Globe, GraduationCap, History, Mail, MapPin, MessageSquare, Pencil, Phone, Plus,
-  Star, Trash2, UserRound, Users,
+  ArrowDownLeft, ArrowUpRight, CalendarPlus, ChevronDown, ExternalLink, Globe, GraduationCap, History, Mail, MapPin, MessageSquare, Paperclip, Pencil, Phone, Plus,
+  Send, Star, Trash2, UserRound, Users,
 } from 'lucide-react'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import {
@@ -22,6 +23,8 @@ import {
   type LyceeActivityRow, type LyceeContactRow, type LyceeEventRow, type LyceeListItem, type LyceeRow,
 } from '@/lib/lycees'
 import EventModal, { type EventDraft } from './EventModal'
+import type { ComposeTarget } from './EmailComposeModal'
+import { MAIL_BRANDS, type LyceeEmailRow } from '@/lib/lycee-mail-shared'
 import {
   api, Dept, EventStatusPill, fmtDate, fmtDateTime, KindPill, mapsUrl, ModePill, OutcomePill, parisTodayKey, ScorePill, Stat, telHref,
   type TeamUser,
@@ -33,14 +36,20 @@ type Detail = {
   events: LyceeEventRow[]
   activities: LyceeActivityRow[]
   ambassadeurs?: AmbassadeurRow[]
+  emails?: LyceeEmailRow[]
   is_manager: boolean
 }
 
 type LyceeOption = Pick<LyceeRow, 'uai' | 'name' | 'city' | 'department'>
 
 export default function LyceeDrawer({
-  uai, onClose, onChanged, users, lycees, onCall, onCallAmbassadeur,
+  uai, onClose, onChanged, users, lycees, onCall, onCallAmbassadeur, onCompose, onOpenEmail, refreshKey,
 }: {
+  /** Ouvre « Écrire un mail » (boîte partenariat Diploma / AFEM) */
+  onCompose: (target: ComposeTarget) => void
+  onOpenEmail: (id: string) => void
+  /** Change après un envoi / une lecture de mail → recharge la fiche */
+  refreshKey: number
   /** Ouvre « Noter un appel » sur ce lycée */
   onCall: (uai: string, name: string) => void
   onCallAmbassadeur: (id: string, name: string) => void
@@ -65,7 +74,7 @@ export default function LyceeDrawer({
     }
   }, [uai])
 
-  useEffect(() => { void load() }, [load])
+  useEffect(() => { void load() }, [load, refreshKey])
 
   const patch = async (body: Record<string, unknown>) => {
     if (!uai) return
@@ -115,12 +124,18 @@ export default function LyceeDrawer({
             <Ambassadeurs list={d.ambassadeurs} onCall={a => onCallAmbassadeur(a.id, `${[a.first_name, a.last_name].filter(Boolean).join(' ')} · ${l.name}`)} />
           )}
           <Contacts uai={l.uai} contacts={d.contacts} onReload={load} />
+          <Mails
+            emails={d.emails ?? []}
+            onCompose={() => onCompose({ uai: l.uai, name: l.name, mode: l.mode })}
+            onOpen={onOpenEmail}
+          />
           <Evenements
             events={d.events}
             onAdd={() => setEventDraft({ uai: l.uai, kind: 'forum', scope: 'lycee', status: 'a_confirmer', mode: l.mode })}
             onEdit={ev => setEventDraft(ev)}
           />
-          <Journal uai={l.uai} activities={d.activities} onReload={async () => { await load(); onChanged() }} onCall={() => onCall(l.uai, l.name)} />
+          <Journal uai={l.uai} activities={d.activities} onReload={async () => { await load(); onChanged() }} onCall={() => onCall(l.uai, l.name)}
+            onMail={() => onCompose({ uai: l.uai, name: l.name, mode: l.mode })} onOpenEmail={onOpenEmail} />
           <Notes key={`${l.notes}|${l.competition}`} l={l} onPatch={patch} />
         </div>
       )}
@@ -427,6 +442,60 @@ function Contacts({ uai, contacts, onReload }: { uai: string; contacts: LyceeCon
   )
 }
 
+function Mails({ emails, onCompose, onOpen }: { emails: LyceeEmailRow[]; onCompose: () => void; onOpen: (id: string) => void }) {
+  const unread = emails.filter(e => e.direction === 'in' && !e.read_at).length
+  // Un fil Gmail = une ligne (le message le plus récent)
+  const threads = useMemo(() => {
+    const seen = new Set<string>()
+    return emails.filter(e => {
+      const k = e.gmail_thread_id || e.id
+      if (seen.has(k)) return false
+      seen.add(k)
+      return true
+    })
+  }, [emails])
+  return (
+    <Block title={unread ? `Mails · ${unread} réponse(s) à lire` : 'Mails'} icon={<Mail size={14} />} count={threads.length} actions={
+      <CrmV2Button size="sm" variant="gold" icon={<Send size={13} />} onClick={onCompose}>Écrire un mail</CrmV2Button>
+    }>
+      {!threads.length && (
+        <div style={{ fontSize: 13, color: crmV2.textFaint }}>
+          Aucun mail échangé. Après l’appel, envoie la présentation Diploma Santé ou AFEM : le mail part de la boîte partenariat et la réponse arrive ici.
+        </div>
+      )}
+      {threads.map(m => {
+        const isIn = m.direction === 'in'
+        const isUnread = isIn && !m.read_at
+        const color = isIn ? '#16a34a' : MAIL_BRANDS[m.mode]?.color ?? crmV2.gold
+        const count = m.gmail_thread_id ? emails.filter(e => e.gmail_thread_id === m.gmail_thread_id).length : 1
+        return (
+          <button key={m.id} type="button" onClick={() => onOpen(m.id)} style={{
+            display: 'flex', gap: 10, alignItems: 'flex-start', width: '100%', padding: '8px 6px', border: 'none', borderTop: `1px solid ${crmV2.borderLight}`,
+            background: isUnread ? hexA('#16a34a', 0.06) : 'transparent', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', borderRadius: 6,
+          }}>
+            <span style={{
+              width: 24, height: 24, borderRadius: '50%', flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              background: hexA(color, 0.12), color,
+            }}>{isIn ? <ArrowDownLeft size={13} /> : <ArrowUpRight size={13} />}</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, flexWrap: 'wrap' }}>
+                <b style={{ color: crmV2.text }}>{isIn ? (m.from_name || m.from_email) : `À ${m.to_emails.join(', ')}`}</b>
+                <ModePill mode={m.mode} empty={null} />
+                {count > 1 && <span style={{ color: crmV2.textFaint }}>· {count} messages</span>}
+                {m.has_attachments && <Paperclip size={11} color={crmV2.textFaint} />}
+                {isUnread && <span style={{ fontSize: 10.5, fontWeight: 800, color: '#16a34a' }}>NOUVELLE RÉPONSE</span>}
+                <span style={{ marginLeft: 'auto', color: crmV2.textFaint, fontSize: 11.5 }}>{fmtDateTime(m.sent_at)}</span>
+              </div>
+              <div style={{ fontSize: 13, color: crmV2.text, fontWeight: isUnread ? 700 : 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.subject || '(sans objet)'}</div>
+              {m.snippet && <div style={{ fontSize: 12, color: crmV2.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.snippet}</div>}
+            </div>
+          </button>
+        )
+      })}
+    </Block>
+  )
+}
+
 function Evenements({ events, onAdd, onEdit }: { events: LyceeEventRow[]; onAdd: () => void; onEdit: (e: LyceeEventRow) => void }) {
   const bySeason = useMemo(() => {
     const m = new Map<string, LyceeEventRow[]>()
@@ -480,7 +549,14 @@ function Evenements({ events, onAdd, onEdit }: { events: LyceeEventRow[]; onAdd:
   )
 }
 
-function Journal({ uai, activities, onReload, onCall }: { uai: string; activities: LyceeActivityRow[]; onReload: () => Promise<void>; onCall: () => void }) {
+function Journal({ uai, activities, onReload, onCall, onMail, onOpenEmail }: {
+  uai: string
+  activities: LyceeActivityRow[]
+  onReload: () => Promise<void>
+  onCall: () => void
+  onMail: () => void
+  onOpenEmail: (id: string) => void
+}) {
   const [kind, setKind] = useState<'note' | 'call' | 'email' | 'visit'>('note')
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
@@ -503,7 +579,10 @@ function Journal({ uai, activities, onReload, onCall }: { uai: string; activitie
   const color: Record<string, string> = { note: crmV2.gold, call: '#00a38d', email: '#0091ae', visit: '#7e22ce', status: '#516f90', assign: '#516f90' }
   return (
     <Block title="Appels & commentaires" icon={<MessageSquare size={14} />} count={activities.length} actions={
-      <CrmV2Button size="sm" variant="gold" icon={<Phone size={13} />} onClick={onCall}>Noter un appel</CrmV2Button>
+      <div style={{ display: 'flex', gap: 6 }}>
+        <CrmV2Button size="sm" icon={<Mail size={13} />} onClick={onMail}>Mail</CrmV2Button>
+        <CrmV2Button size="sm" variant="gold" icon={<Phone size={13} />} onClick={onCall}>Noter un appel</CrmV2Button>
+      </div>
     }>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
         <CrmV2Segmented size="sm" value={kind} onChange={setKind} items={[
@@ -530,6 +609,11 @@ function Journal({ uai, activities, onReload, onCall }: { uai: string; activitie
               <span>· {a.author_name ?? '—'} · {fmtDateTime(a.created_at)}</span>
             </div>
             <div style={{ fontSize: 13, color: crmV2.text, whiteSpace: 'pre-wrap', marginTop: 2 }}>{a.content}</div>
+            {a.email_id && (
+              <button type="button" onClick={() => onOpenEmail(a.email_id!)} style={{
+                background: 'none', border: 'none', padding: 0, marginTop: 2, color: crmV2.link, fontWeight: 700, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
+              }}>Voir le mail</button>
+            )}
           </div>
           {['note', 'call', 'email', 'visit'].includes(a.kind) && (
             <button type="button" onClick={() => remove(a.id)} title="Supprimer" style={{ background: 'none', border: 'none', color: crmV2.textFaint, cursor: 'pointer', padding: 2, alignSelf: 'flex-start' }}>

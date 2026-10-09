@@ -2,6 +2,10 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ['mammoth', 'unpdf'],
+  // Plaquettes PDF jointes aux mails partenariat des lycées (lues sur disque)
+  outputFileTracingIncludes: {
+    '/api/crm/lycees/emails': ['./public/plaquettes/*.pdf'],
+  },
   async rewrites() {
     return [
       {

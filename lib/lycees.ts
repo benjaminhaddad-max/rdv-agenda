@@ -233,6 +233,8 @@ export type LyceeActivityRow = {
   content: string
   author_id: string | null
   author_name: string | null
+  /** v65 — mail partenariat lié (envoyé ou reçu) */
+  email_id?: string | null
   created_at: string
 }
 

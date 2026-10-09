@@ -29,7 +29,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ uai
   const err = contacts.error || events.error || activities.error
   if (err) return NextResponse.json({ error: err.message }, { status: 500 })
 
-  const { data: ambs } = await db.from('lycee_ambassadeurs').select('*').eq('uai', uai).order('score', { ascending: false })
+  const [{ data: ambs }, { data: emails }] = await Promise.all([
+    db.from('lycee_ambassadeurs').select('*').eq('uai', uai).order('score', { ascending: false }),
+    // Mails partenariat (v65) : absents tant que la migration n'est pas passée
+    db.from('lycee_emails')
+      .select('id, event_id, mode, mailbox, direction, gmail_thread_id, from_email, from_name, to_emails, subject, snippet, has_attachments, author_name, read_at, sent_at')
+      .eq('uai', uai).order('sent_at', { ascending: false }).limit(100),
+  ])
   const cts = (contacts.data || []) as LyceeContactRow[]
   const evs = (events.data || []) as LyceeEventRow[]
   const [item] = buildListItems([l.lycee], cts, evs, parisToday())
@@ -39,6 +45,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ uai
     events: evs,
     activities: (activities.data || []) as LyceeActivityRow[],
     ambassadeurs: (ambs || []) as AmbassadeurRow[],
+    emails: emails || [],
     is_manager: a.access.isManager,
   })
 }

@@ -7,7 +7,7 @@
  */
 
 import { useMemo, useState } from 'react'
-import { Check, ExternalLink, EyeOff, Phone } from 'lucide-react'
+import { Check, ExternalLink, EyeOff, Mail, Phone } from 'lucide-react'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import { useIsMobile } from '@/lib/useIsMobile'
 import {
@@ -34,7 +34,7 @@ export const deptOfEvent = (e: AgendaEvent) => e.lycee?.department ?? (/\((\d{2}
 export const assigneeOfEvent = (e: AgendaEvent) => e.assigned_to ?? e.lycee?.assigned_to ?? null
 
 export default function ForumsList({
-  events, users, me, isManager, onOpenLycee, onEdit, onCall, onQuickPatch, onBulk,
+  events, users, me, isManager, onOpenLycee, onEdit, onCall, onMail, onQuickPatch, onBulk,
 }: {
   events: AgendaEvent[]
   users: TeamUser[]
@@ -43,6 +43,7 @@ export default function ForumsList({
   onOpenLycee: (uai: string) => void
   onEdit: (e: AgendaEvent) => void
   onCall: (e: AgendaEvent) => void
+  onMail?: (e: AgendaEvent) => void
   onQuickPatch: (id: string, patch: Record<string, unknown>) => Promise<void>
   onBulk: (ids: string[], patch: Record<string, unknown>) => Promise<void>
 }) {
@@ -202,6 +203,12 @@ export default function ForumsList({
                     </a>
                   )}
                 </div>
+                {onMail && (
+                  <span onClick={ev => { ev.stopPropagation(); onMail(e) }} style={{
+                    width: 38, height: 38, borderRadius: 999, background: crmV2.bgSoft, color: crmV2.link,
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  }}><Mail size={16} /></span>
+                )}
                 <span onClick={ev => { ev.stopPropagation(); onCall(e) }} style={{
                   width: 38, height: 38, borderRadius: 999, background: crmV2.goldSoft, color: crmV2.goldDark,
                   display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
@@ -293,6 +300,7 @@ export default function ForumsList({
                     <CrmV2Td>
                       <span onClick={ev => ev.stopPropagation()} style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
                         <CrmV2Button size="sm" variant="gold" icon={<Phone size={12} />} onClick={() => onCall(e)}>Appel</CrmV2Button>
+                        {onMail && <CrmV2Button size="sm" icon={<Mail size={12} />} onClick={() => onMail(e)}>Mail</CrmV2Button>}
                         {e.source_url ? (
                           <a href={e.source_url} target="_blank" rel="noreferrer" title={e.source_url} style={{
                             display: 'inline-flex', alignItems: 'center', gap: 4, padding: '6px 10px', borderRadius: 999, fontSize: 12, fontWeight: 600,

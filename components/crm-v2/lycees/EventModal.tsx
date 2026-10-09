@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react'
-import { Phone, Trash2 } from 'lucide-react'
+import { Mail, Phone, Trash2 } from 'lucide-react'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import { CrmV2Button, CrmV2Field, CrmV2Input, CrmV2Select, CrmV2Textarea, CrmV2Toggle } from '@/components/crm-v2/primitives'
 import { AdminModal, AdminNotice } from '@/components/crm-v2/admin/AdminUi'
@@ -22,12 +22,14 @@ type LyceeOption = Pick<LyceeRow, 'uai' | 'name' | 'city' | 'department'>
 export type EventDraft = Partial<LyceeEventRow> & { uai?: string | null }
 
 export default function EventModal({
-  open, onClose, onSaved, initial, lycees, lockLycee = false, users = [], isManager = false, onCall,
+  open, onClose, onSaved, initial, lycees, lockLycee = false, users = [], isManager = false, onCall, onMail,
 }: {
   users?: TeamUser[]
   isManager?: boolean
   /** Ouvre « Noter un appel » sur ce forum */
   onCall?: () => void
+  /** Écrire à l'organisateur (mail partenariat) */
+  onMail?: () => void
   open: boolean
   onClose: () => void
   onSaved: () => void
@@ -101,6 +103,9 @@ export default function EventModal({
             <CrmV2Button variant="danger" icon={<Trash2 size={14} />} onClick={remove} disabled={saving} style={{ marginRight: 'auto' }}>
               Supprimer
             </CrmV2Button>
+          )}
+          {editing && onMail && (
+            <CrmV2Button icon={<Mail size={14} />} onClick={onMail} disabled={saving}>Écrire un mail</CrmV2Button>
           )}
           {editing && onCall && (
             <CrmV2Button variant="gold" icon={<Phone size={14} />} onClick={onCall} disabled={saving}>Noter un appel</CrmV2Button>

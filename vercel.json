@@ -26,6 +26,7 @@
     { "path": "/api/cron/email-programs-process",     "schedule": "*/15 * * * *" },
     { "path": "/api/cron/competitor-events-scan",     "schedule": "0 5 * * *" },
     { "path": "/api/cron/lycee-forums-scan",          "schedule": "30 5 * * *" },
-    { "path": "/api/cron/call-analysis",              "schedule": "*/30 * * * *" }
+    { "path": "/api/cron/call-analysis",              "schedule": "*/30 * * * *" },
+    { "path": "/api/cron/lycee-mail-sync",            "schedule": "*/5 * * * *" }
   ]
 }

@@ -49,7 +49,8 @@ export async function middleware(request: NextRequest) {
     pathname === '/podcast' || // candidature publique au podcast « Première année »
     pathname === '/confidentialite' || // politique de confidentialité (app Hub Diploma — App Store)
     pathname === '/assistance' || // page d'assistance (app Hub Diploma — App Store)
-    pathname.startsWith('/webinars/') // decks HTML webinaires (Cloud Design)
+    pathname.startsWith('/webinars/') || // decks HTML webinaires (Cloud Design)
+    pathname.startsWith('/plaquettes/') // plaquettes PDF envoyées aux lycées
   if (isPublicPath) {
     return NextResponse.next()
   }
