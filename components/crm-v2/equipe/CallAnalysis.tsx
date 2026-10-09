@@ -266,22 +266,114 @@ export function CallCells({ data, userId }: { data: CallAnalysisData | null; use
 }
 
 /**
+ * Liste compacte d'appels analysés — chaque appel s'ouvre au clic (critères,
+ * ce qui a manqué, conseil, écoute, transcription).
+ */
+export function CallList({ data, calls }: { data: CallAnalysisData; calls: AnalyzedCall[] }) {
+  const [open, setOpen] = useState<number | null>(null)
+  const [transcripts, setTranscripts] = useState<Record<number, string | null>>({})
+  const [showTranscript, setShowTranscript] = useState<number | null>(null)
+
+  function toggle(id: number) {
+    setOpen(open === id ? null : id)
+    setShowTranscript(null)
+  }
+
+  /** Transcription chargée seulement quand on la demande. */
+  async function toggleTranscript(id: number) {
+    if (showTranscript === id) { setShowTranscript(null); return }
+    setShowTranscript(id)
+    if (transcripts[id] === undefined) {
+      const r = await fetch(`/api/admin/call-analysis?call=${id}`)
+      const j = await r.json().catch(() => ({}))
+      setTranscripts(prev => ({ ...prev, [id]: j.transcript ?? null }))
+    }
+  }
+
+  return (
+    <div style={{ border: `1px solid ${crmV2.border}`, borderRadius: 10, overflow: 'hidden', background: crmV2.bg }}>
+      {calls.map((c, idx) => {
+        const when = new Date(c.started_at)
+        const isOpen = open === c.aircall_call_id
+        const sc = c.score ?? 0
+        return (
+          <div key={c.aircall_call_id} style={{ borderTop: idx ? `1px solid ${crmV2.borderLight}` : 'none' }}>
+            <button type="button" onClick={() => toggle(c.aircall_call_id)} style={{
+              width: '100%', display: 'grid', gridTemplateColumns: '120px minmax(0, 1fr) 64px auto 54px 22px', alignItems: 'center', gap: 10,
+              padding: '7px 10px', background: isOpen ? crmV2.bgHover : 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+            }}>
+              <span style={{ fontSize: 12, color: crmV2.textMuted, whiteSpace: 'nowrap' }}>
+                {when.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Paris' })}{' '}
+                {when.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' })}
+              </span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: crmV2.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {c.contact_name ?? 'Contact'}
+                <span style={{ fontWeight: 400, color: crmV2.textMuted }}> — {c.summary}</span>
+              </span>
+              <span style={{ fontSize: 12, color: crmV2.textMuted, textAlign: 'right' }}>{c.talk_sec ? `${Math.floor(c.talk_sec / 60)}:${String(c.talk_sec % 60).padStart(2, '0')}` : ''}</span>
+              {c.cause ? <CauseChip data={data} id={c.cause} /> : <span />}
+              <span style={{ fontSize: 13, fontWeight: 800, textAlign: 'right', color: sc >= 7 ? crmV2.successStrong : sc >= 4 ? '#d97706' : '#dc2626' }}>{sc}/10</span>
+              <span style={{ fontSize: 12, color: crmV2.textFaint }}>{isOpen ? '▴' : '▾'}</span>
+            </button>
+            {isOpen && (
+              <div style={{ padding: '4px 12px 12px', display: 'flex', flexDirection: 'column', gap: 6, background: crmV2.bgHover }}>
+                {c.criteria && (
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {(data.criteria ?? []).map(k => {
+                      const v = Number(c.criteria?.[k.id] ?? 0)
+                      const col = v === 2 ? crmV2.successStrong : v === 1 ? '#d97706' : '#dc2626'
+                      return (
+                        <span key={k.id} title={k.hint} style={{ fontSize: 11.5, fontWeight: 700, color: col, border: `1px solid ${col}40`, background: `${col}12`, borderRadius: 999, padding: '1px 8px' }}>
+                          {k.label} {v}/2
+                        </span>
+                      )
+                    })}
+                    <span style={{ fontSize: 11.5, color: c.rdv_proposed ? crmV2.successStrong : '#dc2626', fontWeight: 700, padding: '1px 4px' }}>
+                      {c.rdv_proposed ? 'RDV / offre proposé' : 'RDV / offre pas proposé'}
+                    </span>
+                  </div>
+                )}
+                {c.missing && <div style={{ fontSize: 13, color: '#b45309' }}><strong>Ce qui a manqué :</strong> {c.missing}</div>}
+                {c.advice && <div style={{ fontSize: 13, color: crmV2.successStrong }}><strong>Conseil :</strong> {c.advice}</div>}
+                <div style={{ display: 'flex', gap: 14 }}>
+                  <a href={`/api/crm/aircall/recording/${c.aircall_call_id}`} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: crmV2.link, fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    <Headphones size={13} /> Écouter
+                  </a>
+                  <button type="button" onClick={() => toggleTranscript(c.aircall_call_id)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, color: crmV2.link, fontWeight: 600 }}>
+                    {showTranscript === c.aircall_call_id ? 'Masquer la transcription' : 'Voir la transcription'}
+                  </button>
+                </div>
+                {showTranscript === c.aircall_call_id && <pre style={{
+                  margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 12, color: crmV2.textMuted, background: crmV2.bg,
+                  borderRadius: 8, padding: 10, maxHeight: 260, overflowY: 'auto', border: `1px solid ${crmV2.borderLight}`,
+                }}>
+                  {transcripts[c.aircall_call_id] === undefined ? 'Chargement de la transcription…' : transcripts[c.aircall_call_id] ?? 'Transcription indisponible.'}
+                </pre>}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+/**
  * Débrief des appels d'un télépro (ligne dépliée) : synthèse coaching, note
  * moyenne par critère, causes, puis la liste compacte des appels (pires
- * d'abord, filtrable par cause) — chaque appel s'ouvre au clic.
+ * d'abord, filtrable par cause). `showList={false}` : la liste est affichée
+ * jour par jour ailleurs (tableau du planning).
  */
-export function CallDebrief({ data, userId, from, to, onChanged }: {
+export function CallDebrief({ data, userId, from, to, onChanged, showList = true }: {
   data: CallAnalysisData | null
   userId: string
   from: string
   to: string
   onChanged: () => void
+  showList?: boolean
 }) {
   const [cause, setCause] = useState<string>('all')
   const [showAll, setShowAll] = useState(false)
-  const [open, setOpen] = useState<number | null>(null)
-  const [transcripts, setTranscripts] = useState<Record<number, string | null>>({})
-  const [showTranscript, setShowTranscript] = useState<number | null>(null)
   const [genLoading, setGenLoading] = useState(false)
   const [genError, setGenError] = useState<string | null>(null)
   const [coachingLocal, setCoachingLocal] = useState<CoachingEntry | null>(null)
@@ -306,22 +398,6 @@ export function CallDebrief({ data, userId, from, to, onChanged }: {
       onChanged()
     } finally {
       setGenLoading(false)
-    }
-  }
-
-  function toggle(id: number) {
-    setOpen(open === id ? null : id)
-    setShowTranscript(null)
-  }
-
-  /** Transcription chargée seulement quand on la demande. */
-  async function toggleTranscript(id: number) {
-    if (showTranscript === id) { setShowTranscript(null); return }
-    setShowTranscript(id)
-    if (transcripts[id] === undefined) {
-      const r = await fetch(`/api/admin/call-analysis?call=${id}`)
-      const j = await r.json().catch(() => ({}))
-      setTranscripts(prev => ({ ...prev, [id]: j.transcript ?? null }))
     }
   }
 
@@ -426,7 +502,7 @@ export function CallDebrief({ data, userId, from, to, onChanged }: {
             )}
             <div>
               {sectionTitle('Causes')}
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', pointerEvents: showList ? undefined : 'none' }}>
                 <button type="button" onClick={() => setCause('all')} style={chipBtn(cause === 'all')}>Toutes ({done.length})</button>
                 {causesHere.map(([id, n]) => (
                   <button key={id} type="button" onClick={() => setCause(cause === id ? 'all' : id)} style={{ ...chipBtn(cause === id), padding: 0, border: 'none', background: 'none' }}>
@@ -439,79 +515,20 @@ export function CallDebrief({ data, userId, from, to, onChanged }: {
             </div>
           </div>
 
-          {/* Liste compacte */}
-          <div>
-            {sectionTitle(`Appels (${filtered.length}) · les moins bien notés d'abord`)}
-            <div style={{ border: `1px solid ${crmV2.border}`, borderRadius: 10, overflow: 'hidden' }}>
-              {shown.map((c, idx) => {
-                const when = new Date(c.started_at)
-                const isOpen = open === c.aircall_call_id
-                const sc = c.score ?? 0
-                return (
-                  <div key={c.aircall_call_id} style={{ borderTop: idx ? `1px solid ${crmV2.borderLight}` : 'none' }}>
-                    <button type="button" onClick={() => toggle(c.aircall_call_id)} style={{
-                      width: '100%', display: 'grid', gridTemplateColumns: '120px minmax(0, 1fr) 64px auto 54px 22px', alignItems: 'center', gap: 10,
-                      padding: '7px 10px', background: isOpen ? crmV2.bgHover : 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
-                    }}>
-                      <span style={{ fontSize: 12, color: crmV2.textMuted, whiteSpace: 'nowrap' }}>
-                        {when.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Paris' })}{' '}
-                        {when.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' })}
-                      </span>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: crmV2.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {c.contact_name ?? 'Contact'}
-                        <span style={{ fontWeight: 400, color: crmV2.textMuted }}> — {c.summary}</span>
-                      </span>
-                      <span style={{ fontSize: 12, color: crmV2.textMuted, textAlign: 'right' }}>{c.talk_sec ? `${Math.floor(c.talk_sec / 60)}:${String(c.talk_sec % 60).padStart(2, '0')}` : ''}</span>
-                      {c.cause ? <CauseChip data={data} id={c.cause} /> : <span />}
-                      <span style={{ fontSize: 13, fontWeight: 800, textAlign: 'right', color: sc >= 7 ? crmV2.successStrong : sc >= 4 ? '#d97706' : '#dc2626' }}>{sc}/10</span>
-                      <span style={{ fontSize: 12, color: crmV2.textFaint }}>{isOpen ? '▴' : '▾'}</span>
-                    </button>
-                    {isOpen && (
-                      <div style={{ padding: '4px 12px 12px', display: 'flex', flexDirection: 'column', gap: 6, background: crmV2.bgHover }}>
-                        {c.criteria && (
-                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                            {(data.criteria ?? []).map(k => {
-                              const v = Number(c.criteria?.[k.id] ?? 0)
-                              const col = v === 2 ? crmV2.successStrong : v === 1 ? '#d97706' : '#dc2626'
-                              return (
-                                <span key={k.id} title={k.hint} style={{ fontSize: 11.5, fontWeight: 700, color: col, border: `1px solid ${col}40`, background: `${col}12`, borderRadius: 999, padding: '1px 8px' }}>
-                                  {k.label} {v}/2
-                                </span>
-                              )
-                            })}
-                            <span style={{ fontSize: 11.5, color: c.rdv_proposed ? crmV2.successStrong : '#dc2626', fontWeight: 700, padding: '1px 4px' }}>
-                              {c.rdv_proposed ? 'RDV / offre proposé' : 'RDV / offre pas proposé'}
-                            </span>
-                          </div>
-                        )}
-                        {c.missing && <div style={{ fontSize: 13, color: '#b45309' }}><strong>Ce qui a manqué :</strong> {c.missing}</div>}
-                        {c.advice && <div style={{ fontSize: 13, color: crmV2.successStrong }}><strong>Conseil :</strong> {c.advice}</div>}
-                        <div style={{ display: 'flex', gap: 14 }}>
-                          <a href={`/api/crm/aircall/recording/${c.aircall_call_id}`} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: crmV2.link, fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                            <Headphones size={13} /> Écouter
-                          </a>
-                          <button type="button" onClick={() => toggleTranscript(c.aircall_call_id)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, color: crmV2.link, fontWeight: 600 }}>
-                            {showTranscript === c.aircall_call_id ? 'Masquer la transcription' : 'Voir la transcription'}
-                          </button>
-                        </div>
-                        {showTranscript === c.aircall_call_id && <pre style={{
-                          margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 12, color: crmV2.textMuted, background: crmV2.bg,
-                          borderRadius: 8, padding: 10, maxHeight: 260, overflowY: 'auto', border: `1px solid ${crmV2.borderLight}`,
-                        }}>
-                          {transcripts[c.aircall_call_id] === undefined ? 'Chargement de la transcription…' : transcripts[c.aircall_call_id] ?? 'Transcription indisponible.'}
-                        </pre>}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
+          {/* Liste compacte (sinon : jour par jour dans le tableau du planning) */}
+          {showList ? (
+            <div>
+              {sectionTitle(`Appels (${filtered.length}) · les moins bien notés d'abord`)}
+              <CallList data={data} calls={shown} />
+              {filtered.length > shown.length && (
+                <button type="button" onClick={() => setShowAll(true)} style={{ marginTop: 6, background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5, color: crmV2.link, fontWeight: 600 }}>
+                  Voir les {filtered.length - shown.length} autres appels
+                </button>
+              )}
             </div>
-            {filtered.length > shown.length && (
-              <button type="button" onClick={() => setShowAll(true)} style={{ marginTop: 6, background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5, color: crmV2.link, fontWeight: 600 }}>
-                Voir les {filtered.length - shown.length} autres appels
-              </button>
-            )}
-          </div>
+          ) : (
+            <div style={{ fontSize: 12, color: crmV2.textMuted }}>Le détail de chaque appel est sous chaque jour, dans le tableau ci-dessus (clic sur le jour).</div>
+          )}
         </>
       )}
     </div>

@@ -33,7 +33,7 @@ import {
 import { AdminIconButton, AdminNotice, AdminSpin } from '@/components/crm-v2/admin/AdminUi'
 import { PanelCard } from '@/components/crm-v2/panels/PanelUi'
 import { CredentialBox, type TeamMember } from '@/components/crm-v2/panels/TeamMemberManager'
-import { CallDebrief, CallTeamSummary, useCallAnalysis, type CallAnalysisData } from '@/components/crm-v2/equipe/CallAnalysis'
+import { CallDebrief, CallList, CallTeamSummary, useCallAnalysis, type CallAnalysisData } from '@/components/crm-v2/equipe/CallAnalysis'
 import { PlanningDayCell, PlanningDayHeader, PlanningLegend, PlanningWeekSummary, usePlanningWeek, type PlanningData } from '@/components/crm-v2/equipe/PlanningWeek'
 import { DayScheduleEditor, SlotChip, VERDICTS, VerdictPill, WEEKDAYS, fmtMinutes as fmtPlannedMinutes, type DayReport } from '@/components/planning/PlanningUi'
 import { addParisDays, parisDateKey, parisMonthEndKey, parisWeekStartKey } from '@/lib/date-paris'
@@ -47,7 +47,8 @@ type Period = 'day' | 'week' | 'month'
 type Mode = 'planning' | 'stats' | 'appels' | 'acces'
 
 const MODES: Record<Tab, Mode[]> = {
-  telepros: ['planning', 'stats'],
+  // Télépros : tout tient dans Planning (stats de la semaine + débriefs par jour)
+  telepros: ['planning'],
   closers: ['stats'],
   admins: ['acces'],
 }
@@ -1307,10 +1308,10 @@ function MemberDetail({ row, actions, ...common }: TableCommon & { row: Row; act
       </div>
       {tab === 'telepros' && row.stats && <MemberStatsStrip s={row.stats} />}
       {tab === 'telepros' && days.length > 0 && (
-        <MemberDaysTable days={days} onEdit={d => common.onEditDay(row, d)} />
+        <MemberDaysTable days={days} onEdit={d => common.onEditDay(row, d)} calls={common.calls} userId={row.id} />
       )}
       {tab === 'telepros' && (
-        <CallDebrief data={common.calls} userId={row.id} from={common.callRange.from} to={common.callRange.to} onChanged={common.onCallsChanged} />
+        <CallDebrief data={common.calls} userId={row.id} from={common.callRange.from} to={common.callRange.to} onChanged={common.onCallsChanged} showList={days.length === 0} />
       )}
       {row.member && (
         <AccountSettings
@@ -1383,9 +1384,30 @@ function MemberStatsStrip({ s }: { s: AgentMetrics }) {
   )
 }
 
-/** Détail jour par jour (horaires, activité Aircall, RDV, bilan) — clic → modifier les horaires. */
-function MemberDaysTable({ days, onEdit }: { days: DayReport[]; onEdit: (d: DayReport) => void }) {
+/**
+ * Détail jour par jour (horaires, activité Aircall, RDV, bilan). Clic sur un
+ * jour → déroule ses débriefs d'appels ≥ 2 min sans RDV ; « Modifier » → horaires.
+ */
+function MemberDaysTable({ days, onEdit, calls, userId }: {
+  days: DayReport[]
+  onEdit: (d: DayReport) => void
+  calls: CallAnalysisData | null
+  userId: string
+}) {
   const today = parisDateKey(new Date())
+  const [openDay, setOpenDay] = useState<string | null>(null)
+  const callsByDay = useMemo(() => {
+    const map = new Map<string, NonNullable<CallAnalysisData>['calls']>()
+    for (const c of calls?.calls ?? []) {
+      if (c.rdv_user_id !== userId || c.status !== 'done') continue
+      const k = parisDateKey(new Date(c.started_at))
+      const list = map.get(k) ?? []
+      list.push(c)
+      map.set(k, list)
+    }
+    for (const list of map.values()) list.sort((a, b) => (a.score ?? 0) - (b.score ?? 0) || a.started_at.localeCompare(b.started_at))
+    return map
+  }, [calls, userId])
   const th: CSSProperties = {
     padding: '6px 10px', fontSize: 10.5, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase',
     letterSpacing: '0.04em', textAlign: 'right', whiteSpace: 'nowrap', borderBottom: `1px solid ${crmV2.border}`,
@@ -1405,6 +1427,7 @@ function MemberDaysTable({ days, onEdit }: { days: DayReport[]; onEdit: (d: DayR
             <th style={th}>Temps</th>
             <th style={th}>RDV</th>
             <th style={{ ...th, textAlign: 'left' }}>Bilan</th>
+            <th style={th}>Débriefs</th>
             <th style={th} />
           </tr>
         </thead>
@@ -1413,8 +1436,16 @@ function MemberDaysTable({ days, onEdit }: { days: DayReport[]; onEdit: (d: DayR
             const [y, m, dd] = d.date.split('-').map(Number)
             const wd = WEEKDAYS[(new Date(Date.UTC(y, m - 1, dd, 12)).getUTCDay() + 6) % 7]
             const empty = !d.calls && !d.slots.length
+            const dayCalls = callsByDay.get(d.date) ?? []
+            const isOpen = openDay === d.date && dayCalls.length > 0
+            const avg = dayCalls.length ? Math.round((dayCalls.reduce((t, c) => t + (c.score ?? 0), 0) / dayCalls.length) * 10) / 10 : null
             return (
-              <tr key={d.date} onClick={() => onEdit(d)} style={{ cursor: 'pointer', background: d.date === today ? crmV2.goldSoft : undefined }}>
+              <Fragment key={d.date}>
+              <tr
+                onClick={() => (dayCalls.length ? setOpenDay(isOpen ? null : d.date) : onEdit(d))}
+                title={dayCalls.length ? 'Voir les débriefs des appels du jour' : 'Modifier les horaires'}
+                style={{ cursor: 'pointer', background: isOpen ? crmV2.bgHover : d.date === today ? crmV2.goldSoft : undefined }}
+              >
                 <td style={{ ...td, textAlign: 'left', fontWeight: 700, color: empty ? crmV2.textFaint : crmV2.text }}>{wd} {dd}</td>
                 <td style={{ ...td, textAlign: 'left' }}>
                   {d.slots.length
@@ -1428,8 +1459,28 @@ function MemberDaysTable({ days, onEdit }: { days: DayReport[]; onEdit: (d: DayR
                 <td style={td}>{d.talk_sec ? fmtMinutes(d.talk_sec) : '—'}</td>
                 <td style={{ ...td, fontWeight: 700, color: d.rdv ? crmV2.goldDark : crmV2.textFaint }}>{d.rdv || '—'}</td>
                 <td style={{ ...td, textAlign: 'left' }}>{(d.slots.length > 0 || d.calls > 0) && d.verdict !== 'a_venir' ? <VerdictPill verdict={d.verdict} small /> : null}</td>
-                <td style={{ ...td, color: crmV2.link, fontWeight: 600 }}>Modifier</td>
+                <td style={td}>
+                  {dayCalls.length ? (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 700, color: crmV2.text }}>
+                      {dayCalls.length} appel{dayCalls.length > 1 ? 's' : ''}
+                      {avg != null && <span style={{ fontSize: 11.5, color: avg >= 7 ? crmV2.successStrong : avg >= 4 ? '#d97706' : '#dc2626' }}>{avg}/10</span>}
+                      <span style={{ fontSize: 11, color: crmV2.textFaint }}>{isOpen ? '▴' : '▾'}</span>
+                    </span>
+                  ) : <span style={{ color: crmV2.textFaint }}>—</span>}
+                </td>
+                <td style={{ ...td, color: crmV2.link, fontWeight: 600 }} onClick={e => { e.stopPropagation(); onEdit(d) }}>Modifier</td>
               </tr>
+              {isOpen && calls && (
+                <tr>
+                  <td colSpan={11} style={{ padding: '8px 10px 12px', background: crmV2.bgHover, borderBottom: `1px solid ${crmV2.border}` }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
+                      Appels de 2 min et plus sans RDV · les moins bien notés d&apos;abord
+                    </div>
+                    <CallList data={calls} calls={dayCalls} />
+                  </td>
+                </tr>
+              )}
+              </Fragment>
             )
           })}
         </tbody>

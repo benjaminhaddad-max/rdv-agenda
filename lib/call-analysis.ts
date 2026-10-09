@@ -327,11 +327,14 @@ export async function runCallAnalysis(
 ): Promise<{ processed: number; remaining: number; results: Record<string, number> }> {
   if (!process.env.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY non configurée')
   if (!process.env.DEEPGRAM_API_KEY) throw new Error('DEEPGRAM_API_KEY non configurée')
-  const all = (await findCandidates(db, { ...opts, excludeAnalyzed: true })).candidates
-  // Seuls les appels enregistrés sont analysables (les lignes Aircall sans
-  // enregistrement n'ont pas d'audio) ; les plus récents d'abord.
-  const candidates = all.filter(c => c.has_recording)
-  const batch = candidates.sort((a, b) => b.started_at.localeCompare(a.started_at)).slice(0, opts.limit)
+  const candidates = (await findCandidates(db, { ...opts, excludeAnalyzed: true })).candidates
+  // L'audio est redemandé à Aircall au moment de l'analyse : un appel sans
+  // recording_url en base (enregistrement arrivé après la synchro) reste
+  // analysable — sinon il est marqué no_recording et n'est plus retenté.
+  // Appels déjà marqués enregistrés d'abord, puis les plus récents.
+  const batch = candidates
+    .sort((a, b) => Number(b.has_recording) - Number(a.has_recording) || b.started_at.localeCompare(a.started_at))
+    .slice(0, opts.limit)
   const client = new Anthropic()
   const results: Record<string, number> = {}
   for (let i = 0; i < batch.length; i += 4) {
@@ -426,4 +429,53 @@ Tu reçois maintenant les débriefs de plusieurs appels d'un même télépro sur
     rdv_user_id: userId, period_from: fromDate, period_to: toDate, calls_count: rows.length, content, created_at,
   }, { onConflict: 'rdv_user_id,period_from,period_to' })
   return { content, calls_count: rows.length, created_at }
+}
+
+/**
+ * Synthèses coaching automatiques : pour chaque télépro ayant au moins 2 appels
+ * analysés sur la période, (re)génère la synthèse si elle manque ou si de
+ * nouveaux appels ont été analysés depuis. `max` borne le nombre d'appels IA.
+ */
+export async function refreshCoachings(
+  db: SupabaseClient,
+  opts: { fromDate: string; toDate: string; fromIso: string; toIso: string; max: number },
+): Promise<{ updated: number; stale: number }> {
+  const { data, error } = await db.from('call_analyses')
+    .select('rdv_user_id')
+    .eq('status', 'done')
+    .not('rdv_user_id', 'is', null)
+    .gte('started_at', opts.fromIso).lt('started_at', opts.toIso)
+    .limit(5000)
+  if (error) throw new Error(error.message)
+  const doneByUser = new Map<string, number>()
+  for (const r of (data ?? []) as Array<{ rdv_user_id: string }>) doneByUser.set(r.rdv_user_id, (doneByUser.get(r.rdv_user_id) ?? 0) + 1)
+
+  const { data: existing } = await db.from('call_coaching')
+    .select('rdv_user_id, calls_count, created_at')
+    .eq('period_from', opts.fromDate).eq('period_to', opts.toDate)
+  const rows = (existing ?? []) as Array<{ rdv_user_id: string; calls_count: number; created_at: string }>
+  const have = new Map(rows.map(r => [r.rdv_user_id, r.calls_count]))
+  const at = new Map(rows.map(r => [r.rdv_user_id, Date.parse(r.created_at)]))
+
+  // À refaire : pas de synthèse, ou 3 nouveaux appels, ou du neuf et synthèse
+  // de plus de 6 h. Les plus en retard d'abord.
+  const SIX_H = 6 * 3_600_000
+  const stale = [...doneByUser.entries()]
+    .filter(([id, n]) => {
+      if (n < 2) return false
+      if (!have.has(id)) return true
+      const fresh = Math.min(n, 60) - (have.get(id) ?? 0)
+      return fresh >= 3 || (fresh > 0 && Date.now() - (at.get(id) ?? 0) > SIX_H)
+    })
+    .sort((a, b) => (b[1] - (have.get(b[0]) ?? 0)) - (a[1] - (have.get(a[0]) ?? 0)))
+  let updated = 0
+  for (const [userId] of stale.slice(0, opts.max)) {
+    try {
+      await buildCoaching(db, userId, opts.fromDate, opts.toDate, opts.fromIso, opts.toIso)
+      updated++
+    } catch {
+      // une synthèse ratée ne bloque pas les autres (retentée au prochain passage)
+    }
+  }
+  return { updated, stale: stale.length }
 }
