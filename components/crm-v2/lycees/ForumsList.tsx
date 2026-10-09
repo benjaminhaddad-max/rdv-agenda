@@ -298,7 +298,7 @@ export default function ForumsList({
                       <UserChip user={usersById.get(who ?? '')} />
                       {!e.assigned_to && who && <div style={{ fontSize: 10.5, color: crmV2.textFaint }}>via le lycée</div>}
                     </CrmV2Td>
-                    <CrmV2Td><LastCallCell at={e.last_contact_at} outcome={e.last_outcome} note={e.last_note} count={e.calls_count || 0} /></CrmV2Td>
+                    <CrmV2Td><LastCallCell at={e.last_contact_at} outcome={e.last_outcome} note={e.last_note} count={e.calls_count || 0} mailMode={e.last_mail_mode} /></CrmV2Td>
                     <CrmV2Td><NextCallCell date={e.next_action_at} today={today} /></CrmV2Td>
                     <CrmV2Td style={{ maxWidth: 160, fontSize: 12.5 }}>
                       {e.intervenants

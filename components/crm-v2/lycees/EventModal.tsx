@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react'
-import { Mail, Phone, Trash2 } from 'lucide-react'
+import { Mail, Phone, Search, Trash2 } from 'lucide-react'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import { CrmV2Button, CrmV2Field, CrmV2Input, CrmV2Select, CrmV2Textarea, CrmV2Toggle } from '@/components/crm-v2/primitives'
 import { AdminModal, AdminNotice } from '@/components/crm-v2/admin/AdminUi'
@@ -46,6 +46,28 @@ export default function EventModal({
   const [error, setError] = useState<string | null>(null)
   const set = <K extends keyof EventDraft>(k: K, v: EventDraft[K]) => setF(p => ({ ...p, [k]: v }))
   const [calls, setCalls] = useState<LyceeActivityRow[]>([])
+  const [finding, setFinding] = useState(false)
+  const [findNote, setFindNote] = useState<string | null>(null)
+  // Recherche du contact de l'organisateur (robot web, 30 s à 1 min)
+  const findContact = async () => {
+    if (!initial?.id) return
+    setFinding(true)
+    setFindNote(null)
+    try {
+      const r = await api<{ found: boolean; event: (EventDraft & { contact_data?: { notes?: string | null; source_url?: string | null } | null }) | null }>(
+        `/api/crm/lycees/events/${initial.id}/find-contact`, { method: 'POST' })
+      if (r.event?.organizer_contact) set('organizer_contact', r.event.organizer_contact)
+      const d = r.event?.contact_data
+      setFindNote(r.found
+        ? `Contact trouvé${d?.source_url ? ` (source : ${d.source_url})` : ''}.${d?.notes ? ` ${d.notes}` : ''}`
+        : `Pas de contact fiable trouvé.${d?.notes ? ` ${d.notes}` : ''}`)
+      onSaved()
+    } catch (e) {
+      setFindNote(e instanceof Error ? e.message : 'Erreur')
+    } finally {
+      setFinding(false)
+    }
+  }
   useEffect(() => {
     if (!initial?.id) return
     api<{ activities: LyceeActivityRow[] }>(`/api/crm/lycees/events/${initial.id}`).then(d => setCalls(d.activities)).catch(() => {})
@@ -190,7 +212,15 @@ export default function EventModal({
           </CrmV2Field>
         )}
         <CrmV2Field label="Contact organisateur" style={{ gridColumn: '1 / -1' }}>
-          <CrmV2Input value={f.organizer_contact ?? ''} onChange={e => set('organizer_contact', e.target.value)} placeholder="Mme X, CPE — 06… / mail" />
+          <div style={{ display: 'flex', gap: 6 }}>
+            <CrmV2Input value={f.organizer_contact ?? ''} onChange={e => set('organizer_contact', e.target.value)} placeholder="Mme X, CPE — 06… / mail" style={{ flex: 1 }} />
+            {editing && (
+              <CrmV2Button size="sm" icon={<Search size={13} />} onClick={findContact} disabled={finding || saving}>
+                {finding ? 'Recherche… (≈ 1 min)' : 'Chercher le contact'}
+              </CrmV2Button>
+            )}
+          </div>
+          {findNote && <div style={{ fontSize: 12, color: crmV2.textMuted, marginTop: 4, wordBreak: 'break-word' }}>{findNote}</div>}
         </CrmV2Field>
         <CrmV2Field label="Notes" style={{ gridColumn: '1 / -1' }}>
           <CrmV2Textarea value={f.notes ?? ''} onChange={e => set('notes', e.target.value)} rows={3} />

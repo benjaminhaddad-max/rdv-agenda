@@ -139,6 +139,9 @@ export async function POST(req: NextRequest) {
   const logged = evRow ? await logEventCall(a.access, evRow, input) : lycee?.ok ? await logLyceeCall(a.access, lycee.lycee, input) : null
   const activityId = (logged?.activity as { id?: string } | undefined)?.id
   if (activityId && row?.id) await db.from('lycee_activities').update({ email_id: row.id }).eq('id', activityId)
+  // Marque du dernier mail (pastille à côté de « Mail envoyé ») — colonne v68, ignorée si absente
+  if (evRow) await db.from('lycee_events').update({ last_mail_mode: mode }).eq('id', evRow.id)
+  else if (lyceeUai) await db.from('lycees').update({ last_mail_mode: mode }).eq('uai', lyceeUai)
 
   return NextResponse.json({ ok: true, id: row?.id ?? null, mailbox: sent.mailbox }, { status: 201 })
 }

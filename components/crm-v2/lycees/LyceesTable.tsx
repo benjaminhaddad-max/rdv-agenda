@@ -376,7 +376,7 @@ export default function LyceesTable({
                   <CrmV2Td><ModePill mode={l.mode} /></CrmV2Td>
                   {isManager && <CrmV2Td style={{ maxWidth: 150 }}><UserChip user={usersById.get(l.assigned_to ?? '')} /></CrmV2Td>}
                   <CrmV2Td><RelaisCell l={l} /></CrmV2Td>
-                  <CrmV2Td><LastCallCell at={l.last_contact_at} outcome={l.last_outcome} note={l.last_note} count={l.calls_count || 0} /></CrmV2Td>
+                  <CrmV2Td><LastCallCell at={l.last_contact_at} outcome={l.last_outcome} note={l.last_note} count={l.calls_count || 0} mailMode={l.last_mail_mode} /></CrmV2Td>
                   <CrmV2Td><NextCallCell date={l.next_action_at} today={today} /></CrmV2Td>
                   <CrmV2Td>
                     {l.next_event ? (

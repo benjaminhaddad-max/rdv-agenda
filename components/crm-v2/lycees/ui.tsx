@@ -107,12 +107,17 @@ export function OutcomePill({ outcome }: { outcome: string | null }) {
 }
 
 /** Cellule « Dernier appel » : résultat + date + remarque (une ligne). */
-export function LastCallCell({ at, outcome, note, count }: { at: string | null; outcome: string | null; note: string | null; count: number }) {
+export function LastCallCell({ at, outcome, note, count, mailMode }: {
+  at: string | null; outcome: string | null; note: string | null; count: number
+  /** Marque du dernier mail envoyé (pastille Diploma / AFEM à côté de « Mail envoyé ») */
+  mailMode?: string | null
+}) {
   if (!at && !count) return <span style={{ color: crmV2.textFaint, fontSize: 12 }}>Jamais appelé</span>
   return (
     <div style={{ minWidth: 0, maxWidth: 280 }} title={note ?? undefined}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
         <OutcomePill outcome={outcome} />
+        {outcome === 'mail_sent' && mailMode && <ModePill mode={mailMode} empty={null} />}
         <span style={{ fontSize: 11.5, color: crmV2.textFaint }}>
           {at ? new Date(at).toLocaleDateString('fr-FR', { timeZone: 'Europe/Paris', day: 'numeric', month: 'short' }) : ''}{count > 1 ? ` · ${count} appels` : ''}
         </span>

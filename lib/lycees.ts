@@ -169,6 +169,8 @@ export type LyceeRow = {
   last_outcome: CallOutcome | null
   last_note: string | null
   calls_count: number
+  /** v68 — marque du dernier mail partenariat envoyé */
+  last_mail_mode?: LyceeMode | null
   created_at: string
   updated_at: string
 }
@@ -220,6 +222,11 @@ export type LyceeEventRow = {
   last_note: string | null
   calls_count: number
   next_action_at: string | null
+  /** v68 — marque du dernier mail envoyé, recherche auto du contact */
+  last_mail_mode?: LyceeMode | null
+  contact_searched_at?: string | null
+  contact_source_url?: string | null
+  contact_data?: unknown
   created_at: string
   updated_at: string
 }
