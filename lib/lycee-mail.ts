@@ -71,8 +71,13 @@ function gmailFor(mailbox: string): gmail_v1.Gmail {
 
 /** Message d'erreur Google lisible (délégation absente, boîte inconnue…). */
 export function explainGoogleError(e: unknown): string {
-  const err = e as { message?: string; response?: { data?: { error?: string; error_description?: string } } }
-  const raw = [err.response?.data?.error, err.response?.data?.error_description, err.message].filter(Boolean).join(' — ')
+  const err = e as { message?: string; response?: { data?: { error?: string | { message?: string }; error_description?: string } } }
+  const apiErr = err.response?.data?.error
+  const raw = [typeof apiErr === 'string' ? apiErr : apiErr?.message, err.response?.data?.error_description, err.message]
+    .filter(Boolean).join(' — ')
+  if (isGmailApiDisabled(raw)) {
+    return 'API Gmail pas encore activée dans le projet Google Cloud du compte de service (activation automatique en cours, quelques minutes).'
+  }
   if (/unauthorized_client/i.test(raw)) {
     return 'Délégation Google pas encore autorisée pour Gmail (ajouter les scopes dans la console d’administration Google).'
   }
@@ -83,6 +88,39 @@ export function explainGoogleError(e: unknown): string {
     return 'Gmail refuse l’accès à cette boîte (Gmail désactivé pour ce compte, ou délégation sur un autre Workspace).'
   }
   return raw || 'Erreur Google inconnue'
+}
+
+function isGmailApiDisabled(raw: string): boolean {
+  return /has not been used in project|SERVICE_DISABLED|accessNotConfigured/i.test(raw)
+}
+
+let gmailApiEnableTried = false
+
+/**
+ * Active l'API Gmail sur le projet GCP du compte de service (best-effort, une
+ * fois par instance) — comme lib/google-sheets.ts pour Sheets.
+ */
+async function ensureGmailApiEnabled(): Promise<void> {
+  if (gmailApiEnableTried) return
+  gmailApiEnableTried = true
+  try {
+    const auth = new google.auth.JWT({
+      email: process.env.GOOGLE_SA_CLIENT_EMAIL,
+      key: privateKey(),
+      scopes: ['https://www.googleapis.com/auth/cloud-platform'],
+    })
+    const projectNumber = process.env.GOOGLE_SA_PROJECT_NUMBER || '77694306982'
+    await google.serviceusage({ version: 'v1', auth }).services.enable({ name: `projects/${projectNumber}/services/gmail.googleapis.com` })
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e)
+    if (!/already enabled|ALREADY_EXISTS/i.test(message)) console.warn('[lycee-mail] activation API Gmail :', message)
+  }
+}
+
+function rawGoogleError(e: unknown): string {
+  const err = e as { message?: string; response?: { data?: { error?: string | { message?: string } } } }
+  const apiErr = err.response?.data?.error
+  return [typeof apiErr === 'string' ? apiErr : apiErr?.message, err.message].filter(Boolean).join(' ')
 }
 
 /** ID client (numérique) du compte de service, à saisir dans la délégation. */
@@ -110,6 +148,7 @@ export async function mailboxStatus(mailbox: string): Promise<{ ok: boolean; err
     const { data } = await gmailFor(mailbox).users.getProfile({ userId: 'me' })
     return { ok: true, messagesTotal: data.messagesTotal ?? undefined }
   } catch (e) {
+    if (isGmailApiDisabled(rawGoogleError(e))) await ensureGmailApiEnabled()
     return { ok: false, error: explainGoogleError(e) }
   }
 }
@@ -361,6 +400,7 @@ export async function syncMailbox(db: Db, mode: LyceeMode): Promise<SyncResult> 
     }
     await db.from('lycee_mail_sync').upsert({ mailbox, last_synced_at: startedAt.toISOString(), last_error: null, updated_at: new Date().toISOString() })
   } catch (e) {
+    if (isGmailApiDisabled(rawGoogleError(e))) await ensureGmailApiEnabled()
     res.error = explainGoogleError(e)
     await db.from('lycee_mail_sync').upsert({ mailbox, last_error: res.error, updated_at: new Date().toISOString() })
   }
