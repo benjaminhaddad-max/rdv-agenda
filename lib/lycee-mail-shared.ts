@@ -171,10 +171,10 @@ export const DEFAULT_TEMPLATES: DefaultTemplate[] = [
 
 Je vous remercie pour notre échange téléphonique. Comme convenu, je vous adresse ci-joint la présentation de Diploma Santé.
 
-Spécialistes de la préparation aux études de santé, nous proposons aux lycées des interventions gratuites et purement informatives, sans aucune démarche commerciale. Notre seul objectif : aider vos élèves à comprendre la réforme des études de santé (PASS, L.AS) et à anticiper une première année de médecine qui reste aujourd’hui très floue pour beaucoup de familles.
+Spécialistes de la préparation aux études de santé, nous proposons aux lycées des interventions gratuites et purement informatives, sans aucune démarche commerciale. Notre seul objectif : aider vos élèves à comprendre la nouvelle réforme des études de santé — la fin du PASS et de la L.AS, remplacés par une voie d’accès unique à la rentrée 2027 — et à anticiper une première année de médecine qui reste aujourd’hui très floue pour beaucoup de familles.
 
 Selon vos besoins, nous pouvons vous proposer :
-- une conférence sur la réforme des études de santé et le déroulement concret de la première année ;
+- une conférence sur la réforme de 2027 et le déroulement concret de la nouvelle première année ;
 - un cours d’initiation à la médecine, assuré si vous le souhaitez par un professeur de médecine ;
 - des témoignages d’anciens élèves qui ont réussi leur première année et qui répondent très concrètement aux questions des élèves.
 
@@ -196,7 +196,7 @@ Bien cordialement,`,
 
 Nous avons appris que {{lycee}} organise son forum d’orientation {{forum_date}}, et nous serions très heureux d’y participer.
 
-Diploma Santé est spécialisée dans la préparation aux études de santé. Sur un forum, notre rôle est avant tout d’informer : expliquer la réforme des études de santé (PASS, L.AS), présenter le déroulement concret de la première année et répondre aux questions des élèves comme de leurs parents. Notre présence est gratuite et n’a aucune vocation commerciale.
+Diploma Santé est spécialisée dans la préparation aux études de santé. Sur un forum, notre rôle est avant tout d’informer : expliquer la réforme des études de santé de 2027 (fin du PASS et de la L.AS, voie d’accès unique), présenter le déroulement concret de la première année et répondre aux questions des élèves comme de leurs parents. Notre présence est gratuite et n’a aucune vocation commerciale.
 
 Nous venons avec des intervenants qui connaissent parfaitement le sujet, dont d’anciens élèves qui ont réussi leur première année et peuvent partager leur expérience.
 
@@ -214,7 +214,7 @@ Bien cordialement,`,
     subject: 'Intervention sur les études de santé — {{lycee}}',
     body: `{{salutation}}
 
-Je me permets de revenir vers vous au sujet de notre proposition d’intervention auprès de vos élèves sur la réforme des études de santé.
+Je me permets de revenir vers vous au sujet de notre proposition d’intervention auprès de vos élèves sur la réforme des études de santé, qui s’appliquera dès la rentrée 2027.
 
 Pour rappel, il s’agit d’une intervention gratuite et purement informative — conférence, cours d’initiation à la médecine ou témoignages d’anciens élèves — dont le format s’adapte entièrement à votre établissement.
 
@@ -237,7 +237,7 @@ Pour faire suite à notre conversation téléphonique, je vous joins la présent
 Association à but non lucratif créée en 2020 par des étudiants en santé, juste après la réforme PASS / L.AS, nous intervenons dans les lycées pour expliquer aux élèves la réforme des études de santé et leur raconter, simplement et sans filtre, comment se passe réellement une première année de médecine — avec des étudiants qui sont passés par là.
 
 Concrètement, nous vous proposons une conférence d’environ une heure, présentation puis questions-réponses :
-- la réforme des études de santé expliquée simplement (PASS, L.AS, filières MMOPK) ;
+- la réforme de 2027 expliquée simplement : fin du PASS et de la L.AS, voie d’accès unique, filières MMOPK ;
 - le quotidien d’une première année : rythme, méthode de travail, examens ;
 - les bons réflexes pour construire ses vœux Parcoursup, avec notre simulateur gratuit.
 
@@ -259,7 +259,7 @@ Bien cordialement,`,
 
 Nous avons vu que {{lycee}} organise son forum d’orientation {{forum_date}}, et notre association serait très heureuse d’y tenir un stand.
 
-L’AFEM (Aide aux Futurs Étudiants en Médecine) est une association à but non lucratif, créée en 2020 par des étudiants en santé, qui aide les lycéens à y voir clair sur les études de santé. Sur un forum, des étudiants qui ont vécu la première année répondent aux questions des élèves et de leurs parents : la réforme (PASS, L.AS), le rythme de travail, les débouchés, la façon de construire ses vœux sur Parcoursup — avec notre simulateur gratuit. Notre présence est gratuite et purement informative.
+L’AFEM (Aide aux Futurs Étudiants en Médecine) est une association à but non lucratif, créée en 2020 par des étudiants en santé, qui aide les lycéens à y voir clair sur les études de santé. Sur un forum, des étudiants qui ont vécu la première année répondent aux questions des élèves et de leurs parents : la réforme de 2027 (fin du PASS et de la L.AS), le rythme de travail, les débouchés, la façon de construire ses vœux sur Parcoursup — avec notre simulateur gratuit. Notre présence est gratuite et purement informative.
 
 Vous trouverez ci-joint la présentation de notre association. Je reste à votre disposition pour toute information sur l’organisation du forum.
 
