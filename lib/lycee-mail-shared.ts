@@ -232,9 +232,9 @@ Bien cordialement,`,
     subject: 'Conférence sur les études de santé pour vos élèves — {{lycee}}',
     body: `{{salutation}}
 
-Pour faire suite à notre conversation téléphonique, je vous joins la présentation de notre association, l’AFEM.
+Pour faire suite à notre conversation téléphonique, je vous joins la présentation de notre association, l’AFEM (Aide aux Futurs Étudiants en Médecine).
 
-Nous intervenons dans les lycées pour expliquer aux élèves la réforme des études de santé et leur raconter, simplement et sans filtre, comment se passe réellement une première année de médecine — avec des étudiants qui sont passés par là.
+Association à but non lucratif créée en 2020 par des étudiants en santé, juste après la réforme PASS / L.AS, nous intervenons dans les lycées pour expliquer aux élèves la réforme des études de santé et leur raconter, simplement et sans filtre, comment se passe réellement une première année de médecine — avec des étudiants qui sont passés par là.
 
 Concrètement, nous vous proposons une conférence d’environ une heure, présentation puis questions-réponses :
 - la réforme des études de santé expliquée simplement (PASS, L.AS, filières MMOPK) ;
@@ -259,7 +259,7 @@ Bien cordialement,`,
 
 Nous avons vu que {{lycee}} organise son forum d’orientation {{forum_date}}, et notre association serait très heureuse d’y tenir un stand.
 
-L’AFEM aide les lycéens à y voir clair sur les études de santé. Sur un forum, des étudiants qui ont vécu la première année répondent aux questions des élèves et de leurs parents : la réforme (PASS, L.AS), le rythme de travail, les débouchés, la façon de construire ses vœux sur Parcoursup — avec notre simulateur gratuit. Notre présence est gratuite et purement informative.
+L’AFEM (Aide aux Futurs Étudiants en Médecine) est une association à but non lucratif, créée en 2020 par des étudiants en santé, qui aide les lycéens à y voir clair sur les études de santé. Sur un forum, des étudiants qui ont vécu la première année répondent aux questions des élèves et de leurs parents : la réforme (PASS, L.AS), le rythme de travail, les débouchés, la façon de construire ses vœux sur Parcoursup — avec notre simulateur gratuit. Notre présence est gratuite et purement informative.
 
 Vous trouverez ci-joint la présentation de notre association. Je reste à votre disposition pour toute information sur l’organisation du forum.
 
