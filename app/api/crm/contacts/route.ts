@@ -1290,16 +1290,9 @@ export async function GET(req: NextRequest) {
     labCallbackContactIds !== null || labCallbackExcludedIds !== null ||
     effectiveIncludeEmptyLeadStatus
   )
+  // Seuls les champs int64 sont triables dans l'index Typesense (les champs
+  // texte n'ont pas `sort: true`) : un tri par nom / classe / statut… passe en SQL.
   const typesenseSortMap: Record<string, string> = {
-    contact: 'lastname',
-    formation_souhaitee: 'formation_souhaitee',
-    classe: 'classe_actuelle',
-    zone: 'zone_localite',
-    departement: 'departement',
-    lead_status: 'hs_lead_status',
-    origine: 'origine',
-    closer: 'hubspot_owner_id',
-    closer_du_contact: 'closer_du_contact_owner_id',
     createdat_contact: 'contact_createdate',
     createdat_deal: 'deal_createdate',
     form_submission: 'recent_conversion_date',

@@ -5,6 +5,9 @@ type TypesenseHit<T> = {
 type TypesenseSearchResponse<T> = {
   found: number
   hits?: Array<TypesenseHit<T>>
+  /** /multi_search répond 200 même si la recherche échoue : l'erreur est ici. */
+  error?: string
+  code?: number
 }
 
 export type TypesenseCrmDoc = {
@@ -70,7 +73,9 @@ export async function searchTypesenseCrmContacts(params: {
 
   const json = await res.json() as MultiSearchResponse<TypesenseCrmDoc>
   const result = json.results?.[0]
-  if (!result) return null
+  // Erreur de recherche (ex. tri sur un champ non triable) : null → l'appelant
+  // repasse en SQL au lieu d'afficher une liste vide.
+  if (!result || result.error) return null
 
   const ids = (result.hits ?? [])
     .map(h => h.document?.hubspot_contact_id)
