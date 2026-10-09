@@ -3,351 +3,280 @@
 <head>
 <meta charset="utf-8">
 <title>AFEM — Conférence pour les lycées</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  Plaquette « partenariat lycées » de l'association AFEM (A4, 4 pages).
+  Identité du site afem-edu.fr : verts #479143 / #65bd7d / #3a8a52, texte
+  #212326, fond #f5f7f9, police Inter. Mise en page « print » : photos à fond
+  perdu, aplats verts, titres en graisse forte, pas de pastilles.
+  PDF : bash scripts/build-plaquettes.sh
+-->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
   :root {
-    --vert: #479143;      /* primaire */
-    --vert-clair: #65bd7d;/* secondaire */
-    --vert-fonce: #3a8a52;/* accent */
-    --menthe: #e9f4ec;
-    --menthe-2: #d6ecdc;
+    --vert: #479143;
+    --vert-clair: #65bd7d;
+    --vert-fonce: #2f6b3b;
+    --encre: #212326;
+    --gris: #5a5d63;
     --fond: #f5f7f9;
-    --texte: #212326;
-    --muted: #5a5d63;
-    --ligne: #e3e7ea;
+    --trait: #dfe3e6;
   }
-
   @page { size: A4; margin: 0; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { background: #fff; }
   body {
-    font-family: "Inter", -apple-system, "Segoe UI", Arial, sans-serif;
-    color: var(--texte);
-    font-size: 9.5pt;
-    line-height: 1.5;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
+    font-family: "Inter", Arial, sans-serif; color: var(--encre); font-size: 9pt; line-height: 1.5;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
   }
-  .page {
-    width: 210mm; height: 297mm; position: relative; overflow: hidden;
-    page-break-after: always; break-after: page; background: #fff;
-  }
-  .page:last-child { page-break-after: auto; break-after: auto; }
+  .page { position: relative; width: 210mm; height: 297mm; overflow: hidden; page-break-after: always; background: #fff; }
+  .page:last-child { page-break-after: auto; }
 
-  h1, h2, h3, h4 { letter-spacing: -0.02em; color: var(--texte); }
-  h2 { font-size: 22pt; line-height: 1.12; font-weight: 800; }
-  h2 .hl { color: var(--vert); }
-  .kicker {
-    display: inline-flex; align-items: center; gap: 2mm;
-    font-size: 7.6pt; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--vert-fonce);
-  }
-  .kicker::before { content: ""; width: 2.2mm; height: 2.2mm; border-radius: 50%; background: var(--vert-clair); }
-  p + p { margin-top: 2.4mm; }
-  .lead { font-size: 10.6pt; line-height: 1.55; }
+  .bar { position: absolute; left: 16mm; right: 16mm; top: 13mm; display: flex; align-items: center; justify-content: space-between; }
+  .bar img { height: 9mm; }
+  .bar span { font-size: 7pt; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--vert); }
+  .bar span b { color: var(--encre); font-weight: 800; margin-right: 1.5mm; }
+  .folio { position: absolute; left: 16mm; right: 16mm; bottom: 9mm; display: flex; justify-content: space-between; font-size: 6.8pt; color: #8a8e94; }
 
-  /* En-tête / pied des pages intérieures */
-  .runhead { position: absolute; top: 0; left: 0; right: 0; height: 21mm; display: flex; align-items: center; justify-content: space-between; padding: 0 17mm; }
-  .runhead img { height: 8mm; }
-  .runhead .sec { font-size: 7.6pt; font-weight: 600; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; background: var(--fond); border-radius: 10mm; padding: 1.4mm 3.6mm; }
-  .runhead .sec b { color: var(--vert); margin-right: 1.5mm; }
-  .runfoot { position: absolute; bottom: 0; left: 0; right: 0; height: 13mm; display: flex; align-items: center; justify-content: space-between; padding: 0 17mm; font-size: 7.4pt; color: var(--muted); }
-  .runfoot .num { width: 6.5mm; height: 6.5mm; border-radius: 50%; background: var(--vert); color: #fff; font-weight: 700; display: flex; align-items: center; justify-content: center; font-size: 7.4pt; }
-  .content { position: absolute; top: 21mm; bottom: 13mm; left: 17mm; right: 17mm; }
+  h2 { font-weight: 800; font-size: 25pt; line-height: 1.02; letter-spacing: -.03em; color: var(--encre); }
+  h2 em { font-style: normal; color: var(--vert); }
+  h3 { font-weight: 800; font-size: 11pt; line-height: 1.2; letter-spacing: -.01em; }
+  .over { font-size: 7pt; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--vert); margin-bottom: 3mm; }
+  p + p { margin-top: 2.2mm; }
+  .muted { color: var(--gris); }
+  .photo { background-size: cover; background-repeat: no-repeat; background-position: center; }
 
-  .photo { background-size: cover; background-position: center; border-radius: 5mm; }
-
-  /* ============ PAGE 1 : COUVERTURE ============ */
-  .cover .blob1 { position: absolute; width: 150mm; height: 150mm; border-radius: 50%; background: var(--menthe); right: -60mm; top: -55mm; }
-  .cover .blob2 { position: absolute; width: 90mm; height: 90mm; border-radius: 50%; background: var(--menthe); left: -45mm; bottom: 30mm; }
-  .cover .top { position: absolute; top: 13mm; left: 17mm; right: 17mm; display: flex; justify-content: space-between; align-items: center; z-index: 2; }
+  /* ── Page 1 ───────────────────────────────────────────── */
+  .cover .top { position: absolute; left: 0; right: 0; top: 0; height: 30mm; padding: 0 16mm; display: flex; align-items: center; justify-content: space-between; }
   .cover .top img { height: 13mm; }
-  .cover .top .tag { font-size: 7.6pt; font-weight: 600; color: var(--vert-fonce); background: #fff; border: 0.3mm solid var(--menthe-2); border-radius: 10mm; padding: 1.6mm 3.8mm; }
-  .cover .hero {
-    position: absolute; top: 36mm; left: 17mm; right: 17mm; height: 122mm; z-index: 1;
-    background-image: url("https://images.unsplash.com/photo-1522202176988-66273c2fd55f?fm=jpg&fit=crop&w=1400&q=70");
-    background-position: center 35%;
+  .cover .top span { font-size: 7.2pt; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--gris); text-align: right; line-height: 1.6; }
+  .cover .hero { position: absolute; left: 0; right: 0; top: 30mm; height: 140mm; background-image: url("assets/afem-amphi.jpg"); background-position: center 35%; }
+  .cover .caption { position: absolute; left: 16mm; top: 156mm; font-size: 7pt; font-weight: 600; color: #fff; letter-spacing: .04em; opacity: .9; }
+  .cover .block { position: absolute; left: 0; right: 0; top: 170mm; bottom: 0; background: var(--vert); color: #fff; padding: 13mm 16mm 0; }
+  .cover .block .over { color: #d6f0dc; }
+  .cover h1 { font-weight: 800; font-size: 30pt; line-height: 1.02; letter-spacing: -.035em; width: 170mm; }
+  .cover .lead { margin-top: 6mm; width: 150mm; font-size: 10.5pt; line-height: 1.5; color: #eaf6ed; }
+  .cover .foot {
+    position: absolute; left: 16mm; right: 16mm; bottom: 10mm; padding-top: 4mm; border-top: .3mm solid rgba(255,255,255,.35);
+    display: flex; justify-content: space-between; font-size: 8pt; font-weight: 600;
   }
-  .cover .sticker {
-    position: absolute; z-index: 3; top: 140mm; right: 24mm; width: 36mm; height: 36mm; border-radius: 50%;
-    background: var(--vert); color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
-    box-shadow: 0 2mm 6mm rgba(33,35,38,0.18); transform: rotate(-8deg); border: 1.2mm solid #fff;
-  }
-  .cover .sticker b { font-size: 13pt; font-weight: 800; line-height: 1.05; }
-  .cover .sticker span { font-size: 6.2pt; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; margin-top: 1mm; opacity: 0.92; line-height: 1.25; }
-  .cover .body { position: absolute; top: 169mm; left: 17mm; right: 17mm; z-index: 2; }
-  .cover h1 { font-size: 26pt; line-height: 1.1; font-weight: 800; margin: 3.5mm 0 5mm; }
-  .cover h1 .l1 { color: var(--vert); display: block; }
-  .cover .lead { color: var(--muted); max-width: 158mm; font-size: 10.8pt; }
-  .cover .badges { position: absolute; left: 17mm; right: 17mm; bottom: 26mm; display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; z-index: 2; }
-  .badge { background: var(--fond); border-radius: 4mm; padding: 3.6mm 4mm; display: flex; gap: 3mm; align-items: center; }
-  .badge .ic { flex: none; width: 9mm; height: 9mm; border-radius: 50%; background: #fff; display: flex; align-items: center; justify-content: center; }
-  .badge .ic svg, .ico svg { width: 4.8mm; height: 4.8mm; stroke: var(--vert); fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
-  .badge b { display: block; font-size: 9.4pt; font-weight: 700; }
-  .badge span { display: block; font-size: 7.6pt; color: var(--muted); line-height: 1.35; }
-  .cover .foot { position: absolute; left: 17mm; right: 17mm; bottom: 10mm; display: flex; justify-content: space-between; font-size: 8pt; color: var(--muted); border-top: 0.3mm solid var(--ligne); padding-top: 3.5mm; z-index: 2; }
-  .cover .foot b { color: var(--vert-fonce); }
+  .cover .foot span:nth-child(2) { font-weight: 500; color: #d6f0dc; }
 
-  /* ============ PAGE 2 ============ */
-  .p2 .intro { margin-top: 7mm; display: grid; grid-template-columns: 1fr 66mm; gap: 8mm; }
-  .p2 .intro .photo { height: 100%; min-height: 88mm; background-image: url("https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?fm=jpg&fit=crop&w=1000&q=70"); background-position: 40% center; }
-  .p2 h2 { margin: 3mm 0 5mm; }
-  .quote { margin-top: 8mm; background: var(--vert); color: #fff; border-radius: 5mm; padding: 6mm 8mm; display: grid; grid-template-columns: 12mm 1fr; gap: 4mm; align-items: center; }
-  .quote .mark { font-size: 44pt; line-height: 0.6; font-weight: 800; color: var(--vert-clair); font-family: Georgia, serif; padding-top: 4mm; }
-  .quote p { font-size: 13.5pt; font-weight: 700; line-height: 1.3; letter-spacing: -0.01em; }
-  .quote small { display: block; font-size: 7.8pt; font-weight: 500; opacity: 0.85; margin-top: 1.5mm; letter-spacing: 0; }
-  .values { margin-top: 7mm; display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; }
-  .value { border: 0.3mm solid var(--ligne); border-radius: 4mm; padding: 4.5mm; }
-  .value .ico { width: 9mm; height: 9mm; border-radius: 3mm; background: var(--menthe); display: flex; align-items: center; justify-content: center; margin-bottom: 2.5mm; }
-  .value h4 { font-size: 10.5pt; font-weight: 700; margin-bottom: 1mm; }
-  .value p { font-size: 8.4pt; color: var(--muted); line-height: 1.45; }
-  .why { margin-top: 7mm; background: var(--fond); border-radius: 5mm; padding: 6mm; display: grid; grid-template-columns: 52mm 1fr 1fr; gap: 6mm; align-items: stretch; }
-  .why .photo { border-radius: 3.5mm; min-height: 52mm; background-image: url("https://images.unsplash.com/photo-1523240795612-9a054b0db644?fm=jpg&fit=crop&w=700&q=70"); }
-  .why h3 { font-size: 13.5pt; font-weight: 800; line-height: 1.2; margin: 2mm 0 0; }
-  .why p { font-size: 9pt; }
-  .team { margin-top: 3mm; display: flex; flex-wrap: wrap; gap: 1.8mm; }
-  .team span { font-size: 7.8pt; font-weight: 600; color: var(--vert-fonce); background: var(--menthe); border-radius: 10mm; padding: 1mm 3mm; }
+  /* ── Page 2 ───────────────────────────────────────────── */
+  .p2 .left { position: absolute; left: 16mm; top: 34mm; width: 86mm; }
+  .p2 .left h2 { margin-bottom: 6mm; }
+  .p2 .left p { font-size: 9.2pt; }
+  .p2 .team { margin-top: 5mm; padding-top: 4mm; border-top: .3mm solid var(--trait); font-size: 8pt; color: var(--gris); }
+  .p2 .team b { color: var(--encre); }
+  .p2 .pic { position: absolute; left: 110mm; right: 0; top: 30mm; height: 112mm; background-image: url("assets/afem-groupe.jpg"); background-position: 40% center; }
+  .p2 .quote { position: absolute; left: 0; right: 0; top: 148mm; height: 40mm; background: var(--vert-fonce); color: #fff; padding: 0 16mm; display: flex; align-items: center; gap: 10mm; }
+  .p2 .quote .q { font-size: 21pt; font-weight: 800; letter-spacing: -.03em; line-height: 1.05; width: 120mm; }
+  .p2 .quote .q::before { content: "« "; color: var(--vert-clair); }
+  .p2 .quote .q::after { content: " »"; color: var(--vert-clair); }
+  .p2 .quote small { font-size: 7.5pt; color: #cfe8d5; line-height: 1.5; }
+  .values { position: absolute; left: 16mm; right: 16mm; top: 197mm; display: grid; grid-template-columns: repeat(3, 1fr); }
+  .values div { padding: 0 6mm; border-left: .3mm solid var(--trait); }
+  .values div:first-child { padding-left: 0; border-left: 0; }
+  .values h3 { color: var(--vert); margin-bottom: 1.5mm; }
+  .values p { font-size: 8.3pt; color: var(--gris); }
+  .why { position: absolute; left: 16mm; right: 16mm; top: 228mm; display: grid; grid-template-columns: 82mm 1fr; gap: 10mm; padding-top: 7mm; border-top: .3mm solid var(--trait); }
+  .why .big { font-size: 14pt; font-weight: 800; line-height: 1.18; letter-spacing: -.02em; }
+  .why p { font-size: 8.8pt; }
 
-  /* ============ PAGE 3 ============ */
-  .p3 .banner { margin-top: 3mm; height: 74mm; position: relative; background-image: url("https://images.unsplash.com/photo-1544531586-fde5298cdd40?fm=jpg&fit=crop&w=1400&q=70"); background-position: center 45%; }
-  .p3 .banner::after { content: ""; position: absolute; inset: 0; border-radius: 5mm; background: linear-gradient(90deg, rgba(33,35,38,0.82) 0%, rgba(33,35,38,0.45) 55%, rgba(33,35,38,0.05) 100%); }
-  .p3 .banner .txt { position: absolute; z-index: 2; left: 8mm; bottom: 7mm; right: 60mm; color: #fff; }
-  .p3 .banner .kicker { color: #bfe6c8; }
-  .p3 .banner h2 { color: #fff; font-size: 18pt; margin-top: 2mm; line-height: 1.16; }
-  .p3 .banner .pill { position: absolute; z-index: 2; top: 6mm; right: 6mm; background: #fff; color: var(--vert-fonce); font-weight: 700; font-size: 8pt; border-radius: 10mm; padding: 1.5mm 3.6mm; }
-  .prog { margin-top: 8mm; display: grid; grid-template-columns: 50mm 1fr; gap: 7mm; }
-  .prog .side p { font-size: 9pt; color: var(--muted); margin-top: 2.5mm; }
-  .prog h3 { font-size: 14pt; font-weight: 800; line-height: 1.2; margin-top: 2mm; }
-  .steps { list-style: none; display: grid; gap: 3mm; }
-  .steps li { display: grid; grid-template-columns: 9mm 1fr; gap: 3.5mm; align-items: start; }
-  .steps .n { width: 9mm; height: 9mm; border-radius: 50%; background: var(--menthe); color: var(--vert-fonce); font-weight: 800; font-size: 10pt; display: flex; align-items: center; justify-content: center; }
-  .steps h4 { font-size: 10.2pt; font-weight: 700; margin-top: 0.6mm; }
-  .steps p { font-size: 8.6pt; color: var(--muted); line-height: 1.45; }
+  /* ── Page 3 ───────────────────────────────────────────── */
+  .p3 .banner { position: absolute; left: 0; right: 0; top: 28mm; height: 62mm; background-image: url("assets/afem-salle.jpg"); background-position: center 45%; }
+  .p3 .title { position: absolute; left: 16mm; right: 16mm; top: 97mm; }
+  .p3 .title h2 { font-size: 20pt; line-height: 1.08; }
+  .p3 .title .meta { margin-top: 3mm; font-size: 8.5pt; color: var(--gris); }
+  .p3 .title .meta b { color: var(--encre); }
+  .program { position: absolute; left: 16mm; right: 16mm; top: 131mm; display: grid; grid-template-columns: 1fr 1fr; column-gap: 10mm; row-gap: 5mm; }
+  .program > div { display: grid; grid-template-columns: 11mm 1fr; padding-top: 3mm; border-top: .3mm solid var(--trait); }
+  .program .n { font-size: 17pt; font-weight: 800; color: var(--vert); letter-spacing: -.03em; line-height: 1.05; }
+  .program h3 { font-size: 9.6pt; margin-bottom: 1mm; }
+  .program p { font-size: 8.2pt; color: var(--gris); }
+  .p3 .fmt-head { position: absolute; left: 16mm; right: 16mm; top: 188mm; display: flex; justify-content: space-between; align-items: baseline; }
+  .p3 .fmt-head h3 { font-size: 13pt; }
+  .p3 .fmt-head span { font-size: 8pt; color: var(--gris); }
+  .formats { position: absolute; left: 16mm; right: 16mm; top: 198mm; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6mm; }
+  .formats .ph { height: 38mm; margin-bottom: 3.5mm; }
+  .formats h3 { font-size: 9.8pt; margin-bottom: .8mm; }
+  .formats .d { font-size: 7.5pt; font-weight: 700; color: var(--vert); margin-bottom: 1.2mm; }
+  .formats p { font-size: 8.1pt; color: var(--gris); }
 
-  .formats-title { margin-top: 9mm; display: flex; align-items: baseline; justify-content: space-between; }
-  .formats-title h3 { font-size: 14pt; font-weight: 800; }
-  .formats-title span { font-size: 8.4pt; color: var(--muted); }
-  .formats { margin-top: 3.5mm; display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; }
-  .fmt { border-radius: 4.5mm; overflow: hidden; border: 0.3mm solid var(--ligne); background: #fff; display: flex; flex-direction: column; }
-  .fmt .img { height: 34mm; background-size: cover; background-position: center; }
-  .fmt .bd { padding: 3.8mm 4.2mm 4.2mm; flex: 1; display: flex; flex-direction: column; }
-  .fmt h4 { font-size: 10.4pt; font-weight: 700; line-height: 1.25; }
-  .fmt .dur { display: inline-block; align-self: flex-start; margin: 1.6mm 0 2mm; font-size: 7.4pt; font-weight: 700; color: var(--vert-fonce); background: var(--menthe); border-radius: 10mm; padding: 0.7mm 2.6mm; }
-  .fmt p { font-size: 8.3pt; color: var(--muted); line-height: 1.45; }
-
-  /* ============ PAGE 4 ============ */
-  .tools-head { margin-top: 6mm; }
-  .tools-head h2 { font-size: 19pt; margin-top: 2.5mm; }
-  .sim { margin-top: 6mm; background: var(--menthe); border-radius: 5mm; padding: 6mm 7mm; }
-  .sim .top { display: flex; justify-content: space-between; align-items: center; }
-  .sim h3 { font-size: 14pt; font-weight: 800; color: var(--vert-fonce); }
-  .sim .free { font-size: 7.4pt; font-weight: 700; background: var(--vert); color: #fff; border-radius: 10mm; padding: 1mm 3mm; text-transform: uppercase; letter-spacing: 0.06em; }
-  .sim > p { font-size: 9pt; margin-top: 2mm; }
-  .flow { margin-top: 4.5mm; display: grid; grid-template-columns: 1fr 5mm 1fr 5mm 1fr; align-items: stretch; }
-  .flow .st { background: #fff; border-radius: 3.5mm; padding: 3.5mm 3.8mm; }
-  .flow .st small { font-size: 6.8pt; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--vert); }
-  .flow .st b { display: block; font-size: 9.2pt; margin: 0.8mm 0 0.6mm; }
-  .flow .st span { display: block; font-size: 7.8pt; color: var(--muted); line-height: 1.4; }
-  .flow .ar { display: flex; align-items: center; justify-content: center; color: var(--vert); font-weight: 800; font-size: 11pt; }
-  .sim .note { margin-top: 3.5mm; font-size: 7.8pt; color: var(--muted); }
-  .sim .note b { color: var(--texte); }
-
-  .others { margin-top: 5mm; display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; }
-  .other { border: 0.3mm solid var(--ligne); border-radius: 4mm; padding: 3.6mm 4mm; }
-  .other b { display: block; font-size: 9.4pt; }
-  .other span { display: block; font-size: 7.9pt; color: var(--muted); line-height: 1.4; margin-top: 0.6mm; }
-
-  .prac { margin-top: 8mm; }
-  .prac h3 { font-size: 14pt; font-weight: 800; margin: 2mm 0 3mm; }
-  .prac .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4mm; }
-  .prac .it .ico { width: 9mm; height: 9mm; border-radius: 3mm; background: var(--menthe); display: flex; align-items: center; justify-content: center; margin-bottom: 2mm; }
-  .prac .it b { display: block; font-size: 9.3pt; }
-  .prac .it span { display: block; font-size: 7.9pt; color: var(--muted); line-height: 1.4; margin-top: 0.6mm; }
-
-  .contact { position: absolute; left: 0; right: 0; bottom: 0; height: 66mm; background: var(--vert); color: #fff; padding: 10mm 17mm 0; overflow: hidden; }
-  .contact .c1 { position: absolute; width: 90mm; height: 90mm; border-radius: 50%; background: rgba(255,255,255,0.08); right: -25mm; top: -35mm; }
-  .contact .c2 { position: absolute; width: 50mm; height: 50mm; border-radius: 50%; background: rgba(255,255,255,0.07); right: 45mm; bottom: -32mm; }
-  .contact h3 { color: #fff; font-size: 17pt; font-weight: 800; line-height: 1.18; max-width: 165mm; position: relative; }
-  .contact .lines { margin-top: 6mm; display: flex; gap: 12mm; position: relative; }
-  .contact .lines small { display: block; font-size: 6.8pt; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.75; }
-  .contact .lines span { font-size: 12.5pt; font-weight: 700; }
-  .contact .base { position: absolute; left: 17mm; right: 17mm; bottom: 7mm; display: flex; justify-content: space-between; align-items: center; font-size: 7.6pt; opacity: 0.9; border-top: 0.3mm solid rgba(255,255,255,0.25); padding-top: 3mm; }
-  .contact .logo { background: #fff; border-radius: 3mm; padding: 1.4mm 3mm; display: flex; }
-  .contact .logo img { height: 6.5mm; }
+  /* ── Page 4 ───────────────────────────────────────────── */
+  .sim { position: absolute; left: 0; right: 0; top: 30mm; height: 92mm; background: var(--fond); padding: 10mm 16mm 0; }
+  .sim .head { display: grid; grid-template-columns: 78mm 1fr; gap: 10mm; }
+  .sim h2 { font-size: 22pt; }
+  .sim .head p { font-size: 9pt; padding-top: 1mm; }
+  .sim .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; margin-top: 8mm; }
+  .sim .steps div { padding: 0 6mm; border-left: .3mm solid var(--trait); }
+  .sim .steps div:first-child { padding-left: 0; border-left: 0; }
+  .sim .steps .k { font-size: 7pt; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--vert); }
+  .sim .steps h3 { font-size: 10pt; margin: 1mm 0 .8mm; }
+  .sim .steps p { font-size: 8pt; color: var(--gris); }
+  .sim .data { margin-top: 6mm; font-size: 7.3pt; color: var(--gris); }
+  .tools { position: absolute; left: 16mm; right: 16mm; top: 131mm; }
+  .tools .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8mm; }
+  .tools .grid div { padding-top: 3mm; border-top: .6mm solid var(--vert); }
+  .tools h3 { font-size: 9.6pt; margin-bottom: .8mm; }
+  .tools p { font-size: 8.1pt; color: var(--gris); }
+  .prat { position: absolute; left: 16mm; right: 16mm; top: 164mm; }
+  .prat .grid { display: grid; grid-template-columns: 1fr 1fr; column-gap: 10mm; }
+  .prat .grid p { padding: 2.4mm 0; border-top: .3mm solid var(--trait); font-size: 8.6pt; margin: 0; }
+  .prat .grid b { font-weight: 800; }
+  .contact { position: absolute; left: 0; right: 0; bottom: 0; height: 92mm; background: var(--vert); color: #fff; overflow: hidden; }
+  .contact .ph { position: absolute; right: 0; top: 0; bottom: 0; width: 72mm; background-image: url("assets/afem-dehors.jpg"); background-position: 30% center; }
+  .contact .txt { position: absolute; left: 16mm; top: 13mm; width: 112mm; }
+  .contact .over { color: #d6f0dc; }
+  .contact .big { font-size: 22pt; font-weight: 800; line-height: 1.05; letter-spacing: -.03em; }
+  .contact .coords { margin-top: 8mm; display: grid; grid-template-columns: auto auto; gap: 4mm 10mm; justify-content: start; }
+  .contact .coords small { display: block; font-size: 6.6pt; letter-spacing: .12em; text-transform: uppercase; color: #cfe8d5; font-weight: 600; }
+  .contact .coords span { font-size: 11.5pt; font-weight: 700; }
+  .contact .end { position: absolute; left: 16mm; bottom: 10mm; font-size: 7.2pt; color: #d6f0dc; }
 </style>
 </head>
 <body>
 
-<!-- ===================== PAGE 1 — COUVERTURE ===================== -->
+<!-- ═══ Page 1 — Couverture ═══ -->
 <section class="page cover">
-  <div class="blob1"></div><div class="blob2"></div>
   <div class="top">
-    <img src="https://www.afem-edu.fr/assets/logo.png" alt="AFEM — Aide aux Futurs Étudiants en Médecine">
-    <span class="tag">Interventions en lycée · Île-de-France</span>
+    <img src="assets/afem-logo.png" alt="AFEM — Aide aux Futurs Étudiants en Médecine">
+    <span>Association à but non lucratif<br>Interventions en lycée · Île-de-France</span>
   </div>
   <div class="hero photo"></div>
-  <div class="sticker"><b>100&nbsp;%<br>gratuit</b><span>Informatif<br>Non commercial</span></div>
-  <div class="body">
-    <span class="kicker">Conférence pour les élèves de Première et de Terminale</span>
-    <h1><span class="l1">La réforme des études de santé&nbsp;:</span>comment se passe vraiment une première année de médecine&nbsp;?</h1>
-    <p class="lead">Une intervention animée par des étudiants en santé qui sont passés par là, pour aider vos élèves et leurs familles à comprendre le nouveau système et à aborder leurs choix d'orientation sereinement.</p>
+  <div class="block">
+    <div class="over">Conférence gratuite · Première et Terminale</div>
+    <h1>La première année de médecine, racontée par ceux qui viennent de la vivre.</h1>
+    <p class="lead">Des étudiants en santé viennent expliquer à vos élèves la réforme des études de santé et leur raconter, sans filtre, comment se passe vraiment une première année. Une intervention gratuite et purement informative.</p>
+    <div class="foot"><span>afem-edu.fr</span><span>partenariat@afem-edu.fr</span></div>
   </div>
-  <div class="badges">
-    <div class="badge"><div class="ic"><svg viewBox="0 0 24 24"><path d="M20 12v9H4v-9"/><rect x="2" y="7" width="20" height="5" rx="1"/><path d="M12 21V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg></div><div><b>Gratuite</b><span>Pour le lycée comme pour les familles</span></div></div>
-    <div class="badge"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg></div><div><b>Informative</b><span>Aucune démarche commerciale</span></div></div>
-    <div class="badge"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17.5" cy="9" r="2.5"/><path d="M16 14.2a5 5 0 0 1 5.5 5"/></svg></div><div><b>Par des étudiants</b><span>Qui ont vécu la première année</span></div></div>
-  </div>
-  <div class="foot"><span><b>afem-edu.fr</b></span><span>partenariat@afem-edu.fr</span></div>
 </section>
 
-<!-- ===================== PAGE 2 — QUI SOMMES-NOUS ===================== -->
+<!-- ═══ Page 2 — L'association ═══ -->
 <section class="page p2">
-  <div class="runhead"><img src="https://www.afem-edu.fr/assets/logo.png" alt="AFEM"><span class="sec"><b>01</b>Qui sommes-nous</span></div>
-  <div class="content">
-    <div class="intro">
-      <div>
-        <span class="kicker">L'association</span>
-        <h2>Créée par des étudiants, <span class="hl">pour les étudiants</span></h2>
-        <p class="lead">L'AFEM, Aide aux Futurs Étudiants en Médecine, est une association à but non lucratif fondée en 2020, juste après la réforme PASS / L.AS.</p>
-        <p>Elle est née d'un constat simple&nbsp;: face à la complexité de la réforme, les lycéens et leurs familles manquaient d'informations fiables. Son objectif&nbsp;: que chaque élève motivé ait les mêmes chances de réussite, quels que soient son lycée et ses moyens.</p>
-        <div class="team">
-          <span>Étudiants en médecine</span><span>Anciens étudiants de PASS</span><span>Professeurs agrégés</span><span>Bénévoles</span>
-        </div>
-      </div>
-      <div class="photo"></div>
-    </div>
+  <div class="bar"><img src="assets/afem-logo.png" alt="AFEM"><span><b>01</b>L’association</span></div>
 
-    <div class="quote">
-      <div class="mark">“</div>
-      <div><p>L'orientation ne devrait pas être un privilège.</p><small>Les valeurs de l'AFEM</small></div>
-    </div>
+  <div class="left">
+    <h2>Créée par des étudiants, <em>pour les étudiants.</em></h2>
+    <p>L’AFEM — Aide aux Futurs Étudiants en Médecine — est une association à but non lucratif fondée en 2020, juste après la réforme PASS / L.AS.</p>
+    <p>Elle est née d’un constat simple : face à la complexité de la réforme, les lycéens et leurs familles manquaient d’informations fiables. Son objectif est que chaque élève motivé ait les mêmes chances, quels que soient son lycée et ses moyens.</p>
+    <div class="team">L’association réunit <b>des étudiants en médecine</b>, <b>d’anciens étudiants de PASS</b>, <b>des professeurs agrégés</b> et <b>des bénévoles</b>.</div>
+  </div>
+  <div class="pic photo"></div>
 
-    <div class="values">
-      <div class="value">
-        <div class="ico"><svg viewBox="0 0 24 24"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z"/></svg></div>
-        <h4>Gratuité</h4><p>Nos outils et nos interventions sont gratuits, et le resteront.</p>
-      </div>
-      <div class="value">
-        <div class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></div>
-        <h4>Accessibilité</h4><p>Une information claire pour tous, sans condition de ressources ni de lieu.</p>
-      </div>
-      <div class="value">
-        <div class="ico"><svg viewBox="0 0 24 24"><path d="M12 3l2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 16.4 6.8 19.2l1-5.9L3.5 9.2l5.9-.8z"/></svg></div>
-        <h4>Excellence</h4><p>Des contenus conçus et vérifiés par des professionnels de l'éducation et de la santé.</p>
-      </div>
-    </div>
+  <div class="quote">
+    <div class="q">L’orientation ne devrait pas être un privilège.</div>
+    <small>La conviction<br>qui guide l’AFEM<br>depuis 2020</small>
+  </div>
 
-    <div class="why">
-      <div class="photo"></div>
-      <div>
-        <span class="kicker">Pourquoi cette conférence</span>
-        <h3>Pour beaucoup de familles, la première année de médecine est devenue une boîte noire.</h3>
-      </div>
-      <div>
-        <p>Fin de la PACES, fin du numerus clausus, arrivée du PASS et de la L.AS, capacités d'accueil fixées par chaque université, filières MMOPK&nbsp;: en quelques années, tout a changé.</p>
-        <p>Qui mieux que des étudiants qui l'ont vécue il y a un ou deux ans pour raconter, sans détour, ce qui attend vraiment vos élèves&nbsp;?</p>
-      </div>
+  <div class="values">
+    <div><h3>Gratuité</h3><p>Nos outils et nos interventions sont gratuits, et le resteront.</p></div>
+    <div><h3>Accessibilité</h3><p>Une information claire pour tous, sans condition de ressources ni de lieu.</p></div>
+    <div><h3>Excellence</h3><p>Des contenus conçus et vérifiés par des professionnels de l’éducation et de la santé.</p></div>
+  </div>
+
+  <div class="why">
+    <div class="big">Pour beaucoup de familles, la première année de médecine est devenue une boîte noire.</div>
+    <div>
+      <p>Fin de la PACES et du numerus clausus, arrivée du PASS et de la L.AS, capacités d’accueil fixées par chaque université, filières MMOPK : en quelques années, tout a changé.</p>
+      <p>Qui mieux que des étudiants qui l’ont vécue il y a un ou deux ans pour raconter, sans détour, ce qui attend vraiment vos élèves ?</p>
     </div>
   </div>
-  <div class="runfoot"><span>AFEM · Aide aux Futurs Étudiants en Médecine</span><span class="num">2</span></div>
+
+  <div class="folio"><span>AFEM · Aide aux Futurs Étudiants en Médecine</span><span>2</span></div>
 </section>
 
-<!-- ===================== PAGE 3 — CE QUE NOUS PROPOSONS ===================== -->
+<!-- ═══ Page 3 — La conférence ═══ -->
 <section class="page p3">
-  <div class="runhead"><img src="https://www.afem-edu.fr/assets/logo.png" alt="AFEM"><span class="sec"><b>02</b>Ce que nous proposons</span></div>
-  <div class="content">
-    <div class="banner photo">
-      <span class="pill">1 h · 50 min + questions</span>
-      <div class="txt">
-        <span class="kicker">La conférence</span>
-        <h2>« La réforme des études de santé&nbsp;: comment se passe vraiment une première année de médecine&nbsp;? »</h2>
-      </div>
-    </div>
+  <div class="bar"><img src="assets/afem-logo.png" alt="AFEM"><span><b>02</b>La conférence</span></div>
+  <div class="banner photo"></div>
 
-    <div class="prog">
-      <div class="side">
-        <span class="kicker">Le déroulé</span>
-        <h3>Une parole d'étudiants, claire et sans filtre</h3>
-        <p>Animée par des étudiants et d'anciens étudiants en santé, la conférence mêle explications, témoignages et échanges. Elle se termine toujours par un temps de questions-réponses.</p>
-      </div>
-      <ol class="steps">
-        <li><span class="n">1</span><div><h4>La réforme en clair</h4><p>Fin de la PACES et du numerus clausus, PASS et L.AS, numerus apertus, filières MMOPK (médecine, maïeutique, odontologie, pharmacie, kinésithérapie)&nbsp;: comment fonctionne aujourd'hui l'accès aux études de santé.</p></div></li>
-        <li><span class="n">2</span><div><h4>Une première année racontée de l'intérieur</h4><p>Le rythme des cours, le volume de travail, les examens, l'organisation au quotidien&nbsp;: ce que l'on ne trouve pas dans les brochures.</p></div></li>
-        <li><span class="n">3</span><div><h4>Des témoignages</h4><p>Des parcours variés, en PASS comme en L.AS&nbsp;: les doutes, les méthodes qui ont fonctionné, les rebonds possibles.</p></div></li>
-        <li><span class="n">4</span><div><h4>Les questions des élèves</h4><p>Un temps d'échange ouvert, où toutes les questions sont les bienvenues, y compris celles que l'on n'ose pas poser aux adultes.</p></div></li>
-      </ol>
-    </div>
+  <div class="title">
+    <div class="over">Notre conférence</div>
+    <h2>« La réforme des études de santé : comment se passe <em>vraiment</em> une première année de médecine ? »</h2>
+    <div class="meta"><b>Durée</b> environ 1 h, dont un long temps de questions &nbsp;·&nbsp; <b>Animée par</b> des étudiants et d’anciens étudiants en santé</div>
+  </div>
 
-    <div class="formats-title"><h3>Trois formats, selon vos besoins</h3><span>À choisir ou à combiner</span></div>
-    <div class="formats">
-      <div class="fmt">
-        <div class="img" style="background-image:url('https://images.unsplash.com/photo-1524178232363-1fb2b075b655?fm=jpg&fit=crop&w=700&q=70')"></div>
-        <div class="bd"><h4>Conférence en amphithéâtre</h4><span class="dur">1 h · 50 min + questions</span><p>Pour un ou plusieurs groupes de Première et de Terminale, avec ou sans les parents.</p></div>
-      </div>
-      <div class="fmt">
-        <div class="img" style="background-image:url('https://images.unsplash.com/photo-1543269865-cbf427effbad?fm=jpg&fit=crop&w=700&q=70')"></div>
-        <div class="bd"><h4>Stand au forum d'orientation</h4><span class="dur">Sur la durée du forum</span><p>Des échanges individuels avec les élèves et les parents, et une présentation de nos outils gratuits.</p></div>
-      </div>
-      <div class="fmt">
-        <div class="img" style="background-image:url('https://images.unsplash.com/photo-1571260899304-425eee4c7efc?fm=jpg&fit=crop&w=700&q=70')"></div>
-        <div class="bd"><h4>Intervention en classe</h4><span class="dur">Première ou Terminale</span><p>Un format plus interactif, en effectif classe, idéal pendant une heure de vie de classe ou d'orientation.</p></div>
-      </div>
+  <div class="program">
+    <div><span class="n">01</span><div><h3>La réforme en clair</h3><p>Fin de la PACES et du numerus clausus, PASS et L.AS, numerus apertus, filières MMOPK : comment on accède aujourd’hui aux études de santé.</p></div></div>
+    <div><span class="n">02</span><div><h3>Une première année vue de l’intérieur</h3><p>Le rythme des cours, le volume de travail, les examens, l’organisation au quotidien : ce qu’on ne trouve pas dans les brochures.</p></div></div>
+    <div><span class="n">03</span><div><h3>Des témoignages</h3><p>Des parcours variés, en PASS comme en L.AS : les doutes, les méthodes qui ont marché, les rebonds possibles.</p></div></div>
+    <div><span class="n">04</span><div><h3>Les questions des élèves</h3><p>Un temps d’échange ouvert, y compris pour les questions qu’on n’ose pas poser aux adultes.</p></div></div>
+  </div>
+
+  <div class="fmt-head"><h3>Trois façons de nous accueillir</h3><span>À choisir ou à combiner</span></div>
+  <div class="formats">
+    <div>
+      <div class="ph photo" style="background-image:url('assets/afem-amphi.jpg');background-position:center 30%"></div>
+      <h3>Conférence en amphithéâtre</h3>
+      <div class="d">Environ 1 h</div>
+      <p>Pour un ou plusieurs groupes de Première et de Terminale, avec ou sans les parents.</p>
+    </div>
+    <div>
+      <div class="ph photo" style="background-image:url('assets/afem-table.jpg');background-position:center 40%"></div>
+      <h3>Stand au forum d’orientation</h3>
+      <div class="d">Sur toute la durée du forum</div>
+      <p>Des échanges individuels avec les élèves et les parents, et la présentation de nos outils gratuits.</p>
+    </div>
+    <div>
+      <div class="ph photo" style="background-image:url('assets/afem-classe.jpg');background-position:center 30%"></div>
+      <h3>Intervention en classe</h3>
+      <div class="d">Une heure de cours</div>
+      <p>Un format plus interactif, idéal pendant une heure de vie de classe ou d’orientation.</p>
     </div>
   </div>
-  <div class="runfoot"><span>AFEM · Aide aux Futurs Étudiants en Médecine</span><span class="num">3</span></div>
+
+  <div class="folio"><span>AFEM · Aide aux Futurs Étudiants en Médecine</span><span>3</span></div>
 </section>
 
-<!-- ===================== PAGE 4 — OUTILS / PRATIQUE / CONTACT ===================== -->
+<!-- ═══ Page 4 — Outils, pratique, contact ═══ -->
 <section class="page p4">
-  <div class="runhead"><img src="https://www.afem-edu.fr/assets/logo.png" alt="AFEM"><span class="sec"><b>03</b>Outils &amp; infos pratiques</span></div>
-  <div class="content" style="bottom:66mm">
-    <div class="tools-head">
-      <span class="kicker">Pour prolonger l'intervention</span>
-      <h2>Des outils gratuits, <span class="hl">en accès libre</span> sur afem-edu.fr</h2>
-    </div>
+  <div class="bar"><img src="assets/afem-logo.png" alt="AFEM"><span><b>03</b>Outils & infos pratiques</span></div>
 
-    <div class="sim">
-      <div class="top"><h3>Le simulateur Parcoursup</h3><span class="free">Gratuit</span></div>
-      <p>Il permet à chaque élève d'estimer ses chances d'admission en PASS et en L.AS, faculté par faculté, à partir des données réelles des années précédentes.</p>
-      <div class="flow">
-        <div class="st"><small>Étape 1</small><b>Son profil</b><span>Ses notes, ses spécialités de Terminale et son académie d'origine.</span></div>
-        <div class="ar">→</div>
-        <div class="st"><small>Étape 2</small><b>La comparaison</b><span>Avec les moyennes des admis, les spécialités et les taux d'acceptation par académie.</span></div>
-        <div class="ar">→</div>
-        <div class="st"><small>Étape 3</small><b>Son classement</b><span>Un classement personnalisé des facultés, avec des probabilités d'admission.</span></div>
-      </div>
-      <p class="note"><b>Données utilisées&nbsp;:</b> jeux de données publics Parcoursup (open data, 2020 à 2023). Le résultat est une estimation qui donne une tendance, jamais une garantie.</p>
+  <div class="sim">
+    <div class="head">
+      <div><div class="over">Pour prolonger l’intervention</div><h2>Le simulateur <em>Parcoursup</em></h2></div>
+      <p>Gratuit et en accès libre sur afem-edu.fr, il permet à chaque élève d’estimer ses chances d’admission en PASS et en L.AS, faculté par faculté, à partir des données réelles des années précédentes.</p>
     </div>
-
-    <div class="others">
-      <div class="other"><b>Quizz x Fac</b><span>Un quiz de compatibilité pour identifier la faculté la plus adaptée à son profil.</span></div>
-      <div class="other"><b>Calculateur de réussite</b><span>Une estimation des chances de réussite en PASS ou en L.AS selon son profil.</span></div>
-      <div class="other"><b>QCM Médecine</b><span>Des QCM par matière, avec correction détaillée, pour découvrir le format.</span></div>
+    <div class="steps">
+      <div><div class="k">Étape 1</div><h3>Son profil</h3><p>Ses notes, ses spécialités de Terminale et son académie d’origine.</p></div>
+      <div><div class="k">Étape 2</div><h3>La comparaison</h3><p>Avec les moyennes des admis, les spécialités et les taux d’acceptation par académie.</p></div>
+      <div><div class="k">Étape 3</div><h3>Son classement</h3><p>Un classement personnalisé des facultés, avec des probabilités d’admission.</p></div>
     </div>
+    <div class="data">Données publiques Parcoursup (open data, 2020 à 2023). Le résultat donne une tendance, jamais une garantie.</div>
+  </div>
 
-    <div class="prac">
-      <span class="kicker">En pratique</span>
-      <h3>Une intervention simple à organiser</h3>
-      <div class="grid">
-        <div class="it"><div class="ico"><svg viewBox="0 0 24 24"><path d="M20 12v9H4v-9"/><rect x="2" y="7" width="20" height="5" rx="1"/><path d="M12 21V7"/></svg></div><b>Gratuite</b><span>Aucun coût pour l'établissement ni pour les familles.</span></div>
-        <div class="it"><div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg></div><b>Adaptable</b><span>Date, horaire et durée calés sur votre emploi du temps.</span></div>
-        <div class="it"><div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M8 20h8M12 16v4"/></svg></div><b>Supports fournis</b><span>Nous apportons tout&nbsp;; un vidéoprojecteur suffit.</span></div>
-        <div class="it"><div class="ico"><svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg></div><b>Non commerciale</b><span>Une information neutre, sans aucune démarche de vente.</span></div>
-      </div>
+  <div class="tools">
+    <div class="grid">
+      <div><h3>Quizz x Fac</h3><p>Un quiz de compatibilité pour repérer la faculté la plus adaptée à son profil.</p></div>
+      <div><h3>Calculateur de réussite</h3><p>Une estimation des chances de réussite en PASS ou en L.AS selon son profil.</p></div>
+      <div><h3>QCM Médecine</h3><p>Des QCM par matière, corrigés en détail, pour découvrir le format des épreuves.</p></div>
+    </div>
+  </div>
+
+  <div class="prat">
+    <div class="over">En pratique</div>
+    <div class="grid">
+      <p><b>Gratuit.</b> Aucun coût pour l’établissement ni pour les familles.</p>
+      <p><b>Adaptable.</b> Date, horaire et durée calés sur votre emploi du temps.</p>
+      <p><b>Clé en main.</b> Nous apportons tout ; un vidéoprojecteur suffit.</p>
+      <p><b>Non commercial.</b> Une information neutre, sans aucune démarche de vente.</p>
     </div>
   </div>
 
   <div class="contact">
-    <div class="c1"></div><div class="c2"></div>
-    <h3>Envie d'accueillir l'AFEM dans votre lycée&nbsp;?<br>Construisons ensemble votre intervention.</h3>
-    <div class="lines">
-      <div><small>E-mail</small><span>partenariat@afem-edu.fr</span></div>
-      <div><small>Site</small><span>afem-edu.fr</span></div>
-      <div><small>Instagram</small><span>@afem_edu</span></div>
+    <div class="ph photo"></div>
+    <div class="txt">
+      <div class="over">Contact</div>
+      <div class="big">Envie d’accueillir l’AFEM dans votre lycée ? Construisons ensemble votre intervention.</div>
+      <div class="coords">
+        <div><small>E-mail</small><span>partenariat@afem-edu.fr</span></div>
+        <div><small>Site</small><span>afem-edu.fr</span></div>
+        <div><small>Instagram</small><span>@afem_edu</span></div>
+      </div>
     </div>
-    <div class="base"><div class="logo"><img src="https://www.afem-edu.fr/assets/logo.png" alt="AFEM"></div><span>Association à but non lucratif · Intervention gratuite et non commerciale</span></div>
+    <div class="end">Association à but non lucratif · Intervention gratuite et non commerciale</div>
   </div>
 </section>
 
