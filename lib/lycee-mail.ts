@@ -13,6 +13,8 @@
  * L'onglet Lycées → Mails → « Boîtes & modèles » affiche l'ID client et l'état.
  *
  * ENV : GOOGLE_SA_CLIENT_EMAIL, GOOGLE_SA_PRIVATE_KEY (comme Meet),
+ *       ou un compte de service dédié aux mails : LYCEE_MAIL_SA_CLIENT_EMAIL,
+ *       LYCEE_MAIL_SA_PRIVATE_KEY, LYCEE_MAIL_SA_PROJECT_NUMBER (prioritaires) ;
  *       LYCEE_MAIL_DIPLOMA / LYCEE_MAIL_AFEM (facultatif, adresses des boîtes).
  */
 
@@ -32,8 +34,26 @@ export const GMAIL_SCOPES = [
   'https://www.googleapis.com/auth/gmail.readonly',
 ]
 
-/** Scopes à coller dans la délégation (Meet compris, pour ne pas le casser). */
-export const DELEGATION_SCOPES = ['https://www.googleapis.com/auth/calendar.events', ...GMAIL_SCOPES]
+/** Compte de service dédié aux mails (si défini), sinon celui de Meet. */
+const DEDICATED_SA = Boolean(process.env.LYCEE_MAIL_SA_CLIENT_EMAIL && process.env.LYCEE_MAIL_SA_PRIVATE_KEY)
+
+function saEmail(): string | undefined {
+  return DEDICATED_SA ? process.env.LYCEE_MAIL_SA_CLIENT_EMAIL : process.env.GOOGLE_SA_CLIENT_EMAIL
+}
+
+/** Numéro du projet Google Cloud du compte de service (activation de l'API Gmail). */
+export function saProjectNumber(): string | null {
+  return DEDICATED_SA
+    ? process.env.LYCEE_MAIL_SA_PROJECT_NUMBER || null
+    : process.env.GOOGLE_SA_PROJECT_NUMBER || '77694306982'
+}
+
+export function serviceAccountEmail(): string | null {
+  return saEmail() ?? null
+}
+
+/** Scopes à coller dans la délégation (Meet compris si on partage son compte de service). */
+export const DELEGATION_SCOPES = DEDICATED_SA ? GMAIL_SCOPES : ['https://www.googleapis.com/auth/calendar.events', ...GMAIL_SCOPES]
 
 export function missingMailMigration() {
   return NextResponse.json(
@@ -52,16 +72,16 @@ export function allMailboxes(): { mode: LyceeMode; mailbox: string }[] {
 }
 
 export function isGmailConfigured(): boolean {
-  return Boolean(process.env.GOOGLE_SA_CLIENT_EMAIL && process.env.GOOGLE_SA_PRIVATE_KEY)
+  return Boolean(saEmail() && privateKey())
 }
 
 function privateKey(): string {
-  return (process.env.GOOGLE_SA_PRIVATE_KEY || '').replace(/\\n/g, '\n')
+  return ((DEDICATED_SA ? process.env.LYCEE_MAIL_SA_PRIVATE_KEY : process.env.GOOGLE_SA_PRIVATE_KEY) || '').replace(/\\n/g, '\n')
 }
 
 function gmailFor(mailbox: string): gmail_v1.Gmail {
   const auth = new google.auth.JWT({
-    email: process.env.GOOGLE_SA_CLIENT_EMAIL,
+    email: saEmail(),
     key: privateKey(),
     scopes: GMAIL_SCOPES,
     subject: mailbox,
@@ -105,11 +125,12 @@ async function ensureGmailApiEnabled(): Promise<void> {
   gmailApiEnableTried = true
   try {
     const auth = new google.auth.JWT({
-      email: process.env.GOOGLE_SA_CLIENT_EMAIL,
+      email: saEmail(),
       key: privateKey(),
       scopes: ['https://www.googleapis.com/auth/cloud-platform'],
     })
-    const projectNumber = process.env.GOOGLE_SA_PROJECT_NUMBER || '77694306982'
+    const projectNumber = saProjectNumber()
+    if (!projectNumber) return
     await google.serviceusage({ version: 'v1', auth }).services.enable({ name: `projects/${projectNumber}/services/gmail.googleapis.com` })
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e)
@@ -128,7 +149,7 @@ export async function serviceAccountClientId(): Promise<string | null> {
   if (!isGmailConfigured()) return null
   try {
     const auth = new google.auth.JWT({
-      email: process.env.GOOGLE_SA_CLIENT_EMAIL,
+      email: saEmail(),
       key: privateKey(),
       scopes: ['https://www.googleapis.com/auth/cloud-platform'],
     })

@@ -18,7 +18,7 @@ import { api, fmtDateTime } from './ui'
 type MailboxesResponse = {
   configured: boolean
   mailboxes: { mode: LyceeMode; mailbox: string; ok: boolean; error?: string; last_synced_at: string | null; last_error: string | null }[]
-  setup: { client_id: string | null; service_account: string | null; scopes: string } | null
+  setup: { client_id: string | null; service_account: string | null; project_number: string | null; scopes: string } | null
 }
 
 type Draft = Partial<LyceeEmailTemplate> & { mode: LyceeMode }
@@ -128,7 +128,7 @@ export default function EmailTemplatesModal({ onClose }: { onClose: () => void }
             {boxes.mailboxes.some(b => /API Gmail/.test(b.error ?? '')) && (
               <AdminNotice tone="warning">
                 Dernière étape : l’API Gmail doit être activée une fois dans le projet Google Cloud du compte de service (avec le compte propriétaire du projet).{' '}
-                <a href="https://console.developers.google.com/apis/api/gmail.googleapis.com/overview?project=77694306982" target="_blank" rel="noreferrer" style={{ color: crmV2.link, fontWeight: 800 }}>
+                <a href={`https://console.cloud.google.com/apis/library/gmail.googleapis.com?project=${boxes.setup?.project_number ?? ''}`} target="_blank" rel="noreferrer" style={{ color: crmV2.link, fontWeight: 800 }}>
                   Activer l’API Gmail →
                 </a>
               </AdminNotice>
@@ -154,6 +154,11 @@ export default function EmailTemplatesModal({ onClose }: { onClose: () => void }
                   </li>
                   <li>Autoriser, attendre 1 à 5 minutes, puis rouvrir cette fenêtre : la boîte passe au vert.</li>
                 </ol>
+                {boxes.setup.service_account && (
+                  <div style={{ fontSize: 12, color: crmV2.textMuted, marginTop: 8 }}>
+                    Compte de service utilisé : <code>{boxes.setup.service_account}</code>{boxes.setup.project_number ? ` · projet Google Cloud n° ${boxes.setup.project_number}` : ''}
+                  </div>
+                )}
                 <div style={{ fontSize: 12, color: crmV2.textMuted, marginTop: 8 }}>
                   Si afem-edu.fr est un Workspace séparé de diploma-sante.fr, refaire la même chose dans la console d’administration d’afem-edu.fr (même ID client).
                 </div>

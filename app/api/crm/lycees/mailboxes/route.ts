@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireLyceeAccess } from '@/lib/lycees-server'
 import {
-  allMailboxes, DELEGATION_SCOPES, isGmailConfigured, mailboxStatus, serviceAccountClientId,
+  allMailboxes, DELEGATION_SCOPES, isGmailConfigured, mailboxStatus, saProjectNumber, serviceAccountClientId, serviceAccountEmail,
 } from '@/lib/lycee-mail'
 
 export const maxDuration = 30
@@ -26,7 +26,8 @@ export async function GET() {
     mailboxes: boxes,
     setup: isManager ? {
       client_id: await serviceAccountClientId(),
-      service_account: process.env.GOOGLE_SA_CLIENT_EMAIL ?? null,
+      service_account: serviceAccountEmail(),
+      project_number: saProjectNumber(),
       scopes: DELEGATION_SCOPES.join(','),
     } : null,
   })
