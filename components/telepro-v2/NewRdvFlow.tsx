@@ -220,7 +220,7 @@ function NewContactFields({ form, isMobile }: { form: NewRdvForm; isMobile: bool
   } = form
   const allFilled =
     newFirstname.trim() && newLastname.trim() && newEmail.trim() &&
-    newPhone.trim() && newDepartement.trim() && newClasse.trim()
+    newPhone.trim() && newClasse.trim()
   const canCreate = !!allFilled && !newEmailFormatError && !newEmailExisting && !newEmailChecking && !creating
   const inp = tpInput(isMobile)
   return (
@@ -263,7 +263,7 @@ function NewContactFields({ form, isMobile }: { form: NewRdvForm; isMobile: bool
       </div>
       <input type="tel" value={newPhone} onChange={e => setNewPhone(e.target.value)} placeholder="Téléphone *" style={inp} />
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-        <input type="text" inputMode="numeric" value={newDepartement} onChange={e => setNewDepartement(e.target.value.replace(/\D/g, '').slice(0, 3))} placeholder="Département * (ex : 75)" maxLength={3} style={inp} />
+        <input type="text" inputMode="numeric" value={newDepartement} onChange={e => setNewDepartement(e.target.value.replace(/\D/g, '').slice(0, 3))} placeholder="Département (facultatif)" maxLength={3} style={inp} />
         <select value={newClasse} onChange={e => setNewClasse(e.target.value)} style={{ ...inp, cursor: 'pointer' }}>
           <option value="">Classe actuelle *</option>
           {CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
@@ -404,7 +404,7 @@ function InfosFields({ form, isMobile, teleproUserId }: { form: NewRdvForm; isMo
         <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Ex : 0612345678" style={inp} />,
       )}
       {field(
-        <TpLabel icon={<Mail size={12} color="#06b6d4" />} extra={emailSynced ? <span style={{ fontSize: 10, color: '#16a34a', textTransform: 'none', letterSpacing: 0 }}>Mis à jour</span> : null}>Email</TpLabel>,
+        <TpLabel icon={<Mail size={12} color="#06b6d4" />} extra={emailSynced ? <span style={{ fontSize: 10, color: '#16a34a', textTransform: 'none', letterSpacing: 0 }}>Mis à jour</span> : null}>Email *</TpLabel>,
         <input type="email" value={email} onChange={e => setEmail(e.target.value)} onBlur={syncEmail} placeholder="email@exemple.com" style={inp} />,
       )}
       {field(
@@ -419,7 +419,7 @@ function InfosFields({ form, isMobile, teleproUserId }: { form: NewRdvForm; isMo
       )}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         {field(
-          <TpLabel icon={<MapPin size={12} color={crmV2.gold} />}>Département *</TpLabel>,
+          <TpLabel icon={<MapPin size={12} color={crmV2.gold} />} extra={<span style={{ fontSize: 10, color: crmV2.textFaint, fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>(facultatif)</span>}>Département</TpLabel>,
           <input type="text" inputMode="numeric" value={departement} onChange={e => setDepartement(e.target.value.replace(/\D/g, '').slice(0, 3))} placeholder="Ex : 75" maxLength={3} style={inp} />,
         )}
         {field(
@@ -580,7 +580,7 @@ export default function NewRdvFlow({
 }) {
   // Étape mémorisée pour un contact donné : changer de contact revient à l'étape 1
   const [stepState, setStepState] = useState<{ contactId: string | null; step: 1 | 2 | 3 }>({ contactId: null, step: 1 })
-  const { contact, selectedSlot, contactName, formation, classeActuelle, submit, submitting, canSubmit, error } = form
+  const { contact, selectedSlot, contactName, formation, classeActuelle, submit, submitting, canSubmit, missingFields, error } = form
 
   // Retour à l'étape 1 si le contact est retiré (« Changer », reset après succès…)
   const step: 1 | 2 | 3 = contact && stepState.contactId === contact.id ? stepState.step : 1
@@ -591,9 +591,14 @@ export default function NewRdvFlow({
   const slotLabel = selectedSlot ? format(new Date(selectedSlot.start), 'EEE d MMM HH:mm', { locale: fr }) : ''
 
   const submitButton = (
-    <TpGoldButton onClick={submit} disabled={submitting || !canSubmit}>
-      <Check size={16} /> {submitting ? 'Enregistrement…' : 'Valider le RDV'}
-    </TpGoldButton>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <TpGoldButton onClick={submit} disabled={submitting || !canSubmit}>
+        <Check size={16} /> {submitting ? 'Enregistrement…' : 'Valider le RDV'}
+      </TpGoldButton>
+      {!canSubmit && contact && (
+        <div style={{ fontSize: 12, color: crmV2.goldDark, textAlign: 'center' }}>Il manque : {missingFields.join(', ')}</div>
+      )}
+    </div>
   )
 
   /* ── Mobile : 3 écrans ── */

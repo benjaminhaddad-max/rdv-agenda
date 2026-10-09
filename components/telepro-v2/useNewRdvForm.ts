@@ -265,7 +265,7 @@ export function useNewRdvForm({ teleproUser, isLinovaBrandUser }: { teleproUser:
   async function createNewContact() {
     if (
       !newFirstname.trim() || !newLastname.trim() || !newEmail.trim() ||
-      !newPhone.trim() || !newDepartement.trim() || !newClasse.trim()
+      !newPhone.trim() || !newClasse.trim()
     ) return
     if (newEmailFormatError || newEmailExisting) return
     setCreating(true); setLookupError(null)
@@ -344,14 +344,25 @@ export function useNewRdvForm({ teleproUser, isLinovaBrandUser }: { teleproUser:
   // ── Submit ────────────────────────────────────────────────────────────
   const contactName = contact ? [contact.properties.firstname, contact.properties.lastname].filter(Boolean).join(' ') : ''
   const contactEmail = email || contact?.properties.email || ''
-  const canSubmit = contact && selectedSlot && phone && departement && classeActuelle && formation && (meetingType !== 'presentiel' || !!meetingCampus)
+  // Obligatoires : téléphone, email, classe, formation (+ contact et créneau).
+  // Le reste (département, email parent, notes…) est facultatif.
+  const missingFields = [
+    !contact && 'contact',
+    !selectedSlot && 'créneau',
+    !phone.trim() && 'téléphone',
+    !contactEmail.trim() && 'email',
+    !classeActuelle && 'classe',
+    !formation && 'formation',
+    meetingType === 'presentiel' && !meetingCampus && 'campus',
+  ].filter(Boolean) as string[]
+  const canSubmit = missingFields.length === 0
 
   async function submit() {
     if (isLinovaBrandUser) {
       setError('Prise de RDV classique desactivee pour la marque LINOVA. Utilise le flux Linova depuis le CRM.')
       return
     }
-    if (!canSubmit) { setError('Remplis tous les champs obligatoires (*)'); return }
+    if (!canSubmit) { setError(`Il manque : ${missingFields.join(', ')}`); return }
     setSubmitting(true); setError(null)
     const formationLabel = FORMATIONS.find(f => f.value === formation)?.label || formation
     try {
@@ -363,13 +374,13 @@ export function useNewRdvForm({ teleproUser, isLinovaBrandUser }: { teleproUser:
           email_parent: emailParent.trim() || null,
           start_at: selectedSlot!.start, end_at: selectedSlot!.end,
           source: 'telepro', formation_type: formationLabel, formation_hs_value: formation,
-          hubspot_contact_id: contact!.id, departement, classe_actuelle: classeActuelle,
+          hubspot_contact_id: contact!.id, departement: departement || null, classe_actuelle: classeActuelle,
           meeting_type: meetingType,
           meeting_link: meetingType === 'visio' ? meetingLink || null : (meetingType === 'presentiel' ? meetingCampus : null),
           telepro_id: teleproUser.id,
           call_notes: [
             `📚 Formation demandée : ${formationLabel}`,
-            `📍 Département : ${departement}`,
+            departement ? `📍 Département : ${departement}` : '',
             `🎓 Classe actuelle : ${classeActuelle}`,
             phone ? `📞 Téléphone : ${phone}` : '',
             meetingType === 'presentiel' ? `🏫 Campus : ${meetingCampus}` : '',
@@ -424,7 +435,7 @@ export function useNewRdvForm({ teleproUser, isLinovaBrandUser }: { teleproUser:
     // créneau
     selectedDate, selectedSlot, setSelectedSlot, slots, slotsLoading, calMonth, setCalMonth, handleSelectDate,
     // envoi
-    contactName, contactEmail, canSubmit: !!canSubmit, submitting, success, error, setError, submit, reset,
+    contactName, contactEmail, canSubmit: !!canSubmit, missingFields, submitting, success, error, setError, submit, reset,
     resetContact, prefillFromContactId,
   }
 }
