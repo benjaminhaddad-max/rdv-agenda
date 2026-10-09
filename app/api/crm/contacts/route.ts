@@ -1284,6 +1284,10 @@ export async function GET(req: NextRequest) {
     // / noms avec accents) alors que SQL trouve les contacts attribués.
     ((formEventNames !== null || formEventContactIds !== null || formEventMetaOnlyIds !== null) &&
       !!(teleproId || teleproHsId || forcedScopedTeleproIds.length)) ||
+    // Liste perso d'un télépro (quelques milliers de fiches max) : SQL, toujours
+    // à jour. L'index Typesense peut avoir du retard après une réattribution ou
+    // une correction en masse (ex. filtre « Première » qui ne trouvait rien).
+    !!(teleproId || teleproHsId || forcedScopedTeleproIds.length) ||
     emptyFields.length > 0 || notEmptyFields.length > 0 ||
     customFilters.length > 0 ||
     metaLeadAdsContactIds !== null ||
