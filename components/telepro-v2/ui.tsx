@@ -318,8 +318,8 @@ export function TpTabBar({
       paddingBottom: 'env(safe-area-inset-bottom)', position: 'relative', zIndex: 20,
     }}>
       <div style={{ height: 60, display: 'flex', alignItems: 'center' }}>
+        {item('contacts', 'Contacts', <Users size={18} />, onContacts)}
         {item('agenda', 'Agenda', <CalendarDays size={18} />, onAgenda)}
-        {item('suivi', 'Suivi', <ListChecks size={18} />, onSuivi)}
         <button
           type="button"
           onClick={onNew}
@@ -338,7 +338,7 @@ export function TpTabBar({
           </span>
           <span style={{ whiteSpace: 'nowrap' }}>{newLabel}</span>
         </button>
-        {item('contacts', 'Contacts', <Users size={18} />, onContacts)}
+        {item('suivi', 'Suivi', <ListChecks size={18} />, onSuivi)}
         {item('plus', 'Plus', <Menu size={18} />, onPlus)}
       </div>
     </nav>

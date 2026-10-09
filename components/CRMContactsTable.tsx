@@ -1003,6 +1003,9 @@ const BLOCKED_EXTRA_COLUMN_PROPS = new Set([
 // Colonnes cachées par défaut
 const DEFAULT_HIDDEN_COLS: ColKey[] = []
 
+// Espace télépro : colonnes inutiles pour lui (ni affichées, ni proposées dans « Colonnes »)
+const TELEPRO_EXCLUDED_COLS = new Set<ColKey>(['formation_souhaitee', 'parcoursup_verdict', 'closer', 'createdat_deal'])
+
 const MIXED_COL_STORAGE_KEY = 'crm-mixed-col-order'
 const DYN_COL_WIDTHS_STORAGE_KEY = 'crm-dyn-col-widths'
 const INLINE_EDIT_STOP_KEYS = new Set<ColKey>([
@@ -1516,12 +1519,14 @@ export default function CRMContactsTable({
   // Déterminer les colonnes visibles (en respectant l'ordre courant)
   function isColVisible(key: ColKey): boolean {
     if (key === PINNED_COL) return true
+    if (mode === 'telepro' && TELEPRO_EXCLUDED_COLS.has(key)) return false
     if (hiddenCols.has(key)) return false
     if (key === 'lead_status'        && !leadStatusOptions?.length) return false
     return true
   }
 
   const visibleCols = colOrder.filter(isColVisible)
+  const menuCols = mode === 'telepro' ? colOrder.filter(k => !TELEPRO_EXCLUDED_COLS.has(k)) : colOrder
   const dynamicCols = extraColumns ?? []
   const displayCols = useMemo(
     () => pinOrigineToken(mixedColOrder).filter(entry => {
@@ -1529,7 +1534,7 @@ export default function CRMContactsTable({
       if (isDynToken(entry)) return dynamicCols.includes(entry.slice(2))
       return false
     }),
-    [mixedColOrder, hiddenCols, leadStatusOptions, sourceOptions, dynamicCols],
+    [mixedColOrder, hiddenCols, leadStatusOptions, sourceOptions, dynamicCols, mode],
   )
   // +1 pour checkbox (optionnel) +1 pour actions — non draggables
   const totalCols = displayCols.length + (onToggleSelect ? 1 : 0) + 1
@@ -2305,7 +2310,7 @@ export default function CRMContactsTable({
       >
         <Columns3 size={14} />
         Colonnes
-        <span style={{ color: crmV2.textFaint, fontWeight: 500 }}>{displayCols.length}/{colOrder.length + dynamicCols.length}</span>
+        <span style={{ color: crmV2.textFaint, fontWeight: 500 }}>{displayCols.length}/{menuCols.length + dynamicCols.length}</span>
       </button>
       {colMenuOpen && (
         <div style={{
@@ -2325,7 +2330,7 @@ export default function CRMContactsTable({
           <div style={{ fontSize: 11, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8, paddingBottom: 8, borderBottom: `1px solid ${crmV2.borderLight}` }}>
             Afficher les colonnes
           </div>
-          {colOrder.map(key => {
+          {menuCols.map(key => {
             // Toutes les colonnes sont disponibles dans le menu, même si la
             // liste d'options n'est pas chargée (les cellules afficheront —).
             if (key === PINNED_COL) return null

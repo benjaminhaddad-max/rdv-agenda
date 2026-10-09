@@ -1211,11 +1211,13 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
 
       {/* ── Filtres secondaires ──────────────────────────────────────── */}
 
-      {/* Formation demandée — options chargées à la volée */}
-      <FilterSelect value={filterFormation} onChange={v => { setFilterFormation(v); setPage(0) }}>
-        <option value="">Toutes formations</option>
-        {formationOpts.map(v => <option key={v} value={v}>{v}</option>)}
-      </FilterSelect>
+      {/* Formation demandée — options chargées à la volée (pas côté télépro) */}
+      {mode !== 'telepro' && (
+        <FilterSelect value={filterFormation} onChange={v => { setFilterFormation(v); setPage(0) }}>
+          <option value="">Toutes formations</option>
+          {formationOpts.map(v => <option key={v} value={v}>{v}</option>)}
+        </FilterSelect>
+      )}
 
       {/* Période de création du contact */}
       <FilterSelect value={filterPeriod} onChange={v => { setFilterPeriod(v); setPage(0) }}>
@@ -1226,13 +1228,15 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
         <option value="365d">12 derniers mois</option>
       </FilterSelect>
 
-      {/* Verdict Parcoursup 2026 (telepro + closer) */}
-      <FilterSelect value={filterParcoursupVerdict} onChange={v => { setFilterParcoursupVerdict(v); setPage(0) }}>
-        <option value="">Tous les verdicts Parcoursup</option>
-        {PARCOURSUP_VERDICT_OPTIONS.map(o => (
-          <option key={o.value} value={o.value}>{o.label}</option>
-        ))}
-      </FilterSelect>
+      {/* Verdict Parcoursup 2026 (closer seulement : inutile côté télépro) */}
+      {mode !== 'telepro' && (
+        <FilterSelect value={filterParcoursupVerdict} onChange={v => { setFilterParcoursupVerdict(v); setPage(0) }}>
+          <option value="">Tous les verdicts Parcoursup</option>
+          {PARCOURSUP_VERDICT_OPTIONS.map(o => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </FilterSelect>
+      )}
 
       {/* Étape de transaction (mode closer "Mes Transactions") */}
       {!isContactsView && (

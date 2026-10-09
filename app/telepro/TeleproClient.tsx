@@ -53,7 +53,7 @@ export default function TeleproClient({
   const teleproCrmFilterId = teleproUser.id || ''
   // Les transactions restent filtrées côté deal avec l'ID externe existant.
   const teleproDealsFilterId = teleproUser.hubspot_user_id || teleproUser.hubspot_owner_id || ''
-  const [activeTab, setActiveTab] = useState<TeleproTab>('agenda')
+  const [activeTab, setActiveTab] = useState<TeleproTab>('contacts')
   const [showGuide, setShowGuide] = useState(false)
   const [showResources, setShowResources] = useState(false)
   const [crmTotal, setCrmTotal] = useState(0)
@@ -590,11 +590,11 @@ export default function TeleproClient({
 
   // ─── Ordinateur : en-tête blanc + onglets soulignés ────────────────────
   const tabs = [
+    // « Nouveau RDV » : bouton de l'en-tête (pas d'onglet en doublon)
+    { id: 'contacts', label: 'Mes contacts', count: crmTotal > 0 ? crmTotal : undefined },
     { id: 'agenda', label: 'Agenda RDV' },
-    { id: 'form', label: newRdvLabel },
     { id: 'horaires', label: 'Mes horaires' },
     { id: 'suivi', label: 'Suivi RDV' },
-    { id: 'contacts', label: 'Mes contacts', count: crmTotal > 0 ? crmTotal : undefined },
     { id: 'transactions', label: 'Mes transactions', count: txTotal > 0 ? txTotal : undefined },
     { id: 'repop', label: 'Repop' },
   ]
