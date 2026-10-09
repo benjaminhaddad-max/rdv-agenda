@@ -47,8 +47,8 @@ type Period = 'day' | 'week' | 'month'
 type Mode = 'planning' | 'stats' | 'appels' | 'acces'
 
 const MODES: Record<Tab, Mode[]> = {
-  telepros: ['planning', 'stats', 'acces'],
-  closers: ['stats', 'acces'],
+  telepros: ['planning', 'stats'],
+  closers: ['stats'],
   admins: ['acces'],
 }
 const MODE_LABELS: Record<Mode, string> = { planning: 'Planning', stats: 'Stats', appels: 'Appels', acces: 'Accès' }
@@ -869,7 +869,7 @@ function MembersTable({
     )
   }
 
-  const colSpan = (mode === 'planning' ? 1 : 2) + (mode === 'stats' ? cols.length : mode === 'planning' ? planningDates.length + 1 : ACCES_COLS.length)
+  const colSpan = (mode === 'acces' ? 2 : 1) + (mode === 'stats' ? cols.length : mode === 'planning' ? planningDates.length + 1 : ACCES_COLS.length)
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {extras}
@@ -894,7 +894,7 @@ function MembersTable({
               {mode === 'acces' && ACCES_COLS.map(c => (
                 <CrmV2Th key={c.key} sorted={sort.key === c.key ? sort.dir : false} onClick={c.sortable ? () => onSort(c.key) : undefined}>{c.label}</CrmV2Th>
               ))}
-              {mode !== 'planning' && <CrmV2Th style={{ textAlign: 'right' }}>Compte</CrmV2Th>}
+              {mode === 'acces' && <CrmV2Th style={{ textAlign: 'right' }}>Compte</CrmV2Th>}
             </tr>
           </thead>
           <tbody>
@@ -1058,6 +1058,33 @@ function AccesCells({ row }: { row: Row }) {
   )
 }
 
+/** Ligne « accès » du détail : rôle(s), e-mail, dernière connexion, statut. */
+function AccessSummary({ m }: { m: EquipeMember }) {
+  const roles = teamRolesOf(m)
+  const statusColor = m.is_banned ? '#d13a41' : m.auth_id ? crmV2.successStrong : '#b45309'
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12, color: crmV2.textMuted }}>
+      {roles.map((r, i) => {
+        const c = ROLE_COLOR[r] ?? crmV2.goldDark
+        return (
+          <span key={r} title={i === 0 ? `Rôle principal : ${ROLE_ACCESS[r] ?? ''}` : 'Casquette en plus'} style={{
+            padding: '1px 8px', borderRadius: 999, fontSize: 11, fontWeight: 700, color: c,
+            background: `${c}14`, border: `1px solid ${i === 0 ? c : `${c}40`}`, whiteSpace: 'nowrap',
+          }}>
+            {TEAM_ROLE_LABELS[r] ?? r}
+          </span>
+        )
+      })}
+      <span>{m.email}</span>
+      <span>· dernière connexion : {fmtLastSignIn(m.last_sign_in_at)}</span>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontWeight: 700, color: statusColor }}>
+        <span style={{ width: 7, height: 7, borderRadius: 999, background: 'currentColor' }} />
+        {m.is_banned ? 'Désactivé' : m.auth_id ? 'Actif' : 'Sans compte'}
+      </span>
+    </span>
+  )
+}
+
 /** Bouton « Colonnes » : afficher / masquer les colonnes du tableau. */
 function ColumnPicker({ cols, hidden, onToggle }: { cols: Col[]; hidden: string[]; onToggle: (key: string) => void }) {
   const [open, setOpen] = useState(false)
@@ -1165,7 +1192,13 @@ function MemberRow({
   return (
     <Fragment>
       <CrmV2Tr onClick={onToggle}>
-        <CrmV2Td style={{ whiteSpace: 'nowrap' }}><NameCell tab={tab} row={row} open={open} rank={common.ranks.get(row.id)} compact={mode === 'planning'} /></CrmV2Td>
+        <CrmV2Td style={{ whiteSpace: 'nowrap' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <NameCell tab={tab} row={row} open={open} rank={common.ranks.get(row.id)} compact={mode === 'planning'} />
+            {/* Accès (identifiants, se connecter en tant que, désactiver) à côté du prénom */}
+            {mode !== 'acces' && <span onClick={e => e.stopPropagation()} style={{ display: 'inline-flex' }}>{account.actions}</span>}
+          </span>
+        </CrmV2Td>
         {mode === 'planning' && (common.planning?.report[row.id] ?? []).map(d => (
           <CrmV2Td key={d.date} style={{ height: 'auto', padding: 2, verticalAlign: 'top', borderLeft: `1px solid ${crmV2.borderLight}` }}>
             <PlanningDayCell day={d} today={parisDateKey(new Date())} onClick={() => common.onEditDay(row, d)} />
@@ -1190,7 +1223,7 @@ function MemberRow({
           </CrmV2Td>
         ))}
 
-        {mode !== 'planning' && (
+        {mode === 'acces' && (
           <CrmV2Td style={{ textAlign: 'right' }}>
             <div onClick={e => e.stopPropagation()}>{account.actions}</div>
           </CrmV2Td>
@@ -1202,7 +1235,7 @@ function MemberRow({
       {open && (
         <tr>
           <CrmV2Td colSpan={colSpan} style={{ height: 'auto', padding: '10px 14px 16px', background: crmV2.bgHover }}>
-            <MemberDetail {...common} cols={cols} row={row} actions={mode === 'planning' ? account.actions : null} />
+            <MemberDetail {...common} cols={cols} row={row} actions={null} />
           </CrmV2Td>
         </tr>
       )}
@@ -1268,7 +1301,7 @@ function MemberDetail({ row, actions, ...common }: TableCommon & { row: Row; act
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'space-between', flexWrap: 'wrap' }}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           {tab === 'telepros' && common.periodNav}
-          <span style={{ fontSize: 12, color: crmV2.textMuted }}>{row.member?.email}</span>
+          {row.member && <AccessSummary m={row.member} />}
         </span>
         {actions && <div onClick={e => e.stopPropagation()}>{actions}</div>}
       </div>
