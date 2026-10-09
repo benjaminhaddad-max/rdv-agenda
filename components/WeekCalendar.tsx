@@ -11,6 +11,7 @@ import { useIsMobile } from '@/lib/useIsMobile'
 import { parseExtraParticipants } from '@/lib/appointment-participants'
 import { campusShortLabel } from '@/lib/campus'
 import { RDV_BRANDS, normalizeRdvBrand } from '@/lib/rdv-brand'
+import { hasTeamRole } from '@/lib/team-roles'
 import MediboxBadge from './MediboxBadge'
 import { CrmV2Button, CrmV2Segmented, CrmV2Tabs } from '@/components/crm-v2/primitives'
 import { AgendaRoundButton, AgendaSelectPill } from '@/components/crm-v2/agenda/AgendaControls'
@@ -77,6 +78,9 @@ type Commercial = {
   slug: string
   avatar_color: string
   role: string
+  extra_roles?: string[] | null
+  is_demo?: boolean | null
+  hubspot_owner_id?: string | null
 }
 
 // Vue semaine 9 h → 21 h : 12 tranches d'1/12, tout visible sans défiler
@@ -424,10 +428,8 @@ export default function WeekCalendar({
       .sort((a, b) => (a.competitor ? 1 : 0) - (b.competitor ? 1 : 0) || (a.time_start || '').localeCompare(b.time_start || ''))
   }
 
-  // Closers uniquement (pas managers, pas télépros) + admin (Pascal)
-  const closers = commerciaux.filter(
-    c => c.role === 'closer' || c.role === 'admin'
-  )
+  // Vrais closers : rôle closer ou casquette closer (Pascal, télépro qui close), hors démo
+  const closers = commerciaux.filter(c => hasTeamRole(c, 'closer') && !c.is_demo)
 
   // Compteurs semaine (hors annulés et non-assignés)
   const activeAppointments = appointments.filter(a => a.status !== 'annule' && a.status !== 'non_assigne')
@@ -1794,8 +1796,16 @@ export default function WeekCalendar({
           canAssign={allowAssign}
           teleproView={teamView && !closerId && !adminMode}
           onUpdate={(updated) => {
+            const prevCloser = selectedAppointment.users?.id ?? null
+            const newCloser = (updated as { commercial_id?: string | null }).commercial_id
             setAppointments(prev => prev.map(a => a.id === updated.id ? { ...a, ...updated } : a))
             setSelectedAppointment(prev => prev ? { ...prev, ...updated } : null)
+            // Réassigné : fiche fermée + rechargement (le RDV quitte « Moi » / l'agenda filtré, closer à jour)
+            if (newCloser !== undefined && newCloser !== prevCloser) {
+              setSelectedAppointment(null)
+              fetchAppointments()
+              setMoveToast({ kind: 'ok', msg: 'RDV réassigné' })
+            }
           }}
           onDelete={(deletedId) => {
             setAppointments(prev => prev.filter(a => a.id !== deletedId))

@@ -5,6 +5,7 @@ import { User, Clock, Tag, Zap, CheckCircle, AlertCircle, Eye, EyeOff, RefreshCw
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { formatAppointmentPlacementLabel } from '@/lib/appointment-display'
+import { hasTeamRole, PASCAL_OWNER_ID } from '@/lib/team-roles'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import { useIsMobile } from '@/lib/useIsMobile'
 import {
@@ -31,6 +32,9 @@ type Commercial = {
   avatar_color: string
   slug: string
   role: string
+  extra_roles?: string[] | null
+  is_demo?: boolean | null
+  hubspot_owner_id?: string | null
   rdv_count?: number
   is_available?: boolean
   is_blocked?: boolean
@@ -64,15 +68,19 @@ export function AssignCloserPanel({
   const [selected, setSelected] = useState<string | null>(null)
   const [assigning, setAssigning] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [loadingClosers, setLoadingClosers] = useState(true)
   const [previewCloserId, setPreviewCloserId] = useState<string | null>(null)
   const [previewAppts, setPreviewAppts] = useState<{ id: string; prospect_name: string; start_at: string; end_at: string; status: string }[]>([])
   const [previewLoading, setPreviewLoading] = useState(false)
 
   useEffect(() => {
+    setLoadingClosers(true)
     fetch('/api/users')
-      .then(r => r.json())
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error('Liste des closers indisponible'))))
       .then(async (users: Commercial[]) => {
-        const closersList = users.filter(u => u.role === 'closer' || u.role === 'admin')
+        // Vrais closers : rôle closer ou casquette closer (Pascal, Sofia…), hors comptes démo.
+        // (Pas « tous les admins » : Aaron, Benjamin… ne closent pas.)
+        const closersList = users.filter(u => hasTeamRole(u, 'closer') && !u.is_demo)
 
         const weekStart = new Date(appointment.start_at)
         weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1)
@@ -115,15 +123,16 @@ export function AssignCloserPanel({
         })
         setClosers(sorted)
 
-        const available = sorted.filter(c => c.is_available)
-        if (available.length === 1) {
-          setSelected(available[0].id)
-        } else if (available.length > 1) {
-          const admin = available.find(c => c.role === 'admin')
-          if (admin) setSelected(admin.id)
-        }
+        // Présélection : jamais le closer actuel en réassignation ; Pascal par
+        // défaut pour une première attribution, sinon le seul closer dispo.
+        const available = sorted.filter(c => c.is_available && !(reassign && c.id === currentCloserId))
+        const pascal = !reassign ? available.find(c => String(c.hubspot_owner_id ?? '') === PASCAL_OWNER_ID) : undefined
+        if (pascal) setSelected(pascal.id)
+        else if (available.length === 1) setSelected(available[0].id)
       })
-  }, [appointment.start_at, appointment.end_at])
+      .catch(e => setError(e instanceof Error ? e.message : 'Liste des closers indisponible'))
+      .finally(() => setLoadingClosers(false))
+  }, [appointment.start_at, appointment.end_at]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function assign() {
     if (!selected) return
@@ -204,7 +213,7 @@ export function AssignCloserPanel({
         <div style={{ padding: '8px 14px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
           {closers.length === 0 && (
             <div style={{ textAlign: 'center', color: crmV2.textFaint, padding: '20px 0', fontSize: 13 }}>
-              Chargement des closers…
+              {loadingClosers ? 'Chargement des closers…' : 'Aucun closer trouvé.'}
             </div>
           )}
           {closers.map((closer, idx) => {

@@ -51,9 +51,10 @@ export async function GET(req: NextRequest) {
   const roles = url.searchParams.get('roles')  // ex: "closer,admin"
 
   const db = createServiceClient()
+  // extra_roles / is_demo : listes de closers (casquette closer en plus du rôle, hors comptes démo)
   let query = db
     .from('rdv_users')
-    .select('id, name, email, slug, avatar_color, role, hubspot_owner_id, hubspot_user_id, auth_id, created_at, crm_brand, crm_scope, is_default_brand_telepro')
+    .select('id, name, email, slug, avatar_color, role, extra_roles, is_demo, hubspot_owner_id, hubspot_user_id, auth_id, created_at, crm_brand, crm_scope, is_default_brand_telepro')
     .order('name')
 
   if (roles) {
