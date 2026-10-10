@@ -12,7 +12,8 @@
  * renseigne il est ajoute en cc.
  */
 
-import { sendBrevoEmail } from '@/lib/brevo'
+import { sendBrevoEmail, sendBrevoTemplateEmail } from '@/lib/brevo'
+import { RDV_BREVO_TEMPLATE_IDS, rdvTemplateParams, usesBrevoTemplate, type RdvEmailKind } from '@/lib/rdv-email-templates'
 import { buildConfirmUrl } from '@/lib/confirm-link'
 import { personalizeVisioUrl } from '@/lib/visio-url'
 import { extraParticipantEmails } from '@/lib/appointment-participants'
@@ -246,6 +247,7 @@ export async function sendBookingConfirmationEmail(
       heroSubtitle: 'Retrouvez ici toutes les informations pratiques pour préparer sereinement votre échange.',
     }),
     tag: `reminder:booking:${apptId}`,
+    template: { kind: 'booking', params: templateParams({ firstName, dateStr, meetingType, meetingLink }) },
   })
 }
 
@@ -319,6 +321,7 @@ export async function send48hConfirmEmail(
       heroSubtitle: 'Un petit rappel pour tout préparer dans les meilleures conditions.',
     }),
     tag: `reminder:48h:${apptId}`,
+    template: { kind: '48h', params: templateParams({ firstName, dateStr, meetingType, meetingLink, confirmUrl: link }) },
   })
 }
 
@@ -393,6 +396,10 @@ export async function send24hRelanceEmail(
         : 'Merci de confirmer votre présence en un clic pour finaliser votre créneau.',
     }),
     tag: `reminder:24h:${apptId}`,
+    template: {
+      kind: '24h',
+      params: templateParams({ firstName, dateStr, meetingType, meetingLink, confirmUrl: link, confirmed: isConfirmedByProspect }),
+    },
   })
 }
 
@@ -502,6 +509,10 @@ export async function sendMorningEmail(
       heroSubtitle: 'Votre rendez-vous approche, voici les informations utiles avant votre échange.',
     }),
     tag: `reminder:morning:${apptId}`,
+    template: {
+      kind: 'morning',
+      params: templateParams({ firstName, heureStr, meetingType, meetingLink, confirmUrl: confirmLink, confirmed: isConfirmed }),
+    },
   })
 }
 
@@ -554,6 +565,7 @@ export async function sendVisio1hEmail(
       heroSubtitle: 'Cliquez sur le lien ci-dessous pour rejoindre facilement votre rendez-vous.',
     }),
     tag: `reminder:visio-1h:${apptId}`,
+    template: { kind: 'visio1h', params: templateParams({ firstName, heureStr, meetingType: 'visio', meetingLink }) },
   })
 }
 
@@ -600,6 +612,7 @@ export async function sendVisio5minEmail(
       heroSubtitle: 'Vous pouvez rejoindre la salle dès maintenant.',
     }),
     tag: `reminder:visio-5min:${apptId}`,
+    template: { kind: 'visio5min', params: templateParams({ firstName, meetingType: 'visio', meetingLink }) },
   })
 }
 
@@ -626,6 +639,7 @@ export async function sendReplanifierEmail(
       finalFootnote: 'Gratuit · Sans engagement',
     }),
     tag: `reminder:replanif:${apptId}`,
+    template: { kind: 'replanif', params: templateParams({ firstName, replanifUrl: REPLANIF_URL }) },
   })
 }
 
@@ -690,6 +704,7 @@ export async function sendMeetingModeChangeEmail(
       heroSubtitle: 'Retrouvez ici les informations mises à jour pour votre échange.',
     }),
     tag: `reminder:mode-change:${apptId}`,
+    template: { kind: 'modeChange', params: templateParams({ firstName, dateStr, meetingType, meetingLink }) },
   })
 }
 
@@ -741,15 +756,44 @@ export async function sendVisioParticipantInviteEmail(
       heroSubtitle: 'Retrouvez ici le lien pour rejoindre le rendez-vous.',
     }),
     tag: `reminder:participant:${apptId}`,
+    template: {
+      kind: 'participant',
+      params: templateParams({ firstName: participantFirstName, dateStr, meetingType: 'visio', meetingLink, prospectName }),
+    },
   })
 }
 
 // ─── Helper interne ─────────────────────────────────────────────────────────
+
+/** Données du modèle Brevo (lib/rdv-email-templates.ts) à partir des infos du RDV. */
+function templateParams(input: {
+  firstName: string
+  dateStr?: string
+  heureStr?: string
+  meetingType?: string | null
+  meetingLink?: string | null
+  confirmUrl?: string
+  confirmed?: boolean
+  replanifUrl?: string
+  prospectName?: string
+}): Record<string, string> {
+  const isVisio = input.meetingType === 'visio'
+  const isPresentiel = !isVisio && input.meetingType !== 'telephone' && input.meetingType !== undefined
+  return rdvTemplateParams({
+    ...input,
+    address: isPresentiel ? resolvePresentielCampus(input.meetingLink) : null,
+    entryCode: isPresentiel ? PREPA_CODE : null,
+    visioLink: isVisio && input.meetingLink ? personalizeVisioUrl(input.meetingLink, input.firstName) : null,
+  })
+}
+
 async function sendReminderEmail(opts: {
   target: ReminderTarget
   subject: string
   html: string
   tag: string
+  /** Modèle Brevo à utiliser (Diploma) ; le HTML codé sert de secours. */
+  template?: { kind: RdvEmailKind; params: Record<string, string> }
 }): Promise<ReminderResult> {
   const { target, tag } = opts
   const { subject, html, sender } = brandRdvEmail({ subject: opts.subject, html: opts.html }, target.brand)
@@ -769,6 +813,21 @@ async function sendReminderEmail(opts: {
   for (const extra of target.extraEmails || []) push(extra)
   if (to.length === 0) {
     return { ok: false, error: 'Pas d\'email destinataire' }
+  }
+  if (opts.template && usesBrevoTemplate(target.brand)) {
+    try {
+      const res = await sendBrevoTemplateEmail({
+        templateId: RDV_BREVO_TEMPLATE_IDS[opts.template.kind],
+        sender: SENDER,
+        replyTo: { email: SENDER.email, name: SENDER.name },
+        to,
+        params: opts.template.params,
+        tags: [tag],
+      })
+      return { ok: true, messageId: res.messageId }
+    } catch (err) {
+      console.error(`[email-reminders] Modèle Brevo « ${opts.template.kind} » en échec, envoi du mail codé :`, err)
+    }
   }
   try {
     const res = await sendBrevoEmail({

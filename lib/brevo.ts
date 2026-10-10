@@ -129,6 +129,32 @@ export async function sendBrevoEmail(
 }
 
 /**
+ * Envoi d'un email à partir d'un modèle transactionnel Brevo : l'objet et le
+ * contenu viennent du modèle (modifiable dans Brevo), le CRM n'envoie que les
+ * données (`params`, lues dans le modèle via {{ params.X }}).
+ */
+export async function sendBrevoTemplateEmail(params: {
+  templateId: number
+  to: BrevoRecipient[]
+  params: Record<string, string>
+  sender?: { email: string; name?: string }
+  replyTo?: { email: string; name?: string }
+  tags?: string[]
+}): Promise<BrevoSendEmailResponse> {
+  return brevoFetch<BrevoSendEmailResponse>('/smtp/email', {
+    method: 'POST',
+    body: {
+      templateId: params.templateId,
+      sender: params.sender,
+      to: params.to,
+      replyTo: params.replyTo,
+      tags: params.tags,
+      params: params.params,
+    },
+  })
+}
+
+/**
  * Récupère les statistiques d'un message Brevo (par messageId).
  */
 export async function getBrevoEventsForMessage(messageId: string) {
