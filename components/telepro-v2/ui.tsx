@@ -3,7 +3,7 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  CalendarDays, Check, ListChecks, Menu, Phone, Plus, Users, X,
+  CalendarDays, Check, Menu, Phone, Plus, Sun, Users, X,
 } from 'lucide-react'
 import { crmV2, crmV2Navy } from '@/lib/crm-v2-theme'
 import { CrmV2BottomSheet } from '@/components/crm-v2/primitives'
@@ -281,14 +281,14 @@ export function useLogout() {
 
 /* ─── Barre d'onglets du bas (mobile) ───────────────────────────────────── */
 
-export type TpMobileTab = 'agenda' | 'suivi' | 'contacts' | 'plus' | 'form' | null
+export type TpMobileTab = 'today' | 'agenda' | 'contacts' | 'plus' | 'form' | null
 
 export function TpTabBar({
-  active, onAgenda, onSuivi, onNew, onContacts, onPlus, newLabel = 'Nouveau RDV',
+  active, onToday, onAgenda, onNew, onContacts, onPlus, newLabel = 'Nouveau RDV',
 }: {
   active: TpMobileTab
+  onToday: () => void
   onAgenda: () => void
-  onSuivi: () => void
   onNew: () => void
   onContacts: () => void
   onPlus: () => void
@@ -318,8 +318,8 @@ export function TpTabBar({
       paddingBottom: 'env(safe-area-inset-bottom)', position: 'relative', zIndex: 20,
     }}>
       <div style={{ height: 60, display: 'flex', alignItems: 'center' }}>
+        {item('today', "Aujourd'hui", <Sun size={18} />, onToday)}
         {item('contacts', 'Contacts', <Users size={18} />, onContacts)}
-        {item('agenda', 'Agenda', <CalendarDays size={18} />, onAgenda)}
         <button
           type="button"
           onClick={onNew}
@@ -338,7 +338,7 @@ export function TpTabBar({
           </span>
           <span style={{ whiteSpace: 'nowrap' }}>{newLabel}</span>
         </button>
-        {item('suivi', 'Suivi', <ListChecks size={18} />, onSuivi)}
+        {item('agenda', 'Agenda', <CalendarDays size={18} />, onAgenda)}
         {item('plus', 'Plus', <Menu size={18} />, onPlus)}
       </div>
     </nav>

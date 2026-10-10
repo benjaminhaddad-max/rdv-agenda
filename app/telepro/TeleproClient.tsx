@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo, type ReactNode } from 'react
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import {
-  ArrowLeft, BarChart3, Briefcase, Clock, LifeBuoy, LogOut, Phone, Plus, RefreshCw, Repeat2, RotateCcw, School, Tag, X,
+  ArrowLeft, BarChart3, Briefcase, Clock, ListChecks, LifeBuoy, LogOut, Phone, Plus, RefreshCw, Repeat2, RotateCcw, School, Tag, X,
 } from 'lucide-react'
 import Link from 'next/link'
 import WeekCalendar from '@/components/WeekCalendar'
@@ -27,13 +27,14 @@ import { useNewRdvForm } from '@/components/telepro-v2/useNewRdvForm'
 import NewRdvFlow, { RdvSuccess } from '@/components/telepro-v2/NewRdvFlow'
 import MyCallSchedule from '@/components/telepro-v2/MyCallSchedule'
 import MyStats from '@/components/telepro-v2/MyStats'
+import TodayView from '@/components/telepro-v2/TodayView'
 import TeleproContactsMobile from '@/components/telepro-v2/TeleproContactsMobile'
 import {
   TpMobileHeader, TpPlusSheet, TpRoundButton, TpTabBar, useLogout, useSupportUnread,
   type TpMenuItem, type TpMobileTab,
 } from '@/components/telepro-v2/ui'
 
-type TeleproTab = 'form' | 'stats' | 'horaires' | 'suivi' | 'agenda' | 'historique' | 'repop' | 'contacts' | 'transactions'
+type TeleproTab = 'today' | 'form' | 'stats' | 'horaires' | 'suivi' | 'agenda' | 'historique' | 'repop' | 'contacts' | 'transactions'
 
 export default function TeleproClient({
   teleproUser,
@@ -54,7 +55,7 @@ export default function TeleproClient({
   const teleproCrmFilterId = teleproUser.id || ''
   // Les transactions restent filtrées côté deal avec l'ID externe existant.
   const teleproDealsFilterId = teleproUser.hubspot_user_id || teleproUser.hubspot_owner_id || ''
-  const [activeTab, setActiveTab] = useState<TeleproTab>('contacts')
+  const [activeTab, setActiveTab] = useState<TeleproTab>('today')
   const [showGuide, setShowGuide] = useState(false)
   const [showResources, setShowResources] = useState(false)
   const [crmTotal, setCrmTotal] = useState(0)
@@ -364,6 +365,13 @@ export default function TeleproClient({
     switch (activeTab) {
       case 'form': return newRdvContent
       case 'historique': return historiqueContent
+      case 'today':
+        // Page du matin : objectifs du jour, RDV, relances, qui appeler (classés par score)
+        return (
+          <div style={isMobile ? undefined : { maxWidth: 1280, margin: '0 auto', padding: '20px 28px 32px', width: '100%', boxSizing: 'border-box' }}>
+            <TodayView userId={teleproUser.id} firstName={firstName} />
+          </div>
+        )
       case 'stats':
         // Ce que l'admin voit sur lui : activité, devenir des RDV, débrief IA des appels
         return (
@@ -553,12 +561,13 @@ export default function TeleproClient({
   // ─── Mobile : en-têtes blancs + barre d'onglets navy en bas ────────────
   if (isMobile) {
     const mobileTab: TpMobileTab = isAdmin ? 'form'
+      : activeTab === 'today' ? 'today'
       : activeTab === 'agenda' ? 'agenda'
-      : activeTab === 'suivi' ? 'suivi'
       : activeTab === 'contacts' ? 'contacts'
       : activeTab === 'form' ? 'form'
       : 'plus'
     const plusItems: TpMenuItem[] = [
+      { key: 'suivi', label: 'Suivi RDV', icon: <ListChecks size={18} />, onClick: () => goTab('suivi'), active: activeTab === 'suivi' },
       { key: 'stats', label: 'Mes stats', icon: <BarChart3 size={18} />, onClick: () => goTab('stats'), active: activeTab === 'stats' },
       { key: 'horaires', label: 'Mes horaires', icon: <Clock size={18} />, onClick: () => goTab('horaires'), active: activeTab === 'horaires' },
       { key: 'transactions', label: 'Mes transactions', icon: <Briefcase size={18} />, onClick: () => goTab('transactions'), active: activeTab === 'transactions', badge: txTotal },
@@ -587,8 +596,8 @@ export default function TeleproClient({
           <TpTabBar
             active={plusOpen ? 'plus' : mobileTab}
             newLabel="Nouveau RDV"
+            onToday={() => goTab('today')}
             onAgenda={() => goTab('agenda')}
-            onSuivi={() => goTab('suivi')}
             onNew={() => goTab('form')}
             onContacts={() => goTab('contacts')}
             onPlus={() => setPlusOpen(true)}
@@ -603,6 +612,7 @@ export default function TeleproClient({
   // ─── Ordinateur : en-tête blanc + onglets soulignés ────────────────────
   const tabs = [
     // « Nouveau RDV » : bouton de l'en-tête (pas d'onglet en doublon)
+    { id: 'today', label: "À traiter aujourd'hui" },
     { id: 'contacts', label: 'Mes contacts', count: crmTotal > 0 ? crmTotal : undefined },
     { id: 'agenda', label: 'Agenda RDV' },
     { id: 'stats', label: 'Mes stats' },
