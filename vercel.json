@@ -29,6 +29,7 @@
     { "path": "/api/cron/call-analysis",              "schedule": "*/30 * * * *" },
     { "path": "/api/cron/inscriptions-sync",          "schedule": "*/10 * * * *" },
     { "path": "/api/cron/lycee-mail-sync",            "schedule": "*/5 * * * *" },
+    { "path": "/api/cron/admissions-mail-sync",       "schedule": "*/5 * * * *" },
     { "path": "/api/cron/lycee-contacts-enrich",      "schedule": "*/10 * * * *" }
   ]
 }

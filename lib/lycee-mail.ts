@@ -79,7 +79,7 @@ function privateKey(): string {
   return ((DEDICATED_SA ? process.env.LYCEE_MAIL_SA_PRIVATE_KEY : process.env.GOOGLE_SA_PRIVATE_KEY) || '').replace(/\\n/g, '\n')
 }
 
-function gmailFor(mailbox: string): gmail_v1.Gmail {
+export function gmailFor(mailbox: string): gmail_v1.Gmail {
   const auth = new google.auth.JWT({
     email: saEmail(),
     key: privateKey(),
@@ -176,19 +176,19 @@ export async function mailboxStatus(mailbox: string): Promise<{ ok: boolean; err
 
 // ── Construction du mail ────────────────────────────────────────────────────
 
-function encodeHeader(s: string): string {
+export function encodeHeader(s: string): string {
   return /[^\x20-\x7e]/.test(s) ? `=?UTF-8?B?${Buffer.from(s, 'utf8').toString('base64')}?=` : s
 }
 
-function address(name: string | null, email: string): string {
+export function address(name: string | null, email: string): string {
   return name ? `${encodeHeader(name.replace(/["\r\n]/g, ''))} <${email}>` : email
 }
 
-function b64(buf: Buffer): string {
+export function b64(buf: Buffer): string {
   return buf.toString('base64').replace(/.{76}/g, '$&\r\n')
 }
 
-function escapeHtml(s: string): string {
+export function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
@@ -326,7 +326,7 @@ export async function sendLyceeMail(input: SendLyceeMailInput): Promise<SentLyce
 
 // ── Relève des boîtes ───────────────────────────────────────────────────────
 
-function header(payload: gmail_v1.Schema$MessagePart | undefined, name: string): string | null {
+export function header(payload: gmail_v1.Schema$MessagePart | undefined, name: string): string | null {
   const h = payload?.headers?.find(x => x.name?.toLowerCase() === name.toLowerCase())
   return h?.value ?? null
 }
@@ -335,7 +335,7 @@ function decodeB64url(s: string): string {
   return Buffer.from(s, 'base64url').toString('utf8')
 }
 
-function bodies(part: gmail_v1.Schema$MessagePart | undefined, acc: { text: string; html: string; attachments: boolean }) {
+export function bodies(part: gmail_v1.Schema$MessagePart | undefined, acc: { text: string; html: string; attachments: boolean }) {
   if (!part) return acc
   if (part.filename && part.body?.attachmentId) acc.attachments = true
   else if (part.mimeType === 'text/plain' && part.body?.data && !acc.text) acc.text = decodeB64url(part.body.data)
@@ -344,14 +344,14 @@ function bodies(part: gmail_v1.Schema$MessagePart | undefined, acc: { text: stri
   return acc
 }
 
-function parseFrom(v: string | null): { name: string | null; email: string | null } {
+export function parseFrom(v: string | null): { name: string | null; email: string | null } {
   if (!v) return { name: null, email: null }
   const email = parseEmails(v)[0] ?? null
   const name = v.replace(/<[^>]*>/, '').replace(/"/g, '').trim()
   return { name: name && !name.includes('@') ? name : null, email }
 }
 
-function isAutomated(msg: gmail_v1.Schema$Message, from: string | null): { skip: boolean; autoReply: boolean } {
+export function isAutomated(msg: gmail_v1.Schema$Message, from: string | null): { skip: boolean; autoReply: boolean } {
   const p = msg.payload
   const auto = (header(p, 'Auto-Submitted') || 'no').toLowerCase() !== 'no'
   const subject = header(p, 'Subject') || ''
@@ -498,7 +498,7 @@ async function storeMessage(
   return { stored: true, matched: true }
 }
 
-function decodeEntities(s: string): string {
+export function decodeEntities(s: string): string {
   return s.replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
 }
 

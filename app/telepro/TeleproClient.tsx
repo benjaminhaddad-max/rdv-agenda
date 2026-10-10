@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo, type ReactNode } from 'react
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import {
-  ArrowLeft, BarChart3, Briefcase, Clock, ListChecks, LifeBuoy, LogOut, Phone, Plus, RefreshCw, Repeat2, RotateCcw, School, Tag, X,
+  ArrowLeft, BarChart3, Briefcase, Clock, ListChecks, LifeBuoy, LogOut, Mail, Phone, Plus, RefreshCw, Repeat2, RotateCcw, School, Tag, X,
 } from 'lucide-react'
 import Link from 'next/link'
 import WeekCalendar from '@/components/WeekCalendar'
@@ -28,13 +28,14 @@ import NewRdvFlow, { RdvSuccess } from '@/components/telepro-v2/NewRdvFlow'
 import MyCallSchedule from '@/components/telepro-v2/MyCallSchedule'
 import MyStats from '@/components/telepro-v2/MyStats'
 import TodayView from '@/components/telepro-v2/TodayView'
+import MyMails from '@/components/telepro-v2/MyMails'
 import TeleproContactsMobile from '@/components/telepro-v2/TeleproContactsMobile'
 import {
   TpMobileHeader, TpPlusSheet, TpRoundButton, TpTabBar, useLogout, useSupportUnread,
   type TpMenuItem, type TpMobileTab,
 } from '@/components/telepro-v2/ui'
 
-type TeleproTab = 'today' | 'form' | 'stats' | 'horaires' | 'suivi' | 'agenda' | 'historique' | 'repop' | 'contacts' | 'transactions'
+type TeleproTab = 'today' | 'form' | 'mails' | 'stats' | 'horaires' | 'suivi' | 'agenda' | 'historique' | 'repop' | 'contacts' | 'transactions'
 
 export default function TeleproClient({
   teleproUser,
@@ -67,6 +68,18 @@ export default function TeleproClient({
   const logout = useLogout()
   // Lycées attribués (onglet CRM « Lycées ») : bouton affiché seulement s'il y en a
   const [myLyceesCount, setMyLyceesCount] = useState(0)
+  // Réponses non lues de ses contacts dans la boîte admissions@ (onglet « Mes mails »)
+  const [mailsUnread, setMailsUnread] = useState(0)
+  useEffect(() => {
+    if (isAdmin) return
+    const load = () => fetch(`/api/telepro/mails?count=1&user_id=${encodeURIComponent(teleproUser.id)}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => setMailsUnread(d?.unread ?? 0))
+      .catch(() => {})
+    load()
+    const t = setInterval(load, 120_000)
+    return () => clearInterval(t)
+  }, [isAdmin, teleproUser.id, activeTab])
   useEffect(() => {
     if (previewMode) return
     fetch('/api/crm/lycees?mine=count')
@@ -372,6 +385,16 @@ export default function TeleproClient({
             <TodayView userId={teleproUser.id} firstName={firstName} />
           </div>
         )
+      case 'mails':
+        // Partie de la boîte admissions@ qui concerne ses contacts : lire et répondre
+        return (
+          <>
+            {isMobile && <TpMobileHeader title="Mes mails" subtitle="Les échanges d'admissions@ avec tes contacts." />}
+            <div style={isMobile ? undefined : { maxWidth: 1280, margin: '0 auto', padding: '20px 28px 32px', width: '100%', boxSizing: 'border-box' }}>
+              <MyMails userId={teleproUser.id} readOnly={previewMode} />
+            </div>
+          </>
+        )
       case 'stats':
         // Ce que l'admin voit sur lui : activité, devenir des RDV, débrief IA des appels
         return (
@@ -568,6 +591,7 @@ export default function TeleproClient({
       : 'plus'
     const plusItems: TpMenuItem[] = [
       { key: 'suivi', label: 'Suivi RDV', icon: <ListChecks size={18} />, onClick: () => goTab('suivi'), active: activeTab === 'suivi' },
+      { key: 'mails', label: 'Mes mails', icon: <Mail size={18} />, onClick: () => goTab('mails'), active: activeTab === 'mails', badge: mailsUnread },
       { key: 'stats', label: 'Mes stats', icon: <BarChart3 size={18} />, onClick: () => goTab('stats'), active: activeTab === 'stats' },
       { key: 'horaires', label: 'Mes horaires', icon: <Clock size={18} />, onClick: () => goTab('horaires'), active: activeTab === 'horaires' },
       { key: 'transactions', label: 'Mes transactions', icon: <Briefcase size={18} />, onClick: () => goTab('transactions'), active: activeTab === 'transactions', badge: txTotal },
@@ -615,6 +639,7 @@ export default function TeleproClient({
     { id: 'today', label: "À traiter aujourd'hui" },
     { id: 'contacts', label: 'Mes contacts', count: crmTotal > 0 ? crmTotal : undefined },
     { id: 'agenda', label: 'Agenda RDV' },
+    { id: 'mails', label: 'Mes mails', count: mailsUnread > 0 ? mailsUnread : undefined },
     { id: 'stats', label: 'Mes stats' },
     { id: 'horaires', label: 'Mes horaires' },
     { id: 'suivi', label: 'Suivi RDV' },
