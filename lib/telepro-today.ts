@@ -15,9 +15,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { addParisDays, parisDateKey, parisMidnightUtc } from '@/lib/date-paris'
 import { getSettingValue, setSetting } from '@/lib/settings'
-import { isHumanAnswered, talkSeconds, type CallRow } from '@/lib/suivi-commercial'
 import { buildPlanningReport, type DayReport } from '@/lib/telepro-planning'
-import { computeLeadScore, isDeadStatus, lastContactAt, type LeadScore } from '@/lib/lead-score'
+import { isDeadStatus, type LeadScore } from '@/lib/lead-score'
+import { engagementOf, loadContactCalls, loadManualContacts } from '@/lib/lead-engagement'
 
 export type TodayGoals = { calls: number; talk2: number; rdv: number }
 export const DEFAULT_GOALS: TodayGoals = { calls: 80, talk2: 8, rdv: 2 }
@@ -117,31 +117,6 @@ const PER_SECTION = 300
 const MAX_LEADS = 60
 const REASON_ORDER: TodayReason[] = ['repop', 'relance', 'nouveau', 'nrp']
 
-type ContactCall = { started_at: string; answered: boolean; talk_sec: number; outbound: boolean }
-
-/** Appels Aircall (tous télépros) des contacts donnés. */
-export async function loadContactCalls(db: SupabaseClient, contactIds: string[]): Promise<Map<string, ContactCall[]>> {
-  const out = new Map<string, ContactCall[]>()
-  for (let i = 0; i < contactIds.length; i += 200) {
-    const { data } = await db.from('aircall_calls')
-      .select('hubspot_contact_id, direction, answered, status, duration_sec, started_at, ended_at, answered_at:payload->answered_at')
-      .in('hubspot_contact_id', contactIds.slice(i, i + 200))
-      .order('started_at', { ascending: false })
-      .limit(5000)
-    for (const c of (data ?? []) as Array<CallRow & { hubspot_contact_id: string }>) {
-      const list = out.get(c.hubspot_contact_id) ?? []
-      list.push({
-        started_at: c.started_at,
-        answered: isHumanAnswered(c),
-        talk_sec: isHumanAnswered(c) ? talkSeconds(c) : 0,
-        outbound: c.direction === 'outbound',
-      })
-      out.set(c.hubspot_contact_id, list)
-    }
-  }
-  return out
-}
-
 function teleproIds(u: { hubspot_owner_id?: string | null; hubspot_user_id?: string | null }): string[] {
   return [...new Set([u.hubspot_owner_id, u.hubspot_user_id].map(v => String(v ?? '').trim()).filter(v => /^\d+$/.test(v)))]
 }
@@ -231,7 +206,8 @@ export async function buildToday(
   push(nouveauRows, 'nouveau')
   push(nrpRows, 'nrp')
 
-  const calls = await loadContactCalls(db, [...candidates.keys()])
+  const candidateIds = [...candidates.keys()]
+  const [calls, manual] = await Promise.all([loadContactCalls(db, candidateIds), loadManualContacts(db, candidateIds)])
   const counts: Record<TodayReason, number> = { repop: 0, relance: 0, nouveau: 0, nrp: 0 }
   const leads: TodayLead[] = []
 
@@ -240,7 +216,10 @@ export async function buildToday(
     const created = row.contact_createdate || row.createdate
     const lastCall = list[0]?.started_at ?? null
     const lastCallMs = lastCall ? Date.parse(lastCall) : null
-    const calledToday = lastCallMs != null && lastCallMs >= todayStart.getTime()
+    const manualLast = manual.get(id)?.[0] ?? null
+    // Appelé (Aircall) ou contact renseigné à la main aujourd'hui
+    const calledToday = (lastCallMs != null && lastCallMs >= todayStart.getTime())
+      || (manualLast != null && Date.parse(manualLast) >= todayStart.getTime())
     const formMs = row.recent_conversion_date ? Date.parse(row.recent_conversion_date) : null
     const createdMs = created ? Date.parse(created) : null
 
@@ -260,14 +239,7 @@ export async function buildToday(
     if (!reason) continue
     counts[reason]++
 
-    const score = computeLeadScore({
-      hs_lead_status: row.hs_lead_status,
-      created_at: created,
-      recent_conversion_date: row.recent_conversion_date,
-      recent_conversion_event: row.recent_conversion_event,
-      num_conversion_events: row.num_conversion_events,
-      calls: list,
-    }, now)
+    const eng = engagementOf(row, list, manual.get(id) ?? [], now)
     leads.push({
       hubspot_contact_id: id,
       name: [row.firstname, row.lastname].filter(Boolean).join(' ') || 'Contact',
@@ -276,8 +248,8 @@ export async function buildToday(
       lead_status: row.hs_lead_status,
       reason,
       reason_label: REASON_LABELS[reason],
-      score,
-      last_contact_at: lastContactAt({ hs_lead_status: row.hs_lead_status, calls: list }),
+      score: eng.score,
+      last_contact_at: eng.last_contact_at,
       last_call_at: lastCall,
       calls_count: list.length,
     })

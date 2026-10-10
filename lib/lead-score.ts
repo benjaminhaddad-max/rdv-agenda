@@ -10,8 +10,9 @@
  * signe de vie depuis longtemps. Disqualifié / perdu / concurrent / doublon : 0.
  *
  * « Dernier contact » : dernière fois qu'on lui a vraiment parlé (appel décroché
- * par un humain, entrant ou sortant). Les appels sans réponse ne comptent pas,
- * et on ne l'affiche pas pour un lead disqualifié.
+ * par un humain, entrant ou sortant, ou contact renseigné à la main par le
+ * télépro). Les appels sans réponse ne comptent pas, et on ne l'affiche pas
+ * pour un lead disqualifié.
  */
 
 export type ScoreLevel = 'chaud' | 'tiede' | 'froid'
@@ -31,6 +32,8 @@ export type ScoreInput = {
   calls: Array<{ started_at: string; answered: boolean; talk_sec: number }>
   /** RDV à venir pour ce contact */
   has_upcoming_rdv?: boolean
+  /** Contacts renseignés à la main (échange hors Aircall), dates ISO */
+  manual_contacts?: string[]
 }
 
 const DAY = 86_400_000
@@ -47,12 +50,15 @@ export function isDeadStatus(status: string | null | undefined): boolean {
 }
 
 /** Dernière vraie conversation (appel décroché), sauf lead disqualifié. */
-export function lastContactAt(input: Pick<ScoreInput, 'hs_lead_status' | 'calls'>): string | null {
+export function lastContactAt(input: Pick<ScoreInput, 'hs_lead_status' | 'calls' | 'manual_contacts'>): string | null {
   if (isDeadStatus(input.hs_lead_status)) return null
   let best: string | null = null
   for (const c of input.calls) {
     if (!c.answered || c.talk_sec < 20) continue
     if (!best || c.started_at > best) best = c.started_at
+  }
+  for (const at of input.manual_contacts ?? []) {
+    if (!best || at > best) best = at
   }
   return best
 }
@@ -96,6 +102,9 @@ export function computeLeadScore(input: ScoreInput, now = Date.now()): LeadScore
   const talk2 = answered.filter(c => c.talk_sec >= 120).sort((a, b) => b.started_at.localeCompare(a.started_at))[0]
   const talk2Days = talk2 ? daysAgo(talk2.started_at, now) : null
   if (talk2 && talk2Days! <= 14) add(15, `Vraie conversation (${Math.round(talk2.talk_sec / 60)} min) ${since(talk2Days!)}`, talk2.started_at)
+  const manual = [...(input.manual_contacts ?? [])].sort().reverse()[0]
+  const manualDays = manual ? daysAgo(manual, now) : null
+  if (manual && manualDays! <= 14 && !(talk2 && talk2Days! <= 14)) add(10, `Contacté ${since(manualDays!)} (renseigné à la main)`, manual)
 
   if (status === 'En attente / Réfléchit') add(10, 'Il réfléchit')
   if (status === 'A relancer') add(10, 'À relancer')
@@ -112,7 +121,7 @@ export function computeLeadScore(input: ScoreInput, now = Date.now()): LeadScore
   if (status === 'Raccroche au nez') add(-25, 'A raccroché au nez')
 
   // Plus de signe de vie
-  const lastSign = Math.min(...[form, talk2Days, created].filter((x): x is number => x != null), Infinity)
+  const lastSign = Math.min(...[form, talk2Days, manualDays, created].filter((x): x is number => x != null), Infinity)
   if (lastSign !== Infinity && lastSign > 120) add(-25, `Aucun signe de vie depuis ${Math.floor(lastSign)} j`)
   else if (lastSign !== Infinity && lastSign > 60) add(-15, `Aucun signe de vie depuis ${Math.floor(lastSign)} j`)
 

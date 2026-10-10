@@ -15,6 +15,8 @@ import {
 import { isUserTypeProperty } from '@/lib/crm-user-resolver'
 import { telHref } from '@/lib/phone-e164'
 import { useIsMobile } from '@/lib/useIsMobile'
+import { SCORE_LEVELS, isDeadStatus } from '@/lib/lead-score'
+import type { Engagement } from '@/lib/lead-engagement'
 import { neutralPropLabel, mentionsHubspot } from '@/components/crm-v2/filters/labels'
 
 // Prefetch silencieux d'une fiche contact (apres 150ms de hover) :
@@ -919,7 +921,7 @@ function ExpandedDetail({
 }
 
 // ── Définition des colonnes réorganisables ────────────────────────────────────
-type ColKey = 'contact' | 'email' | 'phone' | 'formation_souhaitee' | 'classe' | 'zone' | 'departement' | 'etape' | 'lead_status' | 'origine' | 'closer' | 'closer_du_contact' | 'telepro' | 'createdat_contact' | 'createdat_deal' | 'form_submission' | 'parcoursup_verdict'
+type ColKey = 'contact' | 'email' | 'phone' | 'formation_souhaitee' | 'classe' | 'zone' | 'departement' | 'etape' | 'lead_status' | 'origine' | 'closer' | 'closer_du_contact' | 'telepro' | 'createdat_contact' | 'createdat_deal' | 'form_submission' | 'parcoursup_verdict' | 'last_contact' | 'lead_score'
 
 const COL_LABELS: Record<ColKey, string> = {
   contact:              'Contact',
@@ -939,6 +941,8 @@ const COL_LABELS: Record<ColKey, string> = {
   createdat_deal:       'Date de création (deal)',
   form_submission:      'Dernière soumission de formulaire',
   parcoursup_verdict:   'Verdict Parcoursup',
+  last_contact:         'Dernier contact',
+  lead_score:           'Score',
 }
 
 const COL_WIDTHS: Record<ColKey, number> = {
@@ -959,6 +963,8 @@ const COL_WIDTHS: Record<ColKey, number> = {
   createdat_deal:        150,
   form_submission:      230,
   parcoursup_verdict:    160,
+  last_contact:          170,
+  lead_score:             90,
 }
 
 const PHONE_COL_MIN_WIDTH = 200
@@ -975,7 +981,7 @@ const SORTABLE_COLS = new Set<ColKey>([
 ])
 
 const DEFAULT_COL_ORDER: ColKey[] = [
-  'contact','email','phone','form_submission','origine','formation_souhaitee','classe',
+  'contact','lead_score','email','phone','last_contact','form_submission','origine','formation_souhaitee','classe',
   'zone','departement','etape','lead_status','parcoursup_verdict','closer','closer_du_contact','telepro','createdat_contact','createdat_deal',
 ]
 
@@ -1005,11 +1011,13 @@ const DEFAULT_HIDDEN_COLS: ColKey[] = []
 
 // Espace télépro : colonnes inutiles pour lui (ni affichées, ni proposées dans « Colonnes »)
 const TELEPRO_EXCLUDED_COLS = new Set<ColKey>(['formation_souhaitee', 'parcoursup_verdict', 'closer', 'createdat_deal'])
+// …et colonnes propres au télépro (dernier contact renseignable, score du lead)
+const TELEPRO_ONLY_COLS = new Set<ColKey>(['last_contact', 'lead_score'])
 
 const MIXED_COL_STORAGE_KEY = 'crm-mixed-col-order'
 const DYN_COL_WIDTHS_STORAGE_KEY = 'crm-dyn-col-widths'
 const INLINE_EDIT_STOP_KEYS = new Set<ColKey>([
-  'classe', 'zone', 'etape', 'lead_status', 'origine', 'closer', 'closer_du_contact', 'telepro',
+  'classe', 'zone', 'etape', 'lead_status', 'origine', 'closer', 'closer_du_contact', 'telepro', 'last_contact',
 ])
 
 function toNativeToken(key: ColKey) { return `n:${key}` as const }
@@ -1154,6 +1162,49 @@ export default function CRMContactsTable({
   useEffect(() => {
     setRenderedCount(RENDER_CHUNK)
   }, [listIdentity, RENDER_CHUNK])
+
+  // ── Télépro : dernier contact + score (calculés côté serveur, lib/lead-engagement.ts)
+  const [engagement, setEngagement] = useState<Record<string, Engagement>>({})
+  const [manualFor, setManualFor] = useState<string | null>(null)
+  const [manualDate, setManualDate] = useState('')
+  const [savingManual, setSavingManual] = useState(false)
+  const loadEngagementFor = useCallback(async (ids: string[]) => {
+    if (!ids.length) return
+    try {
+      const r = await fetch(`/api/crm/contacts/engagement?ids=${ids.map(encodeURIComponent).join(',')}`, { cache: 'no-store' })
+      if (!r.ok) return
+      const j = await r.json() as Record<string, Engagement>
+      setEngagement(prev => ({ ...prev, ...j }))
+    } catch { /* colonnes laissées vides */ }
+  }, [])
+  useEffect(() => {
+    if (mode !== 'telepro') return
+    loadEngagementFor(contacts.slice(0, 200).map(c => c.hubspot_contact_id))
+  }, [mode, listIdentity, loadEngagementFor]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Renseigner un contact hors Aircall (WhatsApp, portable…) à une date donnée. */
+  async function saveManualContact(contactId: string) {
+    const today = new Date().toLocaleDateString('en-CA')
+    const day = manualDate || today
+    const occurredAt = day === today ? new Date().toISOString() : new Date(`${day}T12:00:00`).toISOString()
+    setSavingManual(true)
+    try {
+      const r = await fetch('/api/crm/activities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          activity_type: 'call', hubspot_contact_id: contactId, status: 'COMPLETED', direction: 'OUTGOING',
+          subject: 'Contact renseigné à la main', metadata: { manual_contact: true }, occurred_at: occurredAt,
+        }),
+      })
+      if (!r.ok) { showSaveToast("Le contact n'a pas pu être enregistré.", 'error'); return }
+      setManualFor(null)
+      showSaveToast('Contact enregistré')
+      await loadEngagementFor([contactId])
+    } finally {
+      setSavingManual(false)
+    }
+  }
 
   const isMobile = useIsMobile()
   // Mobile : contact dont l'attribution est dépliée pour édition
@@ -1519,14 +1570,14 @@ export default function CRMContactsTable({
   // Déterminer les colonnes visibles (en respectant l'ordre courant)
   function isColVisible(key: ColKey): boolean {
     if (key === PINNED_COL) return true
-    if (mode === 'telepro' && TELEPRO_EXCLUDED_COLS.has(key)) return false
+    if (mode === 'telepro' ? TELEPRO_EXCLUDED_COLS.has(key) : TELEPRO_ONLY_COLS.has(key)) return false
     if (hiddenCols.has(key)) return false
     if (key === 'lead_status'        && !leadStatusOptions?.length) return false
     return true
   }
 
   const visibleCols = colOrder.filter(isColVisible)
-  const menuCols = mode === 'telepro' ? colOrder.filter(k => !TELEPRO_EXCLUDED_COLS.has(k)) : colOrder
+  const menuCols = colOrder.filter(k => (mode === 'telepro' ? !TELEPRO_EXCLUDED_COLS.has(k) : !TELEPRO_ONLY_COLS.has(k)))
   const dynamicCols = extraColumns ?? []
   const displayCols = useMemo(
     () => pinOrigineToken(mixedColOrder).filter(entry => {
@@ -1975,6 +2026,71 @@ export default function CRMContactsTable({
             saving={tSaving}
             renderValue={v => renderUserOption(v, teleproSelectOptions)}
           />
+        )
+      }
+
+      case 'lead_score': {
+        const e = engagement[contact.hubspot_contact_id]
+        if (!e) return <span style={{ fontSize: 13, color: crmV2.textFaint }}>…</span>
+        const lvl = SCORE_LEVELS[e.score.level]
+        const why = e.score.reasons.map(r => `${r.points > 0 ? '+' : ''}${r.points}  ${r.label}`).join('\n')
+        return (
+          <span title={`${lvl.label} — ${e.score.score}/100\n${why || 'Score de base'}`} style={{
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 40, height: 24, padding: '0 8px', borderRadius: 999,
+            fontSize: 12.5, fontWeight: 800, color: lvl.color, background: `${lvl.color}14`, border: `1px solid ${lvl.color}40`,
+          }}>
+            {e.score.score}
+          </span>
+        )
+      }
+
+      case 'last_contact': {
+        const e = engagement[contact.hubspot_contact_id]
+        const id = contact.hubspot_contact_id
+        if (manualFor === id) {
+          return (
+            <div onClick={ev => ev.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <input type="date" value={manualDate} max={new Date().toLocaleDateString('en-CA')} onChange={ev => setManualDate(ev.target.value)}
+                style={{ height: 26, fontSize: 12, border: `1px solid ${crmV2.borderStrong}`, borderRadius: 6, padding: '0 4px', fontFamily: 'inherit', width: 116 }} />
+              <button type="button" disabled={savingManual} onClick={() => saveManualContact(id)} title="Enregistrer" style={{
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, borderRadius: 6, cursor: 'pointer',
+                border: 'none', background: crmV2.successStrong, color: '#fff',
+              }}><Check size={13} /></button>
+              <button type="button" onClick={() => setManualFor(null)} title="Annuler" style={{
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, borderRadius: 6, cursor: 'pointer',
+                border: `1px solid ${crmV2.border}`, background: crmV2.bg, color: crmV2.textMuted,
+              }}><X size={13} /></button>
+            </div>
+          )
+        }
+        const dead = isDeadStatus(contact.hs_lead_status)
+        let label = '…'
+        let title = ''
+        if (dead) { label = '—'; title = 'Lead disqualifié : pas de suivi de contact' }
+        else if (e?.last_contact_at) {
+          const d = new Date(e.last_contact_at)
+          const days = Math.floor((Date.now() - d.getTime()) / 86400000)
+          label = days <= 0 ? "Aujourd'hui" : days === 1 ? 'Hier' : days < 7 ? `Il y a ${days} j` : d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+          title = `Dernière vraie conversation : ${d.toLocaleString('fr-FR')}${e.last_contact_manual ? ' (renseigné à la main)' : ' (appel décroché)'}`
+        } else if (e) {
+          label = e.calls_count ? 'Jamais joint' : 'Jamais appelé'
+          title = e.calls_count ? `${e.calls_count} appel${e.calls_count > 1 ? 's' : ''} sans réponse` : 'Aucun appel'
+        }
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+            <span title={title} style={{
+              fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+              color: e?.last_contact_at ? crmV2.text : crmV2.textFaint, fontWeight: e?.last_contact_at ? 600 : 400,
+            }}>{label}</span>
+            {!dead && (
+              <button type="button" title="Renseigner un contact (appel hors Aircall, WhatsApp…)" onClick={ev => {
+                ev.stopPropagation(); setManualDate(new Date().toLocaleDateString('en-CA')); setManualFor(id)
+              }} style={{
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 6, flexShrink: 0,
+                cursor: 'pointer', border: `1px solid ${crmV2.border}`, background: crmV2.bg, color: crmV2.textMuted,
+              }}><Pencil size={11} /></button>
+            )}
+          </div>
         )
       }
 
