@@ -11,8 +11,13 @@
  * - RDV où la personne est closer (télépro qui close aussi) : affichés sur ses
  *   horaires pour savoir où elle est (en RDV plutôt qu'au téléphone).
  *
+ * - Jours « école » (alternants, table telepro_planning_days, migration v69) :
+ *   pas d'horaires ces jours-là, verdict « École ». Saisir des horaires sur un
+ *   jour d'école le repasse en jour normal.
+ *
  * Tant que la migration v57 n'est pas appliquée, la table est absente :
  * lecture vide (ready = false), écritures refusées avec un message clair.
+ * Idem pour v69 et les jours d'école (school_ready = false).
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -23,6 +28,8 @@ import { hasTeamRole } from '@/lib/team-roles'
 
 export const PLANNING_TABLE = 'telepro_planning_slots'
 export const PLANNING_MIGRATION_MSG = 'Planning pas encore activé (migration BDD v57 à appliquer dans Supabase).'
+export const SCHOOL_TABLE = 'telepro_planning_days'
+export const SCHOOL_MIGRATION_MSG = 'Jours d’école pas encore activés (migration BDD v69 à appliquer dans Supabase).'
 
 /** Tolérance autour d'un créneau pour rattacher un appel (minutes). */
 const SLOT_MARGIN_MIN = 10
@@ -45,7 +52,7 @@ export type PlanningSlotRow = {
 export type SlotInput = { start: string; end: string; locked?: boolean }
 
 export type SlotVerdict = 'ok' | 'partiel' | 'absent' | 'en_cours' | 'a_venir'
-export type DayVerdict = SlotVerdict | 'hors_planning' | 'repos'
+export type DayVerdict = SlotVerdict | 'hors_planning' | 'repos' | 'ecole'
 
 export type SlotReport = PlanningSlotRow & {
   calls: number
@@ -78,6 +85,8 @@ export type DayReport = {
   slots: SlotReport[]
   /** RDV où la personne est closer ce jour-là */
   meetings: DayMeeting[]
+  /** Jour d'école (alternant) */
+  school: boolean
   verdict: DayVerdict
 }
 
@@ -85,12 +94,12 @@ const HM_RE = /^([01]\d|2[0-3]):([0-5]\d)$/
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function isMissingPlanningTable(err: any): boolean {
+export function isMissingPlanningTable(err: any, table = PLANNING_TABLE): boolean {
   if (!err) return false
   const code = String(err.code || '').toUpperCase()
   const text = [err.message, err.details, err.hint].filter(Boolean).join(' ').toLowerCase()
   return code === 'PGRST205' || code === '42P01'
-    || (text.includes(PLANNING_TABLE) && (text.includes('does not exist') || text.includes('could not find') || text.includes('schema cache')))
+    || (text.includes(table) && (text.includes('does not exist') || text.includes('could not find') || text.includes('schema cache')))
 }
 
 export function normalizeHm(raw: unknown): string | null {
@@ -200,6 +209,8 @@ export async function replaceDaySlots(
   if (!asAdmin) del = del.eq('locked', false)
   const { error: delErr } = await del
   if (delErr) throw isMissingPlanningTable(delErr) ? new PlanningError(PLANNING_MIGRATION_MSG, 503) : new Error(delErr.message)
+  // Horaires saisis → ce n'est plus un jour d'école
+  await clearSchoolDays(db, userId, [date])
 
   if (!slots.length) return []
   const now = new Date().toISOString()
@@ -214,6 +225,141 @@ export async function replaceDaySlots(
   }))).select('id, user_id, date, start_hm, end_hm, locked, created_by, alerted_at')
   if (error) throw isMissingPlanningTable(error) ? new PlanningError(PLANNING_MIGRATION_MSG, 503) : new Error(error.message)
   return ((data ?? []) as DbRow[]).map(fromDb)
+}
+
+// ── Jours d'école (alternants) ──────────────────────────────────────────────
+
+/** Jours d'école de [fromDate, toDateExclusive) : clés `userId|date`. */
+export async function loadSchoolDays(
+  db: SupabaseClient,
+  fromDate: string,
+  toDateExclusive: string,
+  userIds: string[],
+): Promise<{ keys: Set<string>; ready: boolean }> {
+  if (!userIds.length) return { keys: new Set(), ready: true }
+  const { data, error } = await db.from(SCHOOL_TABLE)
+    .select('user_id, date')
+    .in('user_id', userIds)
+    .gte('date', fromDate)
+    .lt('date', toDateExclusive)
+  if (error) {
+    if (isMissingPlanningTable(error, SCHOOL_TABLE)) return { keys: new Set(), ready: false }
+    throw new Error(error.message)
+  }
+  const rows = (data ?? []) as Array<{ user_id: string; date: string }>
+  return { keys: new Set(rows.map(r => `${r.user_id}|${String(r.date).slice(0, 10)}`)), ready: true }
+}
+
+/** Retire le statut école (silencieux si la table v69 n'existe pas encore). */
+async function clearSchoolDays(db: SupabaseClient, userId: string, dates: string[]): Promise<void> {
+  if (!dates.length) return
+  const { error } = await db.from(SCHOOL_TABLE).delete().eq('user_id', userId).in('date', dates)
+  if (error && !isMissingPlanningTable(error, SCHOOL_TABLE)) throw new Error(error.message)
+}
+
+/** Jours (parmi `dates`) où le télépro a des horaires imposés par la direction. */
+async function lockedDates(db: SupabaseClient, userId: string, dates: string[]): Promise<Set<string>> {
+  if (!dates.length) return new Set()
+  const { data, error } = await db.from(PLANNING_TABLE)
+    .select('date').eq('user_id', userId).eq('locked', true).in('date', dates)
+  if (error) throw isMissingPlanningTable(error) ? new PlanningError(PLANNING_MIGRATION_MSG, 503) : new Error(error.message)
+  return new Set(((data ?? []) as Array<{ date: string }>).map(r => String(r.date).slice(0, 10)))
+}
+
+/**
+ * Marque (school = true) ou démarque des jours d'école pour un télépro.
+ * Marquer retire ses horaires non imposés de ces jours. Jours passés et jours
+ * aux horaires imposés : ignorés (comptés dans `skipped`).
+ */
+export async function setSchoolDays(
+  db: SupabaseClient,
+  args: { userId: string; dates: string[]; school: boolean; actorId: string },
+): Promise<{ done: number; skipped: number }> {
+  const { userId, school, actorId } = args
+  const today = parisDateKey(new Date())
+  const asked = [...new Set(args.dates.filter(d => DATE_RE.test(d)))].slice(0, 400)
+  const future = asked.filter(d => d >= today)
+  const locked = school ? await lockedDates(db, userId, future) : new Set<string>()
+  const dates = future.filter(d => !locked.has(d))
+  const skipped = asked.length - dates.length
+  if (!dates.length) return { done: 0, skipped }
+
+  if (!school) {
+    await clearSchoolDays(db, userId, dates)
+    return { done: dates.length, skipped }
+  }
+  const { error } = await db.from(SCHOOL_TABLE).upsert(
+    dates.map(date => ({ user_id: userId, date, kind: 'ecole', created_by: actorId })),
+    { onConflict: 'user_id,date' },
+  )
+  if (error) throw isMissingPlanningTable(error, SCHOOL_TABLE) ? new PlanningError(SCHOOL_MIGRATION_MSG, 503) : new Error(error.message)
+  const { error: delErr } = await db.from(PLANNING_TABLE).delete()
+    .eq('user_id', userId).eq('locked', false).in('date', dates)
+  if (delErr && !isMissingPlanningTable(delErr)) throw new Error(delErr.message)
+  return { done: dates.length, skipped }
+}
+
+/**
+ * Recopie une semaine (horaires + jours d'école, du lundi au dimanche) sur
+ * d'autres semaines : chaque jour cible devient identique au même jour de la
+ * semaine source. Jours passés et jours imposés : ignorés.
+ */
+export async function repeatWeek(
+  db: SupabaseClient,
+  args: { userId: string; sourceWeek: string; targetWeeks: string[]; actorId: string },
+): Promise<{ weeks: number; skipped: number }> {
+  const { userId, sourceWeek, actorId } = args
+  const targets = [...new Set(args.targetWeeks.map(w => weekStartOf(w)))].filter(w => w !== sourceWeek).slice(0, 60)
+  if (!targets.length) return { weeks: 0, skipped: 0 }
+
+  const sourceEnd = addParisDays(sourceWeek, 7)
+  const [{ slots, ready }, school] = await Promise.all([
+    loadSlots(db, sourceWeek, sourceEnd, [userId]),
+    loadSchoolDays(db, sourceWeek, sourceEnd, [userId]),
+  ])
+  if (!ready) throw new PlanningError(PLANNING_MIGRATION_MSG, 503)
+
+  // Jour de la semaine (0 = lundi) → plages / école
+  const byDow = Array.from({ length: 7 }, (_, i) => {
+    const date = addParisDays(sourceWeek, i)
+    return {
+      slots: slots.filter(s => s.date === date).map(s => ({ start: s.start, end: s.end })),
+      school: school.keys.has(`${userId}|${date}`),
+    }
+  })
+  if (byDow.some(d => d.school) && !school.ready) throw new PlanningError(SCHOOL_MIGRATION_MSG, 503)
+
+  const today = parisDateKey(new Date())
+  const all = targets.flatMap(w => Array.from({ length: 7 }, (_, i) => ({ date: addParisDays(w, i), dow: i })))
+  const future = all.filter(t => t.date >= today)
+  const locked = await lockedDates(db, userId, future.map(t => t.date))
+  const eligible = future.filter(t => !locked.has(t.date))
+  const skipped = all.length - eligible.length
+  if (!eligible.length) return { weeks: targets.length, skipped }
+
+  const dates = eligible.map(t => t.date)
+  for (let i = 0; i < dates.length; i += 150) {
+    const chunk = dates.slice(i, i + 150)
+    const { error } = await db.from(PLANNING_TABLE).delete().eq('user_id', userId).eq('locked', false).in('date', chunk)
+    if (error) throw isMissingPlanningTable(error) ? new PlanningError(PLANNING_MIGRATION_MSG, 503) : new Error(error.message)
+    await clearSchoolDays(db, userId, chunk)
+  }
+
+  const now = new Date().toISOString()
+  const slotRows = eligible.flatMap(t => byDow[t.dow].school ? [] : byDow[t.dow].slots.map(s => ({
+    user_id: userId, date: t.date, start_hm: s.start, end_hm: s.end, locked: false, created_by: actorId, updated_at: now,
+  })))
+  for (let i = 0; i < slotRows.length; i += 500) {
+    const { error } = await db.from(PLANNING_TABLE).insert(slotRows.slice(i, i + 500))
+    if (error) throw new Error(error.message)
+  }
+  const schoolRows = eligible.filter(t => byDow[t.dow].school)
+    .map(t => ({ user_id: userId, date: t.date, kind: 'ecole', created_by: actorId }))
+  if (schoolRows.length) {
+    const { error } = await db.from(SCHOOL_TABLE).upsert(schoolRows, { onConflict: 'user_id,date' })
+    if (error) throw isMissingPlanningTable(error, SCHOOL_TABLE) ? new PlanningError(SCHOOL_MIGRATION_MSG, 503) : new Error(error.message)
+  }
+  return { weeks: targets.length, skipped }
 }
 
 export async function markSlotAlerted(db: SupabaseClient, id: string): Promise<void> {
@@ -321,6 +467,7 @@ function slotVerdict(slot: PlanningSlotRow, callTimes: number[], nowMs: number):
 
 function dayVerdict(day: DayReport, date: string, today: string): DayVerdict {
   if (!day.slots.length) {
+    if (day.school) return 'ecole'
     if (date > today) return 'a_venir'
     return day.calls > 0 ? 'hors_planning' : 'repos'
   }
@@ -342,7 +489,7 @@ export async function buildPlanningReport(
   userIds: string[],
   weekStart: string,
   days = 7,
-): Promise<{ ready: boolean; dates: string[]; report: Record<string, DayReport[]> }> {
+): Promise<{ ready: boolean; school_ready: boolean; dates: string[]; report: Record<string, DayReport[]> }> {
   const n = Math.max(1, Math.min(31, Math.round(days)))
   const dates = Array.from({ length: n }, (_, i) => addParisDays(weekStart, i))
   const weekEnd = addParisDays(weekStart, n)
@@ -352,8 +499,9 @@ export async function buildPlanningReport(
   const userMap = await getAircallUserMap()
   const mappedAircallIds = [...userMap.entries()].filter(([, uid]) => ids.has(uid)).map(([aid]) => aid)
   const noIds = ['00000000-0000-0000-0000-000000000000']
-  const [{ slots, ready }, calls, rdvRows, meetingRows] = await Promise.all([
+  const [{ slots, ready }, school, calls, rdvRows, meetingRows] = await Promise.all([
     loadSlots(db, weekStart, weekEnd, userIds),
+    loadSchoolDays(db, weekStart, weekEnd, userIds),
     fetchOutboundCalls(db, start, end, userIds, mappedAircallIds),
     db.from('rdv_appointments').select('telepro_id, created_at')
       .in('telepro_id', userIds.length ? userIds : noIds)
@@ -376,7 +524,7 @@ export async function buildPlanningReport(
   for (const id of userIds) {
     report[id] = dates.map(date => ({
       date, calls: 0, answered: 0, talk2: 0, talk_sec: 0, first_call: null, last_call: null,
-      rdv: 0, planned_min: 0, slots: [], meetings: [], verdict: 'repos',
+      rdv: 0, planned_min: 0, slots: [], meetings: [], school: school.keys.has(`${id}|${date}`), verdict: 'repos',
     }))
   }
   const dayIdx = new Map(dates.map((d, i) => [d, i]))
@@ -432,7 +580,7 @@ export async function buildPlanningReport(
   for (const id of userIds) {
     for (const d of report[id]) d.verdict = dayVerdict(d, d.date, today)
   }
-  return { ready, dates, report }
+  return { ready, school_ready: school.ready, dates, report }
 }
 
 /** Lundi (YYYY-MM-DD) de la semaine contenant `dateKey` (ou de la semaine courante). */

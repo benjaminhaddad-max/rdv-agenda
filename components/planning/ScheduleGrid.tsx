@@ -13,9 +13,9 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import { Lock } from 'lucide-react'
+import { GraduationCap, Lock } from 'lucide-react'
 import { crmV2 } from '@/lib/crm-v2-theme'
-import { DayStats, VERDICTS, VerdictPill, WEEKDAYS, type DayReport } from '@/components/planning/PlanningUi'
+import { DayStats, SCHOOL_COLOR, SchoolBadge, VERDICTS, VerdictPill, WEEKDAYS, type DayReport } from '@/components/planning/PlanningUi'
 
 const SNAP = 15
 const PX_PER_HOUR = 44
@@ -204,6 +204,7 @@ export default function ScheduleGrid({ days, today, canEditDay, onCommit, onOpen
               <span style={{ fontSize: 12.5, fontWeight: 700, color: isToday ? crmV2.goldDark : crmV2.text }}>
                 {WEEKDAYS[i]} {Number(d.date.slice(8))}
               </span>
+              {d.school && !d.slots.length && <SchoolBadge small />}
               {d.slots.length > 0 && (d.date <= today) && <VerdictPill verdict={d.verdict} small />}
               {d.slots.some(s => s.locked) && (
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10.5, color: '#6d28d9' }}>
@@ -252,6 +253,17 @@ export default function ScheduleGrid({ days, today, canEditDay, onCommit, onOpen
                 touchAction: 'none',
               }}
             >
+              {/* Jour d'école : bandeau sur toute la colonne */}
+              {d.school && !d.slots.length && (
+                <div style={{
+                  position: 'absolute', inset: 0, pointerEvents: 'none', display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', justifyContent: 'center', gap: 4, color: SCHOOL_COLOR, fontSize: 12, fontWeight: 700,
+                  background: 'repeating-linear-gradient(135deg, rgba(13,148,136,0.07) 0, rgba(13,148,136,0.07) 8px, rgba(13,148,136,0.02) 8px, rgba(13,148,136,0.02) 16px)',
+                }}>
+                  <GraduationCap size={18} /> École
+                </div>
+              )}
+
               {/* Plages d'appel */}
               {d.slots.map((s, si) => {
                 if (draggingSlot === `${d.date}|${si}`) return null
@@ -357,6 +369,7 @@ export function ScheduleGridLegend({ editable }: { editable: boolean }) {
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>{swatch(crmV2.goldSoft, crmV2.goldBorder)} Mes horaires</span>
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>{swatch('rgba(124,58,237,0.12)', 'rgba(124,58,237,0.35)')} Imposé</span>
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>{swatch('rgba(37,99,235,0.12)', 'rgba(37,99,235,0.35)')} En RDV (closer)</span>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>{swatch('rgba(13,148,136,0.1)', 'rgba(13,148,136,0.35)')} École</span>
       {editable && (
         <span style={{ marginLeft: 'auto' }}>
           Glisse sur la grille pour ajouter une plage, glisse-la pour la déplacer, tire ses bords pour l&apos;ajuster · clic = modifier / répéter

@@ -14,7 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Lock } from 'lucide-react'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import {
-  SlotChip, VERDICTS, VerdictPill, WEEKDAYS, fmtMinutes, type DayReport,
+  SchoolBadge, SlotChip, VERDICTS, VerdictPill, WEEKDAYS, fmtMinutes, type DayReport,
 } from '@/components/planning/PlanningUi'
 
 export type PlanningMember = { id: string; name: string; email: string | null; avatar_color: string | null }
@@ -117,7 +117,8 @@ export function PlanningDayCell({ day, today, onClick }: { day: DayReport; today
           {day.first_call}–{day.last_call}
         </span>
       )}
-      {!day.slots.length && !day.calls && (
+      {day.school && !day.slots.length && <SchoolBadge small />}
+      {!day.slots.length && !day.calls && !day.school && (
         <span style={{ fontSize: 11, color: crmV2.textFaint }}>{past ? '—' : '+'}</span>
       )}
       {day.slots.length > 0 && (past || day.date === today) && <VerdictPill verdict={day.verdict} small />}
