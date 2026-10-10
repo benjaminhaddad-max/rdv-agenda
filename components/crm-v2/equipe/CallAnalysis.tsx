@@ -70,6 +70,8 @@ const CAUSE_COLORS: Record<string, string> = {
   autre: '#a3a3a3',
 }
 
+const ADMIN_ENDPOINT = '/api/admin/call-analysis'
+
 export function useCallAnalysis(from: string, to: string, refreshKey: number, enabled: boolean) {
   const [data, setData] = useState<CallAnalysisData | null>(null)
   const [loading, setLoading] = useState(false)
@@ -269,7 +271,7 @@ export function CallCells({ data, userId }: { data: CallAnalysisData | null; use
  * Liste compacte d'appels analysés — chaque appel s'ouvre au clic (critères,
  * ce qui a manqué, conseil, écoute, transcription).
  */
-export function CallList({ data, calls }: { data: CallAnalysisData; calls: AnalyzedCall[] }) {
+export function CallList({ data, calls, endpoint = ADMIN_ENDPOINT }: { data: CallAnalysisData; calls: AnalyzedCall[]; endpoint?: string }) {
   const [open, setOpen] = useState<number | null>(null)
   const [transcripts, setTranscripts] = useState<Record<number, string | null>>({})
   const [showTranscript, setShowTranscript] = useState<number | null>(null)
@@ -284,7 +286,7 @@ export function CallList({ data, calls }: { data: CallAnalysisData; calls: Analy
     if (showTranscript === id) { setShowTranscript(null); return }
     setShowTranscript(id)
     if (transcripts[id] === undefined) {
-      const r = await fetch(`/api/admin/call-analysis?call=${id}`)
+      const r = await fetch(`${endpoint}${endpoint.includes('?') ? '&' : '?'}call=${id}`)
       const j = await r.json().catch(() => ({}))
       setTranscripts(prev => ({ ...prev, [id]: j.transcript ?? null }))
     }
@@ -364,13 +366,17 @@ export function CallList({ data, calls }: { data: CallAnalysisData; calls: Analy
  * d'abord, filtrable par cause). `showList={false}` : la liste est affichée
  * jour par jour ailleurs (tableau du planning).
  */
-export function CallDebrief({ data, userId, from, to, onChanged, showList = true }: {
+export function CallDebrief({ data, userId, from, to, onChanged, showList = true, endpoint = ADMIN_ENDPOINT, self = false }: {
   data: CallAnalysisData | null
   userId: string
   from: string
   to: string
   onChanged: () => void
   showList?: boolean
+  /** API du débrief : admin (tous les télépros) ou /api/telepro/stats (ses appels) */
+  endpoint?: string
+  /** Vu par le télépro lui-même : « tes appels » au lieu de « ses appels » */
+  self?: boolean
 }) {
   const [cause, setCause] = useState<string>('all')
   const [showAll, setShowAll] = useState(false)
@@ -387,7 +393,7 @@ export function CallDebrief({ data, userId, from, to, onChanged, showList = true
     setGenLoading(true)
     setGenError(null)
     try {
-      const r = await fetch('/api/admin/call-analysis', {
+      const r = await fetch(endpoint.split('?')[0], {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'coaching', user_id: userId, from, to }),
@@ -470,9 +476,9 @@ export function CallDebrief({ data, userId, from, to, onChanged, showList = true
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <CrmV2Button size="sm" variant="primary" icon={<Sparkles size={13} />} onClick={generate} disabled={genLoading || done.length < 2}>
-                  {genLoading ? 'Synthèse en cours…' : `Synthèse de ses ${done.length} appels`}
+                  {genLoading ? 'Synthèse en cours…' : `Synthèse de ${self ? 'tes' : 'ses'} ${done.length} appels`}
                 </CrmV2Button>
-                <span style={{ fontSize: 12, color: crmV2.textMuted }}>Ses forces et ses 3 axes de travail, avec la phrase à dire.</span>
+                <span style={{ fontSize: 12, color: crmV2.textMuted }}>{self ? 'Tes' : 'Ses'} forces et {self ? 'tes' : 'ses'} 3 axes de travail, avec la phrase à dire.</span>
               </div>
             )}
             {genError && <AdminNotice tone="error" style={{ marginTop: 6 }}>{genError}</AdminNotice>}
@@ -519,7 +525,7 @@ export function CallDebrief({ data, userId, from, to, onChanged, showList = true
           {showList ? (
             <div>
               {sectionTitle(`Appels (${filtered.length}) · les moins bien notés d'abord`)}
-              <CallList data={data} calls={shown} />
+              <CallList data={data} calls={shown} endpoint={endpoint} />
               {filtered.length > shown.length && (
                 <button type="button" onClick={() => setShowAll(true)} style={{ marginTop: 6, background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5, color: crmV2.link, fontWeight: 600 }}>
                   Voir les {filtered.length - shown.length} autres appels

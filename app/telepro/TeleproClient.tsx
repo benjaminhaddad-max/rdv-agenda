@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo, type ReactNode } from 'react
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import {
-  ArrowLeft, Briefcase, Clock, LifeBuoy, LogOut, Phone, Plus, RefreshCw, Repeat2, RotateCcw, School, Tag, X,
+  ArrowLeft, BarChart3, Briefcase, Clock, LifeBuoy, LogOut, Phone, Plus, RefreshCw, Repeat2, RotateCcw, School, Tag, X,
 } from 'lucide-react'
 import Link from 'next/link'
 import WeekCalendar from '@/components/WeekCalendar'
@@ -26,13 +26,14 @@ import type { MyAppointment, TeleproUser } from '@/components/telepro-v2/types'
 import { useNewRdvForm } from '@/components/telepro-v2/useNewRdvForm'
 import NewRdvFlow, { RdvSuccess } from '@/components/telepro-v2/NewRdvFlow'
 import MyCallSchedule from '@/components/telepro-v2/MyCallSchedule'
+import MyStats from '@/components/telepro-v2/MyStats'
 import TeleproContactsMobile from '@/components/telepro-v2/TeleproContactsMobile'
 import {
   TpMobileHeader, TpPlusSheet, TpRoundButton, TpTabBar, useLogout, useSupportUnread,
   type TpMenuItem, type TpMobileTab,
 } from '@/components/telepro-v2/ui'
 
-type TeleproTab = 'form' | 'horaires' | 'suivi' | 'agenda' | 'historique' | 'repop' | 'contacts' | 'transactions'
+type TeleproTab = 'form' | 'stats' | 'horaires' | 'suivi' | 'agenda' | 'historique' | 'repop' | 'contacts' | 'transactions'
 
 export default function TeleproClient({
   teleproUser,
@@ -363,6 +364,16 @@ export default function TeleproClient({
     switch (activeTab) {
       case 'form': return newRdvContent
       case 'historique': return historiqueContent
+      case 'stats':
+        // Ce que l'admin voit sur lui : activité, devenir des RDV, débrief IA des appels
+        return (
+          <>
+            {isMobile && <TpMobileHeader title="Mes stats" subtitle="Ton activité d'appel et le débrief de tes appels." />}
+            <div style={isMobile ? undefined : { maxWidth: 1280, margin: '0 auto', padding: '20px 28px 32px', width: '100%', boxSizing: 'border-box' }}>
+              <MyStats userId={teleproUser.id} />
+            </div>
+          </>
+        )
       case 'horaires':
         // Horaires d'appel de la semaine (saisis par le télépro ou imposés) + bilan Aircall
         return (
@@ -548,6 +559,7 @@ export default function TeleproClient({
       : activeTab === 'form' ? 'form'
       : 'plus'
     const plusItems: TpMenuItem[] = [
+      { key: 'stats', label: 'Mes stats', icon: <BarChart3 size={18} />, onClick: () => goTab('stats'), active: activeTab === 'stats' },
       { key: 'horaires', label: 'Mes horaires', icon: <Clock size={18} />, onClick: () => goTab('horaires'), active: activeTab === 'horaires' },
       { key: 'transactions', label: 'Mes transactions', icon: <Briefcase size={18} />, onClick: () => goTab('transactions'), active: activeTab === 'transactions', badge: txTotal },
       { key: 'repop', label: 'Repop', icon: <Repeat2 size={18} />, onClick: () => goTab('repop'), active: activeTab === 'repop' },
@@ -593,6 +605,7 @@ export default function TeleproClient({
     // « Nouveau RDV » : bouton de l'en-tête (pas d'onglet en doublon)
     { id: 'contacts', label: 'Mes contacts', count: crmTotal > 0 ? crmTotal : undefined },
     { id: 'agenda', label: 'Agenda RDV' },
+    { id: 'stats', label: 'Mes stats' },
     { id: 'horaires', label: 'Mes horaires' },
     { id: 'suivi', label: 'Suivi RDV' },
     { id: 'transactions', label: 'Mes transactions', count: txTotal > 0 ? txTotal : undefined },
