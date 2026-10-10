@@ -18,6 +18,7 @@ import UserCRMView from '@/components/UserCRMView'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import CRMGlobalSearchBar from '@/components/CRMGlobalSearchBar'
 import { parseExtraParticipants } from '@/lib/appointment-participants'
+import { CAMPUS_OPTIONS as SHARED_CAMPUS_OPTIONS } from '@/lib/campus'
 import { usePageTitle } from '@/components/DocumentTitle'
 import { useIsMobile } from '@/lib/useIsMobile'
 import {
@@ -150,10 +151,8 @@ const CLASSES = [
   'Etudes médicales', 'Etudes Sup.', 'Autre',
 ]
 
-const CAMPUS_OPTIONS = [
-  '100 quai de la Rapée 75012 Paris',
-  '29 rue Lauriston 75116 Paris',
-]
+// Liste commune (lib/campus) : l'API n'accepte que ces adresses exactes.
+const CAMPUS_OPTIONS: string[] = [...SHARED_CAMPUS_OPTIONS]
 
 function generateJitsiLink() {
   // Nom historique — génère désormais une URL LiveKit sur notre domaine.
