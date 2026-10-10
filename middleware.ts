@@ -46,6 +46,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/q/') || // QR courts Events Studio
     pathname.startsWith('/inscription-salons') || // hub public choix salon + places
     pathname.startsWith('/inscription-staff') || // inscription staff (sous-ensemble d’événements)
+    pathname.startsWith('/salon-live/') || // compteur public des leads d'un salon (token secret, agrégats seuls)
     pathname === '/podcast' || // candidature publique au podcast « Première année »
     pathname === '/confidentialite' || // politique de confidentialité (app Hub Diploma — App Store)
     pathname === '/assistance' || // page d'assistance (app Hub Diploma — App Store)
