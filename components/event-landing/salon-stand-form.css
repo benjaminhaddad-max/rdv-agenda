@@ -113,3 +113,31 @@ body:has(.salon-stand){
   .salon-stand .ss-foot{display:none}
   .salon-stand .ss-ok{padding:20px 0}
 }
+
+/* Variante neutre (sans marque Diploma) : gris / noir, police système. */
+body:has(.salon-stand.ss-neutral){background:#f1f2f4 !important;color:#1f2328}
+.salon-stand.ss-neutral{background:#f1f2f4;color:#1f2328;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
+.salon-stand.ss-neutral .ss-card{box-shadow:0 10px 40px rgba(0,0,0,.08)}
+.salon-stand.ss-neutral .ss-pill{background:#e7e9ec;color:#1f2328;font-family:inherit}
+.salon-stand.ss-neutral .ss-input,
+.salon-stand.ss-neutral select.ss-input,
+.salon-stand.ss-neutral textarea.ss-input{color:#1f2328;background:#f6f7f8;border-color:#e3e5e8}
+.salon-stand.ss-neutral .ss-input:focus{border-color:#1f2328}
+.salon-stand.ss-neutral .ss-chips span{font-family:inherit;background:#f6f7f8;border-color:#e3e5e8}
+.salon-stand.ss-neutral .ss-chips input:checked+span{background:#1f2328;border-color:#1f2328}
+.salon-stand.ss-neutral .ss-submit{background:#1f2328;color:#fff;font-family:inherit}
+.salon-stand.ss-neutral .ss-submit:hover{background:#3a3f45}
+.salon-stand.ss-neutral .ss-ok .ss-ic{background:#f1f2f4}
+.salon-stand.ss-neutral .ss-ok .ss-ic svg{stroke:#1f2328}
+.salon-stand.ss-neutral .ss-ok h2{font-family:inherit}
+@media (max-width:480px){
+  .salon-stand.ss-neutral .ss-mhead{padding-top:28px}
+  .salon-stand.ss-neutral .ss-mdate{background:#1f2328}
+  .salon-stand.ss-neutral .ss-mdate b,
+  .salon-stand.ss-neutral .ss-mdate span{color:#fff;font-family:inherit}
+  .salon-stand.ss-neutral .ss-mtitle{color:#1f2328;font-family:inherit}
+  .salon-stand.ss-neutral .ss-mtitle em{color:#1f2328}
+  .salon-stand.ss-neutral .ss-card{box-shadow:0 -6px 24px rgba(0,0,0,.06)}
+  .salon-stand.ss-neutral .ss-lbl{font-family:inherit}
+  .salon-stand.ss-neutral .ss-submit{box-shadow:0 10px 24px rgba(0,0,0,.18)}
+}

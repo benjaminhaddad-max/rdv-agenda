@@ -1,6 +1,7 @@
 import { ImageResponse } from 'next/og'
 import { detectLandingKind, formatEventDate } from '@/lib/event-landing/format'
 import { loadPublicFormPage } from '@/lib/event-landing/load'
+import { isNeutralStandForm } from '@/lib/event-landing/salon-stand'
 
 export const size = { width: 1200, height: 630 }
 export const contentType = 'image/png'
@@ -8,6 +9,7 @@ export const contentType = 'image/png'
 export default async function Image({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
   const page = await loadPublicFormPage(slug)
+  const neutral = page.kind === 'salon_stand' && isNeutralStandForm(slug)
   const title =
     page.kind === 'landing'
       ? page.data.event.name
@@ -62,7 +64,7 @@ export default async function Image({ params }: { params: Promise<{ slug: string
               fontWeight: 600,
             }}
           >
-            Diploma Santé · {kicker}
+            {neutral ? kicker : `Diploma Santé · ${kicker}`}
           </div>
           {fmt && (
             <div

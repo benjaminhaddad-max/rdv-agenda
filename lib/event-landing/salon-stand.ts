@@ -73,3 +73,18 @@ export function salonStandDates(eventDateIso: string, dateEnd?: string | null): 
     duPhrase: `du ${dayLabel(start.day)} ${start.monthLong} au ${dayLabel(end.day)} ${end.monthLong}`,
   }
 }
+
+/**
+ * Formulaires stand « neutres » : sans logo, ni nom, ni couleurs Diploma
+ * (liens personnels des commerciaux sur le salon Santé/social du 10-11/10).
+ */
+export const SALON_STAND_NEUTRAL_SLUGS = new Set([
+  'sante-social-paramedical-et-sport-sami',
+  'sante-social-paramedical-et-sport-malek',
+])
+
+export const SALON_STAND_NEUTRAL_SUCCESS = 'Un conseiller vous recontacte très rapidement.'
+
+export function isNeutralStandForm(slug: string | null | undefined): boolean {
+  return SALON_STAND_NEUTRAL_SLUGS.has(String(slug || '').trim().toLowerCase())
+}

@@ -5,10 +5,12 @@ import './salon-stand-form.css'
 import type { EventLandingEvent } from '@/lib/event-landing/types'
 import {
   SALON_STAND_DEFAULT_SUCCESS,
+  SALON_STAND_NEUTRAL_SUCCESS,
   SALON_STAND_PREPARATIONS_URL,
   SALON_STAND_PRIVACY_URL,
   SALON_STAND_RESET_MS,
   salonStandDates,
+  isNeutralStandForm,
   splitSalonTitle,
 } from '@/lib/event-landing/salon-stand'
 import type { PublicField, PublicForm } from '@/lib/public-forms'
@@ -91,6 +93,8 @@ export default function SalonStandForm({
     [],
   )
 
+  // Variante sans marque : ni logo, ni nom, ni couleurs Diploma.
+  const neutral = isNeutralStandForm(slug)
   const title = splitSalonTitle(event.name)
   const dates = salonStandDates(event.event_date, dateEnd)
   const visible = form.fields.filter((f) => f.field_type !== 'hidden')
@@ -141,11 +145,11 @@ export default function SalonStandForm({
   const longTitle = title.accent.length > 22
 
   return (
-    <div className="salon-stand">
-      <img className="ss-wm" src="/event-landing/serpent-blanc.svg" alt="" aria-hidden="true" />
+    <div className={`salon-stand${neutral ? ' ss-neutral' : ''}`}>
+      {!neutral && <img className="ss-wm" src="/event-landing/serpent-blanc.svg" alt="" aria-hidden="true" />}
 
       <header className="ss-mhead">
-        <img src="/event-landing/logo-diploma-blanc.svg" alt="Diploma Santé" />
+        {!neutral && <img src="/event-landing/logo-diploma-blanc.svg" alt="Diploma Santé" />}
         <div className="ss-mdate">
           <b>{dates.badgeDay}</b>
           <span>{dates.badgeMonth}</span>
@@ -154,12 +158,12 @@ export default function SalonStandForm({
           {title.prefix ? <>{title.prefix} </> : null}
           <em>{title.accent}</em>
         </div>
-        <div className="ss-msub">Stand Diploma Santé</div>
+        {!neutral && <div className="ss-msub">Stand Diploma Santé</div>}
       </header>
 
       <main className="ss-card" data-form-id={form.id} data-form-slug={form.slug}>
         <div className="ss-top">
-          <img src="/event-landing/logo-diploma-bleu.svg" alt="Diploma Santé" />
+          {neutral ? <span /> : <img src="/event-landing/logo-diploma-bleu.svg" alt="Diploma Santé" />}
           <span className="ss-pill" title={pillText}>
             {pillText}
           </span>
@@ -173,8 +177,8 @@ export default function SalonStandForm({
               </svg>
             </div>
             <h2>Merci, c’est noté</h2>
-            <p>{form.success_message || SALON_STAND_DEFAULT_SUCCESS}</p>
-            <a href={SALON_STAND_PREPARATIONS_URL}>Nos préparations</a>
+            <p>{form.success_message || (neutral ? SALON_STAND_NEUTRAL_SUCCESS : SALON_STAND_DEFAULT_SUCCESS)}</p>
+            {!neutral && <a href={SALON_STAND_PREPARATIONS_URL}>Nos préparations</a>}
           </div>
         ) : (
           <form ref={formRef} onSubmit={handleSubmit} noValidate>
@@ -215,14 +219,16 @@ export default function SalonStandForm({
               {submitting ? 'Envoi…' : form.submit_label && form.submit_label !== 'Envoyer' ? form.submit_label : 'Soumettre'}
             </button>
             <p className="ss-rgpd">
-              En soumettant ce formulaire, vous acceptez d’être recontacté(e) par Diploma Santé au sujet de ses
-              préparations.{' '}
+              {neutral
+                ? 'En soumettant ce formulaire, vous acceptez d’être recontacté(e) au sujet de votre projet d’études.'
+                : 'En soumettant ce formulaire, vous acceptez d’être recontacté(e) par Diploma Santé au sujet de ses préparations.'}{' '}
               <a href={SALON_STAND_PRIVACY_URL} target="_blank" rel="noreferrer">
                 Politique de confidentialité
               </a>
             </p>
             <p className="ss-foot">
-              Stand Diploma Santé · {title.prefix ? `${title.prefix} ` : ''}
+              {neutral ? '' : 'Stand Diploma Santé · '}
+              {title.prefix ? `${title.prefix} ` : ''}
               {title.accent} {dates.duPhrase}
             </p>
           </form>

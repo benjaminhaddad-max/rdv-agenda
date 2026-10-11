@@ -7,6 +7,7 @@ import { buildLandingCopy } from '@/lib/event-landing/content'
 import { detectLandingKind, formatEventDate, remainingLabel } from '@/lib/event-landing/format'
 import { buildEventJsonLd } from '@/lib/event-landing/jsonld'
 import { loadPublicFormPage } from '@/lib/event-landing/load'
+import { isNeutralStandForm } from '@/lib/event-landing/salon-stand'
 
 type Params = { params: Promise<{ slug: string }> }
 
@@ -38,6 +39,13 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
     }
   }
   if (page.kind === 'salon_stand') {
+    if (isNeutralStandForm(slug)) {
+      return {
+        title: page.event.name || 'Formulaire',
+        description: `Formulaire de contact — ${page.event.name}.`,
+        robots: { index: false, follow: false },
+      }
+    }
     return {
       title: `${page.event.name} — Stand Diploma Santé`,
       description: `Formulaire de contact du stand Diploma Santé — ${page.event.name}.`,
