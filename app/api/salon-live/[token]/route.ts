@@ -24,15 +24,23 @@ export async function GET(_req: Request, { params }: Params) {
   const to = new Date(`${cfg.days[cfg.days.length - 1]}T23:59:59Z`)
   to.setUTCHours(to.getUTCHours() + 3)
 
+  // PostgREST plafonne chaque réponse à 1000 lignes : on pagine.
   const db = createServiceClient()
-  const { data, error } = await db
-    .from('form_submissions')
-    .select('data, submitted_at')
-    .in('form_id', cfg.formIds)
-    .gte('submitted_at', from.toISOString())
-    .lte('submitted_at', to.toISOString())
-    .limit(5000)
-  if (error) return NextResponse.json({ error: 'Erreur de chargement' }, { status: 500 })
+  const PAGE = 1000
+  const data: { data: unknown; submitted_at: string }[] = []
+  for (let offset = 0; ; offset += PAGE) {
+    const { data: page, error } = await db
+      .from('form_submissions')
+      .select('data, submitted_at')
+      .in('form_id', cfg.formIds)
+      .gte('submitted_at', from.toISOString())
+      .lte('submitted_at', to.toISOString())
+      .order('id')
+      .range(offset, offset + PAGE - 1)
+    if (error) return NextResponse.json({ error: 'Erreur de chargement' }, { status: 500 })
+    data.push(...(page || []))
+    if (!page || page.length < PAGE) break
+  }
 
   const byDay: Record<string, number> = Object.fromEntries(cfg.days.map((d) => [d, 0]))
   const byHour: Record<string, Record<string, number>> = Object.fromEntries(cfg.days.map((d) => [d, {}]))
