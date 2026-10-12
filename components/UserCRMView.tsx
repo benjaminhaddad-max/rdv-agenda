@@ -1513,7 +1513,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
           <div style={{ maxWidth: 1280, margin: '0 auto' }}>{leadingView.render()}</div>
         </div>
       ) : (
-      {/* ── Corps : carte tableau ─────────────────────────────────────────── */}
+      /* ── Corps : carte tableau ─────────────────────────────────────────── */
       <div style={{
         flex: 1, minHeight: 0, minWidth: 0, display: 'flex', flexDirection: 'column',
         padding: isMobile ? '10px 10px 0' : compactLayout ? '10px 16px 12px' : '16px 28px 20px', gap: isMobile ? 8 : 0,
