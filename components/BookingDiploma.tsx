@@ -21,6 +21,7 @@ import {
   Clock, Globe2, ChevronLeft, ChevronRight, ArrowLeft, CalendarDays, CheckCircle2, MapPin, Video,
 } from 'lucide-react'
 import { CAMPUS_OPTIONS, type CampusOption } from '@/lib/campus'
+import type { BookingPrefill } from '@/lib/booking-prefill'
 
 // ─── Réglages faciles à modifier ──────────────────────────────────────────────
 const EVENT_TITLE = "Rendez-vous d'information - Diploma Santé"
@@ -79,10 +80,13 @@ export type BookingUtm = {
 
 export default function BookingDiploma({
   utm,
+  prefill,
   embedded = false,
   embedPopup = false,
 }: {
   utm?: BookingUtm
+  /** Coordonnées passées dans l'URL (ex. lien Meta Lead Ads) */
+  prefill?: BookingPrefill
   embedded?: boolean
   /** true = iframe dans une popup (hauteur fixe, scroll interne, pas d'auto-resize) */
   embedPopup?: boolean
@@ -97,12 +101,12 @@ export default function BookingDiploma({
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null)
 
   // Formulaire
-  const [prenom, setPrenom] = useState('')
-  const [nom, setNom] = useState('')
-  const [email, setEmail] = useState('')
+  const [prenom, setPrenom] = useState(prefill?.prenom ?? '')
+  const [nom, setNom] = useState(prefill?.nom ?? '')
+  const [email, setEmail] = useState(prefill?.email ?? '')
   const [lieu, setLieu] = useState<Lieu | null>(null)
-  const [phone, setPhone] = useState('')
-  const [departement, setDepartement] = useState('')
+  const [phone, setPhone] = useState(prefill?.phone ?? '')
+  const [departement, setDepartement] = useState(prefill?.departement ?? '')
   const [classe, setClasse] = useState('')
   const [formation, setFormation] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -266,8 +270,8 @@ export default function BookingDiploma({
     setSelectedDate(null)
     setPendingSlot(null)
     setSelectedSlot(null)
-    setPrenom(''); setNom(''); setEmail(''); setLieu(null)
-    setPhone(''); setDepartement(''); setClasse(''); setFormation('')
+    setPrenom(prefill?.prenom ?? ''); setNom(prefill?.nom ?? ''); setEmail(prefill?.email ?? ''); setLieu(null)
+    setPhone(prefill?.phone ?? ''); setDepartement(prefill?.departement ?? ''); setClasse(''); setFormation('')
     setError(null)
   }
 
