@@ -3,4 +3,3 @@
 Géré automatiquement par Claude (voir CLAUDE.md). Une ligne par tâche en cours, retirée à la fin.
 - Benjamin · 2026-10-12 10:44 · Ambassadeurs : coach Diploma Lab + filtre par coach · BDD v71 · lycee_ambassadeurs · components/crm-v2/lycees/AmbassadeursList.tsx, lib/lycees.ts
 - Benjamin · 2026-10-12 13:33 · Télépro Mes contacts : vue plus compacte · components/UserCRMView.tsx, app/telepro/TeleproClient.tsx, components/crm-v2/primitives.tsx
-- Aaron · 2026-10-12 13:33 · Créas Ads : webinaire 21/10 Diploma + étiquette type (webinaire/JPO) · components/crm-v2/marketing2/ads-creatives, scripts/import-ads-planning-diploma.mjs
