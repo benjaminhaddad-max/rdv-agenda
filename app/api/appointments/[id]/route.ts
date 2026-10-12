@@ -659,6 +659,32 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
   }
 
+  // RDV « Négatif » → le cycle de vente en cours est clos en « Perdu » avec la
+  // raison (migration v80 ; sans la table, l'update échoue sans conséquence).
+  if (status === 'negatif' && appointment.hubspot_contact_id) {
+    const NEGATIF_LABELS: Record<string, string> = {
+      inscrit_autre_prepa: 'Inscrit dans une autre prépa',
+      pas_les_moyens: 'Pas les moyens',
+      reorientation: 'Réorientation',
+      autre: 'Autre',
+    }
+    const reason = (negatif_reason as string | null | undefined) ?? null
+    let detail = (negatif_reason_detail as string | null | undefined) ?? null
+    if (reason === 'inscrit_autre_prepa' && detail) {
+      try { detail = (JSON.parse(detail) as string[]).join(', ') } catch { /* texte brut */ }
+    }
+    const motif = ['RDV négatif', reason ? NEGATIF_LABELS[reason] ?? reason : null, detail || null].filter(Boolean).join(' — ')
+    const { error: cycleErr } = await db
+      .from('crm_sales_cycles')
+      .update({ etat: 'perdu', motif, closed_at: new Date().toISOString(), closed_by: 'RDV négatif', updated_at: new Date().toISOString() })
+      .eq('hubspot_contact_id', appointment.hubspot_contact_id)
+      .eq('is_current', true)
+      .eq('etat', 'ouvert')
+    if (cycleErr && !/crm_sales_cycles/.test(cycleErr.message)) {
+      console.error(`[appointments PATCH] clôture cycle (négatif) échouée pour ${id}:`, cycleErr)
+    }
+  }
+
   const { data: enrichedStatus } = await fetchAppointmentEnriched(db, id)
   return NextResponse.json(enrichedStatus ?? data)
 }

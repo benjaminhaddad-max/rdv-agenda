@@ -24,6 +24,8 @@ export const MEDIBOX_ZONES = [
 export const UNTREATED_LEAD_STATUSES = [
   'Nouveau',
   'Nouveau - Chaud',
+  // Lead déjà connu, relancé sur un nouveau cycle de vente (v80)
+  'Recyclé',
   'NRP1',
   'NRP2',
   'NRP3',

@@ -66,6 +66,7 @@ export const PERIOD_OPTIONS: SelectOption[] = [
 const LEAD_STATUS_OPTIONS_BASE: SelectOption[] = [
   { id: 'Nouveau',                     label: 'Nouveau' },
   { id: 'Nouveau - Chaud',             label: 'Nouveau - Chaud' },
+  { id: 'Recyclé',                     label: 'Recyclé' },
   { id: 'En cours',                    label: 'En cours' },
   { id: 'RDV pris',                    label: 'RDV pris' },
   { id: 'A replanifier',               label: 'A replanifier' },
