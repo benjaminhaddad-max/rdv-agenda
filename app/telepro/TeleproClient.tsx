@@ -474,6 +474,7 @@ export default function TeleproClient({
             {skin(
               <UserCRMView
                 ownerParam="telepro_id" ownerId={teleproCrmFilterId} mode="telepro" onTotalChange={setCrmTotal}
+                previewUserId={previewMode ? teleproUser.id : undefined}
                 leadingView={isMobile ? undefined : {
                   label: "À traiter aujourd'hui",
                   render: () => <TodayView userId={teleproUser.id} firstName={firstName} />,

@@ -13,10 +13,26 @@ import { TELEPRO_SHARED_VIEW_IDS } from '@/lib/crm-views'
 // Admin sans layout : on fige le catalogue actuel.
 // Télépro sans layout : Recalif / Diploma (comportement historique), puis
 // il ajoute d'autres vues du catalogue sans les modifier.
-export async function GET() {
+export async function GET(req: NextRequest) {
   const auth = await requireApiRole(['admin', 'telepro'])
   if (!auth.ok) return auth.response
   const db = createServiceClient()
+
+  // ?as=<id> : mode aperçu admin → onglets du télépro vu, en lecture seule
+  // (sans layout enregistré : ses onglets par défaut, sans rien écrire).
+  const asUser = req.nextUrl.searchParams.get('as')
+  if (asUser) {
+    if (auth.ctx.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    const { data: asRow } = await db
+      .from('crm_saved_views')
+      .select('filter_groups')
+      .eq('id', adminViewLayoutRowId(asUser))
+      .maybeSingle()
+    return NextResponse.json({
+      view_ids: asRow ? parseLayoutViewIds(asRow.filter_groups) ?? [] : [...TELEPRO_SHARED_VIEW_IDS],
+    })
+  }
+
   const layoutId = adminViewLayoutRowId(auth.ctx.appUserId)
 
   const { data: row } = await db

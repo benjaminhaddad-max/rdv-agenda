@@ -31,7 +31,10 @@ export async function GET(req: NextRequest) {
   } else if (owner === 'me') {
     const ctx = await getApiUserContext()
     if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    query = query.eq('owner_id', ctx.appUserId)
+    // ?as=<id> : mode aperçu admin → vues privées de l'utilisateur vu.
+    const asUser = req.nextUrl.searchParams.get('as')
+    if (asUser && ctx.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    query = query.eq('owner_id', asUser || ctx.appUserId)
   } else {
     query = query.is('owner_id', null)
   }

@@ -126,6 +126,8 @@ interface Props {
   initialSourceFilter?: string
   /** Onglet affiché avant les vues (ex. « À traiter aujourd'hui » du télépro), ouvert par défaut. */
   leadingView?: { label: string; badge?: number; render: () => React.ReactNode }
+  /** Mode aperçu admin : charge les vues / onglets de cet utilisateur (lecture seule). */
+  previewUserId?: string
 }
 
 // ── Styled select helper ─────────────────────────────────────────────────────
@@ -385,7 +387,7 @@ function AdvancedFilterRow({
 }
 
 // ── Composant principal ──────────────────────────────────────────────────────
-export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOnly, onTotalChange, initialSourceFilter, leadingView }: Props) {
+export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOnly, onTotalChange, initialSourceFilter, leadingView, previewUserId }: Props) {
   // ─ Présentation V2 (mobile, panneau de filtres, emplacement du bouton Colonnes)
   const isMobile = useIsMobile()
   // Télépro (ordinateur) : la page a déjà son en-tête + l'onglet « Mes contacts (N) »
@@ -808,7 +810,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
 
   const activeView = views.find(v => v.id === activeViewId)
   const viewChanged = useMemo(() => {
-    if (!activeView || activeView.isShared) return false
+    if (previewUserId || !activeView || activeView.isShared) return false
     return JSON.stringify(currentSnapshot) !== JSON.stringify(activeView.snapshot ?? {})
   }, [currentSnapshot, activeView])
 
@@ -817,12 +819,13 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
     let cancelled = false
     const loadViews = async () => {
       try {
+        const asParam = previewUserId ? `as=${encodeURIComponent(previewUserId)}` : ''
         const requests: Promise<Response>[] = [
-          fetch('/api/crm/views?scope=contacts&owner=me'),
+          fetch(`/api/crm/views?scope=contacts&owner=me${asParam ? `&${asParam}` : ''}`),
         ]
         if (mode === 'telepro') {
           requests.push(fetch('/api/crm/views?scope=contacts&shared=telepro'))
-          requests.push(fetch('/api/crm/views/layout'))
+          requests.push(fetch(`/api/crm/views/layout${asParam ? `?${asParam}` : ''}`))
         }
         const responses = await Promise.all(requests)
         if (cancelled) return
@@ -867,7 +870,11 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
     }
     void loadViews()
     return () => { cancelled = true }
-  }, [mode])
+  }, [mode, previewUserId])
+
+  // Aperçu admin : les onglets sont ceux du télépro vu → aucune écriture
+  // (les routes enregistreraient sinon sur le compte de l'admin).
+  const viewsReadOnly = !!previewUserId
 
   function applyView(view: UserSavedView) {
     setActiveViewId(view.id)
@@ -905,6 +912,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
   }
 
   function createView(name: string) {
+    if (viewsReadOnly) return
     const id = `uv_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
     const snapshot = currentSnapshot
     const newView: UserSavedView = { id, name: name || 'Nouvelle vue', snapshot }
@@ -921,6 +929,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
   }
 
   function deleteView(id: string) {
+    if (viewsReadOnly) return
     setViews(prev => prev.filter(v => v.id !== id))
     if (activeViewId === id) applyView(DEFAULT_USER_VIEW)
     void fetch(`/api/crm/views/${id}`, { method: 'DELETE' }).catch(() => {})
@@ -928,7 +937,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
 
   function renameView(id: string, name: string) {
     const view = views.find(v => v.id === id)
-    if (!view || view.isShared || view.isDefault) return
+    if (viewsReadOnly || !view || view.isShared || view.isDefault) return
     const finalName = name.trim() || view.name
     setViews(prev => prev.map(v => (v.id === id ? { ...v, name: finalName } : v)))
     setRenamingViewId(null)
@@ -940,7 +949,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
   }
 
   function pinSharedView(id: string) {
-    if (layoutViewIds.includes(id)) return
+    if (viewsReadOnly || layoutViewIds.includes(id)) return
     const next = [...layoutViewIds, id]
     setLayoutViewIds(next)
     void persistAdminViewLayout(next)
@@ -955,6 +964,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
   }
 
   function unpinSharedView(id: string) {
+    if (viewsReadOnly) return
     const next = layoutViewIds.filter(x => x !== id)
     setLayoutViewIds(next)
     void persistAdminViewLayout(next)
@@ -963,7 +973,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
   }
 
   function saveActiveView() {
-    if (!activeView || activeView.isDefault || activeView.isShared) return
+    if (viewsReadOnly || !activeView || activeView.isDefault || activeView.isShared) return
     const snapshot = currentSnapshot
     setViews(prev => prev.map(v => (v.id === activeViewId ? { ...v, snapshot } : v)))
     setJustSaved(true)
@@ -1354,7 +1364,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
                 {view.name}
               </span>
             )}
-            {!view.isDefault && isActive && !isRenaming && (
+            {!viewsReadOnly && !view.isDefault && isActive && !isRenaming && (
               <button
                 type="button"
                 onClick={e => {
@@ -1430,7 +1440,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
             <X size={14} />
           </button>
         </div>
-      ) : (
+      ) : viewsReadOnly ? null : (
         <button
           type="button"
           onClick={() => mode === 'telepro' ? setAddViewOpen(true) : setCreatingView(true)}
