@@ -8,7 +8,7 @@ const { data: created, error } = await supabase.auth.admin.createUser({ email, p
 if (error || !created?.user) { console.error('FAIL auth', error?.message); process.exit(1) }
 const { data, error: insErr } = await supabase.from('rdv_users').insert({
   email, name: 'Maëlle Cohen', role: 'restreint', slug: 'restreint-maellecohen', avatar_color: '#ec4899', auth_id: created.user.id,
-  allowed_pages: ['ads-dashboard', 'creas-ads', 'events', 'meta-ads'],
+  allowed_pages: ['ads-dashboard', 'creas-ads', 'events', 'forms', 'meta-ads'],
 }).select('id,email,name,role,slug,auth_id,allowed_pages').single()
 if (insErr) { await supabase.auth.admin.deleteUser(created.user.id); console.error('FAIL rdv_users (auth annulé)', insErr.message); process.exit(1) }
 console.log('OK', data)

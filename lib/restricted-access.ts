@@ -14,6 +14,7 @@ export const RESTRICTED_PAGES = {
   'ads-dashboard': '/admin/crm-v2/ads-dashboard',
   'creas-ads': '/admin/crm-v2/creas-ads',
   'events': '/admin/crm-v2/events',
+  'forms': '/admin/crm-v2/forms',
   'meta-ads': '/admin/crm-v2/meta-ads',
 } as const
 

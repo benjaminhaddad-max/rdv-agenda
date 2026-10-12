@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
-import { requireApiUser } from '@/lib/api-auth'
+import { requireApiUserOrPage } from '@/lib/api-auth'
 import { invalidatePublicFormCache } from '@/lib/public-forms'
 import {
   FORM_PDF_MAX_BYTES,
@@ -121,7 +121,7 @@ export async function GET(req: Request, { params }: Params) {
 
 /** POST admin — prépare l’upload (signed URL) ou confirme le PDF. */
 export async function POST(req: Request, { params }: Params) {
-  const auth = await requireApiUser()
+  const auth = await requireApiUserOrPage('forms')
   if (!auth.ok) return auth.response
 
   const { id } = await params
@@ -183,7 +183,7 @@ export async function POST(req: Request, { params }: Params) {
 
 /** DELETE admin — retire le PDF associé. */
 export async function DELETE(_req: Request, { params }: Params) {
-  const auth = await requireApiUser()
+  const auth = await requireApiUserOrPage('forms')
   if (!auth.ok) return auth.response
 
   const { id } = await params
