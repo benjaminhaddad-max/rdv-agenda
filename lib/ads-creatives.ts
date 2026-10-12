@@ -47,6 +47,9 @@ export const BRIEF_NUMERIC: BriefField[] = ['cpl_ref', 'cpl_target', 'budget_tar
 export const CAMPAIGN_STATUSES = ['À valider', 'Validé', 'En pause', 'Annulé'] as const
 
 export type CreativeRole = 'static' | 'video'
+/** Rôle d'un dépôt : dossiers de créas, ou PDF du guide (guides uniquement) */
+export type ItemRole = CreativeRole | 'guide'
+export const ITEM_ROLES: ItemRole[] = ['static', 'video', 'guide']
 export const CREATIVE_ROLES: CreativeRole[] = ['static', 'video']
 export const CREATIVE_ROLE_LABELS: Record<CreativeRole, string> = {
   static: 'Créas statiques',
@@ -74,7 +77,7 @@ export function countCreatives(items: CreativeItem[], role: CreativeRole): numbe
 export type CreativeItem = {
   id: string
   event_id: string
-  role: CreativeRole
+  role: ItemRole
   kind: 'link' | 'file' | 'folder'
   url: string | null
   path: string | null

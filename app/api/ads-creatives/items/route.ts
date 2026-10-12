@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { resolveAdsAccess } from '@/lib/ads-creatives-server'
-import { ADS_CREATIVES_BUCKET, ADS_CREATIVES_MAX_FOLDER_BYTES, CREATIVE_ROLES, type CreativeRole, type FolderFile } from '@/lib/ads-creatives'
+import { ADS_CREATIVES_BUCKET, ADS_CREATIVES_MAX_FOLDER_BYTES, ITEM_ROLES, type ItemRole, type FolderFile } from '@/lib/ads-creatives'
 
 /**
  * POST /api/ads-creatives/items — { token?, campaign_id, role, kind: 'folder', label, files: [{ path, name, size }], added_by? }
  *   (campaign_id = ads_campaigns.id, stocké dans la colonne event_id)
+ *   { …, role: 'guide', kind: 'file', path, label, size } — PDF d'un guide
  *   (les anciens kinds 'link' / 'file' restent acceptés)
  * DELETE /api/ads-creatives/items?id=…[&token=…]
  */
@@ -14,9 +15,10 @@ export async function POST(req: NextRequest) {
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
 
   const event_id = String(body.campaign_id || body.event_id || '').trim()
-  const role = String(body.role || '') as CreativeRole
-  const kind = body.kind === 'folder' ? 'folder' : body.kind === 'file' ? 'file' : 'link'
-  if (!event_id || !CREATIVE_ROLES.includes(role)) {
+  const role = String(body.role || '') as ItemRole
+  // PDF du guide : toujours un fichier seul
+  const kind = role === 'guide' ? 'file' : body.kind === 'folder' ? 'folder' : body.kind === 'file' ? 'file' : 'link'
+  if (!event_id || !ITEM_ROLES.includes(role)) {
     return NextResponse.json({ error: 'event_id / role invalides' }, { status: 400 })
   }
 

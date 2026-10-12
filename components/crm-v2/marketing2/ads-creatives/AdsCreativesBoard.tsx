@@ -24,7 +24,7 @@ import {
 } from '@/lib/ads-creatives'
 import CampaignDrawer, { StatusBadge } from './CampaignDrawer'
 import CampaignEditDrawer from './CampaignEditDrawer'
-import { adsStatus, creativeStatus, shortDay } from './status'
+import { adsStatus, creativeStatus, guidePdfStatus, shortDay } from './status'
 import { TONES, pilierColor } from './ui'
 
 type Settings = AdsCreativesSettings & { share_token?: string; share_url?: string }
@@ -170,7 +170,9 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
   }
 
   const removeItem = async (ev: AdsEventRow, item: CreativeItem) => {
-    if (!confirm(`Supprimer le dossier « ${item.label || 'sans nom'} » et ses fichiers ?`)) return
+    if (!confirm(item.kind === 'folder'
+      ? `Supprimer le dossier « ${item.label || 'sans nom'} » et ses fichiers ?`
+      : `Supprimer « ${item.label || 'ce fichier'} » ?`)) return
     const r = await fetch(`/api/ads-creatives/items?id=${item.id}${tokenParam}`, { method: 'DELETE' })
     if (!r.ok) return flash('Suppression impossible')
     setEvents((prev) => prev.map((e) => (e.id === ev.id ? { ...e, items: e.items.filter((i) => i.id !== item.id) } : e)))
@@ -340,6 +342,7 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
                       <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
                         <div style={rowTitle}>{ev.name}</div>
                         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 4 }}>
+                          {ev.kind === 'guide' && <MiniStatus label="PDF" s={guidePdfStatus(ev, today)} />}
                           <MiniStatus label="Stat." s={creativeStatus(ev, 'static', today)} />
                           <MiniStatus label="Vidéo" s={creativeStatus(ev, 'video', today)} />
                           <MiniStatus label="Ads" s={adsStatus(ev, today)} />
@@ -359,6 +362,7 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
                 <tr>
                   <CrmV2Th style={{ width: 70 }}>Date</CrmV2Th>
                   <CrmV2Th>{isGuide ? 'Guide' : 'Campagne'}</CrmV2Th>
+                  {kind !== 'event' && <CrmV2Th style={{ width: 130 }}>PDF du guide</CrmV2Th>}
                   <CrmV2Th style={{ width: 150 }}>Créas statiques</CrmV2Th>
                   <CrmV2Th style={{ width: 150 }}>Créas vidéo</CrmV2Th>
                   <CrmV2Th style={{ width: kind === 'event' ? 100 : 130 }}>{isGuide ? 'Diffusion' : kind === 'all' ? 'Allumage / diffusion' : 'Allumage'}</CrmV2Th>
@@ -371,7 +375,7 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
                   const leads = rows.reduce((n, e) => n + (e.leads_expected || 0), 0)
                   return [
                     <tr key={month}>
-                      <td colSpan={6} style={monthCell}>
+                      <td colSpan={kind === 'event' ? 6 : 7} style={monthCell}>
                         <span style={{ fontWeight: 800, color: crmV2.text }}>{monthLabel(`${month}-01`)}</span>
                         <span style={{ color: crmV2.textFaint, fontWeight: 500 }}>
                           {' · '}{rows.length} {isGuide ? 'guide' : 'campagne'}{rows.length > 1 ? 's' : ''}
@@ -403,6 +407,11 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
                               </div>
                             </div>
                           </CrmV2Td>
+                          {kind !== 'event' && (
+                            <CrmV2Td style={cellPad}>
+                              {ev.kind === 'guide' ? <StatusBadge s={guidePdfStatus(ev, today)} /> : <span style={{ color: crmV2.textFaint }}>—</span>}
+                            </CrmV2Td>
+                          )}
                           <CrmV2Td style={cellPad}><StatusBadge s={creativeStatus(ev, 'static', today)} /></CrmV2Td>
                           <CrmV2Td style={cellPad}><StatusBadge s={creativeStatus(ev, 'video', today)} /></CrmV2Td>
                           <CrmV2Td style={{ ...cellPad, color: crmV2.textMuted, whiteSpace: 'nowrap' }}>
@@ -437,6 +446,7 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
           author={author}
           fileUrl={fileUrl}
           onAddFolder={addFolder}
+          onItemAdded={(ev, item) => setEvents((prev) => prev.map((e) => (e.id === ev.id ? { ...e, items: [...e.items, item] } : e)))}
           onRemove={removeItem}
           onLaunched={(v) => setLaunched(opened, v)}
           onEdit={() => setEditing(opened)}

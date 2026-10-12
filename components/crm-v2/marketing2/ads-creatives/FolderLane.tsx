@@ -45,7 +45,7 @@ async function readDroppedEntry(entry: FileSystemEntry, prefix = ''): Promise<Pi
   return out
 }
 
-function uploadOne(path: string, signature: string, file: File, onProgress: (sent: number) => void): Promise<void> {
+export function uploadOne(path: string, signature: string, file: File, onProgress: (sent: number) => void): Promise<void> {
   return new Promise((resolve, reject) => {
     const upload = new tus.Upload(file, {
       endpoint: `${STORAGE_HOST}/storage/v1/upload/resumable/sign`,

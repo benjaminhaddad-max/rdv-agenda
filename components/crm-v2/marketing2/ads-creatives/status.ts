@@ -19,6 +19,17 @@ export function creativeStatus(ev: AdsEventRow, role: CreativeRole, today: strin
   return { tone: 'idle', label: `Pour le ${short(ev.creas_deadline)}` }
 }
 
+/** PDF d'un guide : même échéance que les créas. */
+export function guidePdfStatus(ev: AdsEventRow, today: string): Status {
+  if (ev.items.some((i) => i.role === 'guide')) return { tone: 'done', label: 'Déposé' }
+  if (ev.no_campaign) return { tone: 'off', label: '—' }
+  if (ev.until < today) return { tone: 'off', label: 'Non déposé' }
+  const d = diffDays(today, ev.creas_deadline)
+  if (d < 0) return { tone: 'late', label: `Retard ${-d} j` }
+  if (d === 0) return { tone: 'warn', label: 'Aujourd’hui' }
+  return { tone: d <= 3 ? 'warn' : 'idle', label: `Pour le ${short(ev.creas_deadline)}` }
+}
+
 /** Colonne Ads : en ligne / à lancer / aujourd'hui / retard 3 j. */
 export function adsStatus(ev: AdsEventRow, today: string): Status {
   if (ev.launched_at) return { tone: 'done', label: 'En ligne' }

@@ -6,7 +6,7 @@
  */
 
 import { useState, type CSSProperties, type ReactNode } from 'react'
-import { Check, ChevronDown, ChevronRight, Image as ImageIcon, Megaphone, Pencil, Video } from 'lucide-react'
+import { Check, ChevronDown, ChevronRight, FileText, Image as ImageIcon, Megaphone, Pencil, Video } from 'lucide-react'
 import { CrmV2Button, CrmV2Drawer } from '@/components/crm-v2/primitives'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import {
@@ -14,11 +14,12 @@ import {
   type AdsCreativesSettings, type AdsEventRow, type CreativeItem, type CreativeRole, type FolderFile,
 } from '@/lib/ads-creatives'
 import FolderLane from './FolderLane'
-import { adsStatus, creativeStatus, type Status } from './status'
+import GuidePdfLane from './GuidePdfLane'
+import { adsStatus, creativeStatus, guidePdfStatus, type Status } from './status'
 import { TONES, funnelColor, pill, pilierColor, statusColor } from './ui'
 
 export default function CampaignDrawer({
-  ev, today, crm, settings, token, author, fileUrl, onAddFolder, onRemove, onLaunched, onEdit, onClose, flash,
+  ev, today, crm, settings, token, author, fileUrl, onAddFolder, onItemAdded, onRemove, onLaunched, onEdit, onClose, flash,
 }: {
   ev: AdsEventRow
   today: string
@@ -28,6 +29,7 @@ export default function CampaignDrawer({
   author: string
   fileUrl: (f: FolderFile) => string
   onAddFolder: (ev: AdsEventRow, role: CreativeRole, label: string, files: FolderFile[]) => Promise<void>
+  onItemAdded: (ev: AdsEventRow, item: CreativeItem) => void
   onRemove: (ev: AdsEventRow, item: CreativeItem) => void
   onLaunched: (v: boolean) => void
   onEdit: () => void
@@ -149,6 +151,21 @@ export default function CampaignDrawer({
                 ))}
               </>
             )}
+          </Section>
+        )}
+
+        {/* PDF du guide */}
+        {isGuide && (
+          <Section title="PDF du guide" icon={<FileText size={14} />} status={guidePdfStatus(ev, today)}>
+            <GuidePdfLane
+              ev={ev}
+              token={token}
+              author={author}
+              fileUrl={fileUrl}
+              onAdded={(item) => onItemAdded(ev, item)}
+              onRemove={onRemove}
+              flash={flash}
+            />
           </Section>
         )}
 
