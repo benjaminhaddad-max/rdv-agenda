@@ -987,15 +987,31 @@ async function inscriptionTimeslotFormIds(eventId: string): Promise<string[]> {
   const formIds = (links || [])
     .filter((l) => (l.form_type || 'crm') === 'crm' && l.hubspot_form_id)
     .map((l) => String(l.hubspot_form_id))
-  if (formIds.length === 0) return []
   const db = createServiceClient()
+  // Formulaire « choix du créneau » envoyé par SMS aux inscrits sans créneau.
+  const { data: choiceForms } = await db
+    .from('forms')
+    .select('id')
+    .ilike('description', `%${timeslotChoiceTag(eventId)}%`)
+  const choiceIds = (choiceForms || []).map((f) => String(f.id))
+  if (formIds.length === 0) return choiceIds
   const { data: fields } = await db
     .from('form_fields')
     .select('form_id')
     .in('form_id', formIds)
     .eq('field_key', TIMESLOT_FIELD_KEY)
-  return [...new Set((fields || []).map((f) => String(f.form_id)))]
+  return [...new Set([...(fields || []).map((f) => String(f.form_id)), ...choiceIds])]
 }
+
+/** Marqueur (dans forms.description) d'un formulaire « choix du créneau » rattaché à un événement. */
+export function timeslotChoiceTag(eventId: string): string {
+  return `[timeslot_choice:${eventId}]`
+}
+
+/** Champs du formulaire « choix du créneau » : identité (masquée par lien signé) + créneau. */
+export const TIMESLOT_CHOICE_FIELDS: EventFormFieldInsert[] = SURVEY_FIELDS.map((f) =>
+  f.field_key === TIMESLOT_FIELD_KEY ? { ...f, label: 'Sur quel créneau souhaitez-vous venir ?' } : f,
+)
 
 /** « 10-12 » → début « 10h », fin « 12h ». */
 function slotBounds(value: string): { debut: string; fin: string } {
