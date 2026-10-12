@@ -18,6 +18,7 @@ export default async function EmbedRdvPage({
     <BookingDiploma
       embedded
       embedPopup={sp.popup === '1'}
+      variant={sp.type === 'coaching' ? 'coaching' : 'info'}
       prefill={prefill}
       utm={{
         utm_source: str(sp.utm_source),

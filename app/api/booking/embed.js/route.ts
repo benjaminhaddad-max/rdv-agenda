@@ -11,6 +11,9 @@ import { NextResponse } from 'next/server'
  *   <div data-diploma-rdv-popup data-height="680px"></div>
  *   <script src="https://hub.diploma-sante.fr/api/booking/embed.js" async></script>
  *
+ * Variante « Coaching orientation médecine » : ajouter data-type="coaching" sur le conteneur
+ *   <div data-diploma-rdv-inline data-type="coaching"></div>
+ *
  * IMPORTANT : ne pas mélanger auto-resize et popup Divi.
  * Dans une popup, utiliser data-diploma-rdv-popup (pas data-diploma-rdv-inline).
  */
@@ -59,9 +62,10 @@ function generateEmbedScript(host: string): string {
     return base;
   }
 
-  function buildIframeSrc(popup) {
+  function buildIframeSrc(popup, type) {
     var params = copyUtmParams(new URLSearchParams());
     if (popup) params.set('popup', '1');
+    if (type) params.set('type', type);
     var str = params.toString();
     return HOST + '/embed/rdv' + (str ? '?' + str : '');
   }
@@ -85,7 +89,7 @@ function generateEmbedScript(host: string): string {
     container.dataset.mounted = '1';
 
     var iframe = document.createElement('iframe');
-    iframe.src = buildIframeSrc(false);
+    iframe.src = buildIframeSrc(false, container.dataset.type);
     iframe.style.cssText = 'border:0;width:100%;min-height:' + MIN_HEIGHT + 'px;height:' + MIN_HEIGHT + 'px;max-width:100%;display:block;background:transparent;';
     iframe.setAttribute('title', 'Prise de rendez-vous Diploma Santé');
     iframe.setAttribute('loading', 'lazy');
@@ -118,7 +122,7 @@ function generateEmbedScript(host: string): string {
     if (!container.style.height) container.style.height = height + 'px';
 
     var iframe = document.createElement('iframe');
-    iframe.src = buildIframeSrc(true);
+    iframe.src = buildIframeSrc(true, container.dataset.type);
     iframe.style.cssText = 'border:0;width:100%;height:100%;max-width:100%;display:block;background:transparent;';
     iframe.setAttribute('title', 'Prise de rendez-vous Diploma Santé');
     iframe.setAttribute('loading', 'eager');

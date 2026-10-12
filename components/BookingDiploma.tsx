@@ -30,6 +30,19 @@ const EVENT_DURATION_MIN = 30
 const EVENT_DESCRIPTION =
   'Nous sommes ravis de pouvoir échanger avec vous sur votre parcours et nos préparations. ' +
   'Merci de vous munir de vos bulletins de première et terminale !'
+// Variantes de la page : RDV d'information (défaut) ou coaching orientation (visio uniquement,
+// sans choix du lieu ni de la formation)
+export type BookingVariant = 'info' | 'coaching'
+const VARIANTS: Record<BookingVariant, { title: string; org: string; description: string }> = {
+  info: { title: EVENT_TITLE, org: EVENT_ORG, description: EVENT_DESCRIPTION },
+  coaching: {
+    title: 'Coaching orientation médecine - Diploma Santé',
+    org: 'Coaching Diploma Santé',
+    description:
+      'Échangez en visioconférence avec un coach Diploma Santé pour construire votre projet ' +
+      'd\u2019orientation vers les études de médecine.',
+  },
+}
 const SLOT_START_HOUR = 9
 const SLOT_END_HOUR = 22
 
@@ -81,16 +94,20 @@ export type BookingUtm = {
 export default function BookingDiploma({
   utm,
   prefill,
+  variant = 'info',
   embedded = false,
   embedPopup = false,
 }: {
   utm?: BookingUtm
   /** Coordonnées passées dans l'URL (ex. lien Meta Lead Ads) */
   prefill?: BookingPrefill
+  variant?: BookingVariant
   embedded?: boolean
   /** true = iframe dans une popup (hauteur fixe, scroll interne, pas d'auto-resize) */
   embedPopup?: boolean
 }) {
+  const V = VARIANTS[variant]
+  const isCoaching = variant === 'coaching'
   const today = startOfToday()
   const firstAvailable = addDays(today, 1) // réservation à partir de demain
 
@@ -104,7 +121,7 @@ export default function BookingDiploma({
   const [prenom, setPrenom] = useState(prefill?.prenom ?? '')
   const [nom, setNom] = useState(prefill?.nom ?? '')
   const [email, setEmail] = useState(prefill?.email ?? '')
-  const [lieu, setLieu] = useState<Lieu | null>(null)
+  const [lieu, setLieu] = useState<Lieu | null>(isCoaching ? 'visio' : null)
   const [phone, setPhone] = useState(prefill?.phone ?? '')
   const [departement, setDepartement] = useState(prefill?.departement ?? '')
   const [classe, setClasse] = useState('')
@@ -195,7 +212,7 @@ export default function BookingDiploma({
   // ── Soumission ──────────────────────────────────────────────────────────────
   const formValid =
     prenom.trim() && nom.trim() && email.trim() && lieu && phone.trim() &&
-    /^\d{2,3}$|^2[ABab]$/.test(departement.trim()) && classe && formation
+    /^\d{2,3}$|^2[ABab]$/.test(departement.trim()) && classe && (isCoaching || formation)
 
   function normalizePhone(raw: string): string {
     const digits = raw.replace(/[^\d+]/g, '')
@@ -222,7 +239,8 @@ export default function BookingDiploma({
     const trackingNote = utmParts.length > 0 ? `[Tracking: ${utmParts.join(' | ')}]` : ''
     const isPresentiel = lieu !== 'visio'
     const lieuNote = isPresentiel ? `Lieu : ${lieu}` : 'Lieu : Visioconférence'
-    const notes = [lieuNote, trackingNote].filter(Boolean).join(' — ')
+    const typeNote = isCoaching ? 'Type : Coaching orientation médecine' : ''
+    const notes = [typeNote, lieuNote, trackingNote].filter(Boolean).join(' — ')
 
     try {
       const res = await fetch('/api/appointments', {
@@ -238,7 +256,7 @@ export default function BookingDiploma({
           start_at: selectedSlot.start,
           end_at: selectedSlot.end,
           source: 'prospect',
-          formation_type: formation,
+          formation_type: isCoaching ? null : formation,
           meeting_type: isPresentiel ? 'presentiel' : 'visio',
           meeting_link: isPresentiel ? lieu : null,
           departement: departement.trim(),
@@ -270,7 +288,7 @@ export default function BookingDiploma({
     setSelectedDate(null)
     setPendingSlot(null)
     setSelectedSlot(null)
-    setPrenom(prefill?.prenom ?? ''); setNom(prefill?.nom ?? ''); setEmail(prefill?.email ?? ''); setLieu(null)
+    setPrenom(prefill?.prenom ?? ''); setNom(prefill?.nom ?? ''); setEmail(prefill?.email ?? ''); setLieu(isCoaching ? 'visio' : null)
     setPhone(prefill?.phone ?? ''); setDepartement(prefill?.departement ?? ''); setClasse(''); setFormation('')
     setError(null)
   }
@@ -322,15 +340,15 @@ export default function BookingDiploma({
             </div>
             {/* En-tête événement */}
             <div style={{ padding: '24px 28px 22px', borderBottom: `1px solid ${BORDER}`, textAlign: 'center' }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: GOLD, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>{EVENT_ORG}</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: GOLD, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>{V.org}</div>
               <h1 style={{ fontSize: 24, fontWeight: 800, color: NAVY, margin: '0 0 14px', lineHeight: 1.25 }}>
-                {EVENT_TITLE}
+                {V.title}
               </h1>
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 14, fontWeight: 700, color: GREY, marginBottom: 16 }}>
                 <Clock size={17} /> {EVENT_DURATION_MIN} min
               </div>
               <p style={{ fontSize: 14.5, color: '#3c4a5d', lineHeight: 1.65, maxWidth: 440, margin: '0 auto' }}>
-                {EVENT_DESCRIPTION}
+                {V.description}
               </p>
             </div>
 
@@ -503,9 +521,9 @@ export default function BookingDiploma({
               >
                 <ArrowLeft size={19} />
               </button>
-              <div style={{ fontSize: 12, fontWeight: 700, color: GOLD, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>{EVENT_ORG}</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: GOLD, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>{V.org}</div>
               <h1 style={{ fontSize: 23, fontWeight: 800, color: NAVY, margin: '0 0 14px', lineHeight: 1.25 }}>
-                {EVENT_TITLE}
+                {V.title}
               </h1>
               <div style={{
                 display: 'flex', flexWrap: 'wrap', justifyContent: 'center',
@@ -524,7 +542,7 @@ export default function BookingDiploma({
                 </span>
               </div>
               <p style={{ fontSize: 14, color: '#3c4a5d', lineHeight: 1.6, maxWidth: 440, margin: '0 auto' }}>
-                {EVENT_DESCRIPTION}
+                {V.description}
               </p>
             </div>
 
@@ -552,6 +570,7 @@ export default function BookingDiploma({
                 <input style={inputStyle} {...focusProps} type="email" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" />
               </div>
 
+              {!isCoaching && (<>
               {/* Lieu */}
               <div style={{ marginBottom: 16 }}>
                 <label style={labelStyle}>Lieu *</label>
@@ -582,6 +601,7 @@ export default function BookingDiploma({
                   ))}
                 </div>
               </div>
+              </>)}
 
               {/* Téléphone */}
               <div style={{ marginBottom: 16 }}>
@@ -635,6 +655,7 @@ export default function BookingDiploma({
                 </select>
               </div>
 
+              {!isCoaching && (<>
               {/* Formation souhaitée */}
               <div style={{ marginBottom: 18 }}>
                 <label style={labelStyle}>Formation souhaitée *</label>
@@ -648,6 +669,7 @@ export default function BookingDiploma({
                   {FORMATION_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
                 </select>
               </div>
+              </>)}
 
               <p style={{ fontSize: 12.5, color: GREY, lineHeight: 1.6, marginBottom: 18 }}>
                 En poursuivant, vous confirmez avoir lu et accepté la politique de confidentialité
@@ -711,7 +733,7 @@ export default function BookingDiploma({
               border: `1px solid ${BORDER}`, borderRadius: 10,
               padding: '18px 24px', maxWidth: 420, width: '100%', boxSizing: 'border-box',
             }}>
-              <div style={{ fontSize: 15.5, fontWeight: 800, color: NAVY, marginBottom: 12 }}>{EVENT_TITLE}</div>
+              <div style={{ fontSize: 15.5, fontWeight: 800, color: NAVY, marginBottom: 12 }}>{V.title}</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 9, fontSize: 14, color: '#3c4a5d', fontWeight: 600 }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
                   <CalendarDays size={16} style={{ color: GREY, flexShrink: 0 }} />
