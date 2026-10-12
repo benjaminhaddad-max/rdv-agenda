@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { StickyNote, Phone, CheckSquare, X, Mail, Calendar, Send, Eye, Paperclip } from 'lucide-react'
 import { plainTextToEmailHtml, wrapCrmEmail } from '@/lib/crm-email-layout'
 
@@ -95,9 +95,6 @@ export default function QuickActionModal({
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('')
   const [emailReplyTo, setEmailReplyTo] = useState('')
   const [bodyHtml, setBodyHtml] = useState('') // pour mode 'send' on garde le HTML
-  const [showPreview, setShowPreview] = useState(false)
-  const [previewHtml, setPreviewHtml] = useState('')
-  const [previewSubject, setPreviewSubject] = useState('')
   const [contactPreview, setContactPreview] = useState<{ firstname?: string; lastname?: string; email?: string; classe_actuelle?: string; phone?: string } | null>(null)
   // Pièces jointes
   const [attachments, setAttachments] = useState<Array<{ name: string; content: string; size: number }>>([])
@@ -132,7 +129,9 @@ export default function QuickActionModal({
 
   const cfg = TYPE_CONFIG[type]
 
-  const handlePreview = () => {
+  // Aperçu en direct : exactement le mail qui partira (variables résolues + papier à en-tête)
+  const livePreview = useMemo(() => {
+    if (type !== 'email') return { subject: '', html: '' }
     const vars = {
       prenom:           contactPreview?.firstname ?? '',
       firstname:        contactPreview?.firstname ?? '',
@@ -143,12 +142,12 @@ export default function QuickActionModal({
       classe_actuelle:  contactPreview?.classe_actuelle ?? '',
       phone:            contactPreview?.phone ?? '',
     }
-    const renderedSubject = renderVars(subject, vars)
-    const renderedHtml    = wrapCrmEmail(renderVars(bodyHtml || plainTextToEmailHtml(body || ''), vars))
-    setPreviewSubject(renderedSubject)
-    setPreviewHtml(renderedHtml)
-    setShowPreview(true)
-  }
+    const inner = bodyHtml || plainTextToEmailHtml(body || '')
+    return {
+      subject: renderVars(subject, vars),
+      html: inner.trim() ? wrapCrmEmail(renderVars(inner, vars)) : '',
+    }
+  }, [type, contactPreview, subject, body, bodyHtml])
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
@@ -243,7 +242,10 @@ export default function QuickActionModal({
       className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
       onClick={onClose}
     >
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
+      <div
+        className={`bg-white rounded-xl shadow-2xl w-full max-h-[92vh] flex flex-col ${type === 'email' && emailMode === 'send' ? 'max-w-6xl' : 'max-w-lg'}`}
+        onClick={e => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b">
           <div className="flex items-center gap-2">
@@ -257,8 +259,9 @@ export default function QuickActionModal({
           </button>
         </div>
 
+        <div className={`flex-1 min-h-0 overflow-y-auto ${type === 'email' && emailMode === 'send' ? 'lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:overflow-hidden' : ''}`}>
         {/* Body */}
-        <div className="p-5 space-y-3">
+        <div className="p-5 space-y-3 lg:overflow-y-auto">
           {/* Sujet / titre */}
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">{cfg.subjectLabel}</label>
@@ -467,9 +470,13 @@ export default function QuickActionModal({
             <label className="block text-xs font-medium text-slate-600 mb-1">{cfg.bodyLabel}</label>
             <textarea
               value={body}
-              onChange={e => setBody(e.target.value)}
+              onChange={e => {
+                setBody(e.target.value)
+                // Le texte modifié à la main remplace le HTML du modèle (sinon l'envoi ignorerait la modif)
+                if (bodyHtml) setBodyHtml('')
+              }}
               placeholder={cfg.bodyPlaceholder}
-              rows={5}
+              rows={type === 'email' && emailMode === 'send' ? 12 : 5}
               className="w-full px-3 py-2 border rounded-md text-sm resize-y focus:ring-2 focus:ring-[#2ea3f2]/30 focus:border-[#2ea3f2] outline-none"
             />
           </div>
@@ -477,19 +484,33 @@ export default function QuickActionModal({
           {err && <div className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded">{err}</div>}
         </div>
 
+        {/* Aperçu en direct du mail */}
+        {type === 'email' && emailMode === 'send' && (
+          <div className="flex flex-col min-h-0 border-t lg:border-t-0 lg:border-l bg-slate-50">
+            <div className="px-5 py-3 border-b bg-white text-sm">
+              <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-slate-500 mb-2">
+                <Eye size={12} /> Aperçu du mail envoyé
+              </div>
+              <div className="text-slate-500 text-[11px]">À</div>
+              <div className="font-medium truncate">{contactPreview?.email || '—'}</div>
+              <div className="text-slate-500 text-[11px] mt-1.5">Objet</div>
+              <div className="font-medium truncate">{livePreview.subject || '(sans objet)'}</div>
+            </div>
+            <iframe
+              srcDoc={livePreview.html || '<p style="color:#94a3b8;font-family:sans-serif;text-align:center;padding:60px 20px">Le mail s’affichera ici pendant que vous l’écrivez.</p>'}
+              className="w-full flex-1 min-h-[420px] bg-white"
+              sandbox=""
+              title="Aperçu de l'e-mail"
+            />
+          </div>
+        )}
+        </div>
+
         {/* Footer */}
         <div className="flex items-center justify-end gap-2 px-5 py-3 border-t bg-slate-50 rounded-b-xl">
           <button onClick={onClose} className="px-4 py-2 text-sm border rounded-md hover:bg-white">
             Annuler
           </button>
-          {type === 'email' && emailMode === 'send' && (
-            <button
-              onClick={handlePreview}
-              className="inline-flex items-center gap-1 px-4 py-2 text-sm border rounded-md hover:bg-white"
-            >
-              <Eye size={14} /> Aperçu
-            </button>
-          )}
           <button
             onClick={handleSave}
             disabled={saving}
@@ -502,37 +523,6 @@ export default function QuickActionModal({
         </div>
       </div>
 
-      {/* Modal Aperçu (preview avec variables résolues) */}
-      {showPreview && (
-        <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4" onClick={() => setShowPreview(false)}>
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="px-5 py-3 border-b flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Eye size={16} className="text-[#0038f0]" />
-                <h2 className="text-base font-semibold">Aperçu</h2>
-              </div>
-              <button onClick={() => setShowPreview(false)} className="text-slate-400 hover:text-slate-700"><X size={18} /></button>
-            </div>
-            <div className="px-5 py-3 border-b bg-slate-50 text-sm">
-              <div className="text-slate-500 text-[11px] uppercase tracking-wide">À</div>
-              <div className="font-medium">{contactPreview?.email || '—'}</div>
-              <div className="text-slate-500 text-[11px] uppercase tracking-wide mt-2">Objet</div>
-              <div className="font-medium">{previewSubject || '(sans objet)'}</div>
-            </div>
-            <div className="overflow-y-auto flex-1 p-4">
-              <iframe
-                srcDoc={previewHtml || '<p style="color:#888;font-family:sans-serif;text-align:center;padding:40px">Aucun contenu</p>'}
-                className="w-full h-[450px] border rounded"
-                sandbox=""
-                title="Aperçu de l'e-mail"
-              />
-            </div>
-            <div className="flex justify-end gap-2 px-5 py-3 border-t bg-slate-50 rounded-b-xl">
-              <button onClick={() => setShowPreview(false)} className="px-4 py-2 text-sm border rounded-md">Fermer</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
