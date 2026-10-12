@@ -4,6 +4,7 @@ import { createServiceClient } from '@/lib/supabase'
 import { CREATIF_ROLE, getApiUserContextAnyRole } from '@/lib/api-auth'
 import { createEventsClient } from '@/lib/events-studio/client'
 import { eventTypeOf } from '@/lib/events-studio/config'
+import { htmlToText, sendBrevoEmail } from '@/lib/brevo'
 import {
   computeSchedule,
   defaultEventTime,
@@ -14,7 +15,9 @@ import {
   type AdsEventRow,
   type BrandDelays,
   type CreativeItem,
+  type CreativeRole,
   ADS_BRANDS,
+  CREATIVE_ROLE_LABELS,
   ADS_EVENT_TYPES,
   DEFAULT_DELAYS,
 } from '@/lib/ads-creatives'
@@ -202,4 +205,80 @@ export async function loadAdsEvents(
 /** Premier jour chargé : on garde 2 mois d’historique (onglet « Passés »). */
 export function defaultFromDay(): string {
   return addDays(parisDay(), -60)
+}
+
+/** Destinataires du mail « dossier de créas chargé » (Maël, mise en ligne des campagnes). */
+export const ADS_UPLOAD_NOTIFY_EMAILS = ['cohen.consulting@gmail.com']
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
+/** « mercredi 21 octobre » */
+function frLongDay(day: string): string {
+  return new Date(`${day}T12:00:00Z`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })
+}
+
+/**
+ * Mail au responsable Ads quand un dossier de créas (statique / vidéo) est déposé :
+ * nom de l'événement, date, et date de mise en ligne de la campagne.
+ */
+export async function notifyCreativesUploaded(
+  db: SupabaseClient,
+  opts: { campaignId: string; role: CreativeRole; label: string | null; fileCount: number | null; addedBy: string | null },
+): Promise<void> {
+  const { data: c } = await db.from('ads_campaigns').select('*').eq('id', opts.campaignId).maybeSingle()
+  if (!c) return
+  const campaign = c as CampaignDbRow
+  let name = campaign.title
+  let day = campaign.event_date
+  if (campaign.event_id) {
+    const { data: ev } = await createEventsClient().from('events').select('name, event_date').eq('id', campaign.event_id).maybeSingle()
+    if (ev) {
+      name = ev.name
+      day = parisDay(ev.event_date)
+    }
+  }
+  const kind = campaign.kind === 'guide' ? 'guide' : 'event'
+  const delays = await loadBrandDelays(db)
+  const { campaign_start } = computeSchedule(day, delays[brandOf(campaign.brand)], { ...campaign, kind })
+  const settings = await loadSettings(db).catch(() => null)
+  const link = settings?.share_token ? shareLink(settings.share_token) : `${SITE_URL}/admin/crm-v2/creas-ads`
+
+  const folder = CREATIVE_ROLE_LABELS[opts.role].replace('Créas', 'Créa')
+  const what = kind === 'guide' ? `le guide « ${name} »` : `l'événement « ${name} »`
+  const when = kind === 'guide' ? `dont la diffusion débute le ${frLongDay(day)}` : `qui se déroule le ${frLongDay(day)}`
+  const subject = `Dossier ${folder} chargé — ${name} (${frLongDay(day)})`
+  const details = [
+    opts.label ? `Dossier : <strong>${escapeHtml(opts.label)}</strong>` : '',
+    opts.fileCount ? `${opts.fileCount} fichier${opts.fileCount > 1 ? 's' : ''}` : '',
+    opts.addedBy ? `déposé par ${escapeHtml(opts.addedBy)}` : '',
+  ].filter(Boolean).join(' · ')
+
+  const launchDay = `<strong>${escapeHtml(frLongDay(campaign_start))}</strong>`
+  const reminder = campaign.launched_at
+    ? `Pour rappel, la campagne est déjà indiquée comme en ligne : pensez à y ajouter ces créas.`
+    : campaign_start < parisDay()
+      ? `Pour rappel, la campagne devait être mise en ligne le ${launchDay} : à mettre en ligne dès que possible.`
+      : campaign_start === parisDay()
+        ? `Pour rappel, vous devez mettre en ligne la campagne aujourd'hui, ${launchDay}.`
+        : `Pour rappel, vous devez mettre en ligne la campagne le ${launchDay}.`
+
+  const html = `
+    <div style="font-family:-apple-system,Segoe UI,sans-serif;color:#1e293b;line-height:1.6">
+      <p style="margin:0 0 12px">Bonjour,</p>
+      <p style="margin:0 0 12px">Le dossier <strong>${escapeHtml(folder)}</strong> a été chargé sur ${escapeHtml(what)}, ${escapeHtml(when)}.</p>
+      ${details ? `<p style="margin:0 0 12px;color:#64748b;font-size:14px">${details}</p>` : ''}
+      <p style="margin:0 0 16px">${reminder}</p>
+      <p style="margin:0 0 16px"><a href="${link}" style="display:inline-block;padding:10px 18px;background:#0038f0;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">Voir les créas</a></p>
+      <p style="font-size:12px;color:#94a3b8">Notification automatique — dashboard Créas Ads.</p>
+    </div>
+  `
+  await sendBrevoEmail({
+    to: ADS_UPLOAD_NOTIFY_EMAILS.map((email) => ({ email })),
+    subject,
+    htmlContent: html,
+    textContent: htmlToText(html),
+    tags: ['ads-creatives-upload'],
+  })
 }

@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { resolveAdsAccess } from '@/lib/ads-creatives-server'
+import { NextRequest, NextResponse, after } from 'next/server'
+import { notifyCreativesUploaded, resolveAdsAccess } from '@/lib/ads-creatives-server'
 import { ADS_CREATIVES_BUCKET, ADS_CREATIVES_MAX_FOLDER_BYTES, ITEM_ROLES, type ItemRole, type FolderFile } from '@/lib/ads-creatives'
 
 /**
@@ -63,6 +63,18 @@ export async function POST(req: NextRequest) {
     .select('*')
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  // Dossier de créas déposé : mail au responsable Ads (sans bloquer la réponse)
+  if (kind === 'folder' && (role === 'static' || role === 'video')) {
+    after(() =>
+      notifyCreativesUploaded(access.db, {
+        campaignId: event_id,
+        role,
+        label: data.label,
+        fileCount: data.file_count,
+        addedBy: data.added_by,
+      }).catch((e) => console.error('[ads-creatives] mail dépôt', e)),
+    )
+  }
   return NextResponse.json({ item: data })
 }
 
