@@ -35,6 +35,19 @@ function ago(iso: string | null): string {
   return `il y a ${days} j`
 }
 
+/** « aujourd'hui 14:32 », « hier 09:10 », « sam. 10 oct. 18:05 » (heure de Paris). */
+function when(iso: string | null): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const key = (x: Date) => x.toLocaleDateString('fr-CA', { timeZone: 'Europe/Paris' })
+  const today = key(new Date())
+  const yesterday = key(new Date(Date.now() - 86_400_000))
+  const time = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' })
+  if (key(d) === today) return `aujourd'hui ${time}`
+  if (key(d) === yesterday) return `hier ${time}`
+  return `${d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Paris' })} ${time}`
+}
+
 function hm(iso: string): string {
   return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' })
 }
@@ -252,6 +265,13 @@ function PhoneLink({ phone }: { phone: string }) {
   )
 }
 
+/** Quand : la nouvelle demande (repop) ou l'arrivée du lead (nouveau). */
+function reasonWhen(lead: TodayLead): string {
+  if (lead.reason === 'repop' && lead.form_at) return `Demande ${when(lead.form_at)}`
+  if (lead.reason === 'nouveau' && lead.created_at) return `Arrivé ${when(lead.created_at)}`
+  return ''
+}
+
 function LeadRow({ lead, first, open, onToggle, isMobile }: { lead: TodayLead; first: boolean; open: boolean; onToggle: () => void; isMobile: boolean }) {
   const lvl = SCORE_LEVELS[lead.score.level]
   const reason = REASONS.find(r => r.id === lead.reason)!
@@ -259,7 +279,7 @@ function LeadRow({ lead, first, open, onToggle, isMobile }: { lead: TodayLead; f
     <div style={{ borderTop: first ? 'none' : `1px solid ${crmV2.borderLight}` }}>
       <div onClick={onToggle} style={{
         display: 'grid', alignItems: 'center', gap: 10, padding: '8px 10px', cursor: 'pointer', background: open ? crmV2.bgHover : undefined,
-        gridTemplateColumns: isMobile ? '52px minmax(0, 1fr) 20px' : '58px minmax(140px, 1.2fr) 170px minmax(110px, 0.8fr) 150px 20px',
+        gridTemplateColumns: isMobile ? '52px minmax(0, 1fr) 20px' : '58px minmax(140px, 1.2fr) 210px minmax(110px, 0.8fr) 150px 20px',
       }}>
         <span title={`${lvl.label} — ${lead.score.score}/100`} style={{
           display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 3, height: 26, borderRadius: 999,
@@ -278,8 +298,16 @@ function LeadRow({ lead, first, open, onToggle, isMobile }: { lead: TodayLead; f
           </span>
         </span>
         {!isMobile && (
-          <span style={{ fontSize: 12, fontWeight: 700, color: reason.color, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-            <span style={{ width: 7, height: 7, borderRadius: 999, background: reason.color, flexShrink: 0 }} />{reason.label}
+          <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: reason.color, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ width: 7, height: 7, borderRadius: 999, background: reason.color, flexShrink: 0 }} />{reason.label}
+            </span>
+            {reasonWhen(lead) && (
+              <span title={lead.form_name ? `Formulaire : ${lead.form_name}` : undefined}
+                style={{ fontSize: 11.5, color: crmV2.textMuted, paddingLeft: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {reasonWhen(lead)}
+              </span>
+            )}
           </span>
         )}
         {!isMobile && (
@@ -295,6 +323,7 @@ function LeadRow({ lead, first, open, onToggle, isMobile }: { lead: TodayLead; f
           {isMobile && (
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 12.5, color: crmV2.textMuted }}>
               {lead.phone && <PhoneLink phone={lead.phone} />}
+              {reasonWhen(lead) && <span>{reasonWhen(lead)}</span>}
               <span>{lead.last_contact_at ? `Contacté ${ago(lead.last_contact_at)}` : 'Jamais joint'}</span>
             </div>
           )}

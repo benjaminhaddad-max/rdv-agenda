@@ -63,6 +63,11 @@ export type TodayLead = {
   last_contact_at: string | null
   last_call_at: string | null
   calls_count: number
+  /** Dernière demande (formulaire) et son nom — « quand a-t-il refait une demande ? » */
+  form_at: string | null
+  form_name: string | null
+  /** Création de la fiche (arrivée du lead). */
+  created_at: string | null
 }
 
 export type TodayRdv = {
@@ -252,6 +257,9 @@ export async function buildToday(
       last_contact_at: eng.last_contact_at,
       last_call_at: lastCall,
       calls_count: list.length,
+      form_at: row.recent_conversion_date,
+      form_name: row.recent_conversion_event,
+      created_at: row.contact_createdate || row.createdate,
     })
   }
 
