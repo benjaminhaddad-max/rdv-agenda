@@ -1012,6 +1012,32 @@ export type TimeslotMergeFields = {
 }
 
 /**
+ * Formulaires Meta Lead Ads liés à l'événement (ex. Forum 18/10 V2, qui pose
+ * « Indiquez votre créneau de passage au salon »). Ids de formulaires Meta.
+ */
+async function inscriptionMetaFormIds(eventId: string): Promise<string[]> {
+  const eventsDb = createEventsClient()
+  const { data: links } = await eventsDb
+    .from('event_forms')
+    .select('hubspot_form_id, form_name, form_type')
+    .eq('event_id', eventId)
+  const names = (links || [])
+    .filter((l) => l.form_type === 'meta' || String(l.hubspot_form_id || '').startsWith('meta:'))
+    .map((l) => l.form_name || String(l.hubspot_form_id || '').replace(/^meta:/, ''))
+    .filter(Boolean)
+  if (names.length === 0) return []
+  const db = createServiceClient()
+  const { data } = await db.from('meta_lead_forms').select('form_id').in('name', names)
+  return (data || []).map((f) => String(f.form_id)).filter(Boolean)
+}
+
+/** Réponse Meta « 10h-12h » / « 10h – 12h » → valeur interne « 10-12 ». */
+function metaSlotValue(raw: string): string {
+  const m = raw.match(/(\d{1,2})\D+(\d{1,2})/)
+  return m ? `${Number(m[1])}-${Number(m[2])}` : ''
+}
+
+/**
  * Créneau choisi par chaque inscrit, pour personnaliser les rappels du jour J.
  * Rattachement par contact CRM, puis email, puis téléphone : une personne peut
  * avoir répondu depuis un lien signé sans que l'inscription porte son id.
@@ -1028,21 +1054,35 @@ export async function timeslotMergeFieldsForRegistrations(
   if (regs.length === 0) return out
 
   let formIds: string[]
+  let metaFormIds: string[] = []
   let jourJ: TimeslotJourJ
   if (eventId === SALON_MEDECINE_2026_EVENT_ID) {
     formIds = [(await ensureTimeslotSurveyForm()).id]
     jourJ = await getTimeslotJourJ()
   } else {
-    formIds = await inscriptionTimeslotFormIds(eventId)
-    if (formIds.length === 0) return out
+    ;[formIds, metaFormIds] = await Promise.all([
+      inscriptionTimeslotFormIds(eventId),
+      inscriptionMetaFormIds(eventId),
+    ])
+    if (formIds.length === 0 && metaFormIds.length === 0) return out
     jourJ = INSCRIPTION_TIMESLOT_PHRASES
   }
   const db = createServiceClient()
 
-  const byContact = new Map<string, string>()
-  const byEmail = new Map<string, string>()
-  const byPhone = new Map<string, string>()
-  for (let from = 0; ; from += 1000) {
+  // Réponses horodatées (CRM + Meta), appliquées dans l'ordre : la dernière gagne.
+  const answers: { at: string; slot: string; cid: string; email: string; last9: string }[] = []
+  const pushAnswer = (at: string | null, slot: string, cid: unknown, email: unknown, phone: unknown) => {
+    if (!slot) return
+    answers.push({
+      at: at || '',
+      slot,
+      cid: String(cid || '').trim(),
+      email: String(email || '').trim().toLowerCase(),
+      last9: String(phone || '').replace(/\D/g, '').slice(-9),
+    })
+  }
+
+  for (let from = 0; formIds.length > 0; from += 1000) {
     const { data, error } = await db
       .from('form_submissions')
       .select('data, submitted_at')
@@ -1054,16 +1094,46 @@ export async function timeslotMergeFieldsForRegistrations(
     for (const row of data || []) {
       const payload = (row.data || {}) as Record<string, unknown>
       const slot = String(payload[TIMESLOT_FIELD_KEY] || '').trim()
-      if (!slot) continue
-      // Ordre croissant : la dernière réponse écrase les précédentes.
-      const cid = String(payload._contact_id || '').trim()
-      if (cid) byContact.set(cid, slot)
-      const email = String(payload.email || '').trim().toLowerCase()
-      if (email) byEmail.set(email, slot)
-      const last9 = String(payload.phone || '').replace(/\D/g, '').slice(-9)
-      if (last9.length === 9) byPhone.set(last9, slot)
+      pushAnswer(row.submitted_at, slot, payload._contact_id, payload.email, payload.phone)
     }
     if (!data || data.length < 1000) break
+  }
+
+  // Meta : seuls les formulaires qui posent la question du créneau en fournissent un.
+  for (let from = 0; metaFormIds.length > 0; from += 1000) {
+    const { data, error } = await db
+      .from('meta_lead_events')
+      .select('contact_id, field_data, received_at')
+      .in('form_id', metaFormIds)
+      .order('received_at', { ascending: true })
+      .range(from, from + 999)
+    if (error) break
+    for (const row of data || []) {
+      const fields = (Array.isArray(row.field_data) ? row.field_data : []) as {
+        name?: string
+        values?: unknown[]
+      }[]
+      const get = (pred: (n: string) => boolean) =>
+        String(fields.find((f) => pred(norm(String(f.name || ''))))?.values?.[0] ?? '').trim()
+      pushAnswer(
+        row.received_at,
+        metaSlotValue(get((n) => n.includes('creneau'))),
+        row.contact_id,
+        get((n) => n === 'email'),
+        get((n) => n === 'phone_number' || n === 'phone'),
+      )
+    }
+    if (!data || data.length < 1000) break
+  }
+
+  const byContact = new Map<string, string>()
+  const byEmail = new Map<string, string>()
+  const byPhone = new Map<string, string>()
+  answers.sort((a, b) => a.at.localeCompare(b.at))
+  for (const a of answers) {
+    if (a.cid) byContact.set(a.cid, a.slot)
+    if (a.email) byEmail.set(a.email, a.slot)
+    if (a.last9.length === 9) byPhone.set(a.last9, a.slot)
   }
 
   for (const reg of regs) {
