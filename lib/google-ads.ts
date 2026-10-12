@@ -268,3 +268,173 @@ export async function resolveGclidCampaigns(
   }
   return out
 }
+
+// ─── Détail d'une campagne ─────────────────────────────────────────────────
+
+export type GoogleDetailMetrics = {
+  impressions: number
+  clicks: number
+  spend: number
+  ctr: number
+  cpc: number
+  platform_leads: number // conversions déclarées par Google Ads
+}
+
+export type GoogleAdGroupDetail = GoogleDetailMetrics & { id: string; name: string; status: string; kind: 'ad_group' | 'asset_group' }
+export type GoogleKeywordDetail = GoogleDetailMetrics & {
+  criterion_id: string; ad_group_id: string; ad_group_name: string; text: string; match_type: string; status: string; quality_score: number | null
+}
+export type GoogleSearchTermDetail = GoogleDetailMetrics & { term: string; status: string }
+export type GoogleAdDetail = GoogleDetailMetrics & {
+  id: string; ad_group_id: string; ad_group_name: string; type: string; status: string; headlines: string[]; descriptions: string[]; final_url: string | null
+}
+export type GoogleDailyPoint = { date: string; impressions: number; clicks: number; spend: number; platform_leads: number }
+
+export type GoogleCampaignDetail = {
+  ad_groups: GoogleAdGroupDetail[]
+  keywords: GoogleKeywordDetail[]
+  search_terms: GoogleSearchTermDetail[]
+  ads: GoogleAdDetail[]
+  daily: GoogleDailyPoint[]
+  errors: Record<string, string>
+}
+
+const METRICS_SQL = 'metrics.impressions, metrics.clicks, metrics.cost_micros, metrics.conversions'
+
+type RawSum = { impressions: number; clicks: number; spend: number; platform_leads: number }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const addMetrics = (acc: RawSum, r: any) => {
+  acc.impressions += Number(r.metrics?.impressions ?? 0)
+  acc.clicks += Number(r.metrics?.clicks ?? 0)
+  acc.spend += Number(r.metrics?.costMicros ?? 0) / 1_000_000
+  acc.platform_leads += Number(r.metrics?.conversions ?? 0)
+}
+const finishMetrics = <T extends RawSum>(m: T): T & GoogleDetailMetrics => ({
+  ...m,
+  spend: Number(m.spend.toFixed(2)),
+  platform_leads: Math.round(m.platform_leads),
+  ctr: m.impressions > 0 ? Number(((m.clicks / m.impressions) * 100).toFixed(2)) : 0,
+  cpc: m.clicks > 0 ? Number((m.spend / m.clicks).toFixed(2)) : 0,
+})
+
+/**
+ * Agrège des lignes GAQL par clé (l'API peut renvoyer une ligne par jour
+ * quand la période filtre sur segments.date).
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function aggregate<T extends object>(rows: any[], keyOf: (r: any) => string, init: (r: any) => T): Array<T & GoogleDetailMetrics> {
+  const map = new Map<string, T & RawSum>()
+  for (const r of rows) {
+    const k = keyOf(r)
+    if (!k) continue
+    const cur = map.get(k) ?? { ...init(r), impressions: 0, clicks: 0, spend: 0, platform_leads: 0 }
+    addMetrics(cur, r)
+    map.set(k, cur)
+  }
+  return [...map.values()].map(finishMetrics).sort((a, b) => b.spend - a.spend || b.clicks - a.clicks)
+}
+
+/**
+ * Détail d'une campagne : groupes d'annonces (ou groupes d'assets pour PMax),
+ * mots-clés, termes de recherche, annonces et évolution jour par jour.
+ * Une requête par onglet (≈ 5 opérations API) ; une requête en échec n'empêche
+ * pas les autres (message dans `errors`).
+ */
+export async function fetchGoogleCampaignDetail(
+  campaignId: string,
+  range: { since: string; until: string } | null,
+  channel: string,
+): Promise<GoogleCampaignDetail> {
+  const id = digits(campaignId)
+  const date = range ? `AND segments.date BETWEEN '${range.since}' AND '${range.until}'` : 'AND metrics.impressions > 0'
+  // Courbe jour par jour : 90 jours max pour « Tout »
+  const dailyRange = range ?? presetRange('last_90d')!
+  const isPmax = channel === 'PERFORMANCE_MAX'
+  const errors: Record<string, string> = {}
+  const run = async (name: string, query: string) => {
+    try {
+      return await googleAdsSearch(query)
+    } catch (e) {
+      errors[name] = e instanceof Error ? e.message : String(e)
+      return []
+    }
+  }
+
+  const [groupRows, keywordRows, termRows, adRows, dailyRows] = await Promise.all([
+    isPmax
+      ? run('ad_groups', `SELECT asset_group.id, asset_group.name, asset_group.status, ${METRICS_SQL} FROM asset_group WHERE campaign.id = ${id} ${date}`)
+      : run('ad_groups', `SELECT ad_group.id, ad_group.name, ad_group.status, ${METRICS_SQL} FROM ad_group WHERE campaign.id = ${id} ${date}`),
+    isPmax ? Promise.resolve([]) : run('keywords', `
+      SELECT ad_group.id, ad_group.name, ad_group_criterion.criterion_id, ad_group_criterion.keyword.text,
+             ad_group_criterion.keyword.match_type, ad_group_criterion.status, ad_group_criterion.quality_info.quality_score, ${METRICS_SQL}
+      FROM keyword_view WHERE campaign.id = ${id} ${date}`),
+    isPmax ? Promise.resolve([]) : run('search_terms', `
+      SELECT search_term_view.search_term, search_term_view.status, ${METRICS_SQL}
+      FROM search_term_view WHERE campaign.id = ${id} ${date}`),
+    isPmax ? Promise.resolve([]) : run('ads', `
+      SELECT ad_group.id, ad_group.name, ad_group_ad.ad.id, ad_group_ad.ad.type, ad_group_ad.status, ad_group_ad.ad.final_urls,
+             ad_group_ad.ad.responsive_search_ad.headlines, ad_group_ad.ad.responsive_search_ad.descriptions, ${METRICS_SQL}
+      FROM ad_group_ad WHERE campaign.id = ${id} ${date}`),
+    run('daily', `SELECT segments.date, ${METRICS_SQL} FROM campaign WHERE campaign.id = ${id} AND segments.date BETWEEN '${dailyRange.since}' AND '${dailyRange.until}'`),
+  ])
+
+  const ad_groups = isPmax
+    ? aggregate(groupRows, r => String(r.assetGroup?.id ?? ''), r => ({
+      id: String(r.assetGroup?.id ?? ''), name: r.assetGroup?.name ?? '', status: r.assetGroup?.status ?? '', kind: 'asset_group' as const,
+    }))
+    : aggregate(groupRows, r => String(r.adGroup?.id ?? ''), r => ({
+      id: String(r.adGroup?.id ?? ''), name: r.adGroup?.name ?? '', status: r.adGroup?.status ?? '', kind: 'ad_group' as const,
+    }))
+
+  const keywords = aggregate(
+    keywordRows,
+    r => `${r.adGroup?.id}~${r.adGroupCriterion?.criterionId}`,
+    r => ({
+      criterion_id: String(r.adGroupCriterion?.criterionId ?? ''),
+      ad_group_id: String(r.adGroup?.id ?? ''),
+      ad_group_name: r.adGroup?.name ?? '',
+      text: r.adGroupCriterion?.keyword?.text ?? '',
+      match_type: r.adGroupCriterion?.keyword?.matchType ?? '',
+      status: r.adGroupCriterion?.status ?? '',
+      quality_score: r.adGroupCriterion?.qualityInfo?.qualityScore ?? null,
+    }),
+  )
+
+  // Les termes de recherche peuvent être très nombreux : on garde les 150 plus coûteux
+  const search_terms = aggregate(
+    termRows,
+    r => r.searchTermView?.searchTerm ?? '',
+    r => ({ term: r.searchTermView?.searchTerm ?? '', status: r.searchTermView?.status ?? '' }),
+  ).slice(0, 150)
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const texts = (arr: any) => (Array.isArray(arr) ? arr.map((a: { text?: string }) => a.text || '').filter(Boolean) : [])
+  const ads = aggregate(
+    adRows,
+    r => `${r.adGroup?.id}~${r.adGroupAd?.ad?.id}`,
+    r => ({
+      id: String(r.adGroupAd?.ad?.id ?? ''),
+      ad_group_id: String(r.adGroup?.id ?? ''),
+      ad_group_name: r.adGroup?.name ?? '',
+      type: r.adGroupAd?.ad?.type ?? '',
+      status: r.adGroupAd?.status ?? '',
+      headlines: texts(r.adGroupAd?.ad?.responsiveSearchAd?.headlines),
+      descriptions: texts(r.adGroupAd?.ad?.responsiveSearchAd?.descriptions),
+      final_url: r.adGroupAd?.ad?.finalUrls?.[0] ?? null,
+    }),
+  )
+
+  const dailyMap = new Map<string, GoogleDailyPoint>()
+  for (const r of dailyRows) {
+    const d = r.segments?.date
+    if (!d) continue
+    const cur = dailyMap.get(d) ?? { date: d, impressions: 0, clicks: 0, spend: 0, platform_leads: 0 }
+    addMetrics(cur, r)
+    dailyMap.set(d, cur)
+  }
+  const daily = [...dailyMap.values()]
+    .map(p => ({ ...p, spend: Number(p.spend.toFixed(2)), platform_leads: Math.round(p.platform_leads) }))
+    .sort((a, b) => a.date.localeCompare(b.date))
+
+  return { ad_groups, keywords, search_terms, ads, daily, errors }
+}

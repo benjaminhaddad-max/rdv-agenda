@@ -7,6 +7,7 @@ import {
   CrmV2Search, CrmV2Spinner, CrmV2Table, CrmV2TableCard, CrmV2Tabs, CrmV2Td, CrmV2Th, CrmV2Tr,
 } from '@/components/crm-v2/primitives'
 import { AdsBanner, AdsFaint, AdsIconTile, AdsMobileRow, AdsPillSelect, adsSpin } from '@/components/crm-v2/marketing2/ads/ui'
+import { GoogleCampaignDetail } from '@/components/crm-v2/marketing2/ads/GoogleCampaignDetail'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import { useIsMobile } from '@/lib/useIsMobile'
 
@@ -591,6 +592,14 @@ function GoogleAdsSection({ datePreset, periodLabel, refreshToken, isMobile, onD
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notConfigured, setNotConfigured] = useState(false)
+  // Campagnes dépliées (détail : mots-clés, termes, groupes, annonces)
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  useEffect(() => { setExpanded(new Set()) }, [datePreset])
+  const toggleCampaign = (id: string) => setExpanded(prev => {
+    const next = new Set(prev)
+    if (next.has(id)) next.delete(id); else next.add(id)
+    return next
+  })
 
   const load = useCallback(async (force: boolean) => {
     setLoading(true); setError(null)
@@ -688,6 +697,7 @@ function GoogleAdsSection({ datePreset, periodLabel, refreshToken, isMobile, onD
                 {visibleRows.map(i => (
                   <AdsMobileRow
                     key={i.campaign_id}
+                    onClick={() => toggleCampaign(i.campaign_id)}
                     icon={<AdsIconTile icon={<GoogleAdsIcon size={15} />} />}
                     title={i.campaign_name || '(sans nom)'}
                     subtitle={`${fmtNumber(i.impressions)} imp. · CTR ${i.ctr.toFixed(2)}% · ${i.leads > 0 ? `CPL ${fmtCurrency(i.cpl, data.currency)}${newLeadsPctLabel(i.leads, i.new_leads)}` : 'CPL —'}`}
@@ -699,7 +709,16 @@ function GoogleAdsSection({ datePreset, periodLabel, refreshToken, isMobile, onD
                         </div>
                       </div>
                     }
-                  />
+                  >
+                    {expanded.has(i.campaign_id) && (
+                      <div style={{ margin: '6px -12px -8px' }}>
+                        <GoogleCampaignDetail
+                          campaignId={i.campaign_id} channel={i.channel} datePreset={datePreset}
+                          refreshToken={refreshToken} campaignLeads={i.leads} currency={data.currency}
+                        />
+                      </div>
+                    )}
+                  </AdsMobileRow>
                 ))}
               </div>
             ) : (
@@ -718,12 +737,27 @@ function GoogleAdsSection({ datePreset, periodLabel, refreshToken, isMobile, onD
                   </tr>
                 </thead>
                 <tbody>
-                  {visibleRows.map(i => (
-                    <CrmV2Tr key={i.campaign_id}>
+                  {visibleRows.map(i => {
+                    const isOpen = expanded.has(i.campaign_id)
+                    return (
+                    <Fragment key={i.campaign_id}>
+                    <CrmV2Tr>
                       <CrmV2Td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                          <button
+                            type="button"
+                            onClick={() => toggleCampaign(i.campaign_id)}
+                            aria-label={isOpen ? 'Replier le détail' : 'Voir le détail'}
+                            title={isOpen ? 'Replier le détail' : i.channel === 'PERFORMANCE_MAX' ? "Voir le détail (groupes d'assets, jour par jour)" : 'Voir le détail (mots-clés, termes de recherche, groupes, annonces)'}
+                            style={expandBtn}
+                          >
+                            {isOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                          </button>
                           <AdsIconTile icon={<GoogleAdsIcon size={15} />} />
-                          <span style={{ fontWeight: 600, color: crmV2.link, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 360 }}>
+                          <span
+                            onClick={() => toggleCampaign(i.campaign_id)}
+                            style={{ fontWeight: 600, color: crmV2.link, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 360, cursor: 'pointer' }}
+                          >
                             {i.campaign_name || '(sans nom)'}
                           </span>
                           <AdsFaint>
@@ -742,7 +776,19 @@ function GoogleAdsSection({ datePreset, periodLabel, refreshToken, isMobile, onD
                       <CrmV2Td style={num}><NewLeadsPct leads={i.leads} newLeads={i.new_leads} /></CrmV2Td>
                       <CrmV2Td style={num}>{i.leads > 0 ? fmtCurrency(i.cpl, data.currency) : '—'}</CrmV2Td>
                     </CrmV2Tr>
-                  ))}
+                    {isOpen && (
+                      <tr>
+                        <td colSpan={9} style={{ padding: 0, borderBottom: `1px solid ${crmV2.border}` }}>
+                          <GoogleCampaignDetail
+                            campaignId={i.campaign_id} channel={i.channel} datePreset={datePreset}
+                            refreshToken={refreshToken} campaignLeads={i.leads} currency={data.currency}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
+                    )
+                  })}
                 </tbody>
               </CrmV2Table>
             )}
