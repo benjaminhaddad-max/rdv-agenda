@@ -3,7 +3,8 @@ import { resolveAdsAccess } from '@/lib/ads-creatives-server'
 import { ADS_CREATIVES_BUCKET, ADS_CREATIVES_MAX_FOLDER_BYTES, CREATIVE_ROLES, type CreativeRole, type FolderFile } from '@/lib/ads-creatives'
 
 /**
- * POST /api/ads-creatives/items — { token?, event_id, role, kind: 'folder', label, files: [{ path, name, size }], added_by? }
+ * POST /api/ads-creatives/items — { token?, campaign_id, role, kind: 'folder', label, files: [{ path, name, size }], added_by? }
+ *   (campaign_id = ads_campaigns.id, stocké dans la colonne event_id)
  *   (les anciens kinds 'link' / 'file' restent acceptés)
  * DELETE /api/ads-creatives/items?id=…[&token=…]
  */
@@ -12,7 +13,7 @@ export async function POST(req: NextRequest) {
   const access = await resolveAdsAccess(req, body.token)
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
 
-  const event_id = String(body.event_id || '').trim()
+  const event_id = String(body.campaign_id || body.event_id || '').trim()
   const role = String(body.role || '') as CreativeRole
   const kind = body.kind === 'folder' ? 'folder' : body.kind === 'file' ? 'file' : 'link'
   if (!event_id || !CREATIVE_ROLES.includes(role)) {

@@ -1,10 +1,12 @@
 /**
  * Dashboard collaboratif Ads × événements — calculs partagés client / serveur.
  *
- * Planning d'un événement (délais réglables, défaut 15 j / 7 j) :
- *   lancement campagne = jour de l'événement − campaign_days
- *   créas attendues    = lancement − lead_days
- * Ex. événement le 30/10 → campagne le 15/10 → créas pour le 08/10.
+ * Une campagne (table ads_campaigns) par JPO / webinaire et par marque.
+ * Dates (délais réglables par marque, ads_brand_settings) :
+ *   allumage     = événement − launch_days   (Diploma 15 j, Medibox 21 j)
+ *   livraison    = allumage − creas_days     (Diploma 7 j, Medibox 5 j)
+ *   extinction   = événement + end_days      (1 j)
+ * Une date saisie à la main sur la campagne remplace la date calculée.
  *
  * Seuls les JPO et webinaires ont une campagne (pas les salons).
  */
@@ -15,6 +17,25 @@ export const ADS_CREATIVES_MAX_FOLDER_BYTES = 10 * 1024 * 1024 * 1024
 
 /** Types d'événements avec une campagne Ads. */
 export const ADS_EVENT_TYPES = ['jpo', 'webinaire'] as const
+
+export type AdsBrand = 'diploma' | 'medibox' | 'edumove'
+export const ADS_BRANDS: AdsBrand[] = ['diploma', 'medibox', 'edumove']
+
+export type BrandDelays = { brand: AdsBrand; launch_days: number; creas_days: number; end_days: number }
+export const DEFAULT_DELAYS: Record<AdsBrand, BrandDelays> = {
+  diploma: { brand: 'diploma', launch_days: 15, creas_days: 7, end_days: 1 },
+  edumove: { brand: 'edumove', launch_days: 15, creas_days: 7, end_days: 1 },
+  medibox: { brand: 'medibox', launch_days: 21, creas_days: 5, end_days: 1 },
+}
+
+/** Champs du brief (colonnes du planning). */
+export const BRIEF_FIELDS = [
+  'pilier', 'accroche', 'cible', 'geo', 'funnel', 'ref_diploma', 'cpl_ref', 'cpl_target', 'budget_target',
+  'leads_expected', 'budget_logic', 'intervenant', 'cta', 'why', 'to_check', 'status',
+] as const
+export type BriefField = (typeof BRIEF_FIELDS)[number]
+export const BRIEF_NUMERIC: BriefField[] = ['cpl_ref', 'cpl_target', 'budget_target', 'leads_expected']
+export const CAMPAIGN_STATUSES = ['À valider', 'Validé', 'En pause', 'Annulé'] as const
 
 export type CreativeRole = 'static' | 'video'
 export const CREATIVE_ROLES: CreativeRole[] = ['static', 'video']
@@ -72,25 +93,49 @@ export type AdsCreativesSettings = {
   share_token?: string
 }
 
+/** Une ligne du dashboard : campagne Ads (id = ads_campaigns.id). */
 export type AdsEventRow = {
   id: string
+  brand: AdsBrand
+  /** Événement de l'onglet Événements rattaché (null = ligne importée du planning) */
+  event_id: string | null
+  num: number | null
   name: string
-  brand: string | null
-  event_type: string | null
-  event_date: string
+  event_type: 'webinaire' | 'jpo'
+  event_time: string | null
   location: string | null
-  status: string
   /** Jour de l'événement (Europe/Paris) */
   day: string
+  /** Allumage / livraison créas / extinction (calculés ou saisis) */
   campaign_start: string
   creas_deadline: string
+  campaign_end: string
+  /** Dates saisies à la main (null = calculées) */
+  launch_date: string | null
+  creas_date: string | null
+  end_date: string | null
   no_campaign: boolean
   /** Campagne cochée « en ligne » dans la colonne Ads Manager */
   launched_at: string | null
   launched_by: string | null
-  campaign_start_override: string | null
-  notes: string | null
   items: CreativeItem[]
+  // Brief
+  pilier: string | null
+  accroche: string | null
+  cible: string | null
+  geo: string | null
+  funnel: string | null
+  ref_diploma: string | null
+  cpl_ref: number | null
+  cpl_target: number | null
+  budget_target: number | null
+  leads_expected: number | null
+  budget_logic: string | null
+  intervenant: string | null
+  cta: string | null
+  why: string | null
+  to_check: string | null
+  status: string | null
 }
 
 /** YYYY-MM-DD du jour en Europe/Paris. */
@@ -112,11 +157,20 @@ export function diffDays(a: string, b: string): number {
 
 export function computeSchedule(
   eventDay: string,
-  settings: Pick<AdsCreativesSettings, 'campaign_days' | 'lead_days'>,
-  campaignStartOverride?: string | null,
-): { campaign_start: string; creas_deadline: string } {
-  const campaign_start = campaignStartOverride || addDays(eventDay, -settings.campaign_days)
-  return { campaign_start, creas_deadline: addDays(campaign_start, -settings.lead_days) }
+  delays: Pick<BrandDelays, 'launch_days' | 'creas_days' | 'end_days'>,
+  overrides: { launch_date?: string | null; creas_date?: string | null; end_date?: string | null } = {},
+): { campaign_start: string; creas_deadline: string; campaign_end: string } {
+  const campaign_start = overrides.launch_date || addDays(eventDay, -delays.launch_days)
+  return {
+    campaign_start,
+    creas_deadline: overrides.creas_date || addDays(campaign_start, -delays.creas_days),
+    campaign_end: overrides.end_date || addDays(eventDay, delays.end_days),
+  }
+}
+
+export function formatEuros(n: number | null | undefined, decimals = 0): string {
+  if (n == null) return '—'
+  return `${n.toLocaleString('fr-FR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })} €`
 }
 
 /** Texte de la relance SMS ; null si pas de relance ce jour-là. */

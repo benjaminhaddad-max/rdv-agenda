@@ -8,10 +8,14 @@ import {
   computeSchedule,
   parisDay,
   addDays,
+  type AdsBrand,
   type AdsCreativesSettings,
   type AdsEventRow,
+  type BrandDelays,
   type CreativeItem,
+  ADS_BRANDS,
   ADS_EVENT_TYPES,
+  DEFAULT_DELAYS,
 } from '@/lib/ads-creatives'
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://hub.diploma-sante.fr').replace(/\/$/, '')
@@ -64,68 +68,127 @@ type EventsDbRow = {
   brand: string | null
   event_type: string | null
   event_date: string
+  event_time_end?: string | null
   location: string | null
   status: string
   zoom_join_url: string | null
 }
 
+type CampaignDbRow = Omit<AdsEventRow, 'name' | 'day' | 'location' | 'campaign_start' | 'creas_deadline' | 'campaign_end' | 'items'> & {
+  title: string
+  event_date: string
+}
+
+export async function loadBrandDelays(db: SupabaseClient): Promise<Record<AdsBrand, BrandDelays>> {
+  const out = { ...DEFAULT_DELAYS }
+  const { data } = await db.from('ads_brand_settings').select('brand, launch_days, creas_days, end_days')
+  for (const r of (data || []) as BrandDelays[]) {
+    if ((ADS_BRANDS as string[]).includes(r.brand)) out[r.brand] = r
+  }
+  return out
+}
+
+function brandOf(b: string | null | undefined): AdsBrand {
+  return (ADS_BRANDS as string[]).includes(b || '') ? (b as AdsBrand) : 'diploma'
+}
+
 /**
- * Événements JPO / webinaires de l'onglet Événements (base Events), hors annulés,
- * fusionnés avec leurs dépôts de créas et le planning de campagne.
+ * Campagnes Ads de toutes les marques :
+ *  - JPO / webinaires de l'onglet Événements (base Events) — une ligne
+ *    ads_campaigns est créée ou rattachée automatiquement à chaque événement ;
+ *  - lignes du planning importé (Medibox…) pas encore créées dans Événements.
+ * Fusionnées avec les dépôts de créas et les dates (délais par marque).
  */
 export async function loadAdsEvents(
   db: SupabaseClient,
-  settings: AdsCreativesSettings,
   opts: { fromDay?: string } = {},
 ): Promise<AdsEventRow[]> {
-  const events = createEventsClient()
-  let q = events
+  const fromDay = opts.fromDay || '2000-01-01'
+  const delays = await loadBrandDelays(db)
+
+  // 1. Événements JPO / webinaires (annulés compris, pour masquer leur campagne)
+  const { data: evData, error: evError } = await createEventsClient()
     .from('events')
-    .select('id, name, brand, event_type, event_date, location, status, zoom_join_url')
-    .neq('status', 'cancelled')
+    .select('id, name, brand, event_type, event_date, event_time_end, location, status, zoom_join_url')
+    .gte('event_date', `${fromDay}T00:00:00`)
     .order('event_date', { ascending: true })
-  if (opts.fromDay) q = q.gte('event_date', `${opts.fromDay}T00:00:00`)
-  const { data, error } = await q
-  if (error) throw new Error(error.message)
-  // Campagnes Ads : JPO et webinaires uniquement (pas les salons).
-  const rows = ((data || []) as EventsDbRow[]).filter((r) =>
+  if (evError) throw new Error(evError.message)
+  const events = ((evData || []) as EventsDbRow[]).filter((r) =>
     (ADS_EVENT_TYPES as readonly string[]).includes(eventTypeOf(r).id))
-  if (rows.length === 0) return []
+  const eventById = new Map(events.map((e) => [e.id, e]))
 
-  const ids = rows.map((r) => r.id)
-  const [metaRes, itemsRes] = await Promise.all([
-    db.from('event_ad_creatives').select('*').in('event_id', ids),
-    db.from('event_ad_creative_items').select('*').in('event_id', ids).order('created_at', { ascending: true }),
-  ])
-  if (metaRes.error) throw new Error(metaRes.error.message)
-  if (itemsRes.error) throw new Error(itemsRes.error.message)
+  // 2. Campagnes existantes
+  const { data: cData, error: cError } = await db
+    .from('ads_campaigns')
+    .select('*')
+    .gte('event_date', fromDay)
+    .order('event_date', { ascending: true })
+  if (cError) {
+    throw new Error(/does not exist|schema cache/.test(cError.message) ? 'Migration v74 (campagnes Ads) non appliquée' : cError.message)
+  }
+  const campaigns = (cData || []) as CampaignDbRow[]
 
-  const meta = new Map((metaRes.data || []).map((m) => [m.event_id as string, m]))
+  // 3. Rattachement : chaque événement actif a sa campagne
+  const linked = new Set(campaigns.map((c) => c.event_id).filter(Boolean) as string[])
+  for (const ev of events) {
+    if (linked.has(ev.id) || ev.status === 'cancelled') continue
+    const brand = brandOf(ev.brand)
+    const day = parisDay(ev.event_date)
+    const type = eventTypeOf(ev).id as 'webinaire' | 'jpo'
+    // Ligne importée du planning, même marque et même jour, pas encore rattachée
+    const match = campaigns.find((c) => !c.event_id && c.brand === brand && c.event_date === day)
+    if (match) {
+      const { error } = await db.from('ads_campaigns').update({ event_id: ev.id, updated_at: new Date().toISOString() }).eq('id', match.id).is('event_id', null)
+      if (!error) match.event_id = ev.id
+      continue
+    }
+    const { data: created } = await db
+      .from('ads_campaigns')
+      .insert({ brand, event_id: ev.id, title: ev.name, event_date: day, event_type: type })
+      .select('*')
+      .maybeSingle()
+    // Course possible avec un autre chargement : l'index unique sur event_id fait foi.
+    if (created) campaigns.push(created as CampaignDbRow)
+  }
+
+  // 4. Lignes visibles : campagnes sans événement, ou dont l'événement est actif
+  const visible = campaigns.filter((c) => {
+    if (!c.event_id) return true
+    const ev = eventById.get(c.event_id)
+    return !ev || ev.status !== 'cancelled'
+  })
+  if (visible.length === 0) return []
+
+  const { data: itemsData, error: itemsError } = await db
+    .from('event_ad_creative_items')
+    .select('*')
+    .in('event_id', visible.map((c) => c.id))
+    .order('created_at', { ascending: true })
+  if (itemsError) throw new Error(itemsError.message)
   const items = new Map<string, CreativeItem[]>()
-  for (const it of (itemsRes.data || []) as CreativeItem[]) {
+  for (const it of (itemsData || []) as CreativeItem[]) {
     const list = items.get(it.event_id) || []
     list.push(it)
     items.set(it.event_id, list)
   }
 
-  return rows.map((row) => {
-    // Lien Zoom non exposé (page partagée)
-    const r = { ...row, zoom_join_url: undefined }
-    const m = meta.get(r.id)
-    const day = parisDay(r.event_date)
-    const override = (m?.campaign_start as string | null) || null
-    return {
-      ...r,
-      day,
-      ...computeSchedule(day, settings, override),
-      no_campaign: !!m?.no_campaign,
-      launched_at: (m?.launched_at as string | null) || null,
-      launched_by: (m?.launched_by as string | null) || null,
-      campaign_start_override: override,
-      notes: (m?.notes as string | null) || null,
-      items: items.get(r.id) || [],
-    }
-  })
+  return visible
+    .map((c) => {
+      const ev = c.event_id ? eventById.get(c.event_id) : undefined
+      // L'événement fait foi pour le nom, la date et le lieu une fois rattaché.
+      const day = ev ? parisDay(ev.event_date) : c.event_date
+      const { title, ...rest } = c
+      return {
+        ...rest,
+        brand: brandOf(c.brand),
+        name: ev?.name || title,
+        day,
+        location: ev?.location || null,
+        ...computeSchedule(day, delays[brandOf(c.brand)], c),
+        items: items.get(c.id) || [],
+      } as AdsEventRow
+    })
+    .sort((a, b) => a.day.localeCompare(b.day) || (a.num ?? 0) - (b.num ?? 0))
 }
 
 /** Premier jour chargé : on garde 2 mois d’historique (onglet « Passés »). */

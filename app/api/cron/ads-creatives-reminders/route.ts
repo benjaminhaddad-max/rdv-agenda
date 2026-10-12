@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
     if (!settings.reminders_enabled && !dryRun) return NextResponse.json({ ok: true, skipped: 'relances désactivées' })
 
     const today = parisDay()
-    const events = await loadAdsEvents(db, settings, { fromDay: today })
+    const events = await loadAdsEvents(db, { fromDay: today })
     const link = shareLink(settings.share_token)
 
     const { data: already } = await db
