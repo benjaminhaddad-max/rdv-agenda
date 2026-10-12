@@ -90,7 +90,10 @@ export default function AdsDashboardPage() {
       .then(j => {
         const accs = j.accounts || []
         setAccounts(accs)
-        if (accs.length > 0 && !selectedAccount) setSelectedAccount(accs[0].account_id)
+        // Par défaut : le compte Diploma Médecine (sinon le premier)
+        const norm = (v?: string) => (v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+        const medecine = accs.find((a: AdAccount) => norm(a.name).includes('medecine'))
+        if (accs.length > 0 && !selectedAccount) setSelectedAccount((medecine ?? accs[0]).account_id)
       })
       .catch(e => setError(e.message))
       .finally(() => setLoadingAccounts(false))
