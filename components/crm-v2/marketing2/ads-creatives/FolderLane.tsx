@@ -8,7 +8,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type DragEvent } from 'react'
 import * as tus from 'tus-js-client'
-import { ChevronDown, ChevronRight, Download, FolderOpen, FolderUp, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, Download, Eye, FolderOpen, FolderUp, Trash2 } from 'lucide-react'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import {
   ADS_CREATIVES_BUCKET, ADS_CREATIVES_MAX_FOLDER_BYTES, CREATIVE_MAX, CREATIVE_UNIT, countCreatives,
@@ -16,6 +16,7 @@ import {
   type AdsEventRow, type CreativeItem, type CreativeRole, type FolderFile,
 } from '@/lib/ads-creatives'
 import { TONES, iconBtn } from './ui'
+import { CreativeThumbs, CreativeViewer } from './CreativePreview'
 
 const STORAGE_HOST = (() => {
   try {
@@ -214,8 +215,11 @@ export default function FolderLane({
 }
 
 function FolderRow({ item, fileUrl, onRemove }: { item: CreativeItem; fileUrl: (f: FolderFile) => string; onRemove: () => void }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(true)
+  const [viewing, setViewing] = useState<number | null>(null)
   const files = item.files || []
+  // Sans `name` : URL signée affichée dans le navigateur (aperçu) au lieu d'un téléchargement.
+  const previewUrl = (f: FolderFile) => fileUrl({ ...f, name: '' })
   const downloadAll = () => {
     // Téléchargements successifs (le navigateur peut demander d'autoriser les téléchargements multiples).
     files.forEach((f, i) => setTimeout(() => {
@@ -254,20 +258,26 @@ function FolderRow({ item, fileUrl, onRemove }: { item: CreativeItem; fileUrl: (
             {item.added_by ? ` · ${item.added_by}` : ''} · {frDay(parisDay(item.created_at))}
           </div>
         </div>
+        {files.length > 0 && (
+          <button type="button" onClick={() => setViewing(0)} style={iconBtn} aria-label="Aperçu" title="Aperçu des créas"><Eye size={15} /></button>
+        )}
         <button type="button" onClick={downloadAll} style={iconBtn} aria-label="Tout télécharger" title="Tout télécharger"><Download size={14} /></button>
         <button type="button" onClick={onRemove} style={iconBtn} aria-label="Supprimer" title="Supprimer"><Trash2 size={13} /></button>
       </div>
       {open && (
-        <div style={{ borderTop: `1px solid ${TONES.done.border}`, background: crmV2.bg, maxHeight: 220, overflowY: 'auto' }}>
-          {files.map((f) => (
-            <a key={f.path} href={fileUrl(f)} target="_blank" rel="noreferrer" style={fileRow}>
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-                {f.name.includes('/') ? f.name.split('/').slice(1).join('/') : f.name}
-              </span>
-              <span style={{ color: crmV2.textFaint, flexShrink: 0 }}>{formatBytes(f.size)}</span>
-            </a>
-          ))}
+        <div style={{ borderTop: `1px solid ${TONES.done.border}`, background: crmV2.bg, maxHeight: 420, overflowY: 'auto' }}>
+          <CreativeThumbs files={files} previewUrl={previewUrl} onOpen={setViewing} />
         </div>
+      )}
+      {viewing !== null && files[viewing] && (
+        <CreativeViewer
+          files={files}
+          index={viewing}
+          previewUrl={previewUrl}
+          downloadUrl={fileUrl}
+          onIndex={setViewing}
+          onClose={() => setViewing(null)}
+        />
       )}
     </div>
   )
@@ -292,8 +302,4 @@ const folderRow: CSSProperties = {
 }
 const folderName: CSSProperties = {
   fontSize: 13, fontWeight: 600, color: crmV2.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: 'none', flex: 1, minWidth: 0,
-}
-const fileRow: CSSProperties = {
-  display: 'flex', gap: 8, padding: '6px 12px 6px 36px', fontSize: 12, color: crmV2.link, textDecoration: 'none',
-  borderBottom: `1px solid ${crmV2.borderLight}`,
 }
