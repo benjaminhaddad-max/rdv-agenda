@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { brevoEventIso } from '@/lib/brevo-event-time'
 
 /**
  * POST /api/brevo/webhook — Endpoint pour les événements Brevo
@@ -34,9 +35,7 @@ export async function POST(req: Request) {
       const rawEvent = String(ev.event || '').toLowerCase()
       const email = String(ev.email || '').toLowerCase()
       const messageId = String(ev['message-id'] || ev.messageId || '')
-      const occurredAt = ev.date
-        ? new Date(String(ev.date)).toISOString()
-        : new Date().toISOString()
+      const occurredAt = brevoEventIso(ev) ?? new Date().toISOString()
 
       // Normalise le type d'événement
       const eventType = normalizeEventType(rawEvent)

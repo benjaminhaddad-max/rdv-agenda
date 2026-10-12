@@ -3,6 +3,7 @@ import { createServiceClient } from '@/lib/supabase'
 import { getApiUserContext } from '@/lib/api-auth'
 import { isDemoContactId } from '@/lib/demo-mode'
 import { fetchAssignmentArchive } from '@/lib/assignment-archive'
+import { brevoEventIso } from '@/lib/brevo-event-time'
 
 /**
  * GET /api/crm/contacts/[id]/details
@@ -370,7 +371,8 @@ export async function GET(
     else if (t.includes('bounce'))                                        s.bounces++
     else if (t === 'spam' || t === 'complaint')                           s.spam++
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const occurredAt = (ev as any).occurred_at as string
+    // Horodatage Unix de Brevo plutôt qu'occurred_at (décalé du fuseau de Paris sur l'historique)
+    const occurredAt = brevoEventIso(data) ?? ((ev as any).occurred_at as string)
     s.events.push({ type: t, at: occurredAt, data })
     if (!s.lastEventAt || occurredAt > s.lastEventAt) {
       s.lastEventAt = occurredAt
