@@ -34,7 +34,7 @@ const READY = new Set([
   'crm-dashboard', 'agenda', 'contacts', 'transactions', 'tasks',
   'import', 'doublons', 'recherche-prop', 'proprietes', 'users', 'parametres',
   'campaigns', 'programs', 'mkt-lists', 'brands', 'segments', 'templates',
-  'workflows', 'forms', 'meta-ads', 'ads-dashboard', 'sms-factor', 'events',
+  'workflows', 'forms', 'meta-ads', 'ads-dashboard', 'creas-ads', 'sms-factor', 'events',
   'alternance', 'reports', 'suivi-commercial', 'telepro-rdv-report', 'dashboard', 'errors',
   'webinars',
 ])
@@ -70,6 +70,7 @@ const NAV_SECTIONS: NavSection[] = [
       { key: 'forms', label: 'Formulaires', href: '/admin/crm-v2/forms', icon: FileText },
       { key: 'meta-ads', label: 'Meta Lead Ads', href: '/admin/crm-v2/meta-ads', icon: Facebook },
       { key: 'ads-dashboard', label: 'Dashboard Ads', href: '/admin/crm-v2/ads-dashboard', icon: BarChart3 },
+      { key: 'creas-ads', label: 'Créas Ads', href: '/admin/crm-v2/creas-ads', icon: Palette },
       { key: 'sms-factor', label: 'SMS Factor', href: '/admin/crm-v2/sms-factor', icon: MessageSquare },
       { key: 'events', label: 'Événements', href: '/admin/crm-v2/events', icon: CalendarDays },
     ],
