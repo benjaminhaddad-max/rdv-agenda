@@ -32,6 +32,11 @@ import {
 import { getEventPerfStats } from '@/lib/events-studio/event-perf-stats'
 import { sendEventPendingConfirmations } from '@/lib/events-studio/send-confirmations'
 import { createServiceClient } from '@/lib/supabase'
+import {
+  SALON_MEDECINE_2026_EVENT_ID,
+  TIMESLOT_SLOTS,
+  timeslotMergeFieldsForRegistrations,
+} from '@/lib/event-timeslot-survey'
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -86,6 +91,38 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
   const attendees = attendeesPack.attendees
   const attendeeCounts = attendeesPack.counts
   const perfStats = await getEventPerfStats(id, attendees).catch(() => null)
+
+  // Inscrits par créneau (formulaire d'inscription avec champ « creneau », ex. Forum 18/10).
+  // Le salon du 19/09 a son propre onglet sondage : on ne le recalcule pas ici.
+  let timeslotCounts: {
+    slots: Array<{ label: string; count: number }>
+    without: number
+  } | null = null
+  if (id !== SALON_MEDECINE_2026_EVENT_ID && attendees.length > 0) {
+    const slotByReg = await timeslotMergeFieldsForRegistrations(
+      id,
+      attendees.map((a, i) => ({
+        id: a.id || `attendee-${i}`,
+        email: a.email,
+        phone: a.phone,
+        hubspot_contact_id: a.contact_id ?? null,
+      })),
+    ).catch(() => new Map<string, { creneau: string }>())
+    if (slotByReg.size > 0) {
+      const byLabel = new Map<string, number>()
+      let without = 0
+      for (const m of slotByReg.values()) {
+        if (!m.creneau) without++
+        else byLabel.set(m.creneau, (byLabel.get(m.creneau) || 0) + 1)
+      }
+      const known = TIMESLOT_SLOTS.map((s) => s.label as string)
+      const labels = [...known, ...[...byLabel.keys()].filter((l) => !known.includes(l)).sort()]
+      timeslotCounts = {
+        slots: labels.map((label) => ({ label, count: byLabel.get(label) || 0 })),
+        without,
+      }
+    }
+  }
   // Compat UI : registrations = vue unifiée (CRM + Meta + Events)
   const registrations = attendees.slice(0, 500).map((a, i) => ({
     id: a.id || `attendee-${i}`,
@@ -162,6 +199,7 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
     registrations,
     attendees,
     attendee_counts: attendeeCounts,
+    timeslot_counts: timeslotCounts,
     perf_stats: perfStats,
     staff: staff || [],
     type,

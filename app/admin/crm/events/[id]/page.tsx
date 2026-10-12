@@ -15,6 +15,7 @@ import {
   Link2,
   Mail,
   MapPin,
+  Clock,
   MessageSquare,
   QrCode,
   Rocket,
@@ -512,6 +513,8 @@ type Detail = {
     source?: 'crm' | 'meta' | 'events'
   }>
   attendee_counts?: { total: number; crm: number; meta: number; events: number }
+  /** Inscrits par créneau choisi dans le formulaire d'inscription (null si pas de créneaux). */
+  timeslot_counts?: { slots: Array<{ label: string; count: number }>; without: number } | null
   staff: StaffRow[]
   type: { short: string; label: string; staff: boolean; comms: boolean; checkin: boolean }
   staff_url: string | null
@@ -1034,6 +1037,8 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const zoomBlockPublish = typeEdit === 'webinaire' && !hasZoom
   const attendeeCounts = data?.attendee_counts
   const inscriptionTotal = attendeeCounts?.total ?? cap?.registered_count ?? data?.registrations.length ?? 0
+  const timeslotCounts = data?.timeslot_counts ?? null
+  const timeslotMax = timeslotCounts ? Math.max(0, ...timeslotCounts.slots.map((s) => s.count)) : 0
   const inputStyle: CSSProperties = evFieldStyle
 
   // ——— Présentation V2 (onglets, mobile) : aucun effet sur la logique ———
@@ -1595,6 +1600,42 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                       </CrmV2Button>
                     </div>
                   </CrmV2Section>
+
+                  {/* ——— Inscrits par créneau (formulaire d'inscription avec champ créneau) ——— */}
+                  {timeslotCounts && (
+                    <CrmV2Section
+                      title="Inscrits par créneau"
+                      icon={<Clock size={15} />}
+                      count={timeslotCounts.slots.reduce((n, s) => n + s.count, 0)}
+                      storageKey="crm-event-fiche-creneaux"
+                    >
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        {timeslotCounts.slots.map((s) => (
+                          <div key={s.label}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
+                              <span style={{ color: crmV2.text, fontWeight: 600 }}>{s.label}</span>
+                              <span style={{ color: crmV2.goldDark, fontWeight: 700 }}>{s.count}</span>
+                            </div>
+                            <div style={{ height: 6, borderRadius: 3, background: crmV2.borderLight, overflow: 'hidden' }}>
+                              <div
+                                style={{
+                                  height: '100%',
+                                  width: `${timeslotMax > 0 ? (s.count / timeslotMax) * 100 : 0}%`,
+                                  background: crmV2.goldDark,
+                                  borderRadius: 3,
+                                }}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      {timeslotCounts.without > 0 && (
+                        <div style={{ marginTop: 10, fontSize: 12, color: crmV2.textMuted }}>
+                          Sans créneau choisi : {timeslotCounts.without}
+                        </div>
+                      )}
+                    </CrmV2Section>
+                  )}
 
                   {/* ——— Salon : formulaire de collecte sur stand (tablette + QR code) ——— */}
                   {typeCfg.standForm && (
