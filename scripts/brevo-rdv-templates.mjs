@@ -365,16 +365,17 @@ const TEMPLATES = [
   {
     id: 176,
     name: 'RDV CRM — Invitation visio (participant)',
-    subject: t => `Invitation — rendez-vous d’orientation de ${t.v('PROSPECT')}, ${t.v('DATE')}`,
+    subject: t => `Rendez-vous d’orientation de ${t.v('PROSPECT')} — ${t.v('DATE')}`,
     html: t => layout({
-      preheader: `Votre lien pour rejoindre la visioconférence du ${t.v('DATE')}`,
-      eyebrow: 'Invitation',
-      title: `Invitation à une ${accent('visioconférence')}`,
+      preheader: `Vous êtes invité(e) au rendez-vous d’orientation de ${t.v('PROSPECT')}`,
+      eyebrow: `Rendez-vous de ${t.v('PROSPECT')}`,
+      title: `Invitation au rendez-vous d’${accent('orientation')}`,
       body: `${hello(t)}
-        ${p(`Vous êtes convié(e) au rendez-vous d’orientation en visioconférence de ${t.v('PROSPECT')} avec un référent pédagogique de Diploma Santé.`)}
+        ${p(`${t.v('PROSPECT')} a rendez-vous en visioconférence avec un référent pédagogique de Diploma Santé, prépa aux études de santé. Vous avez été ajouté(e) à ce rendez-vous afin de pouvoir y assister.`)}
+        ${p(`Cet échange permet de faire le point sur le projet d’études de santé de ${t.v('PROSPECT')} et de présenter la préparation adaptée à son profil.`)}
         ${rdvPanel(t, { label: 'Visioconférence', withPlace: false })}
         ${visioBlock(t)}
-        ${notice('Conservez ce message&nbsp;: le lien ci-dessus vous permettra de rejoindre la visioconférence à l’heure prévue.')}`,
+        ${notice('Pour toute question, ou si vous ne souhaitez pas participer, il vous suffit de répondre à ce message.')}`,
     }),
   },
 ]
