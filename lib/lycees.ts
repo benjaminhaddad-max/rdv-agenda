@@ -405,7 +405,10 @@ export type AmbassadeurRow = {
   tickets_count: number | null
   tickets_problems: number | null
   coach_notes: string | null
-  mood: 'positif' | 'neutre' | 'negatif' | null
+  /** Coach Diploma Lab de l'élève (v71 — absent tant que la migration n'est pas passée) */
+  coach_lab_id?: string | null
+  coach_name?: string | null
+  mood:'positif' | 'neutre' | 'negatif' | null
   mood_summary: string | null
   score: number | null
   label: AmbassadeurLabel | null

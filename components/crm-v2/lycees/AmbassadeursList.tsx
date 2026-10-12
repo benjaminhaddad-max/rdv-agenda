@@ -66,24 +66,39 @@ export default function AmbassadeursList({
   const [dept, setDept] = useState('')
   const [formation, setFormation] = useState('')
   const [label, setLabel] = useState('')
+  const [coach, setCoach] = useState('')
   const [page, setPage] = useState(1)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const usersById = useMemo(() => new Map(users.map(u => [u.id, u])), [users])
+  // Coachs Diploma Lab présents dans la liste (v71), avec leur nombre de top ambassadeurs
+  const coaches = useMemo(() => {
+    const m = new Map<string, { name: string; n: number; top: number }>()
+    for (const a of items) {
+      if (!a.coach_name) continue
+      const c = m.get(a.coach_name) ?? { name: a.coach_name, n: 0, top: 0 }
+      c.n++
+      if (a.label === 'top') c.top++
+      m.set(a.coach_name, c)
+    }
+    return [...m.values()].sort((x, y) => x.name.localeCompare(y.name, 'fr'))
+  }, [items])
+  const hasCoaches = coaches.length > 0
 
   const base = useMemo(() => {
     const n = normalizeName(q)
     const fg = FORMATION_GROUPS.find(f => f.id === formation)
     return items.filter(a => {
       if (n) {
-        const hay = normalizeName(`${a.first_name ?? ''} ${a.last_name ?? ''} ${a.lycee?.name ?? a.school_name ?? ''} ${a.lycee?.city ?? ''}`)
+        const hay = normalizeName(`${a.first_name ?? ''} ${a.last_name ?? ''} ${a.lycee?.name ?? a.school_name ?? ''} ${a.lycee?.city ?? ''} ${a.coach_name ?? ''}`)
         if (!n.split(' ').every(p => hay.includes(p))) return false
       }
       if (dept && a.lycee?.department !== dept) return false
       if (fg && !fg.re.test(a.formation ?? '')) return false
       if (label && a.label !== label) return false
+      if (coach && (coach === '__none' ? !!a.coach_name : a.coach_name !== coach)) return false
       return true
     })
-  }, [items, q, dept, formation, label])
+  }, [items, q, dept, formation, label, coach])
 
   const who = (a: AmbassadeurItem) => a.assigned_to ?? a.lycee?.assigned_to ?? null
   const inView = (a: AmbassadeurItem, v: View) => {
@@ -139,6 +154,13 @@ export default function AmbassadeursList({
         <option value="">Tous profils</option>
         {AMB_LABELS.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}
       </AdminPillSelect>
+      {hasCoaches && (
+        <AdminPillSelect value={coach} onChange={e => { setCoach(e.target.value); setPage(1) }}>
+          <option value="">Tous coachs</option>
+          {coaches.map(c => <option key={c.name} value={c.name}>{c.name} ({c.top} top / {c.n})</option>)}
+          <option value="__none">Sans coach</option>
+        </AdminPillSelect>
+      )}
     </>
   )
 
@@ -213,6 +235,7 @@ export default function AmbassadeursList({
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 700 }}>{name(a)} <span style={{ fontWeight: 500, color: crmV2.textMuted, fontSize: 12 }}>· {a.formation}</span></div>
                   {lyceeCell(a)}
+                  {a.coach_name && <div style={{ fontSize: 12, color: crmV2.textMuted }}>Coach : <b style={{ color: crmV2.text }}>{a.coach_name}</b></div>}
                   <div style={{ marginTop: 4 }}>{labelPill(a)}</div>
                   {signals(a)}
                 </div>
@@ -251,6 +274,7 @@ export default function AmbassadeursList({
                   </CrmV2Th>
                 )}
                 <CrmV2Th>Élève</CrmV2Th>
+                {hasCoaches && <CrmV2Th>Coach</CrmV2Th>}
                 <CrmV2Th>Ancien lycée</CrmV2Th>
                 <CrmV2Th>Profil</CrmV2Th>
                 <CrmV2Th>Diploma Lab</CrmV2Th>
@@ -284,6 +308,15 @@ export default function AmbassadeursList({
                       <div style={{ fontSize: 11.5, color: crmV2.textFaint, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.formation}</div>
                       {a.phone && <div style={{ fontSize: 12, color: crmV2.link, fontWeight: 600 }}>{a.phone}</div>}
                     </CrmV2Td>
+                    {hasCoaches && (
+                      <CrmV2Td style={{ maxWidth: 150 }}>
+                        {a.coach_name ? (
+                          <button type="button" title="Filtrer sur ce coach" onClick={ev => { ev.stopPropagation(); setCoach(a.coach_name!); setPage(1) }} style={{
+                            background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600, color: crmV2.text, textAlign: 'left',
+                          }}>{a.coach_name}</button>
+                        ) : <span style={{ fontSize: 12, color: crmV2.textFaint }}>—</span>}
+                      </CrmV2Td>
+                    )}
                     <CrmV2Td style={{ maxWidth: 240 }}>{lyceeCell(a)}</CrmV2Td>
                     <CrmV2Td>{labelPill(a)}</CrmV2Td>
                     <CrmV2Td>{signals(a)}</CrmV2Td>
