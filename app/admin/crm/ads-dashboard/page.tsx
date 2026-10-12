@@ -71,6 +71,9 @@ const DATE_PRESETS: Array<{ value: DatePreset; label: string }> = [
 
 const LEVEL_LABELS: Record<Level, string> = { campaign: 'Campagne', adset: 'Adset', ad: 'Ad' }
 
+const normSearch = (v?: string) => (v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+const matchesSearch = (q: string, fields: Array<string | undefined>) => fields.some(f => normSearch(f).includes(q))
+
 // Nombre de lignes affichées avant « Voir les N autres » (Meta et Google)
 const PREVIEW_COUNT = 8
 
@@ -129,12 +132,7 @@ export default function AdsDashboardPage() {
   const [adsets, setAdsets] = useState<Insight[] | null>(null)
   const [adsetsLoading, setAdsetsLoading] = useState(false)
   useEffect(() => { setExpanded(new Set()); setAdsets(null) }, [selectedAccount, datePreset, refreshToken])
-  const toggleCampaign = (campaignId: string) => {
-    setExpanded(prev => {
-      const next = new Set(prev)
-      if (next.has(campaignId)) next.delete(campaignId); else next.add(campaignId)
-      return next
-    })
+  const loadAdsets = () => {
     if (adsets || adsetsLoading || !selectedAccount) return
     setAdsetsLoading(true)
     const params = new URLSearchParams({ account_id: selectedAccount, level: 'adset', date_preset: datePreset })
@@ -144,6 +142,19 @@ export default function AdsDashboardPage() {
       .catch(() => setAdsets([]))
       .finally(() => setAdsetsLoading(false))
   }
+  const toggleCampaign = (campaignId: string) => {
+    setExpanded(prev => {
+      const next = new Set(prev)
+      if (next.has(campaignId)) next.delete(campaignId); else next.add(campaignId)
+      return next
+    })
+    loadAdsets()
+  }
+  // Une recherche sur l'onglet Campagnes porte aussi sur les adsets : on les charge
+  useEffect(() => {
+    if (level === 'campaign' && search.trim()) loadAdsets()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [level, search, adsets, selectedAccount])
 
   // Charge la liste des ad accounts au mount
   useEffect(() => {
@@ -188,17 +199,30 @@ export default function AdsDashboardPage() {
     if (selectedAccount) loadInsights(false)
   }, [selectedAccount, level, datePreset, loadInsights])
 
-  // Recherche locale sur le nom / l'identifiant
+  // Recherche locale large : noms / identifiants de la campagne, de l'adset et de l'ad
+  // (sans accents ni casse). Sur l'onglet Campagnes, une campagne remonte aussi si
+  // l'un de ses adsets correspond.
+  const searchQ = normSearch(search.trim())
+  const adsetMatches = useMemo(() => {
+    const byCampaign = new Map<string, Insight[]>()
+    if (!searchQ || level !== 'campaign' || !adsets) return byCampaign
+    for (const a of adsets) {
+      if (!a.campaign_id || !matchesSearch(searchQ, [a.adset_name, a.adset_id])) continue
+      byCampaign.set(a.campaign_id, [...(byCampaign.get(a.campaign_id) || []), a])
+    }
+    return byCampaign
+  }, [adsets, level, searchQ])
   const rows = useMemo(() => {
     if (!data) return []
-    const q = search.trim().toLowerCase()
     return data.insights.map(i => ({
       i,
       id: level === 'campaign' ? i.campaign_id : level === 'adset' ? i.adset_id : i.ad_id,
       name: level === 'campaign' ? i.campaign_name : level === 'adset' ? i.adset_name : i.ad_name,
-    })).filter(r => !q || (r.name || '').toLowerCase().includes(q) || (r.id || '').includes(q))
+    })).filter(r => !searchQ
+      || matchesSearch(searchQ, [r.i.campaign_name, r.i.campaign_id, r.i.adset_name, r.i.adset_id, r.i.ad_name, r.i.ad_id])
+      || (!!r.i.campaign_id && adsetMatches.has(r.i.campaign_id)))
       .sort((a, b) => b.i.spend - a.i.spend)
-  }, [data, level, search])
+  }, [data, level, searchQ, adsetMatches])
   // Les plus gros budgets d'abord ; le reste se déplie (tout s'affiche pendant une recherche)
   const visibleRows = search.trim() || showAllMeta ? rows : rows.slice(0, PREVIEW_COUNT)
 
@@ -323,7 +347,7 @@ export default function AdsDashboardPage() {
                     <CrmV2Search
                       value={search}
                       onChange={e => setSearch(e.target.value)}
-                      placeholder={`Rechercher (${LEVEL_LABELS[level].toLowerCase()} Meta)…`}
+                      placeholder={level === 'campaign' ? 'Rechercher (campagne, adset Meta)…' : `Rechercher (${LEVEL_LABELS[level].toLowerCase()}, campagne Meta)…`}
                       style={{ flex: isMobile ? '1 1 100%' : '0 1 280px' }}
                     />
                     <AdsPillSelect
@@ -404,8 +428,12 @@ export default function AdsDashboardPage() {
                     <tbody>
                       {visibleRows.map(({ i, id, name }) => {
                         const canExpand = level === 'campaign' && !!id
-                        const isOpen = canExpand && expanded.has(id!)
-                        const children = isOpen && adsets ? adsets.filter(a => a.campaign_id === id).sort((a, b) => b.spend - a.spend) : []
+                        // Trouvée via un adset (et pas par son propre nom) : dépliée sur les adsets correspondants
+                        const viaAdsets = canExpand && !!searchQ && !matchesSearch(searchQ, [name, id]) ? adsetMatches.get(id!) : undefined
+                        const isOpen = canExpand && (expanded.has(id!) !== !!viaAdsets)
+                        const children = isOpen && adsets
+                          ? (viaAdsets && !expanded.has(id!) ? viaAdsets : adsets.filter(a => a.campaign_id === id)).slice().sort((a, b) => b.spend - a.spend)
+                          : []
                         return (
                         <Fragment key={id}>
                         <CrmV2Tr>
