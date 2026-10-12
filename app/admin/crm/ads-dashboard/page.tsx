@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect, useMemo, useState, useCallback } from 'react'
-import { Facebook, RefreshCw, Calendar, BarChart3, Users, TrendingUp, MousePointerClick, Building2 } from 'lucide-react'
+import { Facebook, RefreshCw, Calendar, BarChart3, Building2, ChevronDown, ChevronUp } from 'lucide-react'
 import {
-  CrmV2Body, CrmV2Button, CrmV2Card, CrmV2Empty, CrmV2Header, CrmV2KpiCard, CrmV2KpiGrid, CrmV2Page,
+  CrmV2Body, CrmV2Button, CrmV2Card, CrmV2Empty, CrmV2Header, CrmV2Page,
   CrmV2Search, CrmV2Spinner, CrmV2Table, CrmV2TableCard, CrmV2Tabs, CrmV2Td, CrmV2Th, CrmV2Tr,
 } from '@/components/crm-v2/primitives'
 import { AdsBanner, AdsFaint, AdsIconTile, AdsMobileRow, AdsPillSelect, adsSpin } from '@/components/crm-v2/marketing2/ads/ui'
@@ -69,6 +69,9 @@ const DATE_PRESETS: Array<{ value: DatePreset; label: string }> = [
 
 const LEVEL_LABELS: Record<Level, string> = { campaign: 'Campagne', adset: 'Adset', ad: 'Ad' }
 
+// Nombre de lignes affichées avant « Voir les N autres » (Meta et Google)
+const PREVIEW_COUNT = 8
+
 export default function AdsDashboardPage() {
   const isMobile = useIsMobile()
   const [accounts, setAccounts] = useState<AdAccount[]>([])
@@ -82,6 +85,11 @@ export default function AdsDashboardPage() {
   const [search, setSearch] = useState('')
   // Incrémenté par « Actualiser » : force aussi le rechargement du bloc Google Ads
   const [refreshToken, setRefreshToken] = useState(0)
+  const [showAllMeta, setShowAllMeta] = useState(false)
+  // Données Google remontées par la section Google, pour l'overview
+  const [googleData, setGoogleData] = useState<GoogleInsightsResponse | null>(null)
+
+  useEffect(() => { setShowAllMeta(false) }, [selectedAccount, level])
 
   // Charge la liste des ad accounts au mount
   useEffect(() => {
@@ -135,7 +143,10 @@ export default function AdsDashboardPage() {
       id: level === 'campaign' ? i.campaign_id : level === 'adset' ? i.adset_id : i.ad_id,
       name: level === 'campaign' ? i.campaign_name : level === 'adset' ? i.adset_name : i.ad_name,
     })).filter(r => !q || (r.name || '').toLowerCase().includes(q) || (r.id || '').includes(q))
+      .sort((a, b) => b.i.spend - a.i.spend)
   }, [data, level, search])
+  // Les plus gros budgets d'abord ; le reste se déplie (tout s'affiche pendant une recherche)
+  const visibleRows = search.trim() || showAllMeta ? rows : rows.slice(0, PREVIEW_COUNT)
 
   const periodLabel = DATE_PRESETS.find(p => p.value === datePreset)?.label || ''
   const accountCount = `${accounts.length} compte${accounts.length > 1 ? 's' : ''} publicitaire${accounts.length > 1 ? 's' : ''} connecté${accounts.length > 1 ? 's' : ''}`
@@ -184,6 +195,8 @@ export default function AdsDashboardPage() {
       </CrmV2Header>
 
       <CrmV2Body>
+        <AdsOverview meta={hasAccounts ? data : null} google={googleData} periodLabel={periodLabel} isMobile={isMobile} />
+
         {error && <AdsBanner kind="error">{error}</AdsBanner>}
 
         {loadingAccounts ? (
@@ -212,39 +225,14 @@ export default function AdsDashboardPage() {
           </CrmV2Card>
         ) : (
           <>
-            {/* Indicateurs */}
-            {data && (
-              <CrmV2KpiGrid>
-                <CrmV2KpiCard
-                  label="Dépensé"
-                  value={fmtCurrency(data.totals.spend, data.currency)}
-                  icon={<BarChart3 size={15} />}
-                  color={crmV2.text}
-                  detail={`CPC ${fmtCurrency(data.totals.cpc, data.currency)}`}
-                />
-                <CrmV2KpiCard
-                  label="Leads CRM"
-                  value={fmtNumber(data.totals.leads)}
-                  icon={<Users size={15} />}
-                  color={crmV2.success}
-                  detail={data.account_name || periodLabel}
-                />
-                <CrmV2KpiCard
-                  label="CPL"
-                  value={data.totals.leads > 0 ? fmtCurrency(data.totals.cpl, data.currency) : '—'}
-                  icon={<TrendingUp size={15} />}
-                  color={crmV2.link}
-                  detail="Coût par lead CRM"
-                />
-                <CrmV2KpiCard
-                  label="CTR"
-                  value={`${data.totals.ctr.toFixed(2).replace('.', ',')} %`}
-                  icon={<MousePointerClick size={15} />}
-                  color={crmV2.gold}
-                  detail={`${fmtNumber(data.totals.impressions)} impressions · ${fmtNumber(data.totals.clicks)} clics`}
-                />
-              </CrmV2KpiGrid>
-            )}
+            <AdsSectionHeader
+              icon={<Facebook size={18} />}
+              color="#1877F2"
+              title="Meta Ads"
+              subtitle={data ? `${data.account_name} · ${periodLabel}` : periodLabel}
+              loading={loading}
+              isMobile={isMobile}
+            />
 
             {loading && !data && <CrmV2Card><CrmV2Spinner /></CrmV2Card>}
 
@@ -255,7 +243,7 @@ export default function AdsDashboardPage() {
                     <CrmV2Search
                       value={search}
                       onChange={e => setSearch(e.target.value)}
-                      placeholder={`Rechercher (${LEVEL_LABELS[level].toLowerCase()})…`}
+                      placeholder={`Rechercher (${LEVEL_LABELS[level].toLowerCase()} Meta)…`}
                       style={{ flex: isMobile ? '1 1 100%' : '0 1 280px' }}
                     />
                     <AdsPillSelect
@@ -301,7 +289,7 @@ export default function AdsDashboardPage() {
                 ) : isMobile ? (
                   // Mobile : une ligne par objet, dépense et leads à droite
                   <div>
-                    {rows.map(({ i, id, name }) => (
+                    {visibleRows.map(({ i, id, name }) => (
                       <AdsMobileRow
                         key={id}
                         icon={<AdsIconTile icon={<Facebook size={15} />} color="#1877F2" />}
@@ -333,7 +321,7 @@ export default function AdsDashboardPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {rows.map(({ i, id, name }) => (
+                      {visibleRows.map(({ i, id, name }) => (
                         <CrmV2Tr key={id}>
                           <CrmV2Td>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
@@ -362,12 +350,15 @@ export default function AdsDashboardPage() {
                     </tbody>
                   </CrmV2Table>
                 )}
+                {!search.trim() && (
+                  <ShowMoreToggle total={rows.length} expanded={showAllMeta} onToggle={() => setShowAllMeta(v => !v)} />
+                )}
               </CrmV2TableCard>
             )}
           </>
         )}
 
-        <GoogleAdsSection datePreset={datePreset} periodLabel={periodLabel} refreshToken={refreshToken} isMobile={isMobile} />
+        <GoogleAdsSection datePreset={datePreset} periodLabel={periodLabel} refreshToken={refreshToken} isMobile={isMobile} onData={setGoogleData} />
       </CrmV2Body>
     </CrmV2Page>
   )
@@ -402,13 +393,17 @@ const GOOGLE_CHANNELS: Record<string, string> = {
   SEARCH: 'Search', PERFORMANCE_MAX: 'PMax', DISPLAY: 'Display', VIDEO: 'Vidéo', DEMAND_GEN: 'Demand Gen', SHOPPING: 'Shopping',
 }
 
-function GoogleAdsSection({ datePreset, periodLabel, refreshToken, isMobile }: {
+function GoogleAdsSection({ datePreset, periodLabel, refreshToken, isMobile, onData }: {
   datePreset: DatePreset
   periodLabel: string
   refreshToken: number
   isMobile: boolean
+  onData: (d: GoogleInsightsResponse | null) => void
 }) {
-  const [data, setData] = useState<GoogleInsightsResponse | null>(null)
+  const [data, setDataState] = useState<GoogleInsightsResponse | null>(null)
+  const setData = useCallback((d: GoogleInsightsResponse | null) => { setDataState(d); onData(d) }, [onData])
+  const [search, setSearch] = useState('')
+  const [showAll, setShowAll] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notConfigured, setNotConfigured] = useState(false)
@@ -430,84 +425,70 @@ function GoogleAdsSection({ datePreset, periodLabel, refreshToken, isMobile }: {
     } finally {
       setLoading(false)
     }
-  }, [datePreset])
+  }, [datePreset, setData])
 
   useEffect(() => { load(false) }, [load])
   useEffect(() => { if (refreshToken > 0) load(true) }, [refreshToken]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const t = data?.totals
+  const leadNotes = t ? [
+    t.unattributed_leads > 0 ? `dont ${fmtNumber(t.unattributed_leads)} lead${t.unattributed_leads > 1 ? 's' : ''} sans campagne identifiée` : null,
+    t.shared_device_excluded > 0 ? `${fmtNumber(t.shared_device_excluded)} exclus (appareil partagé, ex. salon)` : null,
+  ].filter(Boolean).join(' · ') : ''
+
+  const rows = useMemo(() => {
+    if (!data) return []
+    const q = search.trim().toLowerCase()
+    return data.insights
+      .filter(i => !q || (i.campaign_name || '').toLowerCase().includes(q) || i.campaign_id.includes(q))
+      .sort((a, b) => b.spend - a.spend)
+  }, [data, search])
+  const visibleRows = search.trim() || showAll ? rows : rows.slice(0, PREVIEW_COUNT)
+
   const header = (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-      <AdsIconTile icon={<GoogleAdsIcon size={18} />} size={40} />
-      <div style={{ flex: 1, minWidth: 200 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: crmV2.text }}>Google Ads</div>
-        <div style={{ fontSize: 13, color: crmV2.textMuted, marginTop: 2 }}>
-          {data ? `${data.account_name} · ${periodLabel}` : periodLabel}
-        </div>
-      </div>
-      {loading && <RefreshCw size={14} color={crmV2.textFaint} style={adsSpin} />}
-    </div>
+    <AdsSectionHeader
+      icon={<GoogleAdsIcon size={18} />}
+      title="Google Ads"
+      subtitle={[data ? `${data.account_name} · ${periodLabel}` : periodLabel, leadNotes].filter(Boolean).join(' · ')}
+      loading={loading}
+      isMobile={isMobile}
+    />
   )
 
   if (notConfigured) {
     return (
-      <CrmV2Card style={{ padding: isMobile ? 14 : 20 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {header}
+        <CrmV2Card style={{ padding: isMobile ? 14 : 20 }}>
         <div style={{ fontSize: 13, color: crmV2.textMuted, marginTop: 10, lineHeight: 1.5 }}>
           Clé du compte de service absente : ajoute la variable <code>GOOGLE_ADS_SERVICE_ACCOUNT_JSON</code> sur le serveur
           (Paramètres › Intégrations › Google Ads).
         </div>
-      </CrmV2Card>
+        </CrmV2Card>
+      </div>
     )
   }
 
-  const t = data?.totals
-
   return (
     <>
-      <CrmV2Card style={{ padding: isMobile ? 14 : 20 }}>{header}</CrmV2Card>
+      {header}
       {error && <AdsBanner kind="error">Google Ads — {error}</AdsBanner>}
       {loading && !data && <CrmV2Card><CrmV2Spinner /></CrmV2Card>}
 
-      {data && t && (
+      {data && (
         <>
-          <CrmV2KpiGrid>
-            <CrmV2KpiCard
-              label="Dépensé"
-              value={fmtCurrency(t.spend, data.currency)}
-              icon={<BarChart3 size={15} />}
-              color={crmV2.text}
-              detail={`CPC ${fmtCurrency(t.cpc, data.currency)}`}
-            />
-            <CrmV2KpiCard
-              label="Leads CRM"
-              value={fmtNumber(t.leads)}
-              icon={<Users size={15} />}
-              color={crmV2.success}
-              detail={[
-                t.unattributed_leads > 0 ? `dont ${fmtNumber(t.unattributed_leads)} sans campagne identifiée` : null,
-                t.shared_device_excluded > 0 ? `${fmtNumber(t.shared_device_excluded)} exclus (appareil partagé, ex. salon)` : null,
-              ].filter(Boolean).join(' · ') || periodLabel}
-            />
-            <CrmV2KpiCard
-              label="CPL"
-              value={t.leads > 0 ? fmtCurrency(t.cpl, data.currency) : '—'}
-              icon={<TrendingUp size={15} />}
-              color={crmV2.link}
-              detail="Coût par lead CRM"
-            />
-            <CrmV2KpiCard
-              label="CTR"
-              value={`${t.ctr.toFixed(2).replace('.', ',')} %`}
-              icon={<MousePointerClick size={15} />}
-              color={crmV2.gold}
-              detail={`${fmtNumber(t.impressions)} impressions · ${fmtNumber(t.clicks)} clics`}
-            />
-          </CrmV2KpiGrid>
-
           <CrmV2TableCard
+            toolbar={
+              <CrmV2Search
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Rechercher (campagne Google)…"
+                style={{ flex: isMobile ? '1 1 100%' : '0 1 280px' }}
+              />
+            }
             footer={
               <>
-                <span>{data.insights.length} campagne{data.insights.length > 1 ? 's' : ''}</span>
+                <span>{rows.length} campagne{rows.length > 1 ? 's' : ''}</span>
                 <span style={{ fontSize: 12, color: crmV2.textFaint }}>
                   {data.cached ? 'Données en cache · ' : 'Récupérées '}
                   {new Date(data.fetched_at).toLocaleString('fr-FR')}
@@ -515,11 +496,11 @@ function GoogleAdsSection({ datePreset, periodLabel, refreshToken, isMobile }: {
               </>
             }
           >
-            {data.insights.length === 0 ? (
-              <CrmV2Empty icon={<BarChart3 size={22} />} title="Aucune donnée pour cette période." />
+            {rows.length === 0 ? (
+              <CrmV2Empty icon={<BarChart3 size={22} />} title={data.insights.length === 0 ? 'Aucune donnée pour cette période.' : 'Aucun résultat pour cette recherche.'} />
             ) : isMobile ? (
               <div>
-                {data.insights.map(i => (
+                {visibleRows.map(i => (
                   <AdsMobileRow
                     key={i.campaign_id}
                     icon={<AdsIconTile icon={<GoogleAdsIcon size={15} />} />}
@@ -551,7 +532,7 @@ function GoogleAdsSection({ datePreset, periodLabel, refreshToken, isMobile }: {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.insights.map(i => (
+                  {visibleRows.map(i => (
                     <CrmV2Tr key={i.campaign_id}>
                       <CrmV2Td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
@@ -578,10 +559,120 @@ function GoogleAdsSection({ datePreset, periodLabel, refreshToken, isMobile }: {
                 </tbody>
               </CrmV2Table>
             )}
+            {!search.trim() && (
+              <ShowMoreToggle total={rows.length} expanded={showAll} onToggle={() => setShowAll(v => !v)} />
+            )}
           </CrmV2TableCard>
         </>
       )}
     </>
+  )
+}
+
+function AdsSectionHeader({ icon, color, title, subtitle, loading, isMobile }: {
+  icon: React.ReactNode
+  color?: string
+  title: string
+  subtitle: string
+  loading: boolean
+  isMobile: boolean
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginTop: isMobile ? 8 : 14 }}>
+      <AdsIconTile icon={icon} color={color} size={40} />
+      <div style={{ flex: 1, minWidth: 200 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: crmV2.text }}>{title}</div>
+        <div style={{ fontSize: 13, color: crmV2.textMuted, marginTop: 2 }}>{subtitle}</div>
+      </div>
+      {loading && <RefreshCw size={14} color={crmV2.textFaint} style={adsSpin} />}
+    </div>
+  )
+}
+
+/** Bouton « Voir les N autres » / « Réduire » en bas d'une liste de campagnes. */
+function ShowMoreToggle({ total, expanded, onToggle }: { total: number; expanded: boolean; onToggle: () => void }) {
+  if (total <= PREVIEW_COUNT) return null
+  const hidden = total - PREVIEW_COUNT
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%',
+        padding: '10px 12px', background: crmV2.bgHover, border: 'none', borderTop: `1px solid ${crmV2.borderLight}`,
+        color: crmV2.link, fontSize: 13, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer',
+      }}
+    >
+      {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+      {expanded ? 'Réduire' : `Voir les ${hidden} autre${hidden > 1 ? 's' : ''}`}
+    </button>
+  )
+}
+
+/** Overview macro : Meta (compte sélectionné) + Google cumulés, avec la répartition par plateforme. */
+function AdsOverview({ meta, google, periodLabel, isMobile }: {
+  meta: InsightsResponse | null
+  google: GoogleInsightsResponse | null
+  periodLabel: string
+  isMobile: boolean
+}) {
+  if (!meta && !google) return null
+  const currency = meta?.currency || google?.currency || 'EUR'
+  const m = meta?.totals
+  const g = google?.totals
+  const spend = (m?.spend || 0) + (g?.spend || 0)
+  const leads = (m?.leads || 0) + (g?.leads || 0)
+  const clicks = (m?.clicks || 0) + (g?.clicks || 0)
+  const impressions = (m?.impressions || 0) + (g?.impressions || 0)
+  const cpl = leads > 0 ? spend / leads : 0
+  const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0
+  const pct = (n: number) => `${n.toFixed(2).replace('.', ',')} %`
+  const cur = (n: number) => fmtCurrency(n, currency)
+
+  const stats: Array<{ label: string; value: string; meta: string; google: string }> = [
+    { label: 'Dépenses', value: cur(spend), meta: m ? cur(m.spend) : '—', google: g ? cur(g.spend) : '—' },
+    { label: 'Leads', value: fmtNumber(leads), meta: m ? fmtNumber(m.leads) : '—', google: g ? fmtNumber(g.leads) : '—' },
+    { label: 'CPL moyen', value: leads > 0 ? cur(cpl) : '—', meta: m && m.leads > 0 ? cur(m.cpl) : '—', google: g && g.leads > 0 ? cur(g.cpl) : '—' },
+    { label: 'CTR', value: pct(ctr), meta: m ? pct(m.ctr) : '—', google: g ? pct(g.ctr) : '—' },
+  ]
+
+  return (
+    <CrmV2Card style={{ padding: isMobile ? 14 : 22 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', marginBottom: isMobile ? 12 : 18 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+          Vue d&apos;ensemble · Meta + Google
+        </div>
+        <div style={{ fontSize: 12, color: crmV2.textFaint }}>
+          {periodLabel}{meta ? ` · Meta : ${meta.account_name}` : ''}{!google ? ' · Google en chargement…' : ''}
+        </div>
+      </div>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(4, minmax(0, 1fr))',
+        gap: isMobile ? 16 : 24,
+      }}>
+        {stats.map((st, idx) => (
+          <div key={st.label} style={{
+            minWidth: 0,
+            paddingLeft: !isMobile && idx > 0 ? 24 : 0,
+            borderLeft: !isMobile && idx > 0 ? `1px solid ${crmV2.borderLight}` : 'none',
+          }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase', letterSpacing: '0.4px' }}>{st.label}</div>
+            <div style={{ fontSize: isMobile ? 26 : 36, fontWeight: 800, color: crmV2.text, letterSpacing: '-0.03em', lineHeight: 1.1, marginTop: 6, fontVariantNumeric: 'tabular-nums' }}>
+              {st.value}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 10, fontSize: 12, color: crmV2.textMuted }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Facebook size={12} color="#1877F2" /> Meta <b style={{ color: crmV2.text, marginLeft: 'auto', fontVariantNumeric: 'tabular-nums' }}>{st.meta}</b>
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <GoogleAdsIcon size={12} /> Google <b style={{ color: crmV2.text, marginLeft: 'auto', fontVariantNumeric: 'tabular-nums' }}>{st.google}</b>
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </CrmV2Card>
   )
 }
 
