@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, lazy, Suspense } from 'react'
 import {
   User, Mail, Phone, FileText, Tag, Zap, RefreshCw, Sparkles, ChevronLeft,
   Calendar, CalendarClock, Check, CheckCircle2, Ban, Hourglass, Smartphone, GraduationCap, UserX, Flame, PartyPopper,
-  ThumbsDown, UsersRound, Trophy, Wallet, Trash2, Briefcase, type LucideIcon,
+  ThumbsDown, UsersRound, Trophy, Wallet, Trash2, Flag, type LucideIcon,
 } from 'lucide-react'
 import { AppointmentStatus, STATUS_CONFIG } from './StatusBadge'
 import { AssignCloserPanel } from './AssignModal'
@@ -19,6 +19,8 @@ import { appointmentPlacedByTelepro, formatAppointmentPlacementLabel } from '@/l
 import MediboxBadge from './MediboxBadge'
 import { RDV_BRANDS, RDV_BRAND_IDS, normalizeRdvBrand, type RdvBrand } from '@/lib/rdv-brand'
 import type { ExtraParticipant } from '@/lib/appointment-participants'
+import { LEAD_STATUS_OPTIONS_FALLBACK } from '@/lib/crm-constants'
+import { isEnrolledLeadStatus, isInscriptionLeadStatus } from '@/lib/inscription-status'
 
 const JitsiMeeting = lazy(() => import('./JitsiMeeting'))
 
@@ -78,6 +80,26 @@ const sectionPad: React.CSSProperties = { padding: '14px 18px', borderBottom: `1
 function tint(hex: string, a: number) {
   const n = parseInt(hex.slice(1), 16)
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`
+}
+
+/** Couleur du sélecteur « Statut du lead » (même palette que le journal repop). */
+function leadStatusColor(status: string | null): string {
+  if (!status) return crmV2.textMuted
+  const COLORS: Record<string, string> = {
+    'Nouveau': '#3b82f6', 'Nouveau - Chaud': '#ef4444',
+    'En cours': '#22c55e', 'RDV pris': '#0ea5e9',
+    'A replanifier': '#06b6d4', 'A relancer': '#a855f7', 'À relancer': '#a855f7',
+    'NRP1': '#f59e0b', 'NRP2': '#f97316', 'NRP3': '#dc2626', 'NRP4': '#b91c1c',
+    'En attente / Réfléchit': '#ca8a04',
+    'Raccroche au nez': '#7c98b6', 'Mauvais numéro': '#7c98b6', 'Disqualifié': '#7c98b6', 'Doublon': '#7c98b6',
+    'Autre prépa concurrente': '#516f90', "A garder pour l'an prochain": '#516f90',
+    'Inscrit': '#15803d',
+  }
+  if (COLORS[status]) return COLORS[status]
+  if (isEnrolledLeadStatus(status)) return '#15803d'
+  if (status.startsWith('Annulé')) return '#7c98b6'
+  if (isInscriptionLeadStatus(status)) return '#16a34a'
+  return crmV2.textMuted
 }
 
 function toDateInputValue(d: Date): string {
@@ -188,12 +210,38 @@ export default function AppointmentModal({
     setRescheduleOk(false)
   }, [appointment.start_at, appointment.end_at])
 
-  // Pré-remplit les coordonnées parent depuis la fiche contact si absentes sur le RDV.
+  // Statut du lead (hs_lead_status du contact) — c'est lui qu'on suit, pas la transaction.
+  const [leadStatus, setLeadStatus] = useState<string | null>(null)
+  const [leadStatusLoaded, setLeadStatusLoaded] = useState(false)
+  const [leadStatusSaving, setLeadStatusSaving] = useState(false)
+  const [leadStatusError, setLeadStatusError] = useState(false)
+
+  async function saveLeadStatus(next: string) {
+    if (!appointment.hubspot_contact_id) return
+    const prev = leadStatus
+    setLeadStatus(next || null)
+    setLeadStatusSaving(true)
+    setLeadStatusError(false)
+    try {
+      const res = await fetch(`/api/crm/contacts/${appointment.hubspot_contact_id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hs_lead_status: next || null }),
+      })
+      if (!res.ok) throw new Error()
+    } catch {
+      setLeadStatus(prev)
+      setLeadStatusError(true)
+    } finally {
+      setLeadStatusSaving(false)
+    }
+  }
+
+  // Charge le statut du lead + pré-remplit les coordonnées parent depuis la fiche contact si absentes sur le RDV.
   useEffect(() => {
     if (!appointment.hubspot_contact_id) return
     const needEmail = !appointment.email_parent
     const needPhone = !appointment.phone_parent
-    if (!needEmail && !needPhone) return
 
     let cancelled = false
     ;(async () => {
@@ -201,6 +249,9 @@ export default function AppointmentModal({
         const res = await fetch(`/api/crm/contacts/${appointment.hubspot_contact_id}/details?phase=core`)
         if (!res.ok || cancelled) return
         const data = await res.json()
+        if (cancelled) return
+        setLeadStatus((data.contact?.hs_lead_status as string | null) ?? null)
+        setLeadStatusLoaded(true)
         const raw = (data.contact?.hubspot_raw ?? {}) as Record<string, unknown>
         if (needEmail) {
           const email = raw.email_parent
@@ -698,30 +749,47 @@ export default function AppointmentModal({
                 </button>
               </div>
             )}
-            {(appointment.hubspot_contact_id || appointment.hubspot_deal_id) && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 2 }}>
-                {appointment.hubspot_contact_id && (
+            {appointment.hubspot_contact_id && (() => {
+              const color = leadStatusColor(leadStatus)
+              const options = leadStatus && !LEAD_STATUS_OPTIONS_FALLBACK.some(o => o.id === leadStatus)
+                ? [{ id: leadStatus, label: leadStatus }, ...LEAD_STATUS_OPTIONS_FALLBACK]
+                : LEAD_STATUS_OPTIONS_FALLBACK
+              return (
+                <div style={{ ...infoRow, flexWrap: 'wrap', marginTop: 2 }}>
+                  <Flag size={14} style={iconGold} />
+                  <span>Statut du lead :</span>
+                  <select
+                    value={leadStatus ?? ''}
+                    disabled={!leadStatusLoaded || leadStatusSaving}
+                    onChange={e => saveLeadStatus(e.target.value)}
+                    aria-label="Statut du lead"
+                    style={{
+                      background: leadStatus ? tint(color, 0.10) : crmV2.bg,
+                      border: `1px solid ${leadStatus ? tint(color, 0.40) : crmV2.borderStrong}`,
+                      borderRadius: 999, padding: '4px 10px',
+                      color: leadStatus ? color : crmV2.textMuted,
+                      fontSize: 12, fontWeight: 700, fontFamily: 'inherit',
+                      cursor: leadStatusSaving ? 'wait' : 'pointer', outline: 'none',
+                      maxWidth: '100%', opacity: leadStatusLoaded ? 1 : 0.6,
+                    }}
+                  >
+                    {!leadStatusLoaded && <option value={leadStatus ?? ''}>Chargement…</option>}
+                    {leadStatusLoaded && <option value="">— Aucun statut —</option>}
+                    {leadStatusLoaded && options.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                  </select>
+                  {leadStatusSaving && <span style={{ fontSize: 11 }}>Enregistrement…</span>}
+                  {leadStatusError && <span style={{ fontSize: 11, color: '#d13a41', fontWeight: 600 }}>Échec, réessayez</span>}
                   <a
                     href={`/admin/crm/contacts/${appointment.hubspot_contact_id}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{ ...smallGoldBtn, padding: '6px 12px' }}
+                    style={{ ...smallGoldBtn, marginLeft: 'auto' }}
                   >
-                    <User size={12} /> Ouvrir le contact
+                    <User size={11} /> Ouvrir le contact
                   </a>
-                )}
-                {appointment.hubspot_deal_id && (
-                  <a
-                    href={`/admin/crm/deals/${appointment.hubspot_deal_id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ ...smallGoldBtn, padding: '6px 12px' }}
-                  >
-                    <Briefcase size={12} /> Ouvrir la transaction
-                  </a>
-                )}
-              </div>
-            )}
+                </div>
+              )
+            })()}
 
             {/* Date et heure modifiables (bouton « Replanifier » du pied de page) */}
             <div ref={dateBlockRef} style={{
@@ -895,7 +963,7 @@ export default function AppointmentModal({
             )}
             {saved && (
               <div style={{ marginTop: 8, fontSize: 12, color: '#16a34a', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                <Check size={12} /> Transaction mise à jour
+                <Check size={12} /> Enregistré
               </div>
             )}
           </div>
