@@ -20,7 +20,12 @@ import { isDeadStatus, type LeadScore } from '@/lib/lead-score'
 import { engagementOf, loadContactCalls, loadManualContacts } from '@/lib/lead-engagement'
 
 export type TodayGoals = { calls: number; talk2: number; rdv: number }
-export const DEFAULT_GOALS: TodayGoals = { calls: 80, talk2: 8, rdv: 2 }
+/**
+ * 6 RDV sur une plage de 4 h. Taux de l'équipe (30 derniers jours, Aircall) :
+ * ~12 % des appels sortants font une conversation ≥ 2 min, et il faut ~3
+ * conversations ≥ 2 min par RDV → 18 conversations → 150 appels (~40 / h).
+ */
+export const DEFAULT_GOALS: TodayGoals = { calls: 150, talk2: 18, rdv: 6 }
 const GOALS_KEY = 'telepro_daily_goals'
 
 type GoalsSetting = { default?: Partial<TodayGoals>; users?: Record<string, Partial<TodayGoals>> }

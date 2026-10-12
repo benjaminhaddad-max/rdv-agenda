@@ -126,6 +126,7 @@ export default function TodayView({ userId, firstName }: { userId: string; first
               )}
             >
               Objectifs du jour
+              <span style={{ fontSize: 12, fontWeight: 500, color: crmV2.textMuted }}>{' '}· sur une plage de 4 h</span>
             </CardTitle>
             {editGoals && data.can_edit_goals && (
               <GoalsEditor userId={userId} data={data} onSaved={() => { setEditGoals(false); setTick(t => t + 1) }} />
