@@ -13,6 +13,12 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 /** Catégorie du modèle (email_templates.category) pré-sélectionné pour ce mail. */
 export const POST_RDV_TEMPLATE_CATEGORY = 'apres-rdv'
+/** Élève de Terminale (pré-inscription PASS 2027-2028) : modèle dédié. */
+export const POST_RDV_TERMINALE_TEMPLATE_CATEGORY = 'apres-rdv-terminale'
+
+export function postRdvTemplateCategory(classeActuelle?: string | null): string {
+  return /^\s*terminale/i.test(classeActuelle || '') ? POST_RDV_TERMINALE_TEMPLATE_CATEGORY : POST_RDV_TEMPLATE_CATEGORY
+}
 
 /** Ajoute post_rdv_email_sent_at aux RDV listés (requête à part, par paquets). */
 export async function attachPostRdvEmailSentAt<T extends { id: string }>(

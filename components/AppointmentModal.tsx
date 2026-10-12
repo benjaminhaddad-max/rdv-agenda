@@ -22,7 +22,7 @@ import { RDV_BRANDS, RDV_BRAND_IDS, normalizeRdvBrand, type RdvBrand } from '@/l
 import type { ExtraParticipant } from '@/lib/appointment-participants'
 import LeadCycleControl from './LeadCycleControl'
 import QuickActionModal from './crm/QuickActionModal'
-import { POST_RDV_TEMPLATE_CATEGORY } from '@/lib/post-rdv-email'
+import { postRdvTemplateCategory } from '@/lib/post-rdv-email'
 
 const JitsiMeeting = lazy(() => import('./JitsiMeeting'))
 
@@ -924,7 +924,7 @@ export default function AppointmentModal({
                 type="email"
                 contactId={appointment.hubspot_contact_id}
                 appointmentId={appointment.id}
-                defaultTemplateCategory={POST_RDV_TEMPLATE_CATEGORY}
+                defaultTemplateCategory={postRdvTemplateCategory(appointment.classe_actuelle)}
                 onClose={() => setShowPostRdvMail(false)}
                 onSaved={() => {
                   const now = new Date().toISOString()
