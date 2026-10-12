@@ -412,6 +412,14 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       )
     }
     event = updated
+    // Créas Ads : la campagne rattachée garde le même titre que l'événement
+    if (nameChanged) {
+      const { error: adsError } = await createServiceClient()
+        .from('ads_campaigns')
+        .update({ title: patch.name, updated_at: new Date().toISOString() })
+        .eq('event_id', id)
+      if (adsError) console.error('[events PATCH] sync titre Créas Ads', adsError.message)
+    }
   }
 
   if (hasFormsUpdate) {
