@@ -39,6 +39,14 @@ export function statusColor(st: string | null): { color: string; bg: string } {
   return { color: '#a16207', bg: '#fef9c3' } // À valider
 }
 
+/** Couleur de l'étiquette de type : Webinaire, JPO, Présentiel, Guide. */
+export function typeColor(ev: { kind: string; event_type: string | null }): { color: string; bg: string } {
+  if (ev.kind === 'guide') return { color: crmV2.goldDark, bg: crmV2.goldSoft }
+  if (ev.event_type === 'jpo') return { color: '#7c3aed', bg: '#f3e8ff' }
+  if (ev.event_type === 'presentiel') return { color: '#0f766e', bg: '#ccfbf1' }
+  return { color: '#0369a1', bg: '#e0f2fe' } // webinaire
+}
+
 export const pill: CSSProperties = {
   fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: crmV2.radiusPill, whiteSpace: 'nowrap',
 }

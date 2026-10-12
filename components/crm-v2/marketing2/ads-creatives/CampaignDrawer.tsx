@@ -16,7 +16,12 @@ import {
 import FolderLane from './FolderLane'
 import GuidePdfLane from './GuidePdfLane'
 import { adsStatus, creativeStatus, guidePdfStatus, type Status } from './status'
-import { TONES, funnelColor, pill, pilierColor, statusColor } from './ui'
+import { TONES, funnelColor, pill, pilierColor, statusColor, typeColor } from './ui'
+
+const typeColorStyle = (ev: AdsEventRow) => {
+  const c = typeColor(ev)
+  return { color: c.color, background: c.bg }
+}
 
 export default function CampaignDrawer({
   ev, today, crm, settings, token, author, fileUrl, onAddFolder, onItemAdded, onRemove, onLaunched, onEdit, onClose, flash,
@@ -57,7 +62,7 @@ export default function CampaignDrawer({
       header={
         <div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
-            <span style={{ ...pill, color: crmV2.textMuted, background: crmV2.chipBg }}>{eventLabel}{ev.num != null ? ` n°${ev.num}` : ''}</span>
+            <span style={{ ...pill, ...typeColorStyle(ev) }}>{eventLabel}{ev.num != null ? ` n°${ev.num}` : ''}</span>
             {ev.pilier && <span style={{ ...pill, color: pc.color, background: pc.bg }}>{ev.pilier}</span>}
             {ev.funnel && <span style={{ ...pill, color: fc.color, background: fc.bg }}>{ev.funnel}</span>}
             {ev.status && <span style={{ ...pill, color: sc.color, background: sc.bg }}>{ev.status}</span>}

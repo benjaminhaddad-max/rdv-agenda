@@ -25,7 +25,7 @@ import {
 import CampaignDrawer, { StatusBadge } from './CampaignDrawer'
 import CampaignEditDrawer from './CampaignEditDrawer'
 import { adsStatus, creativeStatus, guidePdfStatus, shortDay } from './status'
-import { TONES, pilierColor } from './ui'
+import { TONES, pilierColor, typeColor } from './ui'
 
 type Settings = AdsCreativesSettings & { share_token?: string; share_url?: string }
 
@@ -340,7 +340,10 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
                     <button key={ev.id} type="button" onClick={() => setOpenId(ev.id)} style={{ ...mobileRow, borderTop: i ? `1px solid ${crmV2.borderLight}` : 'none' }}>
                       <DayCell day={ev.day} />
                       <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
-                        <div style={rowTitle}>{ev.name}</div>
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', minWidth: 0 }}>
+                          {kind !== 'guide' && <TypePill ev={ev} />}
+                          <div style={rowTitle}>{ev.name}</div>
+                        </div>
                         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 4 }}>
                           {ev.kind === 'guide' && <MiniStatus label="PDF" s={guidePdfStatus(ev, today)} />}
                           <MiniStatus label="Stat." s={creativeStatus(ev, 'static', today)} />
@@ -396,11 +399,8 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
                               <span style={{ width: 4, alignSelf: 'stretch', borderRadius: 2, background: ev.pilier ? pc.color : crmV2.border, flexShrink: 0 }} />
                               <div style={{ minWidth: 0 }}>
                                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', minWidth: 0 }}>
-                                  {kind === 'all' && (
-                                    <span style={{ ...kindPill, ...(ev.kind === 'guide' ? kindPillGuide : {}) }}>
-                                      {campaignTypeLabel(ev)}
-                                    </span>
-                                  )}
+                                  {/* Type toujours visible (sauf dans la vue Guides, où tout est guide) */}
+                                  {kind !== 'guide' && <TypePill ev={ev} />}
                                   <div style={rowTitle}>{ev.name}</div>
                                 </div>
                                 {sub && <div style={rowSub}>{sub}</div>}
@@ -472,6 +472,11 @@ function DayCell({ day }: { day: string }) {
       </div>
     </div>
   )
+}
+
+function TypePill({ ev }: { ev: AdsEventRow }) {
+  const c = typeColor(ev)
+  return <span style={{ ...kindPill, color: c.color, background: c.bg }}>{campaignTypeLabel(ev)}</span>
 }
 
 function MiniStatus({ label, s }: { label: string; s: ReturnType<typeof adsStatus> }) {
@@ -604,7 +609,6 @@ const kindPill: CSSProperties = {
   fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', padding: '1px 7px',
   borderRadius: crmV2.radiusPill, color: '#0369a1', background: '#e0f2fe', flexShrink: 0,
 }
-const kindPillGuide: CSSProperties = { color: crmV2.goldDark, background: crmV2.goldSoft }
 const monthCell: CSSProperties = {
   padding: '14px 14px 6px', fontSize: 13, background: crmV2.bgHover, borderBottom: `1px solid ${crmV2.border}`,
 }

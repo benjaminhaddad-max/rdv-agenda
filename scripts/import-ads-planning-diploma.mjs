@@ -118,7 +118,7 @@ for (const file of files) {
       if (String(get('Bloc') || '').trim() !== 'Contenu') continue // offres : hors périmètre créas guides
       kind = 'guide'
     } else if (/^webinaire/i.test(typeLine || '')) { kind = 'event'; eventType = 'webinaire' }
-    else if (/^[ée]v[ée]nement physique/i.test(typeLine || '')) { kind = 'event'; eventType = 'presentiel' }
+    else if (/^[ée]v[ée]nement physique/i.test(typeLine || '')) { kind = 'event'; eventType = /\bJPO\b/i.test(title) ? 'jpo' : 'presentiel' }
     else if (/^guide/i.test(typeLine || '')) kind = 'guide'
     else continue // Réserve, lignes vides
 
