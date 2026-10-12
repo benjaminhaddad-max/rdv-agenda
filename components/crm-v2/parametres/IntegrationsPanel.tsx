@@ -6,7 +6,7 @@ import { fr } from 'date-fns/locale'
 import {
   Phone, Mail, MessageSquare, Facebook, UserPlus, GraduationCap, Megaphone, Compass, School, CalendarDays,
   CalendarCheck, Smartphone, Video, Sparkles, Mic, Search, Archive, ArrowRight, ArrowLeft, ArrowLeftRight,
-  CheckCircle2, XCircle, Clock, ExternalLink, Unplug, Plug, type LucideIcon,
+  CheckCircle2, XCircle, Clock, ExternalLink, Unplug, Plug, BarChart3, type LucideIcon,
 } from 'lucide-react'
 import {
   CrmV2Button, CrmV2Toggle, CrmV2StatusPill, CrmV2Drawer, CrmV2CloseButton, CrmV2SectionLabel, CrmV2Spinner, hexA,
@@ -28,7 +28,7 @@ type IntegrationState = {
 type HubspotState = { hard_off: boolean; mirror_enabled: boolean; read_enabled: boolean }
 
 const ICONS: Record<string, LucideIcon> = {
-  aircall: Phone, brevo: Mail, smsfactor: MessageSquare, meta: Facebook, nomad: UserPlus, afem: GraduationCap,
+  aircall: Phone, brevo: Mail, smsfactor: MessageSquare, meta: Facebook, 'google-ads': BarChart3, nomad: UserPlus, afem: GraduationCap,
   thotis: Megaphone, hermione: Compass, diploma: School, events: CalendarDays, linova: CalendarCheck,
   apps: Smartphone, google: Video, anthropic: Sparkles, deepgram: Mic, typesense: Search, hubspot: Archive,
 }

@@ -97,6 +97,19 @@ export const INTEGRATIONS: IntegrationDef[] = [
     manage: { href: '/admin/crm/meta-ads', label: 'Pages et formulaires connectés' },
   },
   {
+    id: 'google-ads', name: 'Google Ads', category: 'leads', color: '#4285f4',
+    tagline: 'Lit les dépenses et performances des campagnes Google Ads pour le Dashboard Ads.',
+    does: [
+      'Récupère par campagne les impressions, clics, CTR, coût et CPC du compte Diploma Santé (lecture seule, via le compte administrateur Diploma Education).',
+      'Rapproche chaque campagne des leads CRM venus de Google Ads (gclid, UTM, ID de campagne) pour calculer le coût par lead.',
+      'Connexion par compte de service Google Cloud (projet hub-diploma-ads), sans Developer Token. Quota : 2 880 opérations par jour.',
+    ],
+    direction: 'entrant', frequency: 'À l’ouverture du Dashboard Ads (cache 30 min)',
+    env: ['GOOGLE_ADS_SERVICE_ACCOUNT_JSON'],
+    envOptional: ['GOOGLE_ADS_LOGIN_CUSTOMER_ID', 'GOOGLE_ADS_CUSTOMER_ID'],
+    manage: { href: '/admin/crm/ads-dashboard', label: 'Dashboard Ads' },
+  },
+  {
     id: 'nomad', name: 'Nomad Education', category: 'leads', color: '#7048e8',
     tagline: 'Importe les leads envoyés par le partenaire Nomad Education.',
     does: [

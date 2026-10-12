@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState, useCallback } from 'react'
-import { Facebook, RefreshCw, ExternalLink, Calendar, BarChart3, Users, TrendingUp, MousePointerClick, Building2 } from 'lucide-react'
+import { Facebook, RefreshCw, Calendar, BarChart3, Users, TrendingUp, MousePointerClick, Building2 } from 'lucide-react'
 import {
   CrmV2Body, CrmV2Button, CrmV2Card, CrmV2Empty, CrmV2Header, CrmV2KpiCard, CrmV2KpiGrid, CrmV2Page,
   CrmV2Search, CrmV2Spinner, CrmV2Table, CrmV2TableCard, CrmV2Tabs, CrmV2Td, CrmV2Th, CrmV2Tr,
@@ -80,6 +80,8 @@ export default function AdsDashboardPage() {
   const [loadingAccounts, setLoadingAccounts] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  // Incrémenté par « Actualiser » : force aussi le rechargement du bloc Google Ads
+  const [refreshToken, setRefreshToken] = useState(0)
 
   // Charge la liste des ad accounts au mount
   useEffect(() => {
@@ -136,7 +138,7 @@ export default function AdsDashboardPage() {
   const accountCount = `${accounts.length} compte${accounts.length > 1 ? 's' : ''} publicitaire${accounts.length > 1 ? 's' : ''} connecté${accounts.length > 1 ? 's' : ''}`
   const hasAccounts = !loadingAccounts && accounts.length > 0
 
-  const actions = hasAccounts ? (
+  const actions = !loadingAccounts ? (
     <>
       <AdsPillSelect
         icon={<Calendar size={14} />}
@@ -148,7 +150,7 @@ export default function AdsDashboardPage() {
       </AdsPillSelect>
       <CrmV2Button
         variant="secondary"
-        onClick={() => loadInsights(true)}
+        onClick={() => { if (hasAccounts) loadInsights(true); setRefreshToken(t => t + 1) }}
         disabled={loading}
         icon={<RefreshCw size={14} style={loading ? adsSpin : undefined} />}
       >
@@ -161,7 +163,7 @@ export default function AdsDashboardPage() {
     <CrmV2Page>
       <CrmV2Header
         title="Ads Dashboard"
-        subtitle={`Performance des campagnes Meta · ${periodLabel}${!loadingAccounts ? ` · ${accountCount}` : ''}`}
+        subtitle={`Performance des campagnes Meta & Google · ${periodLabel}${!loadingAccounts ? ` · ${accountCount}` : ''}`}
         actions={actions}
       >
         {hasAccounts && (
@@ -362,38 +364,220 @@ export default function AdsDashboardPage() {
           </>
         )}
 
-        {/* Google Ads — bientôt */}
-        <CrmV2Card style={{ padding: isMobile ? 14 : 20 }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
-            <AdsIconTile icon={<GoogleAdsIcon size={18} />} size={40} />
-            <div style={{ flex: 1, minWidth: 220 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 15, fontWeight: 700, color: crmV2.text }}>Google Ads</span>
-                <span style={{
-                  fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 999,
-                  background: crmV2.goldSoft, color: crmV2.goldDark,
-                }}>Bientôt disponible</span>
-              </div>
-              <div style={{ fontSize: 13, color: crmV2.textMuted, marginTop: 4, lineHeight: 1.5, maxWidth: 560 }}>
-                L&apos;intégration Google Ads nécessite un Developer Token approuvé par Google.
-                Cette section sera ajoutée dans un prochain chunk une fois le token obtenu.
-              </div>
-              <a
-                href="https://developers.google.com/google-ads/api/docs/get-started/dev-token"
-                target="_blank" rel="noopener noreferrer"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8, fontSize: 13, fontWeight: 600, color: crmV2.link, textDecoration: 'none' }}
-              >
-                Demander un Developer Token <ExternalLink size={14} />
-              </a>
-            </div>
-          </div>
-        </CrmV2Card>
+        <GoogleAdsSection datePreset={datePreset} periodLabel={periodLabel} refreshToken={refreshToken} isMobile={isMobile} />
       </CrmV2Body>
     </CrmV2Page>
   )
 }
 
 // ─── Sub-components ────────────────────────────────────────────────────────
+
+type GoogleInsight = {
+  campaign_id: string
+  campaign_name: string
+  status: string
+  channel: string
+  impressions: number
+  clicks: number
+  spend: number
+  ctr: number
+  cpc: number
+  leads: number
+  cpl: number
+}
+
+type GoogleInsightsResponse = {
+  insights: GoogleInsight[]
+  totals: { impressions: number; clicks: number; spend: number; leads: number; unattributed_leads: number; ctr: number; cpc: number; cpl: number }
+  currency: string
+  account_name: string
+  cached: boolean
+  fetched_at: string
+}
+
+const GOOGLE_CHANNELS: Record<string, string> = {
+  SEARCH: 'Search', PERFORMANCE_MAX: 'PMax', DISPLAY: 'Display', VIDEO: 'Vidéo', DEMAND_GEN: 'Demand Gen', SHOPPING: 'Shopping',
+}
+
+function GoogleAdsSection({ datePreset, periodLabel, refreshToken, isMobile }: {
+  datePreset: DatePreset
+  periodLabel: string
+  refreshToken: number
+  isMobile: boolean
+}) {
+  const [data, setData] = useState<GoogleInsightsResponse | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [notConfigured, setNotConfigured] = useState(false)
+
+  const load = useCallback(async (force: boolean) => {
+    setLoading(true); setError(null)
+    try {
+      const params = new URLSearchParams({ date_preset: datePreset })
+      if (force) params.set('force', '1')
+      const res = await fetch(`/api/google-ads/insights?${params.toString()}`)
+      const j = await res.json()
+      if (j.not_configured) { setNotConfigured(true); setData(null); return }
+      if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`)
+      setNotConfigured(false)
+      setData(j)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+      setData(null)
+    } finally {
+      setLoading(false)
+    }
+  }, [datePreset])
+
+  useEffect(() => { load(false) }, [load])
+  useEffect(() => { if (refreshToken > 0) load(true) }, [refreshToken]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const header = (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+      <AdsIconTile icon={<GoogleAdsIcon size={18} />} size={40} />
+      <div style={{ flex: 1, minWidth: 200 }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: crmV2.text }}>Google Ads</div>
+        <div style={{ fontSize: 13, color: crmV2.textMuted, marginTop: 2 }}>
+          {data ? `${data.account_name} · ${periodLabel}` : periodLabel}
+        </div>
+      </div>
+      {loading && <RefreshCw size={14} color={crmV2.textFaint} style={adsSpin} />}
+    </div>
+  )
+
+  if (notConfigured) {
+    return (
+      <CrmV2Card style={{ padding: isMobile ? 14 : 20 }}>
+        {header}
+        <div style={{ fontSize: 13, color: crmV2.textMuted, marginTop: 10, lineHeight: 1.5 }}>
+          Clé du compte de service absente : ajoute la variable <code>GOOGLE_ADS_SERVICE_ACCOUNT_JSON</code> sur le serveur
+          (Paramètres › Intégrations › Google Ads).
+        </div>
+      </CrmV2Card>
+    )
+  }
+
+  const t = data?.totals
+
+  return (
+    <>
+      <CrmV2Card style={{ padding: isMobile ? 14 : 20 }}>{header}</CrmV2Card>
+      {error && <AdsBanner kind="error">Google Ads — {error}</AdsBanner>}
+      {loading && !data && <CrmV2Card><CrmV2Spinner /></CrmV2Card>}
+
+      {data && t && (
+        <>
+          <CrmV2KpiGrid>
+            <CrmV2KpiCard
+              label="Dépensé"
+              value={fmtCurrency(t.spend, data.currency)}
+              icon={<BarChart3 size={15} />}
+              color={crmV2.text}
+              detail={`CPC ${fmtCurrency(t.cpc, data.currency)}`}
+            />
+            <CrmV2KpiCard
+              label="Leads CRM"
+              value={fmtNumber(t.leads)}
+              icon={<Users size={15} />}
+              color={crmV2.success}
+              detail={t.unattributed_leads > 0 ? `dont ${fmtNumber(t.unattributed_leads)} sans campagne identifiée` : periodLabel}
+            />
+            <CrmV2KpiCard
+              label="CPL"
+              value={t.leads > 0 ? fmtCurrency(t.cpl, data.currency) : '—'}
+              icon={<TrendingUp size={15} />}
+              color={crmV2.link}
+              detail="Coût par lead CRM"
+            />
+            <CrmV2KpiCard
+              label="CTR"
+              value={`${t.ctr.toFixed(2).replace('.', ',')} %`}
+              icon={<MousePointerClick size={15} />}
+              color={crmV2.gold}
+              detail={`${fmtNumber(t.impressions)} impressions · ${fmtNumber(t.clicks)} clics`}
+            />
+          </CrmV2KpiGrid>
+
+          <CrmV2TableCard
+            footer={
+              <>
+                <span>{data.insights.length} campagne{data.insights.length > 1 ? 's' : ''}</span>
+                <span style={{ fontSize: 12, color: crmV2.textFaint }}>
+                  {data.cached ? 'Données en cache · ' : 'Récupérées '}
+                  {new Date(data.fetched_at).toLocaleString('fr-FR')}
+                </span>
+              </>
+            }
+          >
+            {data.insights.length === 0 ? (
+              <CrmV2Empty icon={<BarChart3 size={22} />} title="Aucune donnée pour cette période." />
+            ) : isMobile ? (
+              <div>
+                {data.insights.map(i => (
+                  <AdsMobileRow
+                    key={i.campaign_id}
+                    icon={<AdsIconTile icon={<GoogleAdsIcon size={15} />} />}
+                    title={i.campaign_name || '(sans nom)'}
+                    subtitle={`${fmtNumber(i.impressions)} imp. · CTR ${i.ctr.toFixed(2)}% · ${i.leads > 0 ? `CPL ${fmtCurrency(i.cpl, data.currency)}` : 'CPL —'}`}
+                    right={
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: crmV2.text }}>{fmtCurrency(i.spend, data.currency)}</div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: i.leads > 0 ? crmV2.success : crmV2.textFaint }}>
+                          {fmtNumber(i.leads)} lead{i.leads > 1 ? 's' : ''}
+                        </div>
+                      </div>
+                    }
+                  />
+                ))}
+              </div>
+            ) : (
+              <CrmV2Table>
+                <thead>
+                  <tr>
+                    <CrmV2Th>Campagne</CrmV2Th>
+                    <CrmV2Th style={num}>Impressions</CrmV2Th>
+                    <CrmV2Th style={num}>Clics</CrmV2Th>
+                    <CrmV2Th style={num}>CTR</CrmV2Th>
+                    <CrmV2Th style={num}>Dépensé</CrmV2Th>
+                    <CrmV2Th style={num}>CPC</CrmV2Th>
+                    <CrmV2Th style={num}>Leads CRM</CrmV2Th>
+                    <CrmV2Th style={num}>CPL</CrmV2Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.insights.map(i => (
+                    <CrmV2Tr key={i.campaign_id}>
+                      <CrmV2Td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                          <AdsIconTile icon={<GoogleAdsIcon size={15} />} />
+                          <span style={{ fontWeight: 600, color: crmV2.link, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 360 }}>
+                            {i.campaign_name || '(sans nom)'}
+                          </span>
+                          <AdsFaint>
+                            {GOOGLE_CHANNELS[i.channel] || i.channel}{i.status === 'PAUSED' ? ' · en pause' : ''}
+                          </AdsFaint>
+                        </div>
+                      </CrmV2Td>
+                      <CrmV2Td style={num}>{fmtNumber(i.impressions)}</CrmV2Td>
+                      <CrmV2Td style={num}>{fmtNumber(i.clicks)}</CrmV2Td>
+                      <CrmV2Td style={num}>{i.ctr.toFixed(2)}%</CrmV2Td>
+                      <CrmV2Td style={{ ...num, fontWeight: 700 }}>{fmtCurrency(i.spend, data.currency)}</CrmV2Td>
+                      <CrmV2Td style={num}>{fmtCurrency(i.cpc, data.currency)}</CrmV2Td>
+                      <CrmV2Td style={num}>
+                        <span style={{ fontWeight: 600, color: i.leads > 0 ? crmV2.success : crmV2.textFaint }}>{fmtNumber(i.leads)}</span>
+                      </CrmV2Td>
+                      <CrmV2Td style={num}>{i.leads > 0 ? fmtCurrency(i.cpl, data.currency) : '—'}</CrmV2Td>
+                    </CrmV2Tr>
+                  ))}
+                </tbody>
+              </CrmV2Table>
+            )}
+          </CrmV2TableCard>
+        </>
+      )}
+    </>
+  )
+}
 
 function GoogleAdsIcon({ size = 18, style }: { size?: number; style?: React.CSSProperties }) {
   // Icône SVG simple (pas dans lucide)
