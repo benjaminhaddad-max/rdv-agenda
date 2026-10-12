@@ -43,12 +43,17 @@ export type AnalyzedCall = {
   score: number | null
   error: string | null
   criteria?: Record<string, number> | null
+  /** Premier appel / relance / suivi RDV / suivi inscription (historique CRM) */
+  kind?: string | null
+  kind_detail?: string | null
 }
+export type KindDef = { id: string; label: string; hint: string }
 export type CallAnalysisData = {
   ready: boolean
   ai_ready: boolean
   causes: CauseDef[]
   criteria?: CriterionDef[]
+  kinds?: KindDef[]
   coaching?: Record<string, CoachingEntry>
   team: Record<string, TeamCallStats>
   /** Appels sans RDV sur des lignes Aircall qui n'enregistrent pas */
@@ -111,6 +116,27 @@ export function CauseChip({ data, id, count }: { data: CallAnalysisData | null; 
     <span title={def?.hint} style={{
       display: 'inline-flex', alignItems: 'center', gap: 4, padding: '1px 8px', borderRadius: 999, whiteSpace: 'nowrap',
       fontSize: 11.5, fontWeight: 700, color: c, background: `${c}14`, border: `1px solid ${c}40`,
+    }}>
+      {def?.label ?? id}{count != null && <span style={{ fontWeight: 800 }}>{count}</span>}
+    </span>
+  )
+}
+
+const KIND_COLORS: Record<string, string> = {
+  premier_appel: '#0f766e',
+  relance: '#4f46e5',
+  suivi_rdv: '#b45309',
+  suivi_inscription: '#be185d',
+}
+
+/** Pastille du type d'appel (premier appel, relance, suivi RDV / inscription). */
+export function KindChip({ data, id, count, detail }: { data: CallAnalysisData | null; id: string; count?: number; detail?: string | null }) {
+  const c = KIND_COLORS[id] ?? '#64748b'
+  const def = data?.kinds?.find(x => x.id === id)
+  return (
+    <span title={[def?.hint, detail].filter(Boolean).join(' — ')} style={{
+      display: 'inline-flex', alignItems: 'center', gap: 4, padding: '0 7px', borderRadius: 6, whiteSpace: 'nowrap',
+      fontSize: 11, fontWeight: 700, color: c, background: `${c}12`, border: `1px solid ${c}35`,
     }}>
       {def?.label ?? id}{count != null && <span style={{ fontWeight: 800 }}>{count}</span>}
     </span>
@@ -301,16 +327,24 @@ export function CallList({ data, calls, endpoint = ADMIN_ENDPOINT }: { data: Cal
         return (
           <div key={c.aircall_call_id} style={{ borderTop: idx ? `1px solid ${crmV2.borderLight}` : 'none' }}>
             <button type="button" onClick={() => toggle(c.aircall_call_id)} style={{
-              width: '100%', display: 'grid', gridTemplateColumns: '120px minmax(0, 1fr) 64px auto 54px 22px', alignItems: 'center', gap: 10,
+              width: '100%', display: 'grid', gridTemplateColumns: '120px minmax(0, 1fr) 64px auto 54px 22px', alignItems: 'start', gap: 10,
               padding: '7px 10px', background: isOpen ? crmV2.bgHover : 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
             }}>
               <span style={{ fontSize: 12, color: crmV2.textMuted, whiteSpace: 'nowrap' }}>
                 {when.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Paris' })}{' '}
                 {when.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' })}
               </span>
-              <span style={{ fontSize: 13, fontWeight: 600, color: crmV2.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {c.contact_name ?? 'Contact'}
-                <span style={{ fontWeight: 400, color: crmV2.textMuted }}> — {c.summary}</span>
+              <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: crmV2.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.contact_name ?? 'Contact'}</span>
+                  {c.kind && <KindChip data={data} id={c.kind} detail={c.kind_detail} />}
+                </span>
+                {c.summary && (
+                  <span style={{
+                    fontSize: 12.5, color: crmV2.textMuted, lineHeight: 1.4,
+                    ...(isOpen ? {} : { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' }),
+                  }}>{c.summary}</span>
+                )}
               </span>
               <span style={{ fontSize: 12, color: crmV2.textMuted, textAlign: 'right' }}>{c.talk_sec ? `${Math.floor(c.talk_sec / 60)}:${String(c.talk_sec % 60).padStart(2, '0')}` : ''}</span>
               {c.cause ? <CauseChip data={data} id={c.cause} /> : <span />}
@@ -319,6 +353,7 @@ export function CallList({ data, calls, endpoint = ADMIN_ENDPOINT }: { data: Cal
             </button>
             {isOpen && (
               <div style={{ padding: '4px 12px 12px', display: 'flex', flexDirection: 'column', gap: 6, background: crmV2.bgHover }}>
+                {c.kind_detail && <div style={{ fontSize: 12, color: crmV2.textMuted }}><strong>Contexte :</strong> {c.kind_detail}</div>}
                 {c.criteria && (
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     {(data.criteria ?? []).map(k => {
@@ -379,6 +414,9 @@ export function CallDebrief({ data, userId, from, to, onChanged, showList = true
   self?: boolean
 }) {
   const [cause, setCause] = useState<string>('all')
+  const [kind, setKind] = useState<string>('all')
+  const [sortBy, setSortBy] = useState<'score' | 'date'>('score')
+  const [listOpen, setListOpen] = useState(showList)
   const [showAll, setShowAll] = useState(false)
   const [genLoading, setGenLoading] = useState(false)
   const [genError, setGenError] = useState<string | null>(null)
@@ -410,16 +448,26 @@ export function CallDebrief({ data, userId, from, to, onChanged, showList = true
   const sectionTitle = (t: string) => (
     <div style={{ fontSize: 11, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>{t}</div>
   )
-  const avg = s?.analyzed ? Math.round((s.score_sum / s.analyzed) * 10) / 10 : null
+  // Note, critères et causes recalculés sur le type d'appel choisi
+  const kindCounts = new Map<string, number>()
+  for (const c of done) if (c.kind) kindCounts.set(c.kind, (kindCounts.get(c.kind) ?? 0) + 1)
+  const kindsHere = (data.kinds ?? []).filter(k => kindCounts.has(k.id))
+  const scoped = done.filter(c => kind === 'all' || c.kind === kind)
+  const avg = scoped.length ? Math.round((scoped.reduce((t, c) => t + (c.score ?? 0), 0) / scoped.length) * 10) / 10 : null
+  const withCrit = scoped.filter(c => c.criteria)
   const crit = (data.criteria ?? []).map(c => ({
-    ...c, value: s?.criteria_n ? (s.criteria_sum?.[c.id] ?? 0) / s.criteria_n : null,
+    ...c, value: withCrit.length ? withCrit.reduce((t, x) => t + (Number(x.criteria?.[c.id]) || 0), 0) / withCrit.length : null,
   }))
   const weakest = crit.filter(c => c.value != null).sort((a, b) => (a.value ?? 0) - (b.value ?? 0))[0]
 
-  const causesHere = Object.entries(s?.causes ?? {}).sort((a, b) => b[1] - a[1])
-  const filtered = done
+  const causeCounts: Record<string, number> = {}
+  for (const c of scoped) if (c.cause) causeCounts[c.cause] = (causeCounts[c.cause] ?? 0) + 1
+  const causesHere = Object.entries(causeCounts).sort((a, b) => b[1] - a[1])
+  const filtered = scoped
     .filter(c => cause === 'all' || c.cause === cause)
-    .sort((a, b) => (a.score ?? 0) - (b.score ?? 0) || b.started_at.localeCompare(a.started_at))
+    .sort(sortBy === 'date'
+      ? (a, b) => b.started_at.localeCompare(a.started_at)
+      : (a, b) => (a.score ?? 0) - (b.score ?? 0) || b.started_at.localeCompare(a.started_at))
   const shown = showAll ? filtered : filtered.slice(0, 8)
 
   return (
@@ -484,11 +532,34 @@ export function CallDebrief({ data, userId, from, to, onChanged, showList = true
             {genError && <AdminNotice tone="error" style={{ marginTop: 6 }}>{genError}</AdminNotice>}
           </div>
 
+          {/* Type d'appel : filtre la note, les critères, les causes et la liste */}
+          {kindsHere.length > 0 && (
+            <div>
+              {sectionTitle("Type d'appel")}
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                <button type="button" onClick={() => { setKind('all'); setCause('all') }} style={chipBtn(kind === 'all')}>Tous ({done.length})</button>
+                {kindsHere.map(k => (
+                  <button key={k.id} type="button" onClick={() => { setKind(kind === k.id ? 'all' : k.id); setCause('all') }}
+                    style={{ padding: 0, border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+                    <span style={{ outline: kind === k.id ? `2px solid ${crmV2.text}` : 'none', borderRadius: 6, display: 'inline-flex' }}>
+                      <KindChip data={data} id={k.id} count={kindCounts.get(k.id)} />
+                    </span>
+                  </button>
+                ))}
+                {kind !== 'all' && avg != null && (
+                  <span style={{ fontSize: 12, color: crmV2.textMuted, marginLeft: 4 }}>
+                    Note moyenne sur ces appels : <strong style={{ color: avg >= 7 ? crmV2.successStrong : avg >= 4 ? '#d97706' : '#dc2626' }}>{avg}/10</strong>
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Critères + causes */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
             {crit.some(c => c.value != null) && (
               <div>
-                {sectionTitle('Note moyenne par critère (sur 2)')}
+                {sectionTitle(`Note moyenne par critère (sur 2)${kind !== 'all' ? ` · ${data.kinds?.find(k => k.id === kind)?.label ?? kind}` : ''}`)}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                   {crit.map(c => {
                     const v = c.value ?? 0
@@ -508,10 +579,10 @@ export function CallDebrief({ data, userId, from, to, onChanged, showList = true
             )}
             <div>
               {sectionTitle('Causes')}
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', pointerEvents: showList ? undefined : 'none' }}>
-                <button type="button" onClick={() => setCause('all')} style={chipBtn(cause === 'all')}>Toutes ({done.length})</button>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <button type="button" onClick={() => setCause('all')} style={chipBtn(cause === 'all')}>Toutes ({scoped.length})</button>
                 {causesHere.map(([id, n]) => (
-                  <button key={id} type="button" onClick={() => setCause(cause === id ? 'all' : id)} style={{ ...chipBtn(cause === id), padding: 0, border: 'none', background: 'none' }}>
+                  <button key={id} type="button" onClick={() => { setCause(cause === id ? 'all' : id); setListOpen(true) }} style={{ ...chipBtn(cause === id), padding: 0, border: 'none', background: 'none' }}>
                     <span style={{ outline: cause === id ? `2px solid ${crmV2.text}` : 'none', borderRadius: 999, display: 'inline-flex' }}>
                       <CauseChip data={data} id={id} count={n} />
                     </span>
@@ -521,11 +592,24 @@ export function CallDebrief({ data, userId, from, to, onChanged, showList = true
             </div>
           </div>
 
-          {/* Liste compacte (sinon : jour par jour dans le tableau du planning) */}
-          {showList ? (
+          {/* Synthèse de chaque appel de la période (aussi jour par jour dans le tableau du planning) */}
+          {listOpen ? (
             <div>
-              {sectionTitle(`Appels (${filtered.length}) · les moins bien notés d'abord`)}
-              <CallList data={data} calls={shown} endpoint={endpoint} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 6 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Appels ({filtered.length})
+                </div>
+                <span style={{ display: 'inline-flex', gap: 4 }}>
+                  <button type="button" onClick={() => setSortBy('score')} style={chipBtn(sortBy === 'score')}>Moins bien notés d&apos;abord</button>
+                  <button type="button" onClick={() => setSortBy('date')} style={chipBtn(sortBy === 'date')}>Plus récents d&apos;abord</button>
+                </span>
+                {!showList && (
+                  <button type="button" onClick={() => setListOpen(false)} style={{ marginLeft: 'auto', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, color: crmV2.link, fontWeight: 600 }}>
+                    Masquer
+                  </button>
+                )}
+              </div>
+              {filtered.length ? <CallList data={data} calls={shown} endpoint={endpoint} /> : <div style={{ fontSize: 13, color: crmV2.textMuted }}>Aucun appel pour ce filtre.</div>}
               {filtered.length > shown.length && (
                 <button type="button" onClick={() => setShowAll(true)} style={{ marginTop: 6, background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5, color: crmV2.link, fontWeight: 600 }}>
                   Voir les {filtered.length - shown.length} autres appels
@@ -533,7 +617,12 @@ export function CallDebrief({ data, userId, from, to, onChanged, showList = true
               )}
             </div>
           ) : (
-            <div style={{ fontSize: 12, color: crmV2.textMuted }}>Le détail de chaque appel est sous chaque jour, dans le tableau ci-dessus (clic sur le jour).</div>
+            <div>
+              <CrmV2Button size="sm" onClick={() => { setListOpen(true); setShowAll(true) }}>
+                Voir la synthèse des {filtered.length} appel{filtered.length > 1 ? 's' : ''}
+              </CrmV2Button>
+              <span style={{ fontSize: 12, color: crmV2.textMuted, marginLeft: 8 }}>ou jour par jour dans le tableau ci-dessus (clic sur le jour).</span>
+            </div>
           )}
         </>
       )}

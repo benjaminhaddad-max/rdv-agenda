@@ -44,6 +44,114 @@ export const CALL_CAUSES = [
 
 export type CallCause = typeof CALL_CAUSES[number]['id']
 
+/**
+ * Type d'appel, déduit de l'historique du contact au moment de l'appel (pas
+ * de l'IA) : un suivi d'inscription ou une relance après RDV ne se juge pas
+ * comme un premier appel à froid.
+ */
+export const CALL_KINDS = [
+  { id: 'premier_appel', label: 'Premier appel', hint: 'Aucune conversation avant avec ce contact : appel à froid' },
+  { id: 'relance', label: 'Relance', hint: 'Contact déjà eu au téléphone avant, sans RDV ni inscription' },
+  { id: 'suivi_rdv', label: 'Suivi RDV', hint: 'Le contact a déjà un RDV (passé ou à venir) : relance, rappel ou point après le RDV' },
+  { id: 'suivi_inscription', label: 'Suivi inscription', hint: "Le contact a déjà une inscription sur la plateforme : point sur l'inscription / le paiement" },
+] as const
+
+export type CallKind = typeof CALL_KINDS[number]['id']
+
+/** Conversation antérieure : décrochée, hors messagerie, ≥ 45 s. */
+const PRIOR_CALL_MIN_SEC = 45
+const PRIOR_LOOKBACK_MS = 180 * 86_400_000
+
+/**
+ * Type de chaque appel d'après l'historique du contact avant l'appel :
+ * inscription commencée > RDV existant > conversation déjà eue > premier appel.
+ * `detail` : précision courte (date du RDV, nombre d'appels avant…).
+ */
+export async function classifyCallKinds(
+  db: SupabaseClient,
+  calls: Array<{ aircall_call_id: number; hubspot_contact_id: string | null; started_at: string }>,
+): Promise<Map<number, { kind: CallKind; detail: string }>> {
+  const out = new Map<number, { kind: CallKind; detail: string }>()
+  const contactIds = [...new Set(calls.map(c => c.hubspot_contact_id).filter((x): x is string => !!x))]
+  if (!contactIds.length) return out
+  const minStart = Math.min(...calls.map(c => Date.parse(c.started_at)))
+
+  const rdvs = new Map<string, Array<{ created: number; start: number }>>()
+  const ins = new Map<string, Array<{ at: number; paid: boolean }>>()
+  const prior = new Map<string, Array<{ id: number; at: number }>>()
+  for (let i = 0; i < contactIds.length; i += 200) {
+    const ids = contactIds.slice(i, i + 200)
+    const [a, p] = await Promise.all([
+      db.from('rdv_appointments').select('hubspot_contact_id, created_at, start_at, status').in('hubspot_contact_id', ids),
+      db.from('crm_pre_inscriptions')
+        .select('hubspot_contact_id, detected_at, paiement_status, ins_created:external_data->>created_at')
+        .in('hubspot_contact_id', ids),
+    ])
+    for (const r of (a.data ?? []) as Array<{ hubspot_contact_id: string; created_at: string; start_at: string | null; status: string | null }>) {
+      if (['annule', 'annulee', 'cancelled'].includes(r.status || '')) continue
+      const list = rdvs.get(r.hubspot_contact_id) ?? []
+      list.push({ created: Date.parse(r.created_at), start: Date.parse(r.start_at || r.created_at) })
+      rdvs.set(r.hubspot_contact_id, list)
+    }
+    for (const r of (p.data ?? []) as Array<{ hubspot_contact_id: string; detected_at: string | null; paiement_status: string | null; ins_created: string | null }>) {
+      if (r.paiement_status === 'annulee') continue
+      const at = Date.parse(r.ins_created || r.detected_at || '')
+      if (!Number.isFinite(at)) continue
+      const list = ins.get(r.hubspot_contact_id) ?? []
+      list.push({ at, paid: ['payee', 'en_cours', 'archivee'].includes(r.paiement_status || '') })
+      ins.set(r.hubspot_contact_id, list)
+    }
+    for (let from = 0; from < 10_000; from += 1000) {
+      const { data } = await db.from('aircall_calls')
+        .select('aircall_call_id, hubspot_contact_id, started_at, status, duration_sec')
+        .in('hubspot_contact_id', ids)
+        .eq('answered', true)
+        .gte('duration_sec', PRIOR_CALL_MIN_SEC)
+        .gte('started_at', new Date(minStart - PRIOR_LOOKBACK_MS).toISOString())
+        .order('started_at', { ascending: true })
+        .range(from, from + 999)
+      for (const r of (data ?? []) as Array<{ aircall_call_id: number; hubspot_contact_id: string; started_at: string; status: string | null }>) {
+        if (r.status === 'voicemail') continue
+        const list = prior.get(r.hubspot_contact_id) ?? []
+        list.push({ id: Number(r.aircall_call_id), at: Date.parse(r.started_at) })
+        prior.set(r.hubspot_contact_id, list)
+      }
+      if (!data || data.length < 1000) break
+    }
+  }
+
+  const day = (t: number) => new Date(t).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', timeZone: 'Europe/Paris' })
+  for (const c of calls) {
+    const t = Date.parse(c.started_at)
+    const cid = c.hubspot_contact_id
+    if (!cid) { out.set(c.aircall_call_id, { kind: 'premier_appel', detail: '' }); continue }
+    const insBefore = (ins.get(cid) ?? []).filter(x => x.at < t)
+    if (insBefore.length) {
+      const last = insBefore.sort((x, y) => y.at - x.at)[0]
+      out.set(c.aircall_call_id, { kind: 'suivi_inscription', detail: `Inscription ${last.paid ? 'payée' : 'commencée'} le ${day(last.at)}` })
+      continue
+    }
+    // RDV pris avant l'appel (ceux pris pendant / juste après sont déjà exclus)
+    const rdvBefore = (rdvs.get(cid) ?? []).filter(x => x.created < t)
+    if (rdvBefore.length) {
+      const last = rdvBefore.sort((x, y) => y.start - x.start)[0]
+      out.set(c.aircall_call_id, { kind: 'suivi_rdv', detail: `${last.start < t ? 'RDV passé' : 'RDV prévu'} le ${day(last.start)}` })
+      continue
+    }
+    const before = (prior.get(cid) ?? []).filter(x => x.at < t && x.id !== c.aircall_call_id)
+    out.set(c.aircall_call_id, before.length
+      ? { kind: 'relance', detail: `${before.length} conversation${before.length > 1 ? 's' : ''} avant, la dernière le ${day(before[before.length - 1].at)}` }
+      : { kind: 'premier_appel', detail: '' })
+  }
+  return out
+}
+
+function kindContext(k: { kind: CallKind; detail: string } | undefined): string {
+  if (!k) return ''
+  const def = CALL_KINDS.find(x => x.id === k.kind)
+  return `Type d'appel (d'après le CRM) : ${def?.label}${k.detail ? ` — ${k.detail}` : ''}. ${def?.hint}.`
+}
+
 export type Candidate = {
   aircall_call_id: number
   rdv_user_id: string
@@ -197,6 +305,7 @@ Le télépro appelle un lead (lycéen, étudiant ou parent). Deux issues sont de
 2. pour les petites offres, PAS besoin de RDV : le télépro peut les vendre directement au téléphone en envoyant le lien d'inscription (Préparation LAS 1, LAS 2 ou LAS 3 année complète à 490 €, Préparation PASS semestre à 490 € ou année complète à 690 €). Elles conviennent surtout aux étudiants déjà en PASS ou en LAS.
 Un bon appel : découverte du projet (classe, filière, objectif médecine/santé, situation), mise en valeur de l'accompagnement, puis proposition claire d'un RDV avec un créneau concret, ou de la petite offre adaptée avec envoi du lien.
 Cet appel a duré plus de 2 minutes et n'a PAS débouché sur un RDV. Si le télépro a vendu ou proposé une petite offre / envoyé le lien d'inscription, choisis la cause offre_directe (ce n'est pas un échec) et note l'appel en conséquence. Si le prospect est en PASS / LAS (ou s'y destine) et que le télépro n'a proposé ni RDV ni petite offre, signale-le dans ce qui a manqué. Les locuteurs sont numérotés par la transcription automatique : déduis qui est le télépro (celui qui se présente au nom de Diploma Santé).
+Tiens compte du type d'appel indiqué : un premier appel à froid doit aller jusqu'à la proposition d'un RDV ; une relance doit faire avancer vers un RDV ; un suivi de RDV ou d'inscription vise surtout à lever les freins et fixer la prochaine étape (RDV suivant, finalisation de l'inscription, paiement) — ne le pénalise pas pour ne pas avoir refait une découverte complète.
 Identifie la cause principale de l'échec, ce qui s'est passé, ce qui a manqué côté télépro et un conseil concret et actionnable pour la prochaine fois. Sois factuel, appuie-toi sur la transcription, en français, phrases courtes.`
 
 
@@ -247,7 +356,7 @@ type Verdict = {
   criteria: CallCriteria; score: number
 }
 
-async function classify(client: Anthropic, transcript: string, talkSec: number): Promise<Verdict> {
+async function classify(client: Anthropic, transcript: string, talkSec: number, context: string): Promise<Verdict> {
   // SDK 0.39 : output_config / fallbacks pas encore typés → params non typés
   // (même convention que lib/competitor-events.ts).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -260,7 +369,7 @@ async function classify(client: Anthropic, transcript: string, talkSec: number):
     fallbacks: 'default',
     messages: [{
       role: 'user',
-      content: `Durée de conversation : ${Math.round(talkSec / 60)} min.\n\nTranscription :\n${transcript}`,
+      content: `Durée de conversation : ${Math.round(talkSec / 60)} min.${context ? `\n${context}` : ''}\n\nTranscription :\n${transcript}`,
     }],
   }
   const res = await client.messages.create(params, { headers: { 'anthropic-beta': 'server-side-fallback-2026-07-01' } })
@@ -311,7 +420,8 @@ export async function analyzeCandidate(db: SupabaseClient, client: Anthropic, c:
     if (!url) { await save({ status: 'no_recording' }); return 'no_recording' }
     const transcript = await transcribe(url)
     if (transcript.trim().length < 150) { await save({ status: 'too_short', transcript }); return 'too_short' }
-    const v = await classify(client, transcript, c.talk_sec)
+    const kind = await classifyCallKinds(db, [c]).then(m => m.get(c.aircall_call_id)).catch(() => undefined)
+    const v = await classify(client, transcript, c.talk_sec, kindContext(kind))
     await save({ status: 'done', transcript, model: MODEL, error: null, ...v })
     return 'done'
   } catch (e) {
@@ -389,7 +499,7 @@ export async function buildCoaching(
   toIso: string,
 ): Promise<{ content: Coaching; calls_count: number; created_at: string }> {
   const { data, error } = await db.from('call_analyses')
-    .select('started_at, talk_sec, cause, summary, missing, advice, score, rdv_proposed, criteria')
+    .select('aircall_call_id, hubspot_contact_id, started_at, talk_sec, cause, summary, missing, advice, score, rdv_proposed, criteria')
     .eq('rdv_user_id', userId).eq('status', 'done')
     .gte('started_at', fromIso).lt('started_at', toIso)
     .order('started_at', { ascending: false })
@@ -399,8 +509,12 @@ export async function buildCoaching(
   if (rows.length < 2) throw new Error('Pas assez d\'appels analysés sur la période (2 minimum)')
 
   const causeLabel = (id: string | null) => CALL_CAUSES.find(c => c.id === id)?.label ?? id ?? '—'
+  const kinds = await classifyCallKinds(db, rows.map(r => ({
+    aircall_call_id: Number(r.aircall_call_id), hubspot_contact_id: r.hubspot_contact_id as string | null, started_at: r.started_at as string,
+  }))).catch(() => new Map<number, { kind: CallKind; detail: string }>())
+  const kindLabel = (id: number) => CALL_KINDS.find(k => k.id === kinds.get(id)?.kind)?.label ?? '—'
   const digest = rows.map((r, i) =>
-    `#${i + 1} · ${causeLabel(r.cause as string | null)} · ${r.score}/10 · RDV/offre proposé : ${r.rdv_proposed ? 'oui' : 'non'}\n`
+    `#${i + 1} · ${kindLabel(Number(r.aircall_call_id))} · ${causeLabel(r.cause as string | null)} · ${r.score}/10 · RDV/offre proposé : ${r.rdv_proposed ? 'oui' : 'non'}\n`
     + `Passé : ${r.summary}\nManqué : ${r.missing || '—'}\nConseil : ${r.advice}`).join('\n\n')
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -408,7 +522,7 @@ export async function buildCoaching(
     model: MODEL,
     max_tokens: 4000,
     system: `${SYSTEM_PROMPT_HEAD}
-Tu reçois maintenant les débriefs de plusieurs appels d'un même télépro sur une période. Fais-en une synthèse de coaching pour son manager : ce qui revient, pas un appel isolé. Concret, bienveillant, actionnable, en français.`,
+Tu reçois maintenant les débriefs de plusieurs appels d'un même télépro sur une période. Fais-en une synthèse de coaching pour son manager : ce qui revient, pas un appel isolé. Distingue les premiers appels à froid des relances et suivis (RDV, inscription) quand leurs enjeux diffèrent. Concret, bienveillant, actionnable, en français.`,
     output_config: { effort: 'medium', format: { type: 'json_schema', schema: COACHING_SCHEMA } },
     fallbacks: 'default',
     messages: [{ role: 'user', content: `${rows.length} appels de plus de 2 min sans RDV :\n\n${digest}` }],
@@ -550,6 +664,8 @@ export async function buildCallReport(
     throw new Error(error.message)
   }
   const rows = (data ?? []) as unknown as AnalysisRow[]
+  const kinds = await classifyCallKinds(db, rows.filter(r => r.status === 'done'))
+    .catch(() => new Map<number, { kind: CallKind; detail: string }>())
 
   // Noms des contacts
   const contactIds = [...new Set(rows.map(r => r.hubspot_contact_id).filter((x): x is string => !!x))]
@@ -597,9 +713,15 @@ export async function buildCallReport(
     ai_ready: isCallAiReady(),
     causes: CALL_CAUSES,
     criteria: CALL_CRITERIA,
+    kinds: CALL_KINDS,
     coaching: await loadCoaching(db, from, to, userId),
     team,
     unrecorded_lines: unrecordedLines,
-    calls: rows.map(r => ({ ...r, contact_name: r.hubspot_contact_id ? names.get(r.hubspot_contact_id) ?? null : null })),
+    calls: rows.map(r => ({
+      ...r,
+      contact_name: r.hubspot_contact_id ? names.get(r.hubspot_contact_id) ?? null : null,
+      kind: kinds.get(Number(r.aircall_call_id))?.kind ?? null,
+      kind_detail: kinds.get(Number(r.aircall_call_id))?.detail ?? null,
+    })),
   }
 }
