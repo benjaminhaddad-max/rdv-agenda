@@ -68,6 +68,8 @@ export type TodayLead = {
   form_name: string | null
   /** Création de la fiche (arrivée du lead). */
   created_at: string | null
+  /** Première origine du lead (jamais écrasée par un repop). */
+  origine: string | null
 }
 
 export type TodayRdv = {
@@ -115,9 +117,10 @@ type ContactRow = {
   recent_conversion_date: string | null
   recent_conversion_event: string | null
   num_conversion_events: number | null
+  origine: string | null
 }
 
-const CONTACT_COLS = 'hubspot_contact_id, firstname, lastname, phone, mobilephone, classe_actuelle, hs_lead_status, contact_createdate, createdate, recent_conversion_date, recent_conversion_event, num_conversion_events'
+const CONTACT_COLS = 'hubspot_contact_id, firstname, lastname, phone, mobilephone, classe_actuelle, hs_lead_status, contact_createdate, createdate, recent_conversion_date, recent_conversion_event, num_conversion_events, origine'
 const PER_SECTION = 300
 const MAX_LEADS = 60
 const REASON_ORDER: TodayReason[] = ['repop', 'relance', 'nouveau', 'nrp']
@@ -260,6 +263,7 @@ export async function buildToday(
       form_at: row.recent_conversion_date,
       form_name: row.recent_conversion_event,
       created_at: row.contact_createdate || row.createdate,
+      origine: row.origine,
     })
   }
 

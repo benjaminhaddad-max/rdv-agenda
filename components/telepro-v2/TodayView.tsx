@@ -328,6 +328,25 @@ function LeadRow({ lead, first, open, onToggle, isMobile }: { lead: TodayLead; f
             </div>
           )}
           <div style={{ fontSize: 11, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            Son parcours
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'max-content minmax(0, 1fr)', columnGap: 12, rowGap: 4, fontSize: 12.5 }}>
+            <span style={{ color: crmV2.textMuted }}>Première origine</span>
+            <span style={{ color: crmV2.text, fontWeight: 600 }}>
+              {lead.origine || 'Inconnue'}{lead.created_at ? <span style={{ color: crmV2.textMuted, fontWeight: 400 }}> · arrivé {when(lead.created_at)}</span> : null}
+            </span>
+            {lead.reason === 'repop' && (
+              <>
+                <span style={{ color: '#dc2626' }}>Retombé via</span>
+                <span style={{ color: crmV2.text, fontWeight: 600 }}>
+                  {lead.form_name || 'Nouvelle source'}{lead.form_at ? <span style={{ color: crmV2.textMuted, fontWeight: 400 }}> · {when(lead.form_at)}</span> : null}
+                </span>
+              </>
+            )}
+            <span style={{ color: crmV2.textMuted }}>Pourquoi l&apos;appeler</span>
+            <span style={{ color: crmV2.text }}>{reason.label} · score {lead.score.score}/100 ({lvl.label})</span>
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 4 }}>
             Ce qui fait son score ({lead.score.score}/100 · {lvl.label})
           </div>
           {lead.score.reasons.length === 0 && <span style={{ fontSize: 12.5, color: crmV2.textMuted }}>Rien de particulier : score de base.</span>}

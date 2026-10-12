@@ -375,7 +375,8 @@ export default function TeleproClient({
   // Contenu de l'onglet actif (identique mobile / ordinateur, sauf contacts)
   function tabContent(): ReactNode {
     if (isAdmin) return newRdvContent
-    switch (activeTab) {
+    // Ordinateur : « À traiter aujourd'hui » est le premier onglet de vue de « Mes contacts »
+    switch (!isMobile && activeTab === 'today' ? 'contacts' : activeTab) {
       case 'form': return newRdvContent
       case 'historique': return historiqueContent
       case 'today':
@@ -471,7 +472,13 @@ export default function TeleproClient({
               />
             )}
             {skin(
-              <UserCRMView ownerParam="telepro_id" ownerId={teleproCrmFilterId} mode="telepro" onTotalChange={setCrmTotal} />,
+              <UserCRMView
+                ownerParam="telepro_id" ownerId={teleproCrmFilterId} mode="telepro" onTotalChange={setCrmTotal}
+                leadingView={isMobile ? undefined : {
+                  label: "À traiter aujourd'hui",
+                  render: () => <TodayView userId={teleproUser.id} firstName={firstName} />,
+                }}
+              />,
               { flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' },
             )}
           </>
@@ -636,7 +643,6 @@ export default function TeleproClient({
   // ─── Ordinateur : en-tête blanc + onglets soulignés ────────────────────
   const tabs = [
     // « Nouveau RDV » : bouton de l'en-tête (pas d'onglet en doublon)
-    { id: 'today', label: "À traiter aujourd'hui" },
     { id: 'contacts', label: 'Mes contacts', count: crmTotal > 0 ? crmTotal : undefined },
     { id: 'agenda', label: 'Agenda RDV' },
     { id: 'mails', label: 'Mes mails', count: mailsUnread > 0 ? mailsUnread : undefined },
@@ -701,7 +707,7 @@ export default function TeleproClient({
         )}
       >
         {!isAdmin && (
-          <CrmV2Tabs bordered={false} items={tabs} value={activeTab} onChange={id => setActiveTab(id as TeleproTab)} />
+          <CrmV2Tabs bordered={false} items={tabs} value={activeTab === 'today' ? 'contacts' : activeTab} onChange={id => setActiveTab(id as TeleproTab)} />
         )}
       </CrmV2Header>
 

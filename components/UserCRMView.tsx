@@ -124,6 +124,8 @@ interface Props {
   assignedScopeOnly?: boolean
   onTotalChange?: (n: number) => void
   initialSourceFilter?: string
+  /** Onglet affiché avant les vues (ex. « À traiter aujourd'hui » du télépro), ouvert par défaut. */
+  leadingView?: { label: string; badge?: number; render: () => React.ReactNode }
 }
 
 // ── Styled select helper ─────────────────────────────────────────────────────
@@ -383,7 +385,7 @@ function AdvancedFilterRow({
 }
 
 // ── Composant principal ──────────────────────────────────────────────────────
-export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOnly, onTotalChange, initialSourceFilter }: Props) {
+export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOnly, onTotalChange, initialSourceFilter, leadingView }: Props) {
   // ─ Présentation V2 (mobile, panneau de filtres, emplacement du bouton Colonnes)
   const isMobile = useIsMobile()
   // Télépro (ordinateur) : la page a déjà son en-tête + l'onglet « Mes contacts (N) »
@@ -419,6 +421,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
   // ─ Vues sauvegardées privées (propres à l'utilisateur, jamais partagées)
   const [views, setViews]                 = useState<UserSavedView[]>([DEFAULT_USER_VIEW])
   const [activeViewId, setActiveViewId]   = useState('all')
+  const [leadingOn, setLeadingOn]         = useState(!!leadingView)
   const [creatingView, setCreatingView]   = useState(false)
   const [newViewName, setNewViewName]     = useState('')
   const [renamingViewId, setRenamingViewId] = useState<string | null>(null)
@@ -1289,13 +1292,32 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
         : { margin: isMobile ? '0 -12px' : '0 -28px', padding: isMobile ? '0 12px' : '0 28px' }),
       overflowX: 'auto', overflowY: 'hidden', scrollbarWidth: 'none',
     }}>
+      {leadingView && (
+        <div
+          onClick={() => setLeadingOn(true)}
+          style={{
+            padding: isMobile ? '10px 12px' : '10px 14px',
+            borderBottom: `3px solid ${leadingOn ? crmV2.text : 'transparent'}`,
+            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', flexShrink: 0,
+          }}
+        >
+          <span style={{ fontSize: 14, fontWeight: leadingOn ? 600 : 500, color: leadingOn ? crmV2.text : crmV2.textMuted }}>
+            {leadingView.label}
+          </span>
+          {!!leadingView.badge && (
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#fff', background: '#dc2626', borderRadius: 999, padding: '0 6px', lineHeight: '17px' }}>
+              {leadingView.badge}
+            </span>
+          )}
+        </div>
+      )}
       {views.map(view => {
-        const isActive = activeViewId === view.id
+        const isActive = !leadingOn && activeViewId === view.id
         const isRenaming = renamingViewId === view.id
         return (
           <div
             key={view.id}
-            onClick={() => { if (!isRenaming) applyView(view) }}
+            onClick={() => { if (!isRenaming) { setLeadingOn(false); applyView(view) } }}
             onDoubleClick={() => {
               if (!view.isDefault && !view.isShared) { setRenamingViewId(view.id); setRenameValue(view.name) }
             }}
@@ -1485,6 +1507,12 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
       </CrmV2Header>
       )}
 
+      {/* ── Vue « À traiter aujourd'hui » (onglet de tête, télépro) ─────── */}
+      {leadingView && leadingOn ? (
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: compactLayout ? '14px 16px 24px' : '16px 28px 24px' }}>
+          <div style={{ maxWidth: 1280, margin: '0 auto' }}>{leadingView.render()}</div>
+        </div>
+      ) : (
       {/* ── Corps : carte tableau ─────────────────────────────────────────── */}
       <div style={{
         flex: 1, minHeight: 0, minWidth: 0, display: 'flex', flexDirection: 'column',
@@ -1642,6 +1670,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
           )}
         </div>
       </div>
+      )}
 
       {/* ── CRMEditDrawer ───────────────────────────────────────────────── */}
       {drawerContact && (
