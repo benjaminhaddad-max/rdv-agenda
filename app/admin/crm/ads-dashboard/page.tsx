@@ -388,7 +388,7 @@ type GoogleInsight = {
 
 type GoogleInsightsResponse = {
   insights: GoogleInsight[]
-  totals: { impressions: number; clicks: number; spend: number; leads: number; unattributed_leads: number; ctr: number; cpc: number; cpl: number }
+  totals: { impressions: number; clicks: number; spend: number; leads: number; unattributed_leads: number; shared_device_excluded: number; ctr: number; cpc: number; cpl: number }
   currency: string
   account_name: string
   cached: boolean
@@ -480,7 +480,10 @@ function GoogleAdsSection({ datePreset, periodLabel, refreshToken, isMobile }: {
               value={fmtNumber(t.leads)}
               icon={<Users size={15} />}
               color={crmV2.success}
-              detail={t.unattributed_leads > 0 ? `dont ${fmtNumber(t.unattributed_leads)} sans campagne identifiée` : periodLabel}
+              detail={[
+                t.unattributed_leads > 0 ? `dont ${fmtNumber(t.unattributed_leads)} sans campagne identifiée` : null,
+                t.shared_device_excluded > 0 ? `${fmtNumber(t.shared_device_excluded)} exclus (appareil partagé, ex. salon)` : null,
+              ].filter(Boolean).join(' · ') || periodLabel}
             />
             <CrmV2KpiCard
               label="CPL"

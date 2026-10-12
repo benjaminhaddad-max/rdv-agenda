@@ -209,3 +209,58 @@ export async function fetchGoogleCampaignInsights(range: { since: string; until:
     account_name: customer?.descriptiveName || 'Google Ads',
   }
 }
+
+// ─── gclid → campagne ──────────────────────────────────────────────────────
+
+export type GclidResolution = { gclid: string; found: boolean; campaign_id: string | null; campaign_name: string | null; click_date: string | null }
+
+/**
+ * Retrouve la campagne de chaque gclid via click_view (filtre obligatoire sur
+ * un seul jour : une requête par jour). On remonte jour par jour depuis la date
+ * de soumission la plus récente, sur `lookbackDays` jours avant la plus
+ * ancienne (le clic précède la soumission), en s'arrêtant dès que tout est
+ * trouvé ou que `maxQueries` est atteint. click_view ne couvre que 90 jours.
+ *
+ * `pending` : gclid → date de soumission (YYYY-MM-DD).
+ * Renvoie les gclids trouvés et, si la recherche est allée au bout, les
+ * introuvables (found=false). Les autres restent à chercher plus tard.
+ */
+export async function resolveGclidCampaigns(
+  pending: Map<string, string>,
+  { lookbackDays = 30, maxQueries = 40 } = {},
+): Promise<GclidResolution[]> {
+  const out: GclidResolution[] = []
+  if (pending.size === 0) return out
+  const remaining = new Map(pending)
+  const oldestAllowed = new Date(Date.now() - 89 * 86400_000).toISOString().slice(0, 10)
+  const dates = [...pending.values()].sort()
+  const start = new Date(`${dates[dates.length - 1]}T12:00:00Z`)
+  const minDay = new Date(`${dates[0]}T12:00:00Z`)
+  minDay.setUTCDate(minDay.getUTCDate() - lookbackDays)
+
+  let queries = 0
+  let exhausted = true
+  for (const d = new Date(start); d >= minDay && remaining.size > 0; d.setUTCDate(d.getUTCDate() - 1)) {
+    const day = ymd(d)
+    if (day < oldestAllowed) break
+    // Un clic ne peut pas être postérieur à la soumission, ni bien plus ancien
+    const candidates = [...remaining].filter(([, sub]) => sub >= day && new Date(`${sub}T12:00:00Z`).getTime() - d.getTime() <= lookbackDays * 86400_000)
+    if (candidates.length === 0) continue
+    if (queries >= maxQueries) { exhausted = false; break }
+    queries++
+    const list = candidates.map(([g]) => `'${g.replace(/'/g, '')}'`).join(',')
+    const rows = await googleAdsSearch(
+      `SELECT click_view.gclid, campaign.id, campaign.name FROM click_view WHERE segments.date = '${day}' AND click_view.gclid IN (${list})`,
+    )
+    for (const r of rows) {
+      const g = r.clickView?.gclid
+      if (!g || !remaining.has(g)) continue
+      remaining.delete(g)
+      out.push({ gclid: g, found: true, campaign_id: String(r.campaign?.id ?? ''), campaign_name: r.campaign?.name ?? null, click_date: day })
+    }
+  }
+  if (exhausted) {
+    for (const g of remaining.keys()) out.push({ gclid: g, found: false, campaign_id: null, campaign_name: null, click_date: null })
+  }
+  return out
+}

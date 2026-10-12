@@ -3,7 +3,7 @@ import { createServiceClient } from '@/lib/supabase'
 import { requireApiRole } from '@/lib/api-auth'
 import { collectAdAttribution, detectAdOrigine, ORIGINE_ADS_GOOGLE } from '@/lib/ad-attribution'
 import {
-  fetchGoogleCampaignInsights, googleAdsCustomerId, isGoogleAdsConfigured, presetRange,
+  fetchGoogleCampaignInsights, googleAdsCustomerId, isGoogleAdsConfigured, presetRange, resolveGclidCampaigns,
   type GoogleCampaignInsight, type GoogleDatePreset,
 } from '@/lib/google-ads'
 
@@ -19,7 +19,10 @@ import {
  *   1. hsa_cam (ID de campagne, auto-tagging) dans l'URL de la page,
  *   2. utm_campaign = ID de campagne,
  *   3. utm_campaign = nom de campagne (casse / espaces ignorés).
- * Les leads Google sans campagne identifiable (gclid seul) sont comptés à part.
+ *   4. gclid seul → campagne retrouvée via click_view (mémorisée dans google_ads_gclid_campaigns).
+ * Un gclid partagé par plusieurs contacts (cookie resté sur une tablette de
+ * salon) ne compte que pour le premier contact. Les leads Google sans
+ * campagne identifiable sont comptés à part.
  *
  * Cache mémoire 30 min (quota API : 2 880 opérations / jour, 2 par chargement).
  */
@@ -29,7 +32,7 @@ const CACHE_TTL_MS = 30 * 60_000
 
 type ResponseData = {
   insights: GoogleCampaignInsight[]
-  totals: { impressions: number; clicks: number; spend: number; leads: number; unattributed_leads: number; ctr: number; cpc: number; cpl: number }
+  totals: { impressions: number; clicks: number; spend: number; leads: number; unattributed_leads: number; shared_device_excluded: number; ctr: number; cpc: number; cpl: number }
   currency: string
   account_name: string
   customer_id: string
@@ -83,6 +86,13 @@ export async function GET(req: NextRequest) {
   const byName = new Map(result.campaigns.map(c => [norm(c.campaign_name), c.campaign_id]))
   const contactsByCampaign = new Map<string, Set<string>>()
   const unattributed = new Set<string>()
+  const credit = (campaignId: string | null, contact: string) => {
+    if (!campaignId) { unattributed.add(contact); return }
+    if (!contactsByCampaign.has(campaignId)) contactsByCampaign.set(campaignId, new Set())
+    contactsByCampaign.get(campaignId)!.add(contact)
+  }
+  // Leads dont le seul signal Google est le gclid : rattachés plus bas via click_view
+  const gclidOnly: Array<{ contact: string; gclid: string }> = []
 
   const PAGE = 1000
   for (let from = 0; ; from += PAGE) {
@@ -101,11 +111,9 @@ export async function GET(req: NextRequest) {
 
     for (const r of rows) {
       const tracking = (r.data?._tracking ?? {}) as Record<string, unknown>
-      const attr = collectAdAttribution({
-        clickIds: tracking,
-        utm: { utm_source: r.utm_source, utm_medium: r.utm_medium, utm_campaign: r.utm_campaign },
-        urls: [r.source_url, r.referrer],
-      })
+      const utm = { utm_source: r.utm_source, utm_medium: r.utm_medium, utm_campaign: r.utm_campaign }
+      const urls = [r.source_url, r.referrer]
+      const attr = collectAdAttribution({ clickIds: tracking, utm, urls })
       if (detectAdOrigine(attr) !== ORIGINE_ADS_GOOGLE) continue
 
       const contact = String(r.data?._contact_id || r.id)
@@ -115,15 +123,74 @@ export async function GET(req: NextRequest) {
         || (byId.has(utmCampaign) ? utmCampaign : null)
         || (utmCampaign ? byName.get(norm(utmCampaign)) : null)
         || null
+      if (campaignId) { credit(campaignId, contact); continue }
 
-      if (campaignId) {
-        if (!contactsByCampaign.has(campaignId)) contactsByCampaign.set(campaignId, new Set())
-        contactsByCampaign.get(campaignId)!.add(contact)
-      } else {
-        unattributed.add(contact)
-      }
+      // Signal Google hors click ID (UTM / hsa_net) : lead Google, campagne inconnue
+      const withoutClickIds = collectAdAttribution({ clickIds: {}, utm, urls })
+      withoutClickIds.clickIds = {}
+      const gclid = typeof tracking.gclid === 'string' ? tracking.gclid : null
+      if (detectAdOrigine(withoutClickIds) === ORIGINE_ADS_GOOGLE || !gclid) { credit(null, contact); continue }
+      gclidOnly.push({ contact, gclid })
     }
     if (rows.length < PAGE) break
+  }
+
+  // gclid seul. Le cookie de clic (90 j) reste sur l'appareil : sur une tablette
+  // de salon, un même gclid se retrouve sur des dizaines de contacts. Seul le
+  // premier contact à avoir soumis avec ce gclid (toutes dates confondues) est
+  // un lead Google ; les suivants ne sont pas comptés.
+  let sharedDeviceExcluded = 0
+  const gclids = [...new Set(gclidOnly.map(g => g.gclid))]
+  const firstByGclid = new Map<string, { contact: string; day: string }>()
+  for (let i = 0; i < gclids.length; i += 100) {
+    const chunk = gclids.slice(i, i + 100)
+    const { data } = await db.from('form_submissions')
+      .select('id, data, submitted_at')
+      .in('data->_tracking->>gclid', chunk)
+      .order('submitted_at', { ascending: true })
+    for (const r of (data ?? []) as Array<{ id: string; data: Record<string, unknown> | null; submitted_at: string }>) {
+      const g = (r.data?._tracking as Record<string, unknown> | undefined)?.gclid as string | undefined
+      if (!g || firstByGclid.has(g)) continue
+      firstByGclid.set(g, {
+        contact: String(r.data?._contact_id || r.id),
+        day: new Date(r.submitted_at).toLocaleDateString('sv-SE', { timeZone: 'Europe/Paris' }),
+      })
+    }
+  }
+
+  // Campagne de chaque gclid : table google_ads_gclid_campaigns, sinon click_view
+  const known = new Map<string, { found: boolean; campaign_id: string | null; checked_at: string }>()
+  for (let i = 0; i < gclids.length; i += 200) {
+    const { data } = await db.from('google_ads_gclid_campaigns')
+      .select('gclid, found, campaign_id, checked_at')
+      .in('gclid', gclids.slice(i, i + 200))
+    for (const r of (data ?? []) as Array<{ gclid: string; found: boolean; campaign_id: string | null; checked_at: string }>) known.set(r.gclid, r)
+  }
+  const pending = new Map<string, string>()
+  for (const g of gclids) {
+    const k = known.get(g)
+    const retry = k && !k.found && Date.now() - new Date(k.checked_at).getTime() > 24 * 3600_000
+    if ((!k || retry) && firstByGclid.has(g)) pending.set(g, firstByGclid.get(g)!.day)
+  }
+  if (pending.size > 0) {
+    try {
+      const resolved = await resolveGclidCampaigns(pending)
+      if (resolved.length > 0) {
+        const now = new Date().toISOString()
+        await db.from('google_ads_gclid_campaigns').upsert(resolved.map(r => ({ ...r, checked_at: now })), { onConflict: 'gclid' })
+        for (const r of resolved) known.set(r.gclid, { found: r.found, campaign_id: r.campaign_id, checked_at: now })
+      }
+    } catch (e) {
+      // Quota ou erreur ponctuelle : ces leads restent « sans campagne » jusqu'au prochain chargement
+      console.error('[google-ads] résolution gclid échouée :', e)
+    }
+  }
+
+  for (const { contact, gclid } of gclidOnly) {
+    const first = firstByGclid.get(gclid)
+    if (first && first.contact !== contact) { sharedDeviceExcluded++; continue }
+    const campaignId = known.get(gclid)?.campaign_id
+    credit(campaignId && byId.has(campaignId) ? campaignId : null, contact)
   }
 
   // Un contact rattaché à une campagne n'est pas compté en plus dans « sans campagne »
@@ -149,6 +216,7 @@ export async function GET(req: NextRequest) {
       spend: Number(sum.spend.toFixed(2)),
       leads,
       unattributed_leads: unattributed.size,
+      shared_device_excluded: sharedDeviceExcluded,
       ctr: sum.impressions > 0 ? Number(((sum.clicks / sum.impressions) * 100).toFixed(2)) : 0,
       cpc: sum.clicks > 0 ? Number((sum.spend / sum.clicks).toFixed(2)) : 0,
       cpl: leads > 0 ? Number((sum.spend / leads).toFixed(2)) : 0,
