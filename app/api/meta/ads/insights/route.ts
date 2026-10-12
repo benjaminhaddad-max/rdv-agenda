@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { fetchAdInsights, type InsightsLevel, type DatePreset, type MetaAdInsight } from '@/lib/meta'
 import { createHash } from 'crypto'
+import { presetRange, type GoogleDatePreset } from '@/lib/google-ads'
 
 /**
  * GET /api/meta/ads/insights?account_id=...&level=campaign&date_preset=last_30d
@@ -88,13 +89,12 @@ export async function GET(req: NextRequest) {
       dateFrom = new Date(since)
       dateTo = new Date(until + 'T23:59:59')
     } else {
-      const presetDays: Record<string, number> = {
-        today: 0, yesterday: 1, last_7d: 7, last_14d: 14, last_30d: 30, last_90d: 90,
-      }
-      const days = presetDays[datePreset]
-      if (days !== undefined) {
-        dateTo = new Date()
-        dateFrom = new Date(Date.now() - days * 86400_000)
+      // Mêmes jours calendaires que le preset Meta (last_Nd = N jours, aujourd'hui exclu),
+      // pour que les comparatifs (plages custom) soient comparables au preset
+      const range = presetRange(datePreset as GoogleDatePreset)
+      if (range) {
+        dateFrom = new Date(range.since)
+        dateTo = new Date(range.until + 'T23:59:59')
       }
     }
 

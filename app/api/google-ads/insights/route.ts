@@ -9,6 +9,7 @@ import {
 
 /**
  * GET /api/google-ads/insights?date_preset=last_30d[&force=1]
+ * GET /api/google-ads/insights?date_preset=custom&since=YYYY-MM-DD&until=YYYY-MM-DD (comparatifs)
  *
  * Performances Google Ads par campagne (impressions, clics, CTR, coût, CPC)
  * pour le compte Diploma Santé, enrichies des leads CRM et du CPL.
@@ -36,7 +37,7 @@ type ResponseData = {
   currency: string
   account_name: string
   customer_id: string
-  date_preset: GoogleDatePreset
+  date_preset: GoogleDatePreset | 'custom'
   cached: boolean
   fetched_at: string
 }
@@ -56,8 +57,15 @@ export async function GET(req: NextRequest) {
   if (!authz.ok) return authz.response
 
   const sp = req.nextUrl.searchParams
-  const datePreset = (sp.get('date_preset') || 'last_30d') as GoogleDatePreset
-  if (!PRESETS.includes(datePreset)) return NextResponse.json({ error: 'date_preset invalide' }, { status: 400 })
+  const datePreset = (sp.get('date_preset') || 'last_30d') as GoogleDatePreset | 'custom'
+  const since = sp.get('since') || ''
+  const until = sp.get('until') || ''
+  const isDay = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v)
+  if (datePreset === 'custom') {
+    if (!isDay(since) || !isDay(until) || since > until) return NextResponse.json({ error: 'since / until invalides' }, { status: 400 })
+  } else if (!PRESETS.includes(datePreset)) {
+    return NextResponse.json({ error: 'date_preset invalide' }, { status: 400 })
+  }
   const force = sp.get('force') === '1'
 
   if (!isGoogleAdsConfigured()) {
@@ -65,14 +73,14 @@ export async function GET(req: NextRequest) {
   }
 
   const customerId = googleAdsCustomerId()
-  const key = `${customerId}|${datePreset}`
+  const key = datePreset === 'custom' ? `${customerId}|custom|${since}|${until}` : `${customerId}|${datePreset}`
   const hit = cache.get(key)
   if (!force && hit && Date.now() - new Date(hit.fetched_at).getTime() < CACHE_TTL_MS) {
     return NextResponse.json({ ...hit, cached: true })
   }
 
   // 1. Google Ads API
-  const range = presetRange(datePreset)
+  const range = datePreset === 'custom' ? { since, until } : presetRange(datePreset)
   let result: Awaited<ReturnType<typeof fetchGoogleCampaignInsights>>
   try {
     result = await fetchGoogleCampaignInsights(range)

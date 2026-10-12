@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState, useCallback } from 'react'
-import { Facebook, RefreshCw, Calendar, BarChart3, Building2, ChevronDown, ChevronUp } from 'lucide-react'
+import { Facebook, RefreshCw, Calendar, BarChart3, Building2, ChevronDown, ChevronUp, Layers } from 'lucide-react'
 import {
   CrmV2Body, CrmV2Button, CrmV2Card, CrmV2Empty, CrmV2Header, CrmV2Page,
   CrmV2Search, CrmV2Spinner, CrmV2Table, CrmV2TableCard, CrmV2Tabs, CrmV2Td, CrmV2Th, CrmV2Tr,
@@ -88,6 +88,36 @@ export default function AdsDashboardPage() {
   const [showAllMeta, setShowAllMeta] = useState(false)
   // Données Google remontées par la section Google, pour l'overview
   const [googleData, setGoogleData] = useState<GoogleInsightsResponse | null>(null)
+  // Comparatifs : période précédente et même période l'an dernier
+  const ranges = useMemo(() => compareRanges(datePreset), [datePreset])
+  const [metaCmp, setMetaCmp] = useState<Comparison>(EMPTY_CMP)
+  const [googleCmp, setGoogleCmp] = useState<Comparison>(EMPTY_CMP)
+
+  useEffect(() => {
+    if (!ranges || !selectedAccount) { setMetaCmp(NO_CMP); return }
+    setMetaCmp(EMPTY_CMP)
+    let cancelled = false
+    const get = (r: DayRange) => {
+      const params = new URLSearchParams({ account_id: selectedAccount, level: 'campaign', date_preset: 'custom', since: r.since, until: r.until })
+      if (refreshToken > 0) params.set('force', '1')
+      return fetchTotals(`/api/meta/ads/insights?${params.toString()}`)
+    }
+    Promise.all([get(ranges.prev), get(ranges.yoy)]).then(([prev, yoy]) => { if (!cancelled) setMetaCmp({ prev, yoy }) })
+    return () => { cancelled = true }
+  }, [ranges, selectedAccount, refreshToken])
+
+  useEffect(() => {
+    if (!ranges) { setGoogleCmp(NO_CMP); return }
+    setGoogleCmp(EMPTY_CMP)
+    let cancelled = false
+    const get = (r: DayRange) => {
+      const params = new URLSearchParams({ date_preset: 'custom', since: r.since, until: r.until })
+      if (refreshToken > 0) params.set('force', '1')
+      return fetchTotals(`/api/google-ads/insights?${params.toString()}`)
+    }
+    Promise.all([get(ranges.prev), get(ranges.yoy)]).then(([prev, yoy]) => { if (!cancelled) setGoogleCmp({ prev, yoy }) })
+    return () => { cancelled = true }
+  }, [ranges, refreshToken])
 
   useEffect(() => { setShowAllMeta(false) }, [selectedAccount, level])
 
@@ -195,7 +225,20 @@ export default function AdsDashboardPage() {
       </CrmV2Header>
 
       <CrmV2Body>
-        <AdsOverview meta={hasAccounts ? data : null} google={googleData} periodLabel={periodLabel} isMobile={isMobile} />
+        {(data || googleData) && (
+          <AdsOverview
+            title="Vue d'ensemble · Meta + Google"
+            icon={<Layers size={16} />}
+            note={[periodLabel, data ? `Meta : ${data.account_name}` : null, !googleData ? 'Google en chargement…' : null].filter(Boolean).join(' · ')}
+            current={sumTotals(hasAccounts ? data?.totals : null, googleData?.totals)}
+            prev={sumCmp(metaCmp.prev, googleCmp.prev)}
+            yoy={sumCmp(metaCmp.yoy, googleCmp.yoy)}
+            ranges={ranges}
+            currency={data?.currency || googleData?.currency || 'EUR'}
+            isMobile={isMobile}
+            macro
+          />
+        )}
 
         {error && <AdsBanner kind="error">{error}</AdsBanner>}
 
@@ -233,6 +276,19 @@ export default function AdsDashboardPage() {
               loading={loading}
               isMobile={isMobile}
             />
+
+            {data && (
+              <AdsOverview
+                title="Overview Meta"
+                icon={<Facebook size={16} color="#1877F2" />}
+                current={data.totals}
+                prev={metaCmp.prev}
+                yoy={metaCmp.yoy}
+                ranges={ranges}
+                currency={data.currency}
+                isMobile={isMobile}
+              />
+            )}
 
             {loading && !data && <CrmV2Card><CrmV2Spinner /></CrmV2Card>}
 
@@ -358,7 +414,25 @@ export default function AdsDashboardPage() {
           </>
         )}
 
-        <GoogleAdsSection datePreset={datePreset} periodLabel={periodLabel} refreshToken={refreshToken} isMobile={isMobile} onData={setGoogleData} />
+        <GoogleAdsSection
+          datePreset={datePreset}
+          periodLabel={periodLabel}
+          refreshToken={refreshToken}
+          isMobile={isMobile}
+          onData={setGoogleData}
+          overview={googleData && (
+            <AdsOverview
+              title="Overview Google"
+              icon={<GoogleAdsIcon size={16} />}
+              current={googleData.totals}
+              prev={googleCmp.prev}
+              yoy={googleCmp.yoy}
+              ranges={ranges}
+              currency={googleData.currency}
+              isMobile={isMobile}
+            />
+          )}
+        />
       </CrmV2Body>
     </CrmV2Page>
   )
@@ -393,12 +467,13 @@ const GOOGLE_CHANNELS: Record<string, string> = {
   SEARCH: 'Search', PERFORMANCE_MAX: 'PMax', DISPLAY: 'Display', VIDEO: 'Vidéo', DEMAND_GEN: 'Demand Gen', SHOPPING: 'Shopping',
 }
 
-function GoogleAdsSection({ datePreset, periodLabel, refreshToken, isMobile, onData }: {
+function GoogleAdsSection({ datePreset, periodLabel, refreshToken, isMobile, onData, overview }: {
   datePreset: DatePreset
   periodLabel: string
   refreshToken: number
   isMobile: boolean
   onData: (d: GoogleInsightsResponse | null) => void
+  overview?: React.ReactNode
 }) {
   const [data, setDataState] = useState<GoogleInsightsResponse | null>(null)
   const setData = useCallback((d: GoogleInsightsResponse | null) => { setDataState(d); onData(d) }, [onData])
@@ -472,6 +547,7 @@ function GoogleAdsSection({ datePreset, periodLabel, refreshToken, isMobile, onD
   return (
     <>
       {header}
+      {overview}
       {error && <AdsBanner kind="error">Google Ads — {error}</AdsBanner>}
       {loading && !data && <CrmV2Card><CrmV2Spinner /></CrmV2Card>}
 
@@ -609,42 +685,177 @@ function ShowMoreToggle({ total, expanded, onToggle }: { total: number; expanded
   )
 }
 
-/** Overview macro : Meta (compte sélectionné) + Google cumulés, avec la répartition par plateforme. */
-function AdsOverview({ meta, google, periodLabel, isMobile }: {
-  meta: InsightsResponse | null
-  google: GoogleInsightsResponse | null
-  periodLabel: string
-  isMobile: boolean
-}) {
-  if (!meta && !google) return null
-  const currency = meta?.currency || google?.currency || 'EUR'
-  const m = meta?.totals
-  const g = google?.totals
-  const spend = (m?.spend || 0) + (g?.spend || 0)
-  const leads = (m?.leads || 0) + (g?.leads || 0)
-  const clicks = (m?.clicks || 0) + (g?.clicks || 0)
-  const impressions = (m?.impressions || 0) + (g?.impressions || 0)
-  const cpl = leads > 0 ? spend / leads : 0
-  const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0
-  const pct = (n: number) => `${n.toFixed(2).replace('.', ',')} %`
-  const cur = (n: number) => fmtCurrency(n, currency)
+// ─── Overview + comparatifs ────────────────────────────────────────────────
 
-  const stats: Array<{ label: string; value: string; meta: string; google: string }> = [
-    { label: 'Dépenses', value: cur(spend), meta: m ? cur(m.spend) : '—', google: g ? cur(g.spend) : '—' },
-    { label: 'Leads', value: fmtNumber(leads), meta: m ? fmtNumber(m.leads) : '—', google: g ? fmtNumber(g.leads) : '—' },
-    { label: 'CPL moyen', value: leads > 0 ? cur(cpl) : '—', meta: m && m.leads > 0 ? cur(m.cpl) : '—', google: g && g.leads > 0 ? cur(g.cpl) : '—' },
-    { label: 'CTR', value: pct(ctr), meta: m ? pct(m.ctr) : '—', google: g ? pct(g.ctr) : '—' },
+type Totals = { spend: number; leads: number; clicks: number; impressions: number }
+type DayRange = { since: string; until: string }
+// undefined = en chargement, null = indisponible
+type CmpValue = Totals | null | undefined
+type Comparison = { prev: CmpValue; yoy: CmpValue }
+const EMPTY_CMP: Comparison = { prev: undefined, yoy: undefined }
+const NO_CMP: Comparison = { prev: null, yoy: null }
+
+function ymd(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/** Plage du preset (mêmes conventions que l'API : last_Nd = N jours, aujourd'hui exclu). */
+function presetDayRange(preset: DatePreset, now = new Date()): DayRange | null {
+  const day = (offset: number) => { const d = new Date(now); d.setDate(d.getDate() - offset); return ymd(d) }
+  switch (preset) {
+    case 'today': return { since: day(0), until: day(0) }
+    case 'yesterday': return { since: day(1), until: day(1) }
+    case 'last_7d': return { since: day(7), until: day(1) }
+    case 'last_14d': return { since: day(14), until: day(1) }
+    case 'last_30d': return { since: day(30), until: day(1) }
+    case 'last_90d': return { since: day(90), until: day(1) }
+    case 'this_month': return { since: ymd(new Date(now.getFullYear(), now.getMonth(), 1, 12)), until: day(0) }
+    case 'last_month': return {
+      since: ymd(new Date(now.getFullYear(), now.getMonth() - 1, 1, 12)),
+      until: ymd(new Date(now.getFullYear(), now.getMonth(), 0, 12)),
+    }
+    default: return null
+  }
+}
+
+/**
+ * Période précédente et même période l'an dernier.
+ * Mois en cours → même nombre de jours au début du mois précédent ; mois dernier → mois d'avant ;
+ * autres presets → plage de même durée juste avant. `null` pour « Tout ».
+ */
+function compareRanges(preset: DatePreset): { prev: DayRange; yoy: DayRange } | null {
+  const cur = presetDayRange(preset)
+  if (!cur) return null
+  const parse = (v: string) => { const [y, m, d] = v.split('-').map(Number); return new Date(y, m - 1, d, 12) }
+  const since = parse(cur.since)
+  const until = parse(cur.until)
+  let prev: DayRange
+  if (preset === 'this_month') {
+    const lastDayPrevMonth = new Date(since.getFullYear(), since.getMonth(), 0, 12).getDate()
+    prev = {
+      since: ymd(new Date(since.getFullYear(), since.getMonth() - 1, 1, 12)),
+      until: ymd(new Date(since.getFullYear(), since.getMonth() - 1, Math.min(until.getDate(), lastDayPrevMonth), 12)),
+    }
+  } else if (preset === 'last_month') {
+    prev = {
+      since: ymd(new Date(since.getFullYear(), since.getMonth() - 1, 1, 12)),
+      until: ymd(new Date(since.getFullYear(), since.getMonth(), 0, 12)),
+    }
+  } else {
+    const days = Math.round((until.getTime() - since.getTime()) / 86400_000) + 1
+    const pUntil = new Date(since); pUntil.setDate(pUntil.getDate() - 1)
+    const pSince = new Date(pUntil); pSince.setDate(pSince.getDate() - (days - 1))
+    prev = { since: ymd(pSince), until: ymd(pUntil) }
+  }
+  // N-1 : mêmes dates (29 février → 28)
+  const minusYear = (d: Date) => {
+    const lastDay = new Date(d.getFullYear() - 1, d.getMonth() + 1, 0, 12).getDate()
+    return ymd(new Date(d.getFullYear() - 1, d.getMonth(), Math.min(d.getDate(), lastDay), 12))
+  }
+  return { prev, yoy: { since: minusYear(since), until: minusYear(until) } }
+}
+
+async function fetchTotals(url: string): Promise<Totals | null> {
+  try {
+    const res = await fetch(url)
+    const j = await res.json()
+    if (!res.ok || !j.totals) return null
+    const t = j.totals
+    return { spend: t.spend || 0, leads: t.leads || 0, clicks: t.clicks || 0, impressions: t.impressions || 0 }
+  } catch {
+    return null
+  }
+}
+
+/** Somme Meta + Google ; `null` tant qu'aucune des deux n'est disponible. */
+function sumTotals(a?: Totals | null, b?: Totals | null): Totals | null {
+  if (!a && !b) return null
+  return {
+    spend: (a?.spend || 0) + (b?.spend || 0),
+    leads: (a?.leads || 0) + (b?.leads || 0),
+    clicks: (a?.clicks || 0) + (b?.clicks || 0),
+    impressions: (a?.impressions || 0) + (b?.impressions || 0),
+  }
+}
+
+/** Somme des comparatifs : en chargement tant que l'un des deux l'est. */
+function sumCmp(a: CmpValue, b: CmpValue): CmpValue {
+  if (a === undefined || b === undefined) return undefined
+  return sumTotals(a, b)
+}
+
+const cplOf = (t: Totals) => (t.leads > 0 ? t.spend / t.leads : null)
+const ctrOf = (t: Totals) => (t.impressions > 0 ? (t.clicks / t.impressions) * 100 : null)
+
+function fmtDayRange(r: DayRange): string {
+  const f = (v: string) => { const [y, m, d] = v.split('-'); return `${d}/${m}/${y.slice(2)}` }
+  return r.since === r.until ? f(r.since) : `${f(r.since)} → ${f(r.until)}`
+}
+
+/** Variation en % ; `good` = sens favorable (hausse pour leads/CTR, baisse pour CPL, neutre pour dépenses). */
+function DeltaLine({ label, cur, prev, good, prevLabel, title, emptyText = '—' }: {
+  label: string
+  emptyText?: string
+  cur: number | null
+  prev: number | null | undefined
+  good: 'up' | 'down' | 'neutral'
+  prevLabel: string
+  title: string
+}) {
+  let text = emptyText
+  let color: string = crmV2.textFaint
+  if (prev === undefined) text = '…'
+  else if (cur !== null && prev !== null && prev > 0) {
+    const pct = ((cur - prev) / prev) * 100
+    const rounded = Math.abs(pct) < 10 ? pct.toFixed(1).replace('.', ',') : Math.round(pct).toString()
+    text = `${pct > 0 ? '▲ +' : pct < 0 ? '▼ ' : ''}${rounded} %`
+    if (good !== 'neutral' && Math.abs(pct) >= 0.5) {
+      color = (pct > 0) === (good === 'up') ? crmV2.successStrong : crmV2.danger
+    } else color = crmV2.textMuted
+  }
+  return (
+    <span title={`${title} : ${prevLabel}`} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: crmV2.textMuted }}>
+      {label}
+      <b style={{ color, marginLeft: 'auto', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{text}</b>
+    </span>
+  )
+}
+
+/** Overview : dépenses, leads, CPL moyen, CTR + variation vs période précédente et vs N-1. */
+function AdsOverview({ title, icon, note, current, prev, yoy, ranges, currency, isMobile, macro }: {
+  title: string
+  icon: React.ReactNode
+  note?: string
+  current: Totals | null
+  prev: CmpValue
+  yoy: CmpValue
+  ranges: { prev: DayRange; yoy: DayRange } | null
+  currency: string
+  isMobile: boolean
+  macro?: boolean
+}) {
+  if (!current) return null
+  const cur = (n: number) => fmtCurrency(n, currency)
+  const pct = (n: number) => `${n.toFixed(2).replace('.', ',')} %`
+  const loadedPrev = ranges ? prev : null
+  const loadedYoy = ranges ? yoy : null
+  const pick = <T,>(t: Totals | null | undefined, f: (t: Totals) => T): T | null | undefined => (t === undefined ? undefined : t === null ? null : f(t))
+
+  // Leads CRM suivis seulement depuis avril-mai 2026 : dépenses sans aucun lead = période non suivie
+  const untracked = (t: CmpValue) => !!t && t.leads === 0 && t.spend > 0
+  const stats: Array<{ label: string; leadBased?: boolean; value: string; cur: number | null; prev: number | null | undefined; yoy: number | null | undefined; good: 'up' | 'down' | 'neutral'; fmt: (n: number) => string }> = [
+    { label: 'Dépenses', value: cur(current.spend), cur: current.spend, prev: pick(loadedPrev, t => t.spend), yoy: pick(loadedYoy, t => t.spend), good: 'neutral', fmt: cur },
+    { label: 'Leads', leadBased: true, value: fmtNumber(current.leads), cur: current.leads, prev: pick(loadedPrev, t => t.leads), yoy: pick(loadedYoy, t => t.leads), good: 'up', fmt: fmtNumber },
+    { label: 'CPL moyen', leadBased: true, value: cplOf(current) !== null ? cur(cplOf(current)!) : '—', cur: cplOf(current), prev: pick(loadedPrev, cplOf), yoy: pick(loadedYoy, cplOf), good: 'down', fmt: cur },
+    { label: 'CTR', value: ctrOf(current) !== null ? pct(ctrOf(current)!) : '—', cur: ctrOf(current), prev: pick(loadedPrev, ctrOf), yoy: pick(loadedYoy, ctrOf), good: 'up', fmt: pct },
   ]
 
   return (
-    <CrmV2Card style={{ padding: isMobile ? 14 : 22 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', marginBottom: isMobile ? 12 : 18 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-          Vue d&apos;ensemble · Meta + Google
-        </div>
-        <div style={{ fontSize: 12, color: crmV2.textFaint }}>
-          {periodLabel}{meta ? ` · Meta : ${meta.account_name}` : ''}{!google ? ' · Google en chargement…' : ''}
-        </div>
+    <CrmV2Card style={{ padding: isMobile ? 14 : macro ? 22 : 18 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: isMobile ? 12 : macro ? 18 : 14 }}>
+        <span style={{ display: 'inline-flex', color: crmV2.textMuted }}>{icon}</span>
+        <div style={{ fontSize: 13, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{title}</div>
+        {note && <div style={{ fontSize: 12, color: crmV2.textFaint, marginLeft: 'auto' }}>{note}</div>}
       </div>
       <div style={{
         display: 'grid',
@@ -658,17 +869,30 @@ function AdsOverview({ meta, google, periodLabel, isMobile }: {
             borderLeft: !isMobile && idx > 0 ? `1px solid ${crmV2.borderLight}` : 'none',
           }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase', letterSpacing: '0.4px' }}>{st.label}</div>
-            <div style={{ fontSize: isMobile ? 26 : 36, fontWeight: 800, color: crmV2.text, letterSpacing: '-0.03em', lineHeight: 1.1, marginTop: 6, fontVariantNumeric: 'tabular-nums' }}>
+            <div style={{
+              fontSize: macro ? (isMobile ? 26 : 36) : (isMobile ? 20 : 26), fontWeight: macro ? 800 : 700, color: crmV2.text,
+              letterSpacing: '-0.03em', lineHeight: 1.1, marginTop: 6, fontVariantNumeric: 'tabular-nums',
+            }}>
               {st.value}
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 10, fontSize: 12, color: crmV2.textMuted }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Facebook size={12} color="#1877F2" /> Meta <b style={{ color: crmV2.text, marginLeft: 'auto', fontVariantNumeric: 'tabular-nums' }}>{st.meta}</b>
-              </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <GoogleAdsIcon size={12} /> Google <b style={{ color: crmV2.text, marginLeft: 'auto', fontVariantNumeric: 'tabular-nums' }}>{st.google}</b>
-              </span>
-            </div>
+            {ranges && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 10 }}>
+                <DeltaLine
+                  label="vs période préc."
+                  cur={st.cur} prev={st.prev} good={st.good}
+                  title={`Période précédente (${fmtDayRange(ranges.prev)})`}
+                  emptyText={st.leadBased && untracked(loadedPrev) ? 'non suivi' : undefined}
+                  prevLabel={st.prev === undefined ? 'chargement…' : st.prev === null ? 'indisponible' : st.fmt(st.prev)}
+                />
+                <DeltaLine
+                  label="vs N-1"
+                  cur={st.cur} prev={st.yoy} good={st.good}
+                  title={`Même période N-1 (${fmtDayRange(ranges.yoy)})`}
+                  emptyText={st.leadBased && untracked(loadedYoy) ? 'non suivi' : undefined}
+                  prevLabel={st.yoy === undefined ? 'chargement…' : st.yoy === null ? 'indisponible' : st.fmt(st.yoy)}
+                />
+              </div>
+            )}
           </div>
         ))}
       </div>
