@@ -34,6 +34,7 @@ const BRAND_KEY = 'ads-creatives-brand'
 const KIND_KEY = 'ads-creatives-kind'
 
 type View = CampaignKind | 'all'
+type TypeFilter = 'all' | 'webinaire' | 'jpo' | 'guide'
 const VIEWS: View[] = ['all', 'event', 'guide']
 const VIEW_LABELS: Record<View, string> = { all: 'Tout', event: 'Webinaires & JPO', guide: 'Guides' }
 
@@ -63,7 +64,7 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
   // Vue : tout, webinaires & JPO, ou guides
   const [kind, setKind] = useState<View>('event')
   // Filtres : type d'événement et avancement de la campagne
-  const [typeFilter, setTypeFilter] = useState<'all' | 'webinaire' | 'jpo'>('all')
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
   const [stageFilter, setStageFilter] = useState<'all' | Stage>('all')
   const [showSettings, setShowSettings] = useState(false)
   const [editing, setEditing] = useState<AdsEventRow | null>(null)
@@ -117,6 +118,7 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
 
   const pickKind = (k: View) => {
     setKind(k)
+    if (k === 'event' && typeFilter === 'guide') setTypeFilter('all')
     writeLocal(KIND_KEY, k)
   }
 
@@ -130,7 +132,8 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
   const kindCount = (k: View) => brandEvents.filter((e) => inView(e, k) && e.until >= today).length
   const isGuide = kind === 'guide'
   const kindEvents = useMemo(() => brandEvents.filter((e) => (kind === 'all' || e.kind === kind)
-    && (isGuide || typeFilter === 'all' || (e.kind === 'event' && e.event_type === typeFilter))), [brandEvents, kind, isGuide, typeFilter])
+    && (isGuide || typeFilter === 'all'
+      || (typeFilter === 'guide' ? e.kind === 'guide' : e.kind === 'event' && e.event_type === typeFilter))), [brandEvents, kind, isGuide, typeFilter])
   // Un guide reste « à venir » tant qu'il est diffusé
   const upcoming = useMemo(() => kindEvents.filter((e) => e.until >= today), [kindEvents, today])
   const past = useMemo(() => [...kindEvents.filter((e) => e.until < today)].reverse(), [kindEvents, today])
@@ -322,9 +325,10 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
                 { id: 'all', label: 'Tous types' },
                 { id: 'webinaire', label: 'Webinaires' },
                 { id: 'jpo', label: 'JPO' },
+                ...(kind === 'all' ? [{ id: 'guide' as const, label: 'Guides' }] : []),
               ]}
               value={typeFilter}
-              onChange={(v) => setTypeFilter(v as 'all' | 'webinaire' | 'jpo')}
+              onChange={(v) => setTypeFilter(v as TypeFilter)}
               size="sm"
             />
           )}
