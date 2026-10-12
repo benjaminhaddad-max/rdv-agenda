@@ -4,7 +4,7 @@
  * Mode « Appels » de la page Équipe (onglet Télépros) : analyse IA des appels
  * ≥ 2 min qui n'ont pas débouché sur un RDV (lib/call-analysis.ts).
  * - en haut : causes les plus fréquentes de l'équipe + bouton « Analyser » ;
- * - par télépro : ≥ 2 min, sans RDV, analysés, RDV proposé, note, causes ;
+ * - par télépro : ≥ 2 min, sans RDV, analysés (tous les ≥ 2 min), RDV proposé, note, causes ;
  * - ligne dépliée : chaque appel (cause, ce qui s'est passé, ce qui a manqué,
  *   conseil, écoute, transcription).
  */
@@ -20,7 +20,12 @@ export type TeamCallStats = {
   talk2: number; no_rdv: number; recorded: number; analyzed: number; pending: number; direct_sales?: number
   causes: Record<string, number>; score_sum: number; proposed: number
   criteria_sum?: Record<string, number>; criteria_n?: number
+  /** Appels ≥ 2 min (avec ou sans RDV) enregistrés / sur une ligne sans enregistrement */
+  talk2_recorded?: number; talk2_unrecorded?: number
+  /** Issue lue par l'IA : appels froids (premier appel) / relances & suivis */
+  by_type?: { froid: TypeBucket; relance: TypeBucket }
 }
+export type TypeBucket = { analyzed: number; rdv: number; offre: number }
 export type CriterionDef = { id: string; label: string; hint: string }
 export type CoachingEntry = {
   content: { forces: string[]; axes: Array<{ titre: string; detail: string; exemple: string }>; phrase_cle: string }
@@ -43,33 +48,29 @@ export type AnalyzedCall = {
   score: number | null
   error: string | null
   criteria?: Record<string, number> | null
-  /** Premier appel / relance / suivi RDV / suivi inscription (historique CRM) */
+  /** Premier appel / relance / suivi RDV / suivi inscription (lu par l'IA, CRM en repli) */
   kind?: string | null
   kind_detail?: string | null
+  /** rdv_pris | offre_vendue | aucun (lu par l'IA) */
+  outcome?: string | null
 }
 export type KindDef = { id: string; label: string; hint: string }
-export type ConversionByKind = {
-  froid: { talk2: number; rdv: number }
-  relance: { talk2: number; rdv: number }
-  rdv_sans_appel: number
-  rdv_total: number
-}
 export type CallAnalysisData = {
   ready: boolean
   ai_ready: boolean
   causes: CauseDef[]
   criteria?: CriterionDef[]
   kinds?: KindDef[]
-  /** « ≥ 2 min → RDV » séparé appels froids / relances, par télépro */
-  conversion?: Record<string, ConversionByKind> | null
+  outcomes?: KindDef[]
   coaching?: Record<string, CoachingEntry>
   team: Record<string, TeamCallStats>
-  /** Appels sans RDV sur des lignes Aircall qui n'enregistrent pas */
+  /** Appels ≥ 2 min sur des lignes Aircall qui n'enregistrent pas */
   unrecorded_lines?: Record<string, number>
   calls: AnalyzedCall[]
 }
 
 const CAUSE_COLORS: Record<string, string> = {
+  rdv_pris: '#15803d',
   offre_directe: '#16a34a',
   rdv_non_propose: '#dc2626',
   decouverte_faible: '#ea580c',
@@ -152,14 +153,48 @@ export function KindChip({ data, id, count, detail }: { data: CallAnalysisData |
 }
 
 /**
- * « ≥ 2 min → RDV » d'un télépro, séparé entre appels froids (première
- * conversation avec le contact) et relances / suivis, + d'où viennent ses RDV.
+ * « ≥ 2 min → RDV » d'un télépro, séparé entre appels froids (premier vrai
+ * échange) et relances / suivis — d'après l'analyse IA de chaque appel ≥ 2 min
+ * (issue lue dans la conversation), + bouton pour analyser ceux en attente.
  */
-export function ConversionByKindStrip({ data, userId }: { data: CallAnalysisData | null; userId: string }) {
-  const c = data?.conversion?.[userId]
-  if (!c || (!c.rdv_total && !c.froid.talk2 && !c.relance.talk2)) return null
-  const card = (title: string, hint: string, color: string, b: { talk2: number; rdv: number }) => {
-    const rate = b.talk2 ? Math.round((b.rdv / b.talk2) * 100) : null
+export function ConversionByKindStrip({ data, userId, from, to, onDone }: {
+  data: CallAnalysisData | null
+  userId: string
+  from: string
+  to: string
+  onDone: () => void
+}) {
+  const [running, setRunning] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const stopRef = useRef(false)
+  const s = data?.team[userId]
+  const bt = s?.by_type
+  if (!s || !bt || !s.talk2) return null
+
+  async function run() {
+    setRunning(true)
+    setError(null)
+    stopRef.current = false
+    try {
+      for (let i = 0; i < 30 && !stopRef.current; i++) {
+        const res = await fetch(ADMIN_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ from, to, user_id: userId, limit: 8 }),
+        })
+        const j = await res.json().catch(() => ({}))
+        if (!res.ok) { setError(j.error || 'Analyse impossible'); break }
+        onDone()
+        if (!j.processed || !(j.remaining > 0)) break
+      }
+    } finally {
+      setRunning(false)
+    }
+  }
+
+  const card = (title: string, hint: string, color: string, b: TypeBucket) => {
+    const won = b.rdv + b.offre
+    const rate = b.analyzed ? Math.round((won / b.analyzed) * 100) : null
     return (
       <div title={hint} style={{ background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderLeft: `4px solid ${color}`, borderRadius: 10, padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 2 }}>
         <span style={{ fontSize: 10.5, fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{title}</span>
@@ -168,23 +203,36 @@ export function ConversionByKindStrip({ data, userId }: { data: CallAnalysisData
             {rate == null ? '—' : `${rate} %`}
           </span>
           <span style={{ fontSize: 12.5, color: crmV2.textMuted }}>
-            {b.talk2} conversation{b.talk2 > 1 ? 's' : ''} ≥ 2 min → <strong style={{ color: crmV2.text }}>{b.rdv} RDV</strong>
+            {b.analyzed} appel{b.analyzed > 1 ? 's' : ''} ≥ 2 min → <strong style={{ color: crmV2.text }}>{b.rdv} RDV</strong>
+            {b.offre > 0 && <> + <strong style={{ color: crmV2.text }}>{b.offre} petite{b.offre > 1 ? 's' : ''} offre{b.offre > 1 ? 's' : ''}</strong></>}
           </span>
         </span>
       </div>
     )
   }
+  const analyzed = bt.froid.analyzed + bt.relance.analyzed
+  const unrecorded = s.talk2_unrecorded ?? 0
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <div style={{ fontSize: 12.5, color: crmV2.textMuted }}>
-        <strong style={{ color: crmV2.text }}>{c.rdv_total} RDV placé{c.rdv_total > 1 ? 's' : ''}</strong>
-        {' : '}<strong style={{ color: KIND_COLORS.premier_appel }}>{c.froid.rdv} sur appel froid</strong>
-        {' · '}<strong style={{ color: KIND_COLORS.relance }}>{c.relance.rdv} sur relance</strong>
-        {c.rdv_sans_appel > 0 && <span title="Pas de conversation de 2 min et plus avec le contact dans les 3 jours avant le RDV (SMS, appel court, appel entrant…)"> · {c.rdv_sans_appel} sans conversation de 2 min</span>}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 12.5, color: crmV2.textMuted }}>
+        <span>
+          <strong style={{ color: crmV2.text }}>{bt.froid.rdv + bt.relance.rdv} RDV pris au téléphone</strong>
+          {' : '}<strong style={{ color: KIND_COLORS.premier_appel }}>{bt.froid.rdv} sur appel froid</strong>
+          {' · '}<strong style={{ color: KIND_COLORS.relance }}>{bt.relance.rdv} sur relance</strong>
+          <span title="L'IA écoute chaque appel de 2 min et plus : type d'appel et RDV pris ou non sont lus dans la conversation">
+            {' '}— d&apos;après l&apos;analyse de {analyzed} appel{analyzed > 1 ? 's' : ''} sur {s.talk2}
+          </span>
+          {s.pending > 0 && <span style={{ color: crmV2.goldDark }}> · {s.pending} à analyser</span>}
+          {unrecorded > 0 && <span style={{ color: '#b45309' }} title="Ligne Aircall sans enregistrement : impossible à analyser"> · {unrecorded} non enregistré{unrecorded > 1 ? 's' : ''}</span>}
+        </span>
+        {s.pending > 0 && (running
+          ? <><CrmV2Button size="sm" onClick={() => { stopRef.current = true }}>Arrêter</CrmV2Button><AdminSpin /></>
+          : <CrmV2Button size="sm" variant="primary" icon={<Sparkles size={13} />} disabled={!data?.ai_ready} onClick={run}>Analyser les {s.pending} appels</CrmV2Button>)}
       </div>
+      {error && <AdminNotice tone="error">{error}</AdminNotice>}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 8 }}>
-        {card('Appels froids · ≥ 2 min → RDV', 'Première conversation de 2 min et plus avec le contact (leads froids, candidatures…)', KIND_COLORS.premier_appel, c.froid)}
-        {card('Relances & suivis · ≥ 2 min → RDV', 'Contact déjà eu en conversation de 2 min et plus, ou qui avait déjà un RDV / une inscription', KIND_COLORS.relance, c.relance)}
+        {card('Appels froids · ≥ 2 min → RDV', "Premier vrai échange avec le lead (lead froid, candidature…), d'après la conversation", KIND_COLORS.premier_appel, bt.froid)}
+        {card('Relances & suivis · ≥ 2 min → RDV', "On s'était déjà parlé, ou RDV / inscription déjà en cours, d'après la conversation", KIND_COLORS.relance, bt.relance)}
       </div>
     </div>
   )
@@ -253,13 +301,13 @@ export function CallTeamSummary({ data, loading, from, to, onDone }: {
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', justifyContent: 'space-between' }}>
         <div style={{ fontSize: 14, color: crmV2.text }}>
-          <strong>{totals.noRdv}</strong> appel{totals.noRdv > 1 ? 's' : ''} de 2 min et plus sans RDV
-          <span style={{ color: crmV2.textMuted }}> sur {totals.talk2} ({totals.talk2 ? Math.round((totals.noRdv / totals.talk2) * 100) : 0} %)</span>
+          <strong>{totals.talk2}</strong> appel{totals.talk2 > 1 ? 's' : ''} de 2 min et plus
+          <span style={{ color: crmV2.textMuted }}> · {totals.analyzed} analysé{totals.analyzed > 1 ? 's' : ''} par l&apos;IA (avec ou sans RDV)</span>
+          <span style={{ color: crmV2.textMuted }}> · {totals.noRdv} sans RDV dans le CRM ({totals.talk2 ? Math.round((totals.noRdv / totals.talk2) * 100) : 0} %)</span>
           {totals.sales > 0 && (
             <span title="Petites offres (≈ 490-690 €) achetées dans les 7 jours suivant l'appel, sans RDV : comptées comme réussies"
-              style={{ color: crmV2.successStrong }}> · {totals.sales} vente{totals.sales > 1 ? 's' : ''} directe{totals.sales > 1 ? 's' : ''} (petites offres) exclue{totals.sales > 1 ? 's' : ''}</span>
+              style={{ color: crmV2.successStrong }}> · {totals.sales} vente{totals.sales > 1 ? 's' : ''} directe{totals.sales > 1 ? 's' : ''} (petites offres)</span>
           )}
-          <span style={{ color: crmV2.textMuted }}> · {totals.recorded} enregistré{totals.recorded > 1 ? 's' : ''} (analysables) · {totals.analyzed} analysé{totals.analyzed > 1 ? 's' : ''}</span>
           {totals.pending > 0 && <span style={{ color: crmV2.goldDark }}> · {totals.pending} à analyser</span>}
         </div>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
@@ -277,7 +325,7 @@ export function CallTeamSummary({ data, loading, from, to, onDone }: {
       </div>
       {unrecordedTotal > 0 && (
         <AdminNotice tone="warning">
-          <strong>{unrecordedTotal} appel{unrecordedTotal > 1 ? 's' : ''} sans RDV ne peuvent pas être analysés</strong> : l&apos;enregistrement des appels est désactivé dans Aircall sur {unrecorded.length > 1 ? 'ces lignes' : 'cette ligne'} —{' '}
+          <strong>{unrecordedTotal} appel{unrecordedTotal > 1 ? 's' : ''} de 2 min et plus ne peuvent pas être analysés</strong> : l&apos;enregistrement des appels est désactivé dans Aircall sur {unrecorded.length > 1 ? 'ces lignes' : 'cette ligne'} —{' '}
           {unrecorded.map(([name, n]) => `${name} (${n})`).join(', ')}.
           {' '}À activer dans Aircall : Numéros › la ligne › Enregistrement des appels.
         </AdminNotice>
@@ -385,6 +433,11 @@ export function CallList({ data, calls, endpoint = ADMIN_ENDPOINT }: { data: Cal
                 <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
                   <span style={{ fontSize: 13, fontWeight: 600, color: crmV2.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.contact_name ?? 'Contact'}</span>
                   {c.kind && <KindChip data={data} id={c.kind} detail={c.kind_detail} />}
+                  {(c.outcome === 'rdv_pris' || c.outcome === 'offre_vendue') && (
+                    <span style={{ fontSize: 11, fontWeight: 800, color: crmV2.successStrong, background: `${crmV2.successStrong}14`, border: `1px solid ${crmV2.successStrong}40`, borderRadius: 6, padding: '0 7px', whiteSpace: 'nowrap' }}>
+                      {c.outcome === 'rdv_pris' ? '✓ RDV pris' : '✓ Offre vendue'}
+                    </span>
+                  )}
                 </span>
                 {c.summary && (
                   <span style={{
@@ -522,7 +575,8 @@ export function CallDebrief({ data, userId, from, to, onChanged, showList = true
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <strong style={{ fontSize: 14 }}>Débrief des appels</strong>
         <span style={{ fontSize: 12.5, color: crmV2.textMuted }}>
-          {s?.no_rdv ?? 0} appel{(s?.no_rdv ?? 0) > 1 ? 's' : ''} de 2 min et plus sans RDV · {done.length} analysé{done.length > 1 ? 's' : ''}
+          {s?.talk2 ?? 0} appel{(s?.talk2 ?? 0) > 1 ? 's' : ''} de 2 min et plus · {done.length} analysé{done.length > 1 ? 's' : ''}
+          {done.some(c => c.outcome === 'rdv_pris') ? ` · ${done.filter(c => c.outcome === 'rdv_pris').length} avec RDV pris` : ''}
           {s?.direct_sales ? ` · ${s.direct_sales} vente${s.direct_sales > 1 ? 's' : ''} directe${s.direct_sales > 1 ? 's' : ''}` : ''}
           {s && s.no_rdv - (s.recorded ?? 0) > 0 ? ` · ${s.no_rdv - (s.recorded ?? 0)} non enregistré${s.no_rdv - (s.recorded ?? 0) > 1 ? 's' : ''}` : ''}
         </span>

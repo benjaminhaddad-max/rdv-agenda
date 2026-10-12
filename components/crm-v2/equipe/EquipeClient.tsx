@@ -1307,7 +1307,7 @@ function MemberDetail({ row, actions, ...common }: TableCommon & { row: Row; act
         {actions && <div onClick={e => e.stopPropagation()}>{actions}</div>}
       </div>
       {tab === 'telepros' && row.stats && <MemberStatsStrip s={row.stats} />}
-      {tab === 'telepros' && <ConversionByKindStrip data={common.calls} userId={row.id} />}
+      {tab === 'telepros' && <ConversionByKindStrip data={common.calls} userId={row.id} from={common.callRange.from} to={common.callRange.to} onDone={common.onCallsChanged} />}
       {tab === 'telepros' && days.length > 0 && (
         <MemberDaysTable days={days} onEdit={d => common.onEditDay(row, d)} calls={common.calls} userId={row.id} />
       )}
@@ -1475,7 +1475,7 @@ function MemberDaysTable({ days, onEdit, calls, userId }: {
                 <tr>
                   <td colSpan={11} style={{ padding: '8px 10px 12px', background: crmV2.bgHover, borderBottom: `1px solid ${crmV2.border}` }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
-                      Appels de 2 min et plus sans RDV · les moins bien notés d&apos;abord
+                      Appels de 2 min et plus · les moins bien notés d&apos;abord
                     </div>
                     <CallList data={calls} calls={dayCalls} />
                   </td>

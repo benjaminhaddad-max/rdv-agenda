@@ -1,6 +1,6 @@
 /**
  * GET /api/cron/call-analysis
- * Analyse IA des appels ≥ 2 min sans RDV des 7 derniers jours, par lots
+ * Analyse IA de tous les appels ≥ 2 min (avec ou sans RDV) des 7 derniers jours, par lots
  * (cf. lib/call-analysis.ts), puis synthèse coaching de la semaine en cours
  * (lundi → dimanche, comme la page Équipe) pour chaque télépro, tenue à jour.
  * Sans clés Deepgram / Anthropic : ne fait rien.
@@ -27,8 +27,8 @@ export async function GET(req: NextRequest) {
     const now = Date.now()
     const result = await runCallAnalysis(db, {
       fromIso: new Date(now - 7 * 86_400_000).toISOString(),
-      // Laisse 3 h au télépro pour poser le RDV avant de juger l'appel
-      toIso: new Date(now - 3 * 3_600_000).toISOString(),
+      // L'IA lit l'issue dans l'appel ; 20 min laissent l'enregistrement et le RDV arriver
+      toIso: new Date(now - 20 * 60_000).toISOString(),
       limit: 12,
     })
     // Synthèses coaching automatiques (semaine en cours, puis la précédente)

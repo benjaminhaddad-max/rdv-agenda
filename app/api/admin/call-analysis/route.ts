@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
   try {
     const result = await runCallAnalysis(db, {
       fromIso: start,
-      toIso: new Date(Math.min(Date.parse(end), Date.now() - 3 * 3_600_000)).toISOString(),
+      toIso: new Date(Math.min(Date.parse(end), Date.now() - 20 * 60_000)).toISOString(),
       userIds: body.user_id ? [String(body.user_id)] : undefined,
       limit: Math.max(1, Math.min(8, Number(body.limit) || 8)),
     })
