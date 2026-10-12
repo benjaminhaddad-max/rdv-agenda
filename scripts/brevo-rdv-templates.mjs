@@ -136,6 +136,25 @@ const visioBlock = (t, tone = 'dore') =>
 const notice = html =>
   `<p style="margin:4px 0 0;padding-top:22px;border-top:1px solid ${FILET};font-family:${MATTER};font-size:14px;line-height:23px;color:${TEXTE_2}">${html}</p>`
 
+/** Bloc Diploma Lab : l'application gratuite, à découvrir avant le rendez-vous. */
+const APP_STORE = 'https://apps.apple.com/fr/app/diploma-lab/id6782543117'
+const GOOGLE_PLAY = 'https://play.google.com/store/apps/details?id=fr.diploma.sante'
+const storeButton = (href, label) => `
+      <td class="store" style="padding:0 10px 10px 0">
+        <table role="presentation" cellpadding="0" cellspacing="0"><tr><td bgcolor="${NUIT}" style="background:${NUIT};border-radius:999px">
+          <a href="${href}" style="display:inline-block;padding:13px 26px;font-family:${CLASH};font-size:14px;line-height:18px;font-weight:600;letter-spacing:.3px;color:#ffffff;text-decoration:none;border-radius:999px">${label}</a>
+        </td></tr></table>
+      </td>`
+const DIPLOMA_LAB = `
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:6px 0 30px">
+  <tr><td style="background:#ffffff;border:1px solid ${FILET};border-radius:28px;padding:27px 31px 17px">
+    ${eyebrow('Diploma Lab')}
+    <p style="margin:0 0 8px;font-family:${SERIF};font-size:21px;line-height:27px;font-weight:700;color:${NUIT}">Découvrez notre plateforme avant le rendez-vous</p>
+    <p style="margin:0 0 18px;font-family:${MATTER};font-size:15px;line-height:24px;color:${NUIT}">Diploma Lab est la plateforme d’entraînement de Diploma Santé. L’application est disponible gratuitement sur iPhone et Android.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0"><tr>${storeButton(APP_STORE, 'App Store')}${storeButton(GOOGLE_PLAY, 'Google Play')}</tr></table>
+  </td></tr>
+</table>`
+
 const EMPECHEMENT = notice('En cas d’empêchement, merci de nous en informer en répondant à ce message.')
 
 /** Préparation selon le format du RDV. */
@@ -171,6 +190,9 @@ function layout({ preheader, eyebrow: eb, title, body }) {
     .title{font-size:28px!important;line-height:34px!important}
     .btn,.btn td{width:100%!important}
     .btn a{display:block!important;text-align:center!important;padding-left:12px!important;padding-right:12px!important}
+    .store{display:block!important;width:100%!important;padding-right:0!important}
+    .store table,.store td{width:100%!important}
+    .store a{display:block!important;text-align:center!important}
   }
 </style>
 </head>
@@ -227,6 +249,7 @@ const TEMPLATES = [
           'Les modalités pratiques&nbsp;: organisation de l’année, campus, financement.',
         ], 'borde')}
         ${steps('Préparation', prepItems(t))}
+        ${DIPLOMA_LAB}
         ${EMPECHEMENT}`,
     }),
   },
@@ -245,6 +268,7 @@ const TEMPLATES = [
         ${rdvPanel(t)}
         ${t.when([[C.visioLien, visioBlock(t, 'nuit')]])}
         ${steps('Préparation', prepItems(t))}
+        ${DIPLOMA_LAB}
         ${EMPECHEMENT}`,
     }),
   },
@@ -265,6 +289,7 @@ const TEMPLATES = [
         ${rdvPanel(t, { label: 'Demain' })}
         ${t.when([[C.visioLien, visioBlock(t, 'nuit')]])}
         ${steps('Préparation', prepItems(t))}
+        ${DIPLOMA_LAB}
         ${EMPECHEMENT}`,
     }),
   },
