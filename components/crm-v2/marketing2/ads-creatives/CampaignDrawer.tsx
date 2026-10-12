@@ -1,0 +1,244 @@
+'use client'
+
+/**
+ * Fiche d'une campagne (panneau à droite, ouvert au clic sur une ligne du tableau) :
+ * dates, brief, dépôt des dossiers statique / vidéo et coche « campagne en ligne ».
+ */
+
+import { useState, type CSSProperties, type ReactNode } from 'react'
+import { Check, ChevronDown, ChevronRight, Image as ImageIcon, Megaphone, Pencil, Video } from 'lucide-react'
+import { CrmV2Button, CrmV2Drawer } from '@/components/crm-v2/primitives'
+import { crmV2 } from '@/lib/crm-v2-theme'
+import {
+  formatEuros, frDay, parisDay,
+  type AdsCreativesSettings, type AdsEventRow, type CreativeItem, type CreativeRole, type FolderFile,
+} from '@/lib/ads-creatives'
+import FolderLane from './FolderLane'
+import { adsStatus, creativeStatus, type Status } from './status'
+import { TONES, funnelColor, pill, pilierColor, statusColor } from './ui'
+
+export default function CampaignDrawer({
+  ev, today, crm, settings, token, author, fileUrl, onAddFolder, onRemove, onLaunched, onEdit, onClose, flash,
+}: {
+  ev: AdsEventRow
+  today: string
+  crm: boolean
+  settings: AdsCreativesSettings | null
+  token?: string
+  author: string
+  fileUrl: (f: FolderFile) => string
+  onAddFolder: (ev: AdsEventRow, role: CreativeRole, label: string, files: FolderFile[]) => Promise<void>
+  onRemove: (ev: AdsEventRow, item: CreativeItem) => void
+  onLaunched: (v: boolean) => void
+  onEdit: () => void
+  onClose: () => void
+  flash: (m: string) => void
+}) {
+  const [more, setMore] = useState(false)
+  const eventLabel = ev.event_type === 'jpo' ? 'JPO' : 'Webinaire'
+  const pc = pilierColor(ev.pilier)
+  const fc = funnelColor(ev.funnel)
+  const sc = statusColor(ev.status)
+  const details: Array<[string, string | null]> = [
+    ['Référence', ev.ref_diploma],
+    ['Logique budget', ev.budget_logic],
+    ['Pourquoi / comment', ev.why],
+  ]
+
+  return (
+    <CrmV2Drawer
+      open
+      onClose={onClose}
+      width={600}
+      header={
+        <div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+            <span style={{ ...pill, color: crmV2.textMuted, background: crmV2.chipBg }}>{eventLabel}{ev.num != null ? ` n°${ev.num}` : ''}</span>
+            {ev.pilier && <span style={{ ...pill, color: pc.color, background: pc.bg }}>{ev.pilier}</span>}
+            {ev.funnel && <span style={{ ...pill, color: fc.color, background: fc.bg }}>{ev.funnel}</span>}
+            {ev.status && <span style={{ ...pill, color: sc.color, background: sc.bg }}>{ev.status}</span>}
+          </div>
+          <div style={{ fontSize: 17, fontWeight: 700, lineHeight: 1.35, color: crmV2.text }}>{ev.name}</div>
+          <div style={{ fontSize: 13, color: crmV2.textMuted, marginTop: 4 }}>
+            {capitalize(new Date(`${ev.day}T12:00:00Z`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }))}
+            {ev.event_time ? ` · ${ev.event_time}` : ''}
+          </div>
+        </div>
+      }
+      footer={crm ? (
+        <>
+          <div style={{ flex: 1 }} />
+          <CrmV2Button size="sm" icon={<Pencil size={14} />} onClick={onEdit}>Modifier le brief</CrmV2Button>
+        </>
+      ) : undefined}
+    >
+      <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 22 }}>
+        {/* Dates clés */}
+        <Section title="Planning">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+            <DateBox label="Créas à déposer" day={ev.creas_deadline} />
+            <DateBox label="Allumage" day={ev.campaign_start} />
+            <DateBox label={ev.campaign_end === ev.day ? `${eventLabel} · extinction` : 'Extinction'} day={ev.campaign_end} />
+          </div>
+        </Section>
+
+        {/* Brief */}
+        {(ev.accroche || ev.cible || ev.budget_target != null) && (
+          <Section title="Brief">
+            {ev.accroche && <div style={quote}>{ev.accroche}</div>}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px', marginTop: ev.accroche ? 12 : 0 }}>
+              <Field label="Cible" value={ev.cible} />
+              <Field label="Géo" value={ev.geo || ev.location} />
+              <Field label="Intervenant" value={ev.intervenant} />
+              <Field label="CTA" value={ev.cta} />
+              <Field label="Budget" value={ev.budget_target != null ? formatEuros(ev.budget_target) : null} />
+              <Field
+                label="CPL cible · leads"
+                value={ev.cpl_target != null || ev.leads_expected != null
+                  ? `${formatEuros(ev.cpl_target, 2)}${ev.cpl_ref != null ? ` (réf. ${formatEuros(ev.cpl_ref, 2)})` : ''} · ${ev.leads_expected ?? '—'} leads`
+                  : null}
+              />
+            </div>
+            {ev.to_check && (
+              <div style={{ ...note, marginTop: 12 }}>
+                <b>À vérifier :</b> {ev.to_check}
+              </div>
+            )}
+            {details.some(([, v]) => v) && (
+              <>
+                <button type="button" onClick={() => setMore((v) => !v)} style={linkBtn}>
+                  {more ? <ChevronDown size={14} /> : <ChevronRight size={14} />} Plus de détails
+                </button>
+                {more && details.filter(([, v]) => v).map(([label, v]) => (
+                  <div key={label} style={{ marginTop: 8 }}>
+                    <div style={fieldLabel}>{label}</div>
+                    <div style={{ fontSize: 13, color: crmV2.text, lineHeight: 1.5 }}>{v}</div>
+                  </div>
+                ))}
+              </>
+            )}
+          </Section>
+        )}
+
+        {/* Créas */}
+        {(['static', 'video'] as const).map((role) => (
+          <Section
+            key={role}
+            title={role === 'static' ? 'Créas statiques' : 'Créas vidéo'}
+            icon={role === 'static' ? <ImageIcon size={14} /> : <Video size={14} />}
+            owner={role === 'static' ? settings?.static_owner_name : settings?.video_owner_name}
+            status={creativeStatus(ev, role, today)}
+          >
+            <FolderLane ev={ev} role={role} token={token} fileUrl={fileUrl} onAddFolder={onAddFolder} onRemove={onRemove} flash={flash} />
+          </Section>
+        ))}
+
+        {/* Ads Manager */}
+        <Section title="Ads Manager" icon={<Megaphone size={14} />} owner={settings?.ads_owner_name} status={adsStatus(ev, today)}>
+          <label style={{ ...launchBox, ...(ev.launched_at ? launchBoxOn : {}) }}>
+            <input
+              type="checkbox"
+              checked={!!ev.launched_at}
+              onChange={(e) => {
+                if (!e.target.checked && !confirm('Décocher : la campagne n’est plus en ligne ?')) return
+                onLaunched(e.target.checked)
+              }}
+              style={{ width: 18, height: 18, accentColor: TONES.done.color, cursor: 'pointer' }}
+            />
+            <span style={{ fontWeight: 600 }}>{ev.launched_at ? 'Campagne en ligne' : 'Marquer la campagne en ligne'}</span>
+          </label>
+          <div style={{ fontSize: 12, color: crmV2.textMuted, marginTop: 6 }}>
+            {ev.launched_at
+              ? `Lancée le ${frDay(parisDay(ev.launched_at))}${ev.launched_by ? ` par ${ev.launched_by}` : ''}`
+              : `À allumer le ${frDay(ev.campaign_start)}${author ? '' : ' · renseigne ton prénom en haut pour signer'}`}
+          </div>
+        </Section>
+      </div>
+    </CrmV2Drawer>
+  )
+}
+
+/* ─── Petits composants ───────────────────────────────────────────── */
+
+function capitalize(s: string) {
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+function Section({
+  title, icon, owner, status, children,
+}: {
+  title: string
+  icon?: ReactNode
+  owner?: string | null
+  status?: Status
+  children: ReactNode
+}) {
+  return (
+    <section>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+        {icon && <span style={{ color: crmV2.textMuted, display: 'inline-flex' }}>{icon}</span>}
+        <span style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: crmV2.textMuted }}>{title}</span>
+        {owner && <span style={{ fontSize: 12, color: crmV2.textFaint }}>· {owner}</span>}
+        <div style={{ flex: 1 }} />
+        {status && <StatusBadge s={status} />}
+      </div>
+      {children}
+    </section>
+  )
+}
+
+export function StatusBadge({ s }: { s: Status }) {
+  const t = TONES[s.tone]
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: t.color, whiteSpace: 'nowrap',
+    }}>
+      {s.tone === 'done'
+        ? <Check size={13} strokeWidth={3} />
+        : <span style={{ width: 8, height: 8, borderRadius: '50%', background: s.tone === 'idle' ? crmV2.borderStrong : t.color, flexShrink: 0 }} />}
+      {s.label}
+    </span>
+  )
+}
+
+function DateBox({ label, day }: { label: string; day: string }) {
+  return (
+    <div style={{ padding: '10px 12px', borderRadius: crmV2.radius, background: crmV2.bgHover, border: `1px solid ${crmV2.borderLight}` }}>
+      <div style={fieldLabel}>{label}</div>
+      <div style={{ fontSize: 14, fontWeight: 700, color: crmV2.text, marginTop: 2 }}>{frDay(day)}</div>
+    </div>
+  )
+}
+
+function Field({ label, value }: { label: string; value: string | null | undefined }) {
+  if (!value) return null
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div style={fieldLabel}>{label}</div>
+      <div style={{ fontSize: 13, color: crmV2.text, lineHeight: 1.45 }}>{value}</div>
+    </div>
+  )
+}
+
+/* ─── Styles ──────────────────────────────────────────────────────── */
+
+const fieldLabel: CSSProperties = {
+  fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: crmV2.textFaint,
+}
+const quote: CSSProperties = {
+  fontSize: 13.5, lineHeight: 1.55, color: crmV2.text, fontStyle: 'italic',
+  padding: '10px 14px', borderLeft: `3px solid ${crmV2.gold}`, background: crmV2.goldSoft, borderRadius: `0 ${crmV2.radius}px ${crmV2.radius}px 0`,
+}
+const note: CSSProperties = {
+  fontSize: 12.5, lineHeight: 1.5, color: '#9a3412', background: TONES.warn.bg, border: `1px solid ${TONES.warn.border}`,
+  padding: '8px 12px', borderRadius: crmV2.radius,
+}
+const linkBtn: CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 10, border: 'none', background: 'transparent',
+  color: crmV2.link, fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: 0, fontFamily: 'inherit',
+}
+const launchBox: CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: crmV2.radius,
+  border: `1.5px solid ${crmV2.border}`, background: crmV2.bg, cursor: 'pointer', fontSize: 13, color: crmV2.text,
+}
+const launchBoxOn: CSSProperties = { borderColor: TONES.done.border, background: TONES.done.bg, color: TONES.done.color }

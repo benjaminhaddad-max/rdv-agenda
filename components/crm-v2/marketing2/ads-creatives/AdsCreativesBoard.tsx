@@ -5,15 +5,15 @@
  * Utilisé dans le CRM (/admin/crm-v2/creas-ads) et sur le lien partagé
  * (/creas-ads/[token]) : même vue, réglages et édition du brief réservés au CRM.
  *
- * Une carte par campagne (CampaignCard), regroupées par mois avec le récap
- * budget / leads, comme le planning des marques.
+ * Tableau d'une ligne par campagne (regroupé par mois) ; un clic ouvre la fiche
+ * (CampaignDrawer) avec le brief, les dépôts de dossiers et la coche « en ligne ».
  */
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
-import { AlertTriangle, CalendarClock, Copy, Megaphone, Plus, RefreshCw, Rocket, Settings2, Users, Wallet } from 'lucide-react'
+import { AlertTriangle, ChevronRight, Copy, Plus, RefreshCw, Settings2 } from 'lucide-react'
 import {
-  CrmV2Body, CrmV2Button, CrmV2Card, CrmV2Empty, CrmV2Field, CrmV2Header, CrmV2Input, CrmV2KpiCard, CrmV2KpiGrid,
-  CrmV2Page, CrmV2Segmented, CrmV2Spinner, CrmV2Tabs, CrmV2Toggle,
+  CrmV2Body, CrmV2Button, CrmV2Card, CrmV2Empty, CrmV2Field, CrmV2Header, CrmV2Input,
+  CrmV2Page, CrmV2Segmented, CrmV2Spinner, CrmV2Table, CrmV2TableCard, CrmV2Tabs, CrmV2Td, CrmV2Th, CrmV2Toggle, CrmV2Tr,
 } from '@/components/crm-v2/primitives'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import { useIsMobile } from '@/lib/useIsMobile'
@@ -22,9 +22,10 @@ import {
   ADS_BRANDS, DEFAULT_DELAYS, diffDays, formatEuros, parisDay,
   type AdsBrand, type AdsCreativesSettings, type AdsEventRow, type BrandDelays, type CreativeItem, type CreativeRole, type FolderFile,
 } from '@/lib/ads-creatives'
-import CampaignCard from './CampaignCard'
+import CampaignDrawer, { StatusBadge } from './CampaignDrawer'
 import CampaignEditDrawer from './CampaignEditDrawer'
-import { TONES } from './ui'
+import { adsStatus, creativeStatus, shortDay } from './status'
+import { TONES, pilierColor } from './ui'
 
 type Settings = AdsCreativesSettings & { share_token?: string; share_url?: string }
 
@@ -56,6 +57,7 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
   const [tab, setTab] = useState<'upcoming' | 'past'>('upcoming')
   const [showSettings, setShowSettings] = useState(false)
   const [editing, setEditing] = useState<AdsEventRow | null>(null)
+  const [openId, setOpenId] = useState<string | null>(null)
   const [author, setAuthor] = useState('')
   const today = parisDay()
 
@@ -111,6 +113,8 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
   const past = useMemo(() => [...brandEvents.filter((e) => e.day < today)].reverse(), [brandEvents, today])
   const list = tab === 'upcoming' ? upcoming : past
 
+  const opened = openId ? events.find((e) => e.id === openId) || null : null
+
   const groups = useMemo(() => {
     const m = new Map<string, AdsEventRow[]>()
     for (const e of list) {
@@ -129,12 +133,8 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
       budget,
       leads,
       cpl: leads > 0 ? budget / leads : null,
-      creasSoon: active.reduce((n, e) => {
-        const d = diffDays(today, e.creas_deadline)
-        return n + (d >= 0 && d <= 7 ? missing(e) : 0)
-      }, 0),
       creasLate: active.reduce((n, e) => n + (diffDays(today, e.creas_deadline) < 0 ? missing(e) : 0), 0),
-      toLaunch: active.filter((e) => !e.launched_at && diffDays(today, e.campaign_start) <= 7).length,
+      adsLate: active.filter((e) => !e.launched_at && diffDays(today, e.campaign_start) < 0).length,
       live: active.filter((e) => !!e.launched_at).length,
     }
   }, [upcoming, today])
@@ -256,19 +256,16 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
             onChange={(v) => setTab(v as 'upcoming' | 'past')}
             size="sm"
           />
+          {tab === 'upcoming' && upcoming.length > 0 && (
+            <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 13, color: crmV2.textMuted }}>
+              {kpis.budget > 0 && <span><b style={{ color: crmV2.text }}>{formatEuros(kpis.budget)}</b> de budget</span>}
+              {kpis.leads > 0 && <span><b style={{ color: crmV2.text }}>{kpis.leads.toLocaleString('fr-FR')}</b> leads attendus</span>}
+              {kpis.creasLate > 0 && <span style={{ color: TONES.late.color, fontWeight: 600 }}>{kpis.creasLate} créa{kpis.creasLate > 1 ? 's' : ''} en retard</span>}
+              {kpis.adsLate > 0 && <span style={{ color: TONES.late.color, fontWeight: 600 }}>{kpis.adsLate} campagne{kpis.adsLate > 1 ? 's' : ''} pas lancée{kpis.adsLate > 1 ? 's' : ''}</span>}
+              {kpis.live > 0 && <span style={{ color: TONES.done.color, fontWeight: 600 }}>{kpis.live} en ligne</span>}
+            </div>
+          )}
         </div>
-
-        {tab === 'upcoming' && upcoming.length > 0 && (
-          <CrmV2KpiGrid style={{ marginBottom: 20 }}>
-            <CrmV2KpiCard label="Budget prévu" value={formatEuros(kpis.budget)} icon={<Wallet size={16} />}
-              detail={kpis.cpl != null ? `CPL moyen ${formatEuros(kpis.cpl, 2)}` : undefined} />
-            <CrmV2KpiCard label="Leads attendus" value={kpis.leads.toLocaleString('fr-FR')} icon={<Users size={16} />} />
-            <CrmV2KpiCard label="Créas (7 j)" value={kpis.creasSoon} icon={<CalendarClock size={16} />} color={kpis.creasSoon ? TONES.warn.color : crmV2.text} />
-            <CrmV2KpiCard label="Retard créas" value={kpis.creasLate} icon={<AlertTriangle size={16} />} color={kpis.creasLate ? TONES.late.color : crmV2.text} />
-            <CrmV2KpiCard label="À lancer (7 j)" value={kpis.toLaunch} icon={<Rocket size={16} />} color={kpis.toLaunch ? TONES.warn.color : crmV2.text} />
-            <CrmV2KpiCard label="En ligne" value={kpis.live} icon={<Megaphone size={16} />} color={kpis.live ? TONES.done.color : crmV2.text} />
-          </CrmV2KpiGrid>
-        )}
 
         {loading && events.length === 0 ? (
           <CrmV2Spinner />
@@ -277,50 +274,131 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
             title={tab === 'upcoming' ? `Aucune campagne ${BRAND_CONFIG[brand].name} à venir` : 'Aucune campagne passée'}
             description="Les JPO et webinaires créés dans l’onglet Événements apparaissent ici automatiquement."
           />
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 26 }}>
-            {groups.map(([month, rows]) => {
-              const budget = rows.reduce((n, e) => n + (e.budget_target || 0), 0)
-              const leads = rows.reduce((n, e) => n + (e.leads_expected || 0), 0)
-              return (
-                <section key={month}>
-                  <div style={monthHeader}>
-                    <span style={{ fontSize: 15, fontWeight: 800, color: crmV2.text }}>{monthLabel(`${month}-01`)}</span>
-                    <span style={monthChip}>{rows.length} campagne{rows.length > 1 ? 's' : ''}</span>
-                    {budget > 0 && <span style={monthChip}>{formatEuros(budget)}</span>}
-                    {leads > 0 && <span style={monthChip}>{leads.toLocaleString('fr-FR')} leads</span>}
-                    {budget > 0 && leads > 0 && <span style={monthChip}>CPL {formatEuros(budget / leads, 2)}</span>}
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                    {rows.map((ev) => (
-                      <CampaignCard
-                        key={ev.id}
-                        ev={ev}
-                        today={today}
-                        isMobile={isMobile}
-                        crm={crm}
-                        settings={settings}
-                        token={token}
-                        author={author}
-                        fileUrl={fileUrl}
-                        onAddFolder={addFolder}
-                        onRemove={removeItem}
-                        onLaunched={(v) => setLaunched(ev, v)}
-                        onEdit={() => setEditing(ev)}
-                        flash={flash}
-                      />
-                    ))}
-                  </div>
-                </section>
-              )
-            })}
+        ) : isMobile ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+            {groups.map(([month, rows]) => (
+              <section key={month}>
+                <div style={mobileMonth}>{monthLabel(`${month}-01`)}</div>
+                <div style={{ background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: crmV2.radiusLg, overflow: 'hidden' }}>
+                  {rows.map((ev, i) => (
+                    <button key={ev.id} type="button" onClick={() => setOpenId(ev.id)} style={{ ...mobileRow, borderTop: i ? `1px solid ${crmV2.borderLight}` : 'none' }}>
+                      <DayCell day={ev.day} />
+                      <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
+                        <div style={rowTitle}>{ev.name}</div>
+                        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 4 }}>
+                          <MiniStatus label="Stat." s={creativeStatus(ev, 'static', today)} />
+                          <MiniStatus label="Vidéo" s={creativeStatus(ev, 'video', today)} />
+                          <MiniStatus label="Ads" s={adsStatus(ev, today)} />
+                        </div>
+                      </div>
+                      <ChevronRight size={16} style={{ color: crmV2.textFaint, flexShrink: 0 }} />
+                    </button>
+                  ))}
+                </div>
+              </section>
+            ))}
           </div>
+        ) : (
+          <CrmV2TableCard>
+            <CrmV2Table>
+              <thead>
+                <tr>
+                  <CrmV2Th style={{ width: 70 }}>Date</CrmV2Th>
+                  <CrmV2Th>Campagne</CrmV2Th>
+                  <CrmV2Th style={{ width: 150 }}>Créas statiques</CrmV2Th>
+                  <CrmV2Th style={{ width: 150 }}>Créas vidéo</CrmV2Th>
+                  <CrmV2Th style={{ width: 100 }}>Allumage</CrmV2Th>
+                  <CrmV2Th style={{ width: 160 }}>Ads Manager</CrmV2Th>
+                </tr>
+              </thead>
+              <tbody>
+                {groups.map(([month, rows]) => {
+                  const budget = rows.reduce((n, e) => n + (e.budget_target || 0), 0)
+                  const leads = rows.reduce((n, e) => n + (e.leads_expected || 0), 0)
+                  return [
+                    <tr key={month}>
+                      <td colSpan={6} style={monthCell}>
+                        <span style={{ fontWeight: 800, color: crmV2.text }}>{monthLabel(`${month}-01`)}</span>
+                        <span style={{ color: crmV2.textFaint, fontWeight: 500 }}>
+                          {' · '}{rows.length} campagne{rows.length > 1 ? 's' : ''}
+                          {budget > 0 ? ` · ${formatEuros(budget)}` : ''}
+                          {leads > 0 ? ` · ${leads.toLocaleString('fr-FR')} leads` : ''}
+                        </span>
+                      </td>
+                    </tr>,
+                    ...rows.map((ev) => {
+                      const pc = pilierColor(ev.pilier)
+                      const sub = [ev.pilier, ev.funnel, ev.budget_target != null ? formatEuros(ev.budget_target) : null].filter(Boolean).join(' · ')
+                      return (
+                        <CrmV2Tr key={ev.id} onClick={() => setOpenId(ev.id)} style={{ opacity: ev.no_campaign ? 0.5 : 1 }}>
+                          <CrmV2Td style={cellPad}><DayCell day={ev.day} /></CrmV2Td>
+                          <CrmV2Td style={cellPad}>
+                            <div style={{ display: 'flex', gap: 10, alignItems: 'center', minWidth: 0 }}>
+                              <span style={{ width: 4, alignSelf: 'stretch', borderRadius: 2, background: ev.pilier ? pc.color : crmV2.border, flexShrink: 0 }} />
+                              <div style={{ minWidth: 0 }}>
+                                <div style={rowTitle}>{ev.name}</div>
+                                {sub && <div style={rowSub}>{sub}</div>}
+                              </div>
+                            </div>
+                          </CrmV2Td>
+                          <CrmV2Td style={cellPad}><StatusBadge s={creativeStatus(ev, 'static', today)} /></CrmV2Td>
+                          <CrmV2Td style={cellPad}><StatusBadge s={creativeStatus(ev, 'video', today)} /></CrmV2Td>
+                          <CrmV2Td style={{ ...cellPad, color: crmV2.textMuted, whiteSpace: 'nowrap' }}>{shortDay(ev.campaign_start)}</CrmV2Td>
+                          <CrmV2Td style={cellPad}><StatusBadge s={adsStatus(ev, today)} /></CrmV2Td>
+                        </CrmV2Tr>
+                      )
+                    }),
+                  ]
+                })}
+              </tbody>
+            </CrmV2Table>
+          </CrmV2TableCard>
         )}
       </CrmV2Body>
 
+      {opened && !editing && (
+        <CampaignDrawer
+          ev={opened}
+          today={today}
+          crm={crm}
+          settings={settings}
+          token={token}
+          author={author}
+          fileUrl={fileUrl}
+          onAddFolder={addFolder}
+          onRemove={removeItem}
+          onLaunched={(v) => setLaunched(opened, v)}
+          onEdit={() => setEditing(opened)}
+          onClose={() => setOpenId(null)}
+          flash={flash}
+        />
+      )}
       {editing && <CampaignEditDrawer ev={editing} onClose={() => setEditing(null)} onSaved={load} flash={flash} />}
       {toast && <div style={toastStyle}>{toast}</div>}
     </CrmV2Page>
+  )
+}
+
+/* ─── Cellules ────────────────────────────────────────────────────── */
+
+function DayCell({ day }: { day: string }) {
+  const d = new Date(`${day}T12:00:00Z`)
+  return (
+    <div style={{ lineHeight: 1.15, width: 46, flexShrink: 0 }}>
+      <div style={{ fontSize: 15, fontWeight: 800, color: crmV2.text }}>{d.getUTCDate()}</div>
+      <div style={{ fontSize: 11, color: crmV2.textFaint, textTransform: 'capitalize' }}>
+        {d.toLocaleDateString('fr-FR', { weekday: 'short', timeZone: 'UTC' }).replace('.', '')}
+      </div>
+    </div>
+  )
+}
+
+function MiniStatus({ label, s }: { label: string; s: ReturnType<typeof adsStatus> }) {
+  return (
+    <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center', fontSize: 11.5 }}>
+      <span style={{ color: crmV2.textFaint }}>{label}</span>
+      <StatusBadge s={s} />
+    </span>
   )
 }
 
@@ -429,13 +507,18 @@ function SettingsCard({
 
 /* ─── Styles ──────────────────────────────────────────────────────── */
 
-const monthHeader: CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 10, paddingBottom: 8,
-  borderBottom: `2px solid ${crmV2.goldBorder}`,
+const monthCell: CSSProperties = {
+  padding: '14px 14px 6px', fontSize: 13, background: crmV2.bgHover, borderBottom: `1px solid ${crmV2.border}`,
 }
-const monthChip: CSSProperties = {
-  fontSize: 12, fontWeight: 600, color: crmV2.textMuted, background: crmV2.bg, border: `1px solid ${crmV2.border}`,
-  padding: '2px 10px', borderRadius: crmV2.radiusPill,
+const cellPad: CSSProperties = { paddingTop: 10, paddingBottom: 10, height: 'auto' }
+const rowTitle: CSSProperties = {
+  fontSize: 14, fontWeight: 600, color: crmV2.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 520,
+}
+const rowSub: CSSProperties = { fontSize: 12, color: crmV2.textFaint, marginTop: 2 }
+const mobileMonth: CSSProperties = { fontSize: 13, fontWeight: 800, color: crmV2.text, margin: '0 4px 8px' }
+const mobileRow: CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '12px 14px', background: 'transparent',
+  border: 'none', cursor: 'pointer', fontFamily: 'inherit',
 }
 const settingsTitle: CSSProperties = { fontSize: 13, fontWeight: 700, color: crmV2.text, marginBottom: 10 }
 const errorBanner: CSSProperties = {
