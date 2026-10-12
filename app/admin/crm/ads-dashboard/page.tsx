@@ -98,6 +98,9 @@ export default function AdsDashboardPage() {
   const ranges = useMemo(() => compareRanges(datePreset), [datePreset])
   const [metaCmp, setMetaCmp] = useState<Comparison>(EMPTY_CMP)
   const [googleCmp, setGoogleCmp] = useState<Comparison>(EMPTY_CMP)
+  // Lignes des tableaux sur la période précédente, par id (campagne / adset / ad)
+  const [metaPrevRows, setMetaPrevRows] = useState<PrevRows>(undefined)
+  const [googlePrevRows, setGooglePrevRows] = useState<PrevRows>(undefined)
 
   useEffect(() => {
     if (!ranges || !selectedAccount) { setMetaCmp(NO_CMP); return }
@@ -122,6 +125,28 @@ export default function AdsDashboardPage() {
       return fetchTotals(`/api/google-ads/insights?${params.toString()}`)
     }
     Promise.all([get(ranges.prev), get(ranges.yoy)]).then(([prev, yoy]) => { if (!cancelled) setGoogleCmp({ prev, yoy }) })
+    return () => { cancelled = true }
+  }, [ranges, refreshToken])
+
+  // Comparatif ligne à ligne des tableaux (période précédente, au niveau affiché)
+  useEffect(() => {
+    if (!ranges || !selectedAccount) { setMetaPrevRows(null); return }
+    setMetaPrevRows(undefined)
+    let cancelled = false
+    const params = new URLSearchParams({ account_id: selectedAccount, level, date_preset: 'custom', since: ranges.prev.since, until: ranges.prev.until })
+    if (refreshToken > 0) params.set('force', '1')
+    const idOf = (i: Insight) => (level === 'campaign' ? i.campaign_id : level === 'adset' ? i.adset_id : i.ad_id)
+    fetchPrevRows(`/api/meta/ads/insights?${params.toString()}`, idOf).then(m => { if (!cancelled) setMetaPrevRows(m) })
+    return () => { cancelled = true }
+  }, [ranges, selectedAccount, level, refreshToken])
+
+  useEffect(() => {
+    if (!ranges) { setGooglePrevRows(null); return }
+    setGooglePrevRows(undefined)
+    let cancelled = false
+    const params = new URLSearchParams({ date_preset: 'custom', since: ranges.prev.since, until: ranges.prev.until })
+    if (refreshToken > 0) params.set('force', '1')
+    fetchPrevRows(`/api/google-ads/insights?${params.toString()}`, (i: GoogleInsight) => i.campaign_id).then(m => { if (!cancelled) setGooglePrevRows(m) })
     return () => { cancelled = true }
   }, [ranges, refreshToken])
 
@@ -406,6 +431,7 @@ export default function AdsDashboardPage() {
                             <div style={{ fontSize: 12, fontWeight: 600, color: (i.leads || 0) > 0 ? crmV2.success : crmV2.textFaint }}>
                               {fmtNumber(i.leads || 0)} lead{(i.leads || 0) > 1 ? 's' : ''}
                             </div>
+                            <RowDelta metric="leads" cur={i} prev={prevRow(metaPrevRows, id)} currency={data.currency} />
                           </div>
                         }
                       />
@@ -415,7 +441,7 @@ export default function AdsDashboardPage() {
                   <CrmV2Table>
                     <thead>
                       <tr>
-                        <CrmV2Th>{LEVEL_LABELS[level]}</CrmV2Th>
+                        <CrmV2Th>{LEVEL_LABELS[level]}{ranges && <PrevHint range={ranges.prev} />}</CrmV2Th>
                         <CrmV2Th style={num}>Impressions</CrmV2Th>
                         <CrmV2Th style={num}>Clics</CrmV2Th>
                         <CrmV2Th style={num}>CTR</CrmV2Th>
@@ -463,19 +489,21 @@ export default function AdsDashboardPage() {
                               </div>
                             </div>
                           </CrmV2Td>
-                          <CrmV2Td style={num}>{fmtNumber(i.impressions)}</CrmV2Td>
-                          <CrmV2Td style={num}>{fmtNumber(i.clicks)}</CrmV2Td>
-                          <CrmV2Td style={num}>{i.ctr.toFixed(2)}%</CrmV2Td>
-                          <CrmV2Td style={{ ...num, fontWeight: 700 }}>{fmtCurrency(i.spend, data.currency)}</CrmV2Td>
-                          <CrmV2Td style={num}>{fmtCurrency(i.cpc, data.currency)}</CrmV2Td>
+                          <CrmV2Td style={num}>{fmtNumber(i.impressions)}<RowDelta metric="impressions" cur={i} prev={prevRow(metaPrevRows, id)} currency={data.currency} /></CrmV2Td>
+                          <CrmV2Td style={num}>{fmtNumber(i.clicks)}<RowDelta metric="clicks" cur={i} prev={prevRow(metaPrevRows, id)} currency={data.currency} /></CrmV2Td>
+                          <CrmV2Td style={num}>{i.ctr.toFixed(2)}%<RowDelta metric="ctr" cur={i} prev={prevRow(metaPrevRows, id)} currency={data.currency} /></CrmV2Td>
+                          <CrmV2Td style={{ ...num, fontWeight: 700 }}>{fmtCurrency(i.spend, data.currency)}<RowDelta metric="spend" cur={i} prev={prevRow(metaPrevRows, id)} currency={data.currency} /></CrmV2Td>
+                          <CrmV2Td style={num}>{fmtCurrency(i.cpc, data.currency)}<RowDelta metric="cpc" cur={i} prev={prevRow(metaPrevRows, id)} currency={data.currency} /></CrmV2Td>
                           <CrmV2Td style={num}>
                             <span style={{ fontWeight: 600, color: (i.leads || 0) > 0 ? crmV2.success : crmV2.textFaint }}>
                               {fmtNumber(i.leads || 0)}
                             </span>
+                            <RowDelta metric="leads" cur={i} prev={prevRow(metaPrevRows, id)} currency={data.currency} />
                           </CrmV2Td>
                           <CrmV2Td style={num}><NewLeadsPct leads={i.leads || 0} newLeads={i.new_leads} /></CrmV2Td>
                           <CrmV2Td style={num}>
                             {(i.leads || 0) > 0 ? fmtCurrency(i.cpl || 0, data.currency) : '—'}
+                            <RowDelta metric="cpl" cur={i} prev={prevRow(metaPrevRows, id)} currency={data.currency} />
                           </CrmV2Td>
                         </CrmV2Tr>
                         {isOpen && !adsets && (
@@ -529,6 +557,8 @@ export default function AdsDashboardPage() {
           refreshToken={refreshToken}
           isMobile={isMobile}
           onData={setGoogleData}
+          prevRows={googlePrevRows}
+          prevRange={ranges?.prev ?? null}
           overview={googleData && (
             <AdsOverview
               title="Overview Google"
@@ -577,13 +607,15 @@ const GOOGLE_CHANNELS: Record<string, string> = {
   SEARCH: 'Search', PERFORMANCE_MAX: 'PMax', DISPLAY: 'Display', VIDEO: 'Vidéo', DEMAND_GEN: 'Demand Gen', SHOPPING: 'Shopping',
 }
 
-function GoogleAdsSection({ datePreset, periodLabel, refreshToken, isMobile, onData, overview }: {
+function GoogleAdsSection({ datePreset, periodLabel, refreshToken, isMobile, onData, overview, prevRows, prevRange }: {
   datePreset: DatePreset
   periodLabel: string
   refreshToken: number
   isMobile: boolean
   onData: (d: GoogleInsightsResponse | null) => void
   overview?: React.ReactNode
+  prevRows: PrevRows
+  prevRange: DayRange | null
 }) {
   const [data, setDataState] = useState<GoogleInsightsResponse | null>(null)
   const setData = useCallback((d: GoogleInsightsResponse | null) => { setDataState(d); onData(d) }, [onData])
@@ -707,6 +739,7 @@ function GoogleAdsSection({ datePreset, periodLabel, refreshToken, isMobile, onD
                         <div style={{ fontSize: 12, fontWeight: 600, color: i.leads > 0 ? crmV2.success : crmV2.textFaint }}>
                           {fmtNumber(i.leads)} lead{i.leads > 1 ? 's' : ''}
                         </div>
+                        <RowDelta metric="leads" cur={i} prev={prevRow(prevRows, i.campaign_id)} currency={data.currency} />
                       </div>
                     }
                   >
@@ -725,7 +758,7 @@ function GoogleAdsSection({ datePreset, periodLabel, refreshToken, isMobile, onD
               <CrmV2Table>
                 <thead>
                   <tr>
-                    <CrmV2Th>Campagne</CrmV2Th>
+                    <CrmV2Th>Campagne{prevRange && <PrevHint range={prevRange} />}</CrmV2Th>
                     <CrmV2Th style={num}>Impressions</CrmV2Th>
                     <CrmV2Th style={num}>Clics</CrmV2Th>
                     <CrmV2Th style={num}>CTR</CrmV2Th>
@@ -765,16 +798,20 @@ function GoogleAdsSection({ datePreset, periodLabel, refreshToken, isMobile, onD
                           </AdsFaint>
                         </div>
                       </CrmV2Td>
-                      <CrmV2Td style={num}>{fmtNumber(i.impressions)}</CrmV2Td>
-                      <CrmV2Td style={num}>{fmtNumber(i.clicks)}</CrmV2Td>
-                      <CrmV2Td style={num}>{i.ctr.toFixed(2)}%</CrmV2Td>
-                      <CrmV2Td style={{ ...num, fontWeight: 700 }}>{fmtCurrency(i.spend, data.currency)}</CrmV2Td>
-                      <CrmV2Td style={num}>{fmtCurrency(i.cpc, data.currency)}</CrmV2Td>
+                      <CrmV2Td style={num}>{fmtNumber(i.impressions)}<RowDelta metric="impressions" cur={i} prev={prevRow(prevRows, i.campaign_id)} currency={data.currency} /></CrmV2Td>
+                      <CrmV2Td style={num}>{fmtNumber(i.clicks)}<RowDelta metric="clicks" cur={i} prev={prevRow(prevRows, i.campaign_id)} currency={data.currency} /></CrmV2Td>
+                      <CrmV2Td style={num}>{i.ctr.toFixed(2)}%<RowDelta metric="ctr" cur={i} prev={prevRow(prevRows, i.campaign_id)} currency={data.currency} /></CrmV2Td>
+                      <CrmV2Td style={{ ...num, fontWeight: 700 }}>{fmtCurrency(i.spend, data.currency)}<RowDelta metric="spend" cur={i} prev={prevRow(prevRows, i.campaign_id)} currency={data.currency} /></CrmV2Td>
+                      <CrmV2Td style={num}>{fmtCurrency(i.cpc, data.currency)}<RowDelta metric="cpc" cur={i} prev={prevRow(prevRows, i.campaign_id)} currency={data.currency} /></CrmV2Td>
                       <CrmV2Td style={num}>
                         <span style={{ fontWeight: 600, color: i.leads > 0 ? crmV2.success : crmV2.textFaint }}>{fmtNumber(i.leads)}</span>
+                        <RowDelta metric="leads" cur={i} prev={prevRow(prevRows, i.campaign_id)} currency={data.currency} />
                       </CrmV2Td>
                       <CrmV2Td style={num}><NewLeadsPct leads={i.leads} newLeads={i.new_leads} /></CrmV2Td>
-                      <CrmV2Td style={num}>{i.leads > 0 ? fmtCurrency(i.cpl, data.currency) : '—'}</CrmV2Td>
+                      <CrmV2Td style={num}>
+                        {i.leads > 0 ? fmtCurrency(i.cpl, data.currency) : '—'}
+                        <RowDelta metric="cpl" cur={i} prev={prevRow(prevRows, i.campaign_id)} currency={data.currency} />
+                      </CrmV2Td>
                     </CrmV2Tr>
                     {isOpen && (
                       <tr>
@@ -996,6 +1033,86 @@ function DeltaLine({ label, cur, prev, good, prevLabel, title, emptyText = '—'
     <span title={`${title} : ${prevLabel}`} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: crmV2.textMuted }}>
       {label}
       <b style={{ color, marginLeft: 'auto', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{text}</b>
+    </span>
+  )
+}
+
+// ─── Comparatif ligne à ligne (tableaux) ──────────────────────────────────
+
+type RowStats = { impressions: number; clicks: number; spend: number; leads?: number }
+// Map id → stats de la période précédente ; undefined = en chargement, null = indisponible (« Tout »)
+type PrevRows = Map<string, RowStats> | null | undefined
+// undefined = en chargement, null = pas de comparatif, 'absent' = aucune activité sur la période précédente
+type PrevRow = RowStats | 'absent' | null | undefined
+
+async function fetchPrevRows<T extends RowStats>(url: string, idOf: (i: T) => string | undefined): Promise<Map<string, RowStats> | null> {
+  try {
+    const res = await fetch(url)
+    const j = await res.json()
+    if (!res.ok || !Array.isArray(j.insights)) return null
+    const m = new Map<string, RowStats>()
+    for (const i of j.insights as T[]) {
+      const id = idOf(i)
+      if (id) m.set(id, { impressions: i.impressions || 0, clicks: i.clicks || 0, spend: i.spend || 0, leads: i.leads || 0 })
+    }
+    return m
+  } catch {
+    return null
+  }
+}
+
+function prevRow(rows: PrevRows, id?: string): PrevRow {
+  if (rows === undefined) return undefined
+  if (rows === null || !id) return null
+  return rows.get(id) ?? 'absent'
+}
+
+type RowMetric = 'impressions' | 'clicks' | 'ctr' | 'spend' | 'cpc' | 'leads' | 'cpl'
+const ROW_METRICS: Record<RowMetric, { get: (r: RowStats) => number | null; good: 'up' | 'down' | 'neutral'; fmt: 'num' | 'cur' | 'pct' }> = {
+  impressions: { get: r => r.impressions, good: 'neutral', fmt: 'num' },
+  clicks: { get: r => r.clicks, good: 'up', fmt: 'num' },
+  ctr: { get: r => (r.impressions > 0 ? (r.clicks / r.impressions) * 100 : null), good: 'up', fmt: 'pct' },
+  spend: { get: r => r.spend, good: 'neutral', fmt: 'cur' },
+  cpc: { get: r => (r.clicks > 0 ? r.spend / r.clicks : null), good: 'down', fmt: 'cur' },
+  leads: { get: r => r.leads || 0, good: 'up', fmt: 'num' },
+  cpl: { get: r => ((r.leads || 0) > 0 ? r.spend / r.leads! : null), good: 'down', fmt: 'cur' },
+}
+
+/** Petite variation vs période précédente, sous la valeur d'une cellule. */
+function RowDelta({ metric, cur, prev, currency }: { metric: RowMetric; cur: RowStats; prev: PrevRow; currency: string }) {
+  if (prev === null) return null
+  const m = ROW_METRICS[metric]
+  const fmt = (n: number) => (m.fmt === 'cur' ? fmtCurrency(n, currency) : m.fmt === 'pct' ? `${n.toFixed(2)}%` : fmtNumber(n))
+  const c = m.get(cur)
+  const p = prev === undefined || prev === 'absent' ? null : m.get(prev)
+  let text = '—'
+  let color: string = crmV2.textFaint
+  let title = 'Période précédente : —'
+  if (prev === undefined) text = '…'
+  else if (prev === 'absent') { text = metric === 'spend' ? 'nouveau' : '—'; title = 'Aucune activité sur la période précédente' }
+  else if (p !== null) {
+    title = `Période précédente : ${fmt(p)}`
+    if (c !== null && p > 0) {
+      const pct = ((c - p) / p) * 100
+      const rounded = Math.abs(pct) < 10 ? pct.toFixed(1).replace('.', ',') : Math.round(pct).toString()
+      text = `${pct > 0 ? '▲ +' : pct < 0 ? '▼ ' : ''}${rounded} %`
+      color = m.good !== 'neutral' && Math.abs(pct) >= 0.5
+        ? ((pct > 0) === (m.good === 'up') ? crmV2.successStrong : crmV2.danger)
+        : crmV2.textMuted
+    }
+  }
+  return (
+    <div title={title} style={{ fontSize: 11, fontWeight: 600, color, marginTop: 2, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+      {text}
+    </div>
+  )
+}
+
+/** Rappel de la période de comparaison dans l'en-tête du tableau. */
+function PrevHint({ range }: { range: DayRange }) {
+  return (
+    <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 500, color: crmV2.textFaint, textTransform: 'none', letterSpacing: 0 }}>
+      · variations vs {fmtDayRange(range)}
     </span>
   )
 }
