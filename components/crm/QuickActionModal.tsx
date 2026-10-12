@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { StickyNote, Phone, CheckSquare, X, Mail, Calendar, Send, Eye, Paperclip } from 'lucide-react'
+import { plainTextToEmailHtml, wrapCrmEmail } from '@/lib/crm-email-layout'
 
 export type QuickActionType = 'note' | 'call' | 'task' | 'email' | 'meeting'
 
@@ -143,7 +144,7 @@ export default function QuickActionModal({
       phone:            contactPreview?.phone ?? '',
     }
     const renderedSubject = renderVars(subject, vars)
-    const renderedHtml    = renderVars(bodyHtml || `<p>${(body || '').replace(/\n/g, '<br>')}</p>`, vars)
+    const renderedHtml    = wrapCrmEmail(renderVars(bodyHtml || plainTextToEmailHtml(body || ''), vars))
     setPreviewSubject(renderedSubject)
     setPreviewHtml(renderedHtml)
     setShowPreview(true)
@@ -199,7 +200,7 @@ export default function QuickActionModal({
           body: JSON.stringify({
             templateId: selectedTemplateId || undefined,
             subject:    subject.trim() || undefined,
-            html:       bodyHtml.trim() || (body ? `<p>${body.replace(/\n/g, '<br>')}</p>` : undefined),
+            html:       bodyHtml.trim() || (body.trim() ? plainTextToEmailHtml(body) : undefined),
             replyTo:    emailReplyTo.trim() || undefined,
             ownerId:    actorOwnerId ?? null,
             attachments: attachments.length > 0 ? attachments : undefined,

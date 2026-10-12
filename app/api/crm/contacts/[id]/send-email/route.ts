@@ -3,6 +3,7 @@ import { createServiceClient } from '@/lib/supabase'
 import { sendBrevoEmail, renderTemplate, htmlToText } from '@/lib/brevo'
 import { requireApiRole } from '@/lib/api-auth'
 import { memoryRateLimit } from '@/lib/rate-limit'
+import { wrapCrmEmail } from '@/lib/crm-email-layout'
 
 /**
  * POST /api/crm/contacts/[id]/send-email
@@ -98,7 +99,8 @@ export async function POST(
   try {
     const r = await sendBrevoEmail({
       subject: renderedSubject,
-      htmlContent: renderedHtml,
+      // Papier à en-tête Diploma Santé autour du texte (le log garde le texte seul)
+      htmlContent: wrapCrmEmail(renderedHtml),
       textContent: renderedText,
       to: [{
         email: contact.email,
