@@ -114,7 +114,7 @@ export type AdsEventRow = {
   event_id: string | null
   num: number | null
   name: string
-  event_type: 'webinaire' | 'jpo'
+  event_type: 'webinaire' | 'jpo' | 'presentiel' | 'guide'
   event_time: string | null
   location: string | null
   /** Jour de l'événement (Europe/Paris) ; guide : jour de début */
@@ -194,6 +194,14 @@ export function computeSchedule(
     creas_deadline: overrides.creas_date || addDays(campaign_start, -delays.creas_days),
     campaign_end: overrides.end_date || addDays(eventDay, delays.end_days),
   }
+}
+
+/** Libellé court du type : Guide, Webinaire, JPO, Présentiel. */
+export function campaignTypeLabel(ev: Pick<AdsEventRow, 'kind' | 'event_type'>): string {
+  if (ev.kind === 'guide') return 'Guide'
+  if (ev.event_type === 'jpo') return 'JPO'
+  if (ev.event_type === 'presentiel') return 'Présentiel'
+  return 'Webinaire'
 }
 
 export function formatEuros(n: number | null | undefined, decimals = 0): string {

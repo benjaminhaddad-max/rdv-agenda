@@ -41,7 +41,8 @@ export async function GET(req: NextRequest) {
 
     const sent: Array<{ event: string; role: string; days_left: number; ok: boolean; text: string; error?: string }> = []
     for (const ev of events) {
-      if (ev.no_campaign) continue
+      // Pas de relance créas si la campagne est déjà en ligne (créas faites hors de l'outil)
+      if (ev.no_campaign || ev.launched_at) continue
       for (const role of CREATIVE_ROLES) {
         if (ev.items.some((i) => i.role === role)) continue
         if (done.has(`${ev.id}:${role}`)) continue

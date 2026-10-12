@@ -19,7 +19,7 @@ import { crmV2 } from '@/lib/crm-v2-theme'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { BRAND_CONFIG } from '@/lib/events-studio/config'
 import {
-  ADS_BRANDS, DEFAULT_DELAYS, diffDays, formatEuros, parisDay,
+  ADS_BRANDS, DEFAULT_DELAYS, campaignTypeLabel, diffDays, formatEuros, parisDay,
   type AdsBrand, type AdsCreativesSettings, type AdsEventRow, type BrandDelays, type CampaignKind, type CreativeItem, type CreativeRole, type FolderFile,
 } from '@/lib/ads-creatives'
 import CampaignDrawer, { StatusBadge } from './CampaignDrawer'
@@ -152,7 +152,7 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
       budget,
       leads,
       cpl: leads > 0 ? budget / leads : null,
-      creasLate: active.reduce((n, e) => n + (diffDays(today, e.creas_deadline) < 0 ? missing(e) : 0), 0),
+      creasLate: active.reduce((n, e) => n + (!e.launched_at && diffDays(today, e.creas_deadline) < 0 ? missing(e) : 0), 0),
       adsLate: active.filter((e) => !e.launched_at && diffDays(today, e.campaign_start) < 0).length,
       live: active.filter((e) => !!e.launched_at).length,
     }
@@ -275,7 +275,7 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, minmax(0, 1fr))', gap: 12, marginBottom: 16, maxWidth: 940 }}>
           {VIEWS.map((k) => {
             const active = k === kind
-            const late = brandEvents.filter((e) => inView(e, k) && e.until >= today && !e.no_campaign
+            const late = brandEvents.filter((e) => inView(e, k) && e.until >= today && !e.no_campaign && !e.launched_at
               && (['static', 'video'] as const).some((r) => !e.items.some((i) => i.role === r)) && e.creas_deadline < today).length
             return (
               <button key={k} type="button" onClick={() => pickKind(k)} style={{ ...kindCard, ...(active ? kindCardActive : {}) }}>
@@ -362,11 +362,11 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
                 <tr>
                   <CrmV2Th style={{ width: 70 }}>Date</CrmV2Th>
                   <CrmV2Th>{isGuide ? 'Guide' : 'Campagne'}</CrmV2Th>
-                  {kind !== 'event' && <CrmV2Th style={{ width: 130 }}>PDF du guide</CrmV2Th>}
-                  <CrmV2Th style={{ width: 150 }}>Créas statiques</CrmV2Th>
-                  <CrmV2Th style={{ width: 150 }}>Créas vidéo</CrmV2Th>
+                  {kind !== 'event' && <CrmV2Th style={{ width: 110 }}>PDF guide</CrmV2Th>}
+                  <CrmV2Th style={{ width: 125 }}>Statique</CrmV2Th>
+                  <CrmV2Th style={{ width: 125 }}>Vidéo</CrmV2Th>
                   <CrmV2Th style={{ width: kind === 'event' ? 100 : 130 }}>{isGuide ? 'Diffusion' : kind === 'all' ? 'Allumage / diffusion' : 'Allumage'}</CrmV2Th>
-                  <CrmV2Th style={{ width: 160 }}>Ads Manager</CrmV2Th>
+                  <CrmV2Th style={{ width: 130 }}>Ads Manager</CrmV2Th>
                 </tr>
               </thead>
               <tbody>
@@ -398,7 +398,7 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
                                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', minWidth: 0 }}>
                                   {kind === 'all' && (
                                     <span style={{ ...kindPill, ...(ev.kind === 'guide' ? kindPillGuide : {}) }}>
-                                      {ev.kind === 'guide' ? 'Guide' : ev.event_type === 'jpo' ? 'JPO' : 'Webinaire'}
+                                      {campaignTypeLabel(ev)}
                                     </span>
                                   )}
                                   <div style={rowTitle}>{ev.name}</div>
@@ -609,8 +609,10 @@ const monthCell: CSSProperties = {
   padding: '14px 14px 6px', fontSize: 13, background: crmV2.bgHover, borderBottom: `1px solid ${crmV2.border}`,
 }
 const cellPad: CSSProperties = { paddingTop: 10, paddingBottom: 10, height: 'auto' }
+// Titre sur 2 lignes max : la colonne s'adapte au lieu de pousser le tableau hors de l'écran
 const rowTitle: CSSProperties = {
-  fontSize: 14, fontWeight: 600, color: crmV2.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 520,
+  fontSize: 14, fontWeight: 600, color: crmV2.text, overflow: 'hidden', display: '-webkit-box',
+  WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', lineHeight: 1.3,
 }
 const rowSub: CSSProperties = { fontSize: 12, color: crmV2.textFaint, marginTop: 2 }
 const mobileMonth: CSSProperties = { fontSize: 13, fontWeight: 800, color: crmV2.text, margin: '0 4px 8px' }

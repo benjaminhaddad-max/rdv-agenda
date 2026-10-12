@@ -10,7 +10,7 @@ import { Check, ChevronDown, ChevronRight, FileText, Image as ImageIcon, Megapho
 import { CrmV2Button, CrmV2Drawer } from '@/components/crm-v2/primitives'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import {
-  diffDays, formatEuros, frDay, parisDay,
+  campaignTypeLabel, diffDays, formatEuros, frDay, parisDay,
   type AdsCreativesSettings, type AdsEventRow, type CreativeItem, type CreativeRole, type FolderFile,
 } from '@/lib/ads-creatives'
 import FolderLane from './FolderLane'
@@ -38,7 +38,7 @@ export default function CampaignDrawer({
 }) {
   const [more, setMore] = useState(false)
   const isGuide = ev.kind === 'guide'
-  const eventLabel = isGuide ? 'Guide' : ev.event_type === 'jpo' ? 'JPO' : 'Webinaire'
+  const eventLabel = campaignTypeLabel(ev)
   const days = diffDays(ev.campaign_start, ev.campaign_end) + 1
   const pc = pilierColor(ev.pilier)
   const fc = funnelColor(ev.funnel)
@@ -110,8 +110,8 @@ export default function CampaignDrawer({
             )}
             {ev.format_contenu && (
               <div style={{ marginTop: 10 }}>
-                <div style={fieldLabel}>Format et contenu</div>
-                <div style={{ fontSize: 13, color: crmV2.text, lineHeight: 1.5 }}>{ev.format_contenu}</div>
+                <div style={fieldLabel}>{isGuide ? 'Format et contenu' : 'Formats à produire'}</div>
+                <div style={{ fontSize: 13, color: crmV2.text, lineHeight: 1.5, whiteSpace: 'pre-line' }}>{ev.format_contenu}</div>
               </div>
             )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px', marginTop: 12 }}>

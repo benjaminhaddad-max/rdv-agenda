@@ -11,7 +11,8 @@ const short = (day: string) =>
 export function creativeStatus(ev: AdsEventRow, role: CreativeRole, today: string): Status {
   if (ev.items.some((i) => i.role === role)) return { tone: 'done', label: 'Déposé' }
   if (ev.no_campaign) return { tone: 'off', label: '—' }
-  if (ev.day < today) return { tone: 'off', label: 'Non déposé' }
+  // Campagne déjà en ligne ou terminée : créas faites hors de l'outil, pas un retard
+  if (ev.launched_at || ev.until < today) return { tone: 'off', label: 'Non déposé' }
   const d = diffDays(today, ev.creas_deadline)
   if (d < 0) return { tone: 'late', label: `Retard ${-d} j` }
   if (d === 0) return { tone: 'warn', label: 'Aujourd’hui' }
@@ -23,7 +24,7 @@ export function creativeStatus(ev: AdsEventRow, role: CreativeRole, today: strin
 export function guidePdfStatus(ev: AdsEventRow, today: string): Status {
   if (ev.items.some((i) => i.role === 'guide')) return { tone: 'done', label: 'Déposé' }
   if (ev.no_campaign) return { tone: 'off', label: '—' }
-  if (ev.until < today) return { tone: 'off', label: 'Non déposé' }
+  if (ev.launched_at || ev.until < today) return { tone: 'off', label: 'Non déposé' }
   const d = diffDays(today, ev.creas_deadline)
   if (d < 0) return { tone: 'late', label: `Retard ${-d} j` }
   if (d === 0) return { tone: 'warn', label: 'Aujourd’hui' }
@@ -34,7 +35,7 @@ export function guidePdfStatus(ev: AdsEventRow, today: string): Status {
 export function adsStatus(ev: AdsEventRow, today: string): Status {
   if (ev.launched_at) return { tone: 'done', label: 'En ligne' }
   if (ev.no_campaign) return { tone: 'off', label: 'Pas de campagne' }
-  if (ev.day < today) return { tone: 'off', label: 'Non lancée' }
+  if (ev.until < today) return { tone: 'off', label: 'Non lancée' }
   const d = diffDays(today, ev.campaign_start)
   if (d < 0) return { tone: 'late', label: `Retard ${-d} j` }
   if (d === 0) return { tone: 'warn', label: 'À lancer aujourd’hui' }

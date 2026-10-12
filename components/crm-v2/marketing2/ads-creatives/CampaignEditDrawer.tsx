@@ -166,7 +166,7 @@ export default function CampaignEditDrawer({
         </div>
         {area('accroche', isGuide ? 'Accroche pub' : 'Accroche / angle')}
         {area('direction_crea', 'Direction créa (consignes pour les créatifs)')}
-        {isGuide && area('format_contenu', 'Format et contenu')}
+        {area('format_contenu', isGuide ? 'Format et contenu' : 'Formats à produire')}
         <div style={grid2}>
           {isGuide ? text('linked_webinars', 'Webinaires liés') : text('intervenant', 'Intervenant')}
           {text('cta', isGuide ? 'Après le téléchargement' : 'CTA post-événement')}
