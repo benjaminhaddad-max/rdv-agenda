@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createServiceClient } from '@/lib/supabase'
-import { getApiUserContext } from '@/lib/api-auth'
+import { CREATIF_ROLE, getApiUserContextAnyRole } from '@/lib/api-auth'
 import { createEventsClient } from '@/lib/events-studio/client'
 import { eventTypeOf } from '@/lib/events-studio/config'
 import {
@@ -57,9 +57,10 @@ export async function resolveAdsAccess(
     if (settings?.share_token && token === settings.share_token) return { ok: true, crm: false, db }
     return { ok: false, status: 403, error: 'Lien invalide' }
   }
-  const ctx = await getApiUserContext()
+  const ctx = await getApiUserContextAnyRole()
   if (!ctx) return { ok: false, status: 401, error: 'Unauthorized' }
-  return { ok: true, crm: true, db }
+  // Compte créatif : mêmes droits que le lien partagé (pas de réglages ni brief).
+  return { ok: true, crm: ctx.role !== CREATIF_ROLE, db }
 }
 
 type EventsDbRow = {

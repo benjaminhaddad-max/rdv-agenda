@@ -111,6 +111,15 @@ export async function middleware(request: NextRequest) {
     return redirectByRole(dbUser, request)
   }
 
+  // Compte créatif : uniquement /creas (page Créas Ads)
+  if (dbUser.role === 'creatif') {
+    if (pathname === '/creas' || pathname.startsWith('/creas/')) return response
+    return redirectByRole(dbUser, request)
+  }
+  if (pathname === '/creas' || pathname.startsWith('/creas/')) {
+    if (dbUser.role !== 'admin') return redirectByRole(dbUser, request)
+  }
+
   // /admin → admin only, sauf les fiches partagées contact / transaction
   // (closer/telepro doivent pouvoir les ouvrir depuis la recherche globale,
   // leur journal de repop, etc. — pour traiter un lead même non attribué).
@@ -190,6 +199,9 @@ function redirectByRole(
   }
   if (dbUser.role === 'telepro') {
     return NextResponse.redirect(new URL('/telepro', request.url))
+  }
+  if (dbUser.role === 'creatif') {
+    return NextResponse.redirect(new URL('/creas', request.url))
   }
   return NextResponse.redirect(new URL('/login', request.url))
 }

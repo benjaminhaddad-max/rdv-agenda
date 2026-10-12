@@ -1,9 +1,7 @@
-import { cookies } from 'next/headers'
-import { createServerSupabase } from '@/lib/supabase'
-import { claimsGetter, getAuthUserIdResilient } from '@/lib/auth-resilient'
+import { getApiUserContext } from '@/lib/api-auth'
 
+/** Utilisateur CRM (rdv_users, hors compte créatif) → son auth id. */
 export async function requireCrmUserId(): Promise<string | null> {
-  const auth = await createServerSupabase()
-  const cookieStore = await cookies()
-  return getAuthUserIdResilient(claimsGetter(auth), cookieStore)
+  const ctx = await getApiUserContext()
+  return ctx?.authUserId ?? null
 }

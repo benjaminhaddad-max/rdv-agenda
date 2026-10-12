@@ -56,7 +56,20 @@ async function loadDbUser(authUserId: string): Promise<DbUserRow | null> {
   return row
 }
 
+/**
+ * Rôle « creatif » : compte des créatifs, limité à la page Créas Ads.
+ * getApiUserContext() le refuse (→ 401 sur toutes les routes CRM) ;
+ * seules les routes Créas Ads l'acceptent via getApiUserContextAnyRole().
+ */
+export const CREATIF_ROLE = 'creatif'
+
 export async function getApiUserContext(): Promise<ApiUserContext | null> {
+  const ctx = await getApiUserContextAnyRole()
+  if (!ctx || ctx.role === CREATIF_ROLE) return null
+  return ctx
+}
+
+export async function getApiUserContextAnyRole(): Promise<ApiUserContext | null> {
   const auth = await createServerSupabase()
   const { cookies } = await import('next/headers')
   const cookieStore = await cookies()
