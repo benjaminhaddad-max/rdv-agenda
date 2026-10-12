@@ -12,7 +12,8 @@
  *   Cible, Géo, Funnel, Allumage, Extinction, Livraison créa, Référence Diploma, CPL réf.,
  *   CPL cible, Budget cible, Leads attendus, Logique budget, Intervenant, CTA, Pourquoi, Points à vérifier, Statut).
  * - Relançable : une ligne = (marque, N°). Une relance met à jour le brief et les dates,
- *   sans toucher aux dépôts de créas, à la coche « en ligne » ni au rattachement à l'événement.
+ *   sans toucher au titre (renommé dans le CRM), aux dépôts de créas, à la coche « en ligne »
+ *   ni au rattachement à l'événement.
  * - Les dates d'allumage / livraison ne sont stockées que si elles diffèrent de la règle de
  *   la marque (ads_brand_settings) : sinon elles suivent les délais réglés.
  * - La colonne Extinction du fichier est ignorée : l'extinction suit la règle de la marque
@@ -199,7 +200,10 @@ let updated = 0
 for (const l of lines) {
   const id = byKey.get(l.import_key)
   if (id) {
-    const { error: e } = await db.from('ads_campaigns').update({ ...l, updated_at: new Date().toISOString() }).eq('id', id)
+    // Le titre n'est fixé qu'à la création : il peut être renommé dans le CRM
+    const fields = { ...l }
+    delete fields.title
+    const { error: e } = await db.from('ads_campaigns').update({ ...fields, updated_at: new Date().toISOString() }).eq('id', id)
     if (e) throw e
     updated++
   } else {

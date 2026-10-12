@@ -10,7 +10,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
-import { AlertTriangle, BookOpen, ChevronRight, Copy, Plus, Presentation, RefreshCw, Settings2 } from 'lucide-react'
+import { AlertTriangle, BookOpen, ChevronRight, Copy, LayoutList, Plus, Presentation, RefreshCw, Settings2 } from 'lucide-react'
 import {
   CrmV2Body, CrmV2Button, CrmV2Card, CrmV2Empty, CrmV2Field, CrmV2Header, CrmV2Input,
   CrmV2Page, CrmV2Segmented, CrmV2Spinner, CrmV2Table, CrmV2TableCard, CrmV2Tabs, CrmV2Td, CrmV2Th, CrmV2Toggle, CrmV2Tr,
@@ -20,7 +20,6 @@ import { useIsMobile } from '@/lib/useIsMobile'
 import { BRAND_CONFIG } from '@/lib/events-studio/config'
 import {
   ADS_BRANDS, DEFAULT_DELAYS, diffDays, formatEuros, parisDay,
-  CAMPAIGN_KINDS,
   type AdsBrand, type AdsCreativesSettings, type AdsEventRow, type BrandDelays, type CampaignKind, type CreativeItem, type CreativeRole, type FolderFile,
 } from '@/lib/ads-creatives'
 import CampaignDrawer, { StatusBadge } from './CampaignDrawer'
@@ -33,6 +32,10 @@ type Settings = AdsCreativesSettings & { share_token?: string; share_url?: strin
 const NAME_KEY = 'ads-creatives-author'
 const BRAND_KEY = 'ads-creatives-brand'
 const KIND_KEY = 'ads-creatives-kind'
+
+type View = CampaignKind | 'all'
+const VIEWS: View[] = ['all', 'event', 'guide']
+const VIEW_LABELS: Record<View, string> = { all: 'Tout', event: 'Webinaires & JPO', guide: 'Guides' }
 
 function readLocal(key: string): string {
   try { return localStorage.getItem(key) || '' } catch { return '' }
@@ -57,7 +60,8 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
   const [toast, setToast] = useState<string | null>(null)
   const [brand, setBrand] = useState<AdsBrand>('diploma')
   const [tab, setTab] = useState<'upcoming' | 'past'>('upcoming')
-  const [kind, setKind] = useState<CampaignKind>('event')
+  // Vue : tout, webinaires & JPO, ou guides
+  const [kind, setKind] = useState<View>('event')
   const [showSettings, setShowSettings] = useState(false)
   const [editing, setEditing] = useState<AdsEventRow | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
@@ -68,7 +72,8 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
     setAuthor(readLocal(NAME_KEY))
     const b = readLocal(BRAND_KEY)
     if ((ADS_BRANDS as string[]).includes(b)) setBrand(b as AdsBrand)
-    if (readLocal(KIND_KEY) === 'guide') setKind('guide')
+    const k = readLocal(KIND_KEY)
+    if (k === 'guide' || k === 'all') setKind(k)
   }, [])
 
   const qs = token ? `?token=${encodeURIComponent(token)}` : ''
@@ -107,7 +112,7 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
     writeLocal(BRAND_KEY, b)
   }
 
-  const pickKind = (k: CampaignKind) => {
+  const pickKind = (k: View) => {
     setKind(k)
     writeLocal(KIND_KEY, k)
   }
@@ -118,8 +123,9 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
     return out
   }, [events])
   const brandEvents = byBrand[brand]
-  const kindCount = (k: CampaignKind) => brandEvents.filter((e) => e.kind === k && e.until >= today).length
-  const kindEvents = useMemo(() => brandEvents.filter((e) => e.kind === kind), [brandEvents, kind])
+  const inView = (e: AdsEventRow, v: View) => v === 'all' || e.kind === v
+  const kindCount = (k: View) => brandEvents.filter((e) => inView(e, k) && e.until >= today).length
+  const kindEvents = useMemo(() => brandEvents.filter((e) => kind === 'all' || e.kind === kind), [brandEvents, kind])
   // Un guide reste « à venir » tant qu'il est diffusé
   const upcoming = useMemo(() => kindEvents.filter((e) => e.until >= today), [kindEvents, today])
   const past = useMemo(() => [...kindEvents.filter((e) => e.until < today)].reverse(), [kindEvents, today])
@@ -193,7 +199,7 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
     const r = await fetch('/api/ads-creatives/campaigns', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ brand, kind, title: title.trim(), event_date }),
+      body: JSON.stringify({ brand, kind: kind === 'guide' ? 'guide' : 'event', title: title.trim(), event_date }),
     })
     const json = await r.json().catch(() => ({}))
     if (!r.ok) return flash(json.error || 'Erreur')
@@ -210,7 +216,9 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
     <CrmV2Page>
       <CrmV2Header
         title="Créas Ads"
-        subtitle={kind === 'guide'
+        subtitle={kind === 'all'
+          ? 'Webinaires, JPO et guides · toutes les campagnes de la marque'
+          : kind === 'guide'
           ? `Guides téléchargeables · guide + créas livrés ${dl.guide_creas_days} j avant le début de diffusion`
           : `JPO et webinaires · créas ${dl.creas_days} j avant l’allumage · allumage J-${dl.launch_days} · extinction ${dl.end_days ? `J+${dl.end_days}` : 'le jour de l’événement'}`}
         actions={
@@ -240,7 +248,7 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
           items={ADS_BRANDS.map((b) => ({
             id: b,
             label: BRAND_CONFIG[b].name,
-            count: byBrand[b].filter((e) => e.kind === kind && e.until >= today).length,
+            count: byBrand[b].filter((e) => (kind === 'all' || e.kind === kind) && e.until >= today).length,
           }))}
           value={brand}
           onChange={(k: string) => pickBrand(k as AdsBrand)}
@@ -262,22 +270,22 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
         {error && <div style={errorBanner}><AlertTriangle size={16} /> {error}</div>}
 
         {/* Deux plannings séparés : événements et guides (deadlines différentes) */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12, marginBottom: 16, maxWidth: 640 }}>
-          {CAMPAIGN_KINDS.map((k) => {
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, minmax(0, 1fr))', gap: 12, marginBottom: 16, maxWidth: 940 }}>
+          {VIEWS.map((k) => {
             const active = k === kind
-            const late = brandEvents.filter((e) => e.kind === k && e.until >= today && !e.no_campaign
+            const late = brandEvents.filter((e) => inView(e, k) && e.until >= today && !e.no_campaign
               && (['static', 'video'] as const).some((r) => !e.items.some((i) => i.role === r)) && e.creas_deadline < today).length
             return (
               <button key={k} type="button" onClick={() => pickKind(k)} style={{ ...kindCard, ...(active ? kindCardActive : {}) }}>
                 <span style={{ ...kindIcon, ...(active ? { background: crmV2.goldGradient, color: '#fff' } : {}) }}>
-                  {k === 'guide' ? <BookOpen size={18} /> : <Presentation size={18} />}
+                  {k === 'guide' ? <BookOpen size={18} /> : k === 'all' ? <LayoutList size={18} /> : <Presentation size={18} />}
                 </span>
                 <span style={{ textAlign: 'left', minWidth: 0 }}>
                   <span style={{ display: 'block', fontSize: 15, fontWeight: 800, color: crmV2.text }}>
-                    {k === 'guide' ? 'Guides' : 'Webinaires & JPO'}
+                    {VIEW_LABELS[k]}
                   </span>
                   <span style={{ display: 'block', fontSize: 12, color: crmV2.textMuted, marginTop: 2 }}>
-                    {kindCount(k)} {k === 'guide' ? 'en cours ou à venir' : 'à venir'}
+                    {kindCount(k)} {k === 'event' ? 'à venir' : 'en cours ou à venir'}
                     {late > 0 && <span style={{ color: TONES.late.color, fontWeight: 700 }}> · {late} en retard</span>}
                   </span>
                 </span>
@@ -353,7 +361,7 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
                   <CrmV2Th>{isGuide ? 'Guide' : 'Campagne'}</CrmV2Th>
                   <CrmV2Th style={{ width: 150 }}>Créas statiques</CrmV2Th>
                   <CrmV2Th style={{ width: 150 }}>Créas vidéo</CrmV2Th>
-                  <CrmV2Th style={{ width: isGuide ? 130 : 100 }}>{isGuide ? 'Diffusion' : 'Allumage'}</CrmV2Th>
+                  <CrmV2Th style={{ width: kind === 'event' ? 100 : 130 }}>{isGuide ? 'Diffusion' : kind === 'all' ? 'Allumage / diffusion' : 'Allumage'}</CrmV2Th>
                   <CrmV2Th style={{ width: 160 }}>Ads Manager</CrmV2Th>
                 </tr>
               </thead>
@@ -383,7 +391,14 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
                             <div style={{ display: 'flex', gap: 10, alignItems: 'center', minWidth: 0 }}>
                               <span style={{ width: 4, alignSelf: 'stretch', borderRadius: 2, background: ev.pilier ? pc.color : crmV2.border, flexShrink: 0 }} />
                               <div style={{ minWidth: 0 }}>
-                                <div style={rowTitle}>{ev.name}</div>
+                                <div style={{ display: 'flex', gap: 8, alignItems: 'center', minWidth: 0 }}>
+                                  {kind === 'all' && (
+                                    <span style={{ ...kindPill, ...(ev.kind === 'guide' ? kindPillGuide : {}) }}>
+                                      {ev.kind === 'guide' ? 'Guide' : ev.event_type === 'jpo' ? 'JPO' : 'Webinaire'}
+                                    </span>
+                                  )}
+                                  <div style={rowTitle}>{ev.name}</div>
+                                </div>
                                 {sub && <div style={rowSub}>{sub}</div>}
                               </div>
                             </div>
@@ -575,6 +590,11 @@ const kindIcon: CSSProperties = {
   width: 38, height: 38, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   background: crmV2.bgMuted, color: crmV2.textMuted,
 }
+const kindPill: CSSProperties = {
+  fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', padding: '1px 7px',
+  borderRadius: crmV2.radiusPill, color: '#0369a1', background: '#e0f2fe', flexShrink: 0,
+}
+const kindPillGuide: CSSProperties = { color: crmV2.goldDark, background: crmV2.goldSoft }
 const monthCell: CSSProperties = {
   padding: '14px 14px 6px', fontSize: 13, background: crmV2.bgHover, borderBottom: `1px solid ${crmV2.border}`,
 }
