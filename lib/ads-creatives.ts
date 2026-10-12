@@ -102,13 +102,15 @@ export function reminderText(opts: {
   if (daysLeft > 3 || opts.today >= opts.campaignStart) return null
   const hello = opts.ownerName ? `Hello ${opts.ownerName.split(' ')[0]}, ` : ''
   const what = opts.role === 'static' ? 'les créas statiques' : 'les créas vidéo'
-  const ev = `${opts.eventName} (${frDay(opts.eventDay)}${opts.location ? `, ${opts.location}` : ''})`
+  // SMS court (lieu retiré, nom tronqué) pour tenir en un seul SMS autant que possible.
+  const name = opts.eventName.length > 40 ? `${opts.eventName.slice(0, 39).trim()}…` : opts.eventName
+  const ev = `${name} (${frDay(opts.eventDay)})`
   let when: string
   if (daysLeft > 1) when = `il te reste ${daysLeft} jours pour déposer ${what}`
   else if (daysLeft === 1) when = `il te reste 1 jour pour déposer ${what}`
-  else if (daysLeft === 0) when = `c'est aujourd'hui la deadline pour déposer ${what}`
-  else when = `${what} sont en retard de ${-daysLeft} jour${daysLeft < -1 ? 's' : ''}`
-  return `${hello}${when} — ${ev}. Lancement campagne le ${frDay(opts.campaignStart)}. Dépose-les ici : ${opts.link}`
+  else if (daysLeft === 0) when = `deadline aujourd'hui pour ${what}`
+  else when = `${what} sont en retard de ${-daysLeft} j`
+  return `${hello}${when} - ${ev}. Lien : ${opts.link}`
 }
 
 export function frDay(day: string): string {

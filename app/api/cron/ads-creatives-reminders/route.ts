@@ -66,7 +66,7 @@ export async function GET(req: NextRequest) {
           sent.push({ event: ev.name, role, days_left: daysLeft, ok: false, text, error: 'pas de numéro' })
           continue
         }
-        const res = await sendSms(phone, text, { sender: 'Diploma' })
+        const res = await sendSms(phone, text, { autoShorten: true })
         await db.from('event_ad_creative_reminders').upsert(
           { event_id: ev.id, role, sent_on: today, days_left: daysLeft, phone, ok: res.ok, error: res.error || null },
           { onConflict: 'event_id,role,sent_on' },
