@@ -18,7 +18,7 @@ import { presetRange, type GoogleDatePreset } from '@/lib/google-ads'
 
 function cacheKey(accountId: string, level: string, datePreset: string, since?: string, until?: string): string {
   // v2 : ajout de new_leads (les entrées en cache antérieures ne l'ont pas)
-  const raw = `v2|${accountId}|${level}|${datePreset}|${since || ''}|${until || ''}`
+  const raw = `v3|${accountId}|${level}|${datePreset}|${since || ''}|${until || ''}`
   return createHash('sha256').update(raw).digest('hex').slice(0, 32)
 }
 
@@ -143,8 +143,9 @@ export async function GET(req: NextRequest) {
       spend: acc.spend + i.spend,
       leads: acc.leads + (i.leads || 0),
       new_leads: acc.new_leads + (i.new_leads || 0),
+      platform_leads: acc.platform_leads + (i.platform_leads || 0),
     }),
-    { impressions: 0, clicks: 0, spend: 0, leads: 0, new_leads: 0 },
+    { impressions: 0, clicks: 0, spend: 0, leads: 0, new_leads: 0, platform_leads: 0 },
   )
   const totalCtr = totals.impressions > 0 ? Number(((totals.clicks / totals.impressions) * 100).toFixed(2)) : 0
   const totalCpl = totals.leads > 0 ? Number((totals.spend / totals.leads).toFixed(2)) : 0

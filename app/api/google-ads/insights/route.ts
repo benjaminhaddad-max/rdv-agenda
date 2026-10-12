@@ -36,7 +36,7 @@ const CACHE_TTL_MS = 30 * 60_000
 
 type ResponseData = {
   insights: GoogleCampaignInsight[]
-  totals: { impressions: number; clicks: number; spend: number; leads: number; new_leads: number; unattributed_leads: number; shared_device_excluded: number; ctr: number; cpc: number; cpl: number }
+  totals: { impressions: number; clicks: number; spend: number; leads: number; new_leads: number; platform_leads: number; unattributed_leads: number; shared_device_excluded: number; ctr: number; cpc: number; cpl: number }
   currency: string
   account_name: string
   customer_id: string
@@ -76,7 +76,7 @@ export async function GET(req: NextRequest) {
   }
 
   const customerId = googleAdsCustomerId()
-  const key = datePreset === 'custom' ? `${customerId}|custom|${since}|${until}` : `${customerId}|${datePreset}`
+  const key = datePreset === 'custom' ? `v2|${customerId}|custom|${since}|${until}` : `v2|${customerId}|${datePreset}`
   const hit = cache.get(key)
   if (!force && hit && Date.now() - new Date(hit.fetched_at).getTime() < CACHE_TTL_MS) {
     return NextResponse.json({ ...hit, cached: true })
@@ -237,8 +237,11 @@ export async function GET(req: NextRequest) {
 
   // 3. Totaux (les leads sans campagne comptent dans le total et le CPL global)
   const sum = insights.reduce(
-    (acc, i) => ({ impressions: acc.impressions + i.impressions, clicks: acc.clicks + i.clicks, spend: acc.spend + i.spend, leads: acc.leads + i.leads }),
-    { impressions: 0, clicks: 0, spend: 0, leads: 0 },
+    (acc, i) => ({
+      impressions: acc.impressions + i.impressions, clicks: acc.clicks + i.clicks, spend: acc.spend + i.spend,
+      leads: acc.leads + i.leads, platform_leads: acc.platform_leads + (i.platform_leads || 0),
+    }),
+    { impressions: 0, clicks: 0, spend: 0, leads: 0, platform_leads: 0 },
   )
   const leads = sum.leads + unattributed.size
   const newLeads = insights.reduce((n, i) => n + i.new_leads, 0) + countNew(unattributed)
@@ -251,6 +254,7 @@ export async function GET(req: NextRequest) {
       spend: Number(sum.spend.toFixed(2)),
       leads,
       new_leads: newLeads,
+      platform_leads: sum.platform_leads,
       unattributed_leads: unattributed.size,
       shared_device_excluded: sharedDeviceExcluded,
       ctr: sum.impressions > 0 ? Number(((sum.clicks / sum.impressions) * 100).toFixed(2)) : 0,

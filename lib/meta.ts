@@ -157,6 +157,7 @@ export interface MetaAdInsight {
   cpm: number                // coût pour mille impressions
   reach?: number
   frequency?: number
+  platform_leads?: number    // leads déclarés par Meta (action « lead »), dispo sur tout l'historique
   // Lead-specific (calculé après en mergeant avec meta_lead_events)
   leads?: number
   new_leads?: number         // leads dont le contact a été créé par ce lead (absent du CRM avant)
@@ -166,7 +167,7 @@ export interface MetaAdInsight {
 
 const INSIGHT_FIELDS = [
   'impressions', 'clicks', 'spend', 'ctr', 'cpc', 'cpm', 'reach', 'frequency',
-  'campaign_id', 'campaign_name', 'adset_id', 'adset_name', 'ad_id', 'ad_name',
+  'campaign_id', 'campaign_name', 'adset_id', 'adset_name', 'ad_id', 'ad_name', 'actions',
 ].join(',')
 
 /**
@@ -199,7 +200,7 @@ export async function fetchAdInsights(
   const res = await fetch(url)
   if (!res.ok) throw new Error(`Meta insights: HTTP ${res.status} ${await res.text()}`)
   const j = await res.json()
-  const rows = (j.data ?? []) as Array<Record<string, string>>
+  const rows = (j.data ?? []) as Array<Record<string, string> & { actions?: Array<{ action_type: string; value: string }> }>
   return rows.map(r => ({
     level,
     account_id: accountId,
@@ -217,6 +218,7 @@ export async function fetchAdInsights(
     cpm: Number(r.cpm || 0),
     reach: r.reach ? Number(r.reach) : undefined,
     frequency: r.frequency ? Number(r.frequency) : undefined,
+    platform_leads: Number(r.actions?.find(a => a.action_type === 'lead')?.value || 0),
   }))
 }
 

@@ -44,7 +44,7 @@ type Insight = {
 
 type InsightsResponse = {
   insights: Insight[]
-  totals: { impressions: number; clicks: number; spend: number; leads: number; ctr: number; cpc: number; cpl: number }
+  totals: { impressions: number; clicks: number; spend: number; leads: number; platform_leads?: number; ctr: number; cpc: number; cpl: number }
   currency: string
   account_name: string
   level: string
@@ -460,7 +460,7 @@ type GoogleInsight = {
 
 type GoogleInsightsResponse = {
   insights: GoogleInsight[]
-  totals: { impressions: number; clicks: number; spend: number; leads: number; unattributed_leads: number; shared_device_excluded: number; ctr: number; cpc: number; cpl: number }
+  totals: { impressions: number; clicks: number; spend: number; leads: number; platform_leads?: number; unattributed_leads: number; shared_device_excluded: number; ctr: number; cpc: number; cpl: number }
   currency: string
   account_name: string
   cached: boolean
@@ -693,7 +693,8 @@ function ShowMoreToggle({ total, expanded, onToggle }: { total: number; expanded
 
 // ─── Overview + comparatifs ────────────────────────────────────────────────
 
-type Totals = { spend: number; leads: number; clicks: number; impressions: number }
+// leads = leads CRM ; platform_leads = leads déclarés par Meta / Google (seuls dispo avant avril 2026)
+type Totals = { spend: number; leads: number; platform_leads?: number; clicks: number; impressions: number }
 type DayRange = { since: string; until: string }
 // undefined = en chargement, null = indisponible
 type CmpValue = Totals | null | undefined
@@ -767,7 +768,7 @@ async function fetchTotals(url: string): Promise<Totals | null> {
     const j = await res.json()
     if (!res.ok || !j.totals) return null
     const t = j.totals
-    return { spend: t.spend || 0, leads: t.leads || 0, clicks: t.clicks || 0, impressions: t.impressions || 0 }
+    return { spend: t.spend || 0, leads: t.leads || 0, platform_leads: t.platform_leads, clicks: t.clicks || 0, impressions: t.impressions || 0 }
   } catch {
     return null
   }
@@ -779,6 +780,10 @@ function sumTotals(a?: Totals | null, b?: Totals | null): Totals | null {
   return {
     spend: (a?.spend || 0) + (b?.spend || 0),
     leads: (a?.leads || 0) + (b?.leads || 0),
+    // Absent d'un côté (ancienne réponse en cache) → pas de comparatif plutôt qu'un total faux
+    platform_leads: (a && a.platform_leads === undefined) || (b && b.platform_leads === undefined)
+      ? undefined
+      : (a?.platform_leads || 0) + (b?.platform_leads || 0),
     clicks: (a?.clicks || 0) + (b?.clicks || 0),
     impressions: (a?.impressions || 0) + (b?.impressions || 0),
   }
@@ -847,12 +852,22 @@ function AdsOverview({ title, icon, note, current, prev, yoy, ranges, currency, 
   const loadedYoy = ranges ? yoy : null
   const pick = <T,>(t: Totals | null | undefined, f: (t: Totals) => T): T | null | undefined => (t === undefined ? undefined : t === null ? null : f(t))
 
-  // Leads CRM suivis seulement depuis avril-mai 2026 : dépenses sans aucun lead = période non suivie
-  const untracked = (t: CmpValue) => !!t && t.leads === 0 && t.spend > 0
-  const stats: Array<{ label: string; leadBased?: boolean; value: string; cur: number | null; prev: number | null | undefined; yoy: number | null | undefined; good: 'up' | 'down' | 'neutral'; fmt: (n: number) => string }> = [
+  // Leads CRM suivis seulement depuis avril 2026 : les comparatifs leads / CPL se font sur les
+  // leads déclarés par Meta / Google, des deux côtés, pour rester comparables
+  const pl = (t: Totals) => (t.platform_leads === undefined ? null : t.platform_leads)
+  const plCpl = (t: Totals) => (t.platform_leads ? t.spend / t.platform_leads : null)
+  const stats: Array<{ label: string; detail?: string; value: string; cur: number | null; prev: number | null | undefined; yoy: number | null | undefined; good: 'up' | 'down' | 'neutral'; fmt: (n: number) => string }> = [
     { label: 'Dépenses', value: cur(current.spend), cur: current.spend, prev: pick(loadedPrev, t => t.spend), yoy: pick(loadedYoy, t => t.spend), good: 'neutral', fmt: cur },
-    { label: 'Leads', leadBased: true, value: fmtNumber(current.leads), cur: current.leads, prev: pick(loadedPrev, t => t.leads), yoy: pick(loadedYoy, t => t.leads), good: 'up', fmt: fmtNumber },
-    { label: 'CPL moyen', leadBased: true, value: cplOf(current) !== null ? cur(cplOf(current)!) : '—', cur: cplOf(current), prev: pick(loadedPrev, cplOf), yoy: pick(loadedYoy, cplOf), good: 'down', fmt: cur },
+    {
+      label: 'Leads', value: fmtNumber(current.leads),
+      detail: current.platform_leads !== undefined ? `${fmtNumber(current.platform_leads)} déclarés par la plateforme` : undefined,
+      cur: pl(current), prev: pick(loadedPrev, pl), yoy: pick(loadedYoy, pl), good: 'up', fmt: fmtNumber,
+    },
+    {
+      label: 'CPL moyen', value: cplOf(current) !== null ? cur(cplOf(current)!) : '—',
+      detail: plCpl(current) !== null ? `${cur(plCpl(current)!)} selon la plateforme` : undefined,
+      cur: plCpl(current), prev: pick(loadedPrev, plCpl), yoy: pick(loadedYoy, plCpl), good: 'down', fmt: cur,
+    },
     { label: 'CTR', value: ctrOf(current) !== null ? pct(ctrOf(current)!) : '—', cur: ctrOf(current), prev: pick(loadedPrev, ctrOf), yoy: pick(loadedYoy, ctrOf), good: 'up', fmt: pct },
   ]
 
@@ -881,20 +896,19 @@ function AdsOverview({ title, icon, note, current, prev, yoy, ranges, currency, 
             }}>
               {st.value}
             </div>
+            {st.detail && <div style={{ fontSize: 12, color: crmV2.textFaint, marginTop: 3 }}>{st.detail}</div>}
             {ranges && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 10 }}>
                 <DeltaLine
                   label="vs période préc."
                   cur={st.cur} prev={st.prev} good={st.good}
-                  title={`Période précédente (${fmtDayRange(ranges.prev)})`}
-                  emptyText={st.leadBased && untracked(loadedPrev) ? 'non suivi' : undefined}
+                  title={`Période précédente (${fmtDayRange(ranges.prev)})${st.detail ? ' — leads déclarés par Meta / Google' : ''}`}
                   prevLabel={st.prev === undefined ? 'chargement…' : st.prev === null ? 'indisponible' : st.fmt(st.prev)}
                 />
                 <DeltaLine
                   label="vs N-1"
                   cur={st.cur} prev={st.yoy} good={st.good}
-                  title={`Même période N-1 (${fmtDayRange(ranges.yoy)})`}
-                  emptyText={st.leadBased && untracked(loadedYoy) ? 'non suivi' : undefined}
+                  title={`Même période N-1 (${fmtDayRange(ranges.yoy)})${st.detail ? ' — leads déclarés par Meta / Google' : ''}`}
                   prevLabel={st.yoy === undefined ? 'chargement…' : st.yoy === null ? 'indisponible' : st.fmt(st.yoy)}
                 />
               </div>

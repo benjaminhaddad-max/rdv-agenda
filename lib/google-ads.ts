@@ -155,6 +155,7 @@ export type GoogleCampaignInsight = {
   ctr: number
   cpc: number
   leads?: number
+  platform_leads?: number // conversions déclarées par Google Ads, dispo sur tout l'historique
   new_leads?: number // leads dont le contact a été créé par cette soumission (absent du CRM avant)
   cpl?: number
 }
@@ -169,7 +170,7 @@ export async function fetchGoogleCampaignInsights(range: { since: string; until:
   const [rows, accountRows] = await Promise.all([
     googleAdsSearch(`
       SELECT campaign.id, campaign.name, campaign.status, campaign.advertising_channel_type,
-             metrics.impressions, metrics.clicks, metrics.cost_micros
+             metrics.impressions, metrics.clicks, metrics.cost_micros, metrics.conversions
       FROM campaign
       WHERE ${where}
     `),
@@ -186,11 +187,12 @@ export async function fetchGoogleCampaignInsights(range: { since: string; until:
       campaign_name: r.campaign?.name ?? '',
       status: r.campaign?.status ?? '',
       channel: r.campaign?.advertisingChannelType ?? '',
-      impressions: 0, clicks: 0, spend: 0, ctr: 0, cpc: 0,
+      impressions: 0, clicks: 0, spend: 0, ctr: 0, cpc: 0, platform_leads: 0,
     }
     cur.impressions += Number(r.metrics?.impressions ?? 0)
     cur.clicks += Number(r.metrics?.clicks ?? 0)
     cur.spend += Number(r.metrics?.costMicros ?? 0) / 1_000_000
+    cur.platform_leads = (cur.platform_leads ?? 0) + Number(r.metrics?.conversions ?? 0)
     byId.set(id, cur)
   }
 
@@ -199,6 +201,7 @@ export async function fetchGoogleCampaignInsights(range: { since: string; until:
     .map(c => ({
       ...c,
       spend: Number(c.spend.toFixed(2)),
+      platform_leads: Math.round(c.platform_leads ?? 0),
       ctr: c.impressions > 0 ? Number(((c.clicks / c.impressions) * 100).toFixed(2)) : 0,
       cpc: c.clicks > 0 ? Number((c.spend / c.clicks).toFixed(2)) : 0,
     }))
