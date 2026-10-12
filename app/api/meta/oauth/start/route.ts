@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireApiRole } from '@/lib/api-auth'
 import { buildOauthStartUrl, metaConfigured } from '@/lib/meta'
 
 /**
@@ -6,6 +7,9 @@ import { buildOauthStartUrl, metaConfigured } from '@/lib/meta'
  * Redirige l'utilisateur vers Facebook pour le flow OAuth.
  */
 export async function GET(req: NextRequest) {
+  const authz = await requireApiRole(['admin'])
+  if (!authz.ok) return authz.response
+
   if (!metaConfigured()) {
     return NextResponse.json({ error: 'META_APP_ID / META_APP_SECRET non configurés' }, { status: 500 })
   }

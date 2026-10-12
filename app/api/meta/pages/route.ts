@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireApiRole } from '@/lib/api-auth'
 import { createServiceClient } from '@/lib/supabase'
 import { fetchPageLeadForms, subscribePageToLeadgen } from '@/lib/meta'
 
@@ -11,6 +12,9 @@ import { fetchPageLeadForms, subscribePageToLeadgen } from '@/lib/meta'
  */
 
 export async function GET() {
+  const authz = await requireApiRole(['admin'])
+  if (!authz.ok) return authz.response
+
   const db = createServiceClient()
 
   // Pages
@@ -40,6 +44,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const authz = await requireApiRole(['admin'])
+  if (!authz.ok) return authz.response
+
   const db = createServiceClient()
   const { searchParams } = req.nextUrl
   const action = searchParams.get('action')
@@ -88,6 +95,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  const authz = await requireApiRole(['admin'])
+  if (!authz.ok) return authz.response
+
   const db = createServiceClient()
   let body: { page_id?: string; active?: boolean; form_id?: string; origine_label?: string; default_owner_id?: string; workflow_id?: string | null; field_mappings?: Record<string, { crm_field: string; value_map?: Record<string, string> }> | null }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'JSON invalide' }, { status: 400 }) }
@@ -113,6 +123,9 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const authz = await requireApiRole(['admin'])
+  if (!authz.ok) return authz.response
+
   const db = createServiceClient()
   const pageId = req.nextUrl.searchParams.get('page_id')
   if (!pageId) return NextResponse.json({ error: 'page_id manquant' }, { status: 400 })
