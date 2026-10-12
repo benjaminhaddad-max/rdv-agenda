@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
 import { format, addDays, startOfWeek, startOfToday, isBefore } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import {
-  ArrowRight, Ban, Briefcase, CalendarDays, Check, CheckCircle, ChevronLeft, ChevronRight, Clock, Copy,
+  ArrowRight, Ban, CalendarDays, Check, CheckCircle, ChevronLeft, ChevronRight, Clock, Copy,
   FileText, GraduationCap, Link, LifeBuoy, LogOut, Mail, MapPin, Phone, Plus, RefreshCw, Repeat2, RotateCcw, Save,
   Search, Tag, User, UserPlus, Video, X,
 } from 'lucide-react'
@@ -1499,7 +1499,6 @@ export default function CloserClient({ user }: { user: CloserUser }) {
       : activeTab === 'dispos' ? 'dispos'
       : 'plus'
     const plusItems: TpMenuItem[] = [
-      { key: 'leads', label: 'Mes transactions', icon: <Briefcase size={18} />, onClick: () => goTab('leads'), active: activeTab === 'leads' },
       { key: 'repop', label: 'Repop', icon: <Repeat2 size={18} />, onClick: () => goTab('repop'), active: activeTab === 'repop' },
       { key: 'support', label: 'Service technique', icon: <LifeBuoy size={18} />, href: '/support', badge: supportUnread },
       { key: 'logout', label: 'Déconnexion', icon: <LogOut size={18} />, onClick: () => { void logout() }, danger: true },
@@ -1546,7 +1545,6 @@ export default function CloserClient({ user }: { user: CloserUser }) {
     { id: 'planning', label: 'Mon planning' },
     { id: 'rdv', label: 'Nouveau RDV' },
     { id: 'contacts', label: 'Mes contacts', count: contactsTotal > 0 ? contactsTotal : undefined },
-    { id: 'leads', label: 'Mes transactions' },
     { id: 'repop', label: 'Repop' },
     { id: 'dispos', label: 'Mes dispos' },
   ]

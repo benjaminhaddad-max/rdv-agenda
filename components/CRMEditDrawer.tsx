@@ -1,10 +1,11 @@
 'use client'
 
+import LeadCycleControl from './LeadCycleControl'
 import { allInscriptionLeadStatuses } from '@/lib/inscription-status'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { X, Save, ExternalLink, Calendar, ChevronLeft, ChevronRight, Clock, Video, MapPin, CheckCircle, ChevronDown, Check, Pencil, User, Users, Tag, Briefcase } from 'lucide-react'
+import { X, Save, ExternalLink, Calendar, ChevronLeft, ChevronRight, Clock, Video, MapPin, CheckCircle, ChevronDown, Check, Pencil, User, Users, Tag } from 'lucide-react'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import {
   CrmV2Button, CrmV2Input, CrmV2SectionLabel, CrmV2Segmented, CrmV2Select, CrmV2StatusPill, CrmV2Textarea,
@@ -1217,12 +1218,13 @@ export default function CRMEditDrawer({ contact, closers, telepros, allUsers, hu
 
           {/* Section : Qualification */}
           <DrawerSection title="Qualification" icon={<Tag size={14} />}>
-            <SelectField
-              label="Statut du lead"
-              value={c.hs_lead_status || ''}
-              options={leadStatusOpts}
-              onSave={v => patchContact({ hs_lead_status: v })}
-            />
+            <div style={{ marginBottom: 12 }}>
+              <LeadCycleControl
+                contactId={c.hubspot_contact_id}
+                canManageProducts={isAdminUser}
+                onStatusChange={v => { setLocalContact(prev => prev ? { ...prev, hs_lead_status: v } : prev); onRefresh() }}
+              />
+            </div>
             {/* Date de création (read-only) */}
             <div style={{ marginBottom: 12 }}>
               <div style={fieldLabel}>Date de création</div>
@@ -1305,44 +1307,6 @@ export default function CRMEditDrawer({ contact, closers, telepros, allUsers, hu
             />
           </DrawerSection>
 
-          {/* Section : Transaction */}
-          {deal && (
-            <DrawerSection title="Transaction" icon={<Briefcase size={14} />}>
-              <SelectField
-                label="Phase de la transaction"
-                value={deal.dealstage || ''}
-                options={stageOptions}
-                onSave={v => patchDeal({ dealstage: v })}
-                colorMap={stageColorMap}
-              />
-              {deal.formation && (
-                <div style={{ marginBottom: 12 }}>
-                  <div style={fieldLabel}>Formation</div>
-                  <div style={{ ...readOnlyBox, color: crmV2.goldDark, fontWeight: 700 }}>{deal.formation}</div>
-                </div>
-              )}
-              {deal.closedate && (
-                <div style={{ marginBottom: 12 }}>
-                  <div style={fieldLabel}>Date RDV</div>
-                  <div style={readOnlyBox}>
-                    {new Date(deal.closedate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
-                  </div>
-                </div>
-              )}
-              <a
-                href={`/admin/crm/deals/${deal.hubspot_deal_id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 6, borderRadius: 999, padding: '7px 14px',
-                  border: `1px solid ${crmV2.borderStrong}`, background: crmV2.bg, color: crmV2.text,
-                  fontSize: 13, fontWeight: 600, textDecoration: 'none',
-                }}
-              >
-                <ExternalLink size={14} /> Ouvrir la fiche transaction
-              </a>
-            </DrawerSection>
-          )}
       </CrmV2ModalShell>
 
       {showLinovaModal && (

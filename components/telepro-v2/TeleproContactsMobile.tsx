@@ -8,7 +8,7 @@ import { FileText, Plus, Search, SlidersHorizontal, UserPlus, Users } from 'luci
 import { crmV2 } from '@/lib/crm-v2-theme'
 import { CrmV2Empty, CrmV2Spinner } from '@/components/crm-v2/primitives'
 import type { CRMContact } from '@/components/CRMContactsTable'
-import { getStageMeta } from '@/lib/crm-stages'
+import { leadStatusColor } from '@/lib/sales-cycles'
 import { formationLabel } from '@/lib/suivi-rdv'
 import { TpCallButton, TpMobileHeader, TpRoundButton } from './ui'
 
@@ -126,7 +126,7 @@ export default function TeleproContactsMobile({
             {contacts.map(c => {
               const name = [c.firstname, c.lastname].filter(Boolean).join(' ') || '(Sans nom)'
               const ini = name.split(/\s+/).filter(Boolean).slice(0, 2).map(p => p[0]?.toUpperCase() ?? '').join('') || '?'
-              const stage = c.deal?.dealstage ? getStageMeta(c.deal.dealstage) : undefined
+              const status = c.hs_lead_status || null
               const formation = c.formation_demandee || c.formation_souhaitee || c.deal?.formation
               return (
                 <div key={c.hubspot_contact_id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 12px', borderBottom: `1px solid ${crmV2.borderLight}` }}>
@@ -142,9 +142,9 @@ export default function TeleproContactsMobile({
                     <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
                       <span style={{ fontSize: 15, fontWeight: 700, color: crmV2.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</span>
                       <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: crmV2.textMuted, whiteSpace: 'nowrap', overflow: 'hidden' }}>
-                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: stage?.color ?? crmV2.borderStrong, flexShrink: 0 }} />
+                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: status ? leadStatusColor(status) : crmV2.borderStrong, flexShrink: 0 }} />
                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {stage?.label ?? 'Sans transaction'} · {formationLabel(formation)}
+                          {status ?? 'Sans statut'} · {formationLabel(formation)}
                         </span>
                       </span>
                       <span style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 11, color: crmV2.textFaint, whiteSpace: 'nowrap', overflow: 'hidden' }}>

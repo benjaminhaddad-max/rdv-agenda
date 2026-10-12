@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import {
-  Users, Briefcase, Mail, FileText, LayoutDashboard,
+  Users, Mail, FileText, LayoutDashboard,
   ChevronLeft, ChevronRight, ChevronDown, LogOut, Calendar, CalendarDays,
   BarChart3, CheckSquare, Workflow, Upload, GitMerge, Settings as SettingsIcon,
   Facebook, AlertTriangle, MessageSquare, Menu, X, List,
@@ -46,7 +46,6 @@ const NAV_SECTIONS: NavSection[] = [
       { key: 'crm-dashboard', label: 'Dashboard', href: '/admin/crm-v2/dashboard', icon: LayoutDashboard, ready: true },
       { key: 'agenda', label: 'Agenda', href: '/admin/crm-v2/agenda', icon: Calendar, ready: true },
       { key: 'contacts', label: 'Contacts', href: '/admin/crm-v2', icon: Users, ready: true },
-      { key: 'transactions', label: 'Transactions', href: '/admin/crm-v2/transactions', icon: Briefcase, ready: true },
       { key: 'tasks', label: 'Mes tâches', href: '/admin/crm-v2/tasks', icon: CheckSquare, ready: true },
       { key: 'lycees', label: 'Lycées', href: '/admin/crm-v2/lycees', icon: School, ready: true },
       { key: 'service-technique', label: 'Service technique', href: '/admin/crm-v2/service-technique', icon: LifeBuoy, badgeKey: 'support', ready: true },
@@ -115,7 +114,6 @@ const NAVY = {
 const MOBILE_TABS = [
   { key: 'contacts', label: 'Contacts', href: '/admin/crm-v2', icon: Users },
   { key: 'tasks', label: 'Tâches', href: '/admin/crm-v2/tasks', icon: CheckSquare },
-  { key: 'transactions', label: 'Deals', href: '/admin/crm-v2/transactions', icon: Briefcase },
   { key: 'agenda', label: 'Agenda', href: '/admin/crm-v2/agenda', icon: Calendar },
 ] as const
 

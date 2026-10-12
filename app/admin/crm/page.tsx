@@ -1,8 +1,9 @@
 'use client'
 
+import BulkNewCyclePanel from '@/components/BulkNewCyclePanel'
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import dynamic from 'next/dynamic'
-import { LayoutDashboard, X, ChevronDown, List, GraduationCap, SlidersHorizontal, Plus, Save, Check, Trash2, Copy, Pen, Download, Upload, AlertTriangle, BookOpen, Pencil, Layers, SquareCheck, ChevronRight } from 'lucide-react'
+import { LayoutDashboard, X, ChevronDown, List, RefreshCcw, SlidersHorizontal, Plus, Save, Check, Trash2, Copy, Pen, Download, Upload, AlertTriangle, BookOpen, Pencil, Layers, SquareCheck, ChevronRight } from 'lucide-react'
 import CRMContactsTable, { CRMContact, type ContactInlinePatch } from '@/components/CRMContactsTable'
 import LogoutButton from '@/components/LogoutButton'
 import { validateEmailDomain } from '@/lib/email-validation'
@@ -536,6 +537,7 @@ export default function CRMPage() {
   const [bulkAssigning, setBulkAssigning] = useState(false)
   const [bulkDeleting, setBulkDeleting] = useState(false)
   const [bulkPropOpen, setBulkPropOpen] = useState(false)
+  const [bulkCycleOpen, setBulkCycleOpen] = useState(false)
   const [bulkPropName, setBulkPropName] = useState('')
   const [bulkPropValue, setBulkPropValue] = useState('')
   const [bulkUpdating, setBulkUpdating] = useState(false)
@@ -2161,7 +2163,6 @@ export default function CRMPage() {
     : undefined
   const headerMenuItems: HeaderMenuItem[] = [
     ...(!isMobile ? [{ label: 'Journal Repop', icon: <BookOpen size={15} color={crmV2.gold} />, onClick: () => setShowRepop(true) }] : []),
-    { label: 'Transactions 2026-2027', icon: <GraduationCap size={15} color={crmV2.gold} />, href: '/admin/crm/transactions' },
     { label: 'Annuaire des vues', icon: <List size={15} color={crmV2.textMuted} />, onClick: () => setManageViewsOpen(true) },
     ...(isMobile ? [
       { label: 'Importer', icon: <Upload size={15} color={crmV2.textMuted} />, href: '/admin/crm/import' },
@@ -2253,6 +2254,15 @@ export default function CRMPage() {
           </CrmV2Button>
           <CrmV2Button
             size="sm"
+            icon={<RefreshCcw size={13} />}
+            onClick={() => setBulkCycleOpen(o => !o)}
+            disabled={selectingAllView || selectedIds.size === 0 || bulkUpdating}
+            style={bulkCycleOpen ? { background: crmV2.bgHover, borderColor: crmV2.link, color: crmV2.link } : undefined}
+          >
+            Nouveau cycle
+          </CrmV2Button>
+          <CrmV2Button
+            size="sm"
             variant="danger"
             icon={<Trash2 size={13} />}
             onClick={handleBulkDelete}
@@ -2314,6 +2324,15 @@ export default function CRMPage() {
             </>
           )}
         </div>
+      )}
+
+      {/* Nouveau cycle de vente en masse (ex. relance de rentrée) */}
+      {bulkCycleOpen && selectedIds.size > 0 && !selectingAllView && (
+        <BulkNewCyclePanel
+          contactIds={[...selectedIds]}
+          onCancel={() => setBulkCycleOpen(false)}
+          onDone={() => { setBulkCycleOpen(false); clearSelection(); void fetchContacts(true) }}
+        />
       )}
 
       {/* Édition d'une propriété en masse */}

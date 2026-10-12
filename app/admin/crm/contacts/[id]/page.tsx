@@ -7,7 +7,7 @@ import Link from 'next/link'
 import { format, formatDistanceToNow } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import {
-  ArrowDown, ArrowLeft, ArrowUp, CalendarPlus, Check, ChevronDown, ChevronRight, GripVertical, History, Mail, MapPin,
+  ArrowDown, ArrowLeft, ArrowUp, CalendarPlus, Check, ChevronDown, ChevronRight, Flag, GripVertical, History, Mail, MapPin,
   Phone, Plus, Search, SquareCheckBig, StickyNote, Trash2, User, X,
 } from 'lucide-react'
 import type { QuickActionType } from '@/components/crm/QuickActionModal'
@@ -18,14 +18,15 @@ import { usePageTitle } from '@/components/DocumentTitle'
 import { mergeCrmOrigineOptions } from '@/lib/origine-normalization'
 import { appEventLabel, type AppActivitySession } from '@/lib/app-activity'
 import { crmV2 } from '@/lib/crm-v2-theme'
-import { getStageMeta } from '@/lib/crm-stages'
+import { leadStatusColor } from '@/lib/sales-cycles'
+import LeadCycleControl from '@/components/LeadCycleControl'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { STATUS_CONFIG } from '@/components/StatusBadge'
-import { CrmV2Button, CrmV2Page, CrmV2Pill, CrmV2Section, CrmV2Segmented, CrmV2Spinner, CrmV2StatusPill } from '@/components/crm-v2/primitives'
+import { CrmV2Button, CrmV2Page, CrmV2Section, CrmV2Segmented, CrmV2Spinner, CrmV2StatusPill } from '@/components/crm-v2/primitives'
 import ActivityTimeline from '@/components/crm-v2/contact/ActivityTimeline'
 import { AddPropertyPicker, FicheField } from '@/components/crm-v2/contact/Coordinates'
 import {
-  AdTrackingSection, AppointmentsSection, AssignmentArchiveSection, DealsSection, FormsSection, InscriptionSections, PlatformsSection,
+  AdTrackingSection, AppointmentsSection, AssignmentArchiveSection, FormsSection, InscriptionSections, PlatformsSection,
   TasksSection, WebActivitySection, normalizedParcoursup,
 } from '@/components/crm-v2/contact/RightSections'
 import type {
@@ -168,7 +169,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   const [currentUser, setCurrentUser] = useState<{ id: string; name: string; hubspot_owner_id?: string | null } | null>(null)
   const loadGenRef = useRef(0)
   const isMobile = useIsMobile()
-  // Mobile (M3) : À propos / Activité / Transaction
+  // Mobile (M3) : À propos / Activité / Cycles de vente
   const [mobileTab, setMobileTab] = useState<'about' | 'activity' | 'deal'>('about')
   const [coordsOpen, setCoordsOpen] = useState(true)
 
@@ -353,7 +354,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   if (err) return <MessageScreen text={`Erreur : ${err}`} error />
   if (!data) return <MessageScreen text="Aucune donnée." />
 
-  const { contact, deals, appointments, properties: rawProperties, dealProperties, groups, activities, formSubmissions, owners, tasks = [], emailStatsByMessageId = {}, preInscriptions = [], smsMessages = [], emailCampaigns = [], assignmentArchive = [] } = data
+  const { contact, deals, appointments, properties: rawProperties, groups, activities, formSubmissions, owners, tasks = [], emailStatsByMessageId = {}, preInscriptions = [], smsMessages = [], emailCampaigns = [], assignmentArchive = [] } = data
   const properties = rawProperties.map(p =>
     p.name === 'origine'
       ? { ...p, options: mergeCrmOrigineOptions(p.options) }
@@ -407,8 +408,6 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   const aboutFields: Array<{ name: string; label: string }> =
     (aboutFieldNames ?? DEFAULT_ABOUT_FIELD_NAMES).map(name => ({ name, label: labelForProp(name) }))
 
-  const dealPropMeta: Record<string, { label?: string; options?: Array<{ label: string; value: string }> }> = {}
-  for (const p of dealProperties) dealPropMeta[p.name] = { label: p.label ? neutralPropLabel(p.label, p.name) : p.label, options: p.options }
 
   // Options pour les dropdowns Propriétaire / Closer du contact / Télépro :
   // rdv_users en priorité (noms explicites), complété par les owners actifs.
@@ -435,18 +434,6 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   }
 
   const actorOwnerId = currentUser?.hubspot_owner_id ?? currentUser?.id ?? null
-
-  const stageLabel = (value?: string | null) => {
-    if (!value) return '—'
-    const opt = dealPropMeta.dealstage?.options?.find(o => o.value === value)
-    return opt?.label ?? value
-  }
-
-  const pipelineLabel = (value?: string | null) => {
-    if (!value) return '—'
-    const opt = dealPropMeta.pipeline?.options?.find(o => o.value === value)
-    return opt?.label ?? value
-  }
 
   const saveProp = async (propName: string, value: string) => {
     const meta = propMeta[propName]
@@ -760,8 +747,6 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     hasValue(allValues.zone___localite) ? `Zone ${formatPropValue(allValues.zone___localite, propMeta.zone___localite)}` : null,
   ].filter(Boolean).join(' · ')
   const mainDeal = deals[0]
-  const stageMeta = mainDeal ? getStageMeta(String(mainDeal.dealstage ?? '')) : undefined
-  const stageText = mainDeal?.dealstage ? (stageMeta?.label ?? stageLabel(mainDeal.dealstage as string)) : null
   const formationValue = hasValue(allValues.formation_souhaitee)
     ? formatPropValue(allValues.formation_souhaitee, propMeta.formation_souhaitee)
     : hasValue(allValues.diploma_sante___formation_demandee)
@@ -783,9 +768,8 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
 
   const pills = (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: isMobile ? 12 : 14, flexWrap: 'wrap' }}>
-      {leadStatusLabel && <CrmV2Pill style={{ padding: '3px 12px' }}>{leadStatusLabel}</CrmV2Pill>}
-      {stageText && (
-        <CrmV2StatusPill label={stageText} color={stageMeta?.color ?? crmV2.textMuted} bg={stageMeta?.bg} style={{ padding: '3px 12px' }} />
+      {leadStatusLabel && (
+        <CrmV2StatusPill label={leadStatusLabel} color={leadStatusColor(leadStatus)} style={{ padding: '3px 12px' }} />
       )}
       {formationText && (
         <span style={{
@@ -831,7 +815,12 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   const tasksSection = (
     <TasksSection tasks={tasks.filter(t => t.status === 'pending')} owners={owners} onUpdated={load} onAdd={() => setQuickAction('task')} />
   )
-  const dealsSection = <DealsSection deals={deals} stageLabel={stageLabel} pipelineLabel={pipelineLabel} ownerLabel={ownerLabel} />
+  // Statut du lead + cycles de vente (remplace les transactions dans l'interface)
+  const cyclesSection = (
+    <CrmV2Section title="Statut & cycles de vente" icon={<Flag size={15} />} storageKey="rs-open:Cycles de vente">
+      <LeadCycleControl contactId={id} canManageProducts onStatusChange={() => void load({ silent: true })} />
+    </CrmV2Section>
+  )
   const rdvSection = <AppointmentsSection appointments={appointments} isLinova={isLinovaContact} onSchedule={openAppointment} ownerLabel={ownerLabel} />
   const formsSection = <FormsSection forms={formSubmissions} />
   // Télépro / closer des campagnes passées (envoyé par l'API aux admins seulement)
@@ -1027,7 +1016,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             items={[
               { id: 'about', label: 'À propos' },
               { id: 'activity', label: 'Activité' },
-              { id: 'deal', label: 'Transaction' },
+              { id: 'deal', label: 'Cycles' },
             ]}
           />
         </div>
@@ -1046,7 +1035,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
           {mobileTab === 'activity' && timelineNode}
           {mobileTab === 'deal' && (
             <>
-              {dealsSection}
+              {cyclesSection}
               {rdvSection}
               {tasksSection}
               {inscriptionSections}
@@ -1136,8 +1125,8 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
 
         {/* Colonne droite — sections repliables */}
         <div style={{ display: 'grid', gridAutoRows: 'max-content', alignContent: 'start', gap: 12, minHeight: 0, overflowY: 'auto', paddingBottom: 4 }}>
+          {cyclesSection}
           {tasksSection}
-          {dealsSection}
           {rdvSection}
           {formsSection}
           {inscriptionSections}

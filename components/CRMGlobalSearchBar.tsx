@@ -185,24 +185,9 @@ export default function CRMGlobalSearchBar() {
       }
     })()
 
-    // Transactions (chemin rapide ciblé `quick=1`). Chargées en parallèle et
-    // affichées dès qu'elles arrivent, sans bloquer les contacts.
-    const dealsPromise = (async () => {
-      try {
-        const dealsRes = await fetch(`/api/crm/transactions?search=${encodeURIComponent(debouncedQuery)}&limit=5&page=0&quick=1`, {
-          signal: ac.signal,
-          cache: 'no-store',
-        })
-        const dealsJson = dealsRes.ok ? await dealsRes.json().catch(() => ({})) : {}
-        let mergedDeals: DealHit[] = Array.isArray(dealsJson?.data) ? dealsJson.data : []
-        if (qTokens.length >= 2) {
-          mergedDeals = mergedDeals.filter((d) => dealMatchesAllTokens(d, qTokens))
-        }
-        if (!ac.signal.aborted) setDeals(mergedDeals)
-      } catch {
-        /* abort / réseau : ignoré */
-      }
-    })()
+    // Transactions masquées de l'interface (on suit le statut du lead / les
+    // cycles de vente) : plus de recherche dans les transactions.
+    const dealsPromise = Promise.resolve()
 
     Promise.allSettled([contactsPromise, dealsPromise]).then(() => {
       if (!ac.signal.aborted) setLoading(false)
@@ -239,7 +224,6 @@ export default function CRMGlobalSearchBar() {
   const tabs: { id: SearchTab; label: string; icon: ReactNode }[] = [
     { id: 'contacts', label: 'Contacts', icon: <User size={14} strokeWidth={2} /> },
     { id: 'companies', label: 'Entreprises', icon: <Building2 size={14} strokeWidth={2} /> },
-    { id: 'deals', label: 'Transactions', icon: <Briefcase size={14} strokeWidth={2} /> },
   ]
 
   return (

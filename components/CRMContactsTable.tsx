@@ -1,5 +1,6 @@
 'use client'
 
+import { leadStatusColor } from '@/lib/sales-cycles'
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { Phone, Mail, MapPin, BookOpen, Calendar, Plus, MoreVertical, ExternalLink, ChevronDown, Search, GripVertical, StickyNote, User, PhoneCall, Eye, Check, AlertTriangle, ArrowUp, ArrowDown, ArrowUpDown, Columns3, SearchX, UserPlus, FileText, Pencil, X } from 'lucide-react'
@@ -675,9 +676,9 @@ function ActionsMenu({
               </button>
             </>
           )}
-          {deal?.hubspot_deal_id && (
+          {(
             <a
-              href={`/admin/crm/deals/${deal.hubspot_deal_id}`}
+              href={`/admin/crm/contacts/${contact.hubspot_contact_id}`}
               target="_blank"
               rel="noopener noreferrer"
               onClick={e => e.stopPropagation()}
@@ -723,7 +724,6 @@ function ExpandedDetail({
   colSpan: number
 }) {
   const deal = contact.deal
-  const [stagePickerOpen, setStagePickerOpen] = useState(false)
 
   return (
     <tr>
@@ -774,102 +774,10 @@ function ExpandedDetail({
               </div>
             )}
 
-            {deal && (
-              <div style={{ background: '#f5f8fa', border: `1px solid ${NAVY_BORDER}`, borderRadius: 8, padding: '10px 14px' }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#2d3e50', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Transaction</div>
-                {deal.formation && (
-                  <div style={{ fontSize: 12, color: GOLD, fontWeight: 700, marginBottom: 6 }}>{deal.formation}</div>
-                )}
-                {deal.createdate && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#516f90', fontSize: 12, marginBottom: 4 }}>
-                    <Calendar size={11} />Créé le {new Date(deal.createdate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
-                  </div>
-                )}
-                {deal.closedate && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#516f90', fontSize: 12 }}>
-                    <Calendar size={11} />RDV: {new Date(deal.closedate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
-                  </div>
-                )}
-              </div>
-            )}
           </div>
 
           {/* Actions row */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-            {deal && (
-              <div style={{ position: 'relative' }}>
-                <button
-                  onClick={() => setStagePickerOpen(o => !o)}
-                  disabled={savingStage}
-                  style={{
-                    background: '#f5f8fa',
-                    border: `1px solid ${NAVY_BORDER}`,
-                    borderRadius: 8,
-                    padding: '6px 12px',
-                    color: '#516f90',
-                    fontSize: 12,
-                    cursor: savingStage ? 'not-allowed' : 'pointer',
-                    fontFamily: 'inherit',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    fontWeight: 600,
-                  }}
-                >
-                  {savingStage ? (
-                    <span style={{ color: '#516f90' }}>Enregistrement…</span>
-                  ) : (
-                    <><StageBadge stageId={deal.dealstage} /><ChevronDown size={11} /></>
-                  )}
-                </button>
-                {stagePickerOpen && (
-                  <div style={{
-                    position: 'absolute',
-                    bottom: '100%',
-                    left: 0,
-                    marginBottom: 4,
-                    background: '#ffffff',
-                    border: `1px solid ${NAVY_BORDER}`,
-                    borderRadius: 10,
-                    padding: '6px 0',
-                    zIndex: 50,
-                    minWidth: 200,
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-                  }}>
-                    {Object.entries(STAGE_MAP).map(([id, s]) => (
-                      <button
-                        key={id}
-                        onClick={() => { onStageChange(id); setStagePickerOpen(false) }}
-                        style={{
-                          display: 'block',
-                          width: '100%',
-                          background: deal.dealstage === id ? s.bg : 'transparent',
-                          border: 'none',
-                          borderRadius: 0,
-                          padding: '7px 14px',
-                          color: s.color,
-                          cursor: 'pointer',
-                          fontSize: 12,
-                          textAlign: 'left',
-                          fontFamily: 'inherit',
-                          fontWeight: deal.dealstage === id ? 700 : 400,
-                        }}
-                      >
-                        {deal.dealstage === id ? '● ' : '○ '}{s.label}
-                      </button>
-                    ))}
-                    <div style={{ height: 1, background: crmV2.borderLight, margin: '4px 6px' }} />
-                    <button
-                      onClick={() => setStagePickerOpen(false)}
-                      style={{ display: 'block', width: '100%', background: 'transparent', border: 'none', padding: '6px 14px', color: '#516f90', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}
-                    >
-                      Fermer
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
             {deal && (
               <button
                 onClick={onNote}
@@ -896,9 +804,9 @@ function ExpandedDetail({
               </>
             )}
 
-            {deal?.hubspot_deal_id && (
+            {(
               <a
-                href={`/admin/crm/deals/${deal.hubspot_deal_id}`}
+                href={`/admin/crm/contacts/${contact.hubspot_contact_id}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{ background: 'rgba(76,171,219,0.1)', border: '1px solid rgba(76,171,219,0.25)', borderRadius: 8, padding: '6px 14px', color: '#4cabdb', fontSize: 12, fontFamily: 'inherit', fontWeight: 600, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6 }}
@@ -1008,6 +916,9 @@ const BLOCKED_EXTRA_COLUMN_PROPS = new Set([
 
 // Colonnes cachées par défaut
 const DEFAULT_HIDDEN_COLS: ColKey[] = []
+
+// Transactions masquées de l'interface : on suit le statut du lead et ses cycles de vente (v80)
+const DEAL_COLS = new Set<ColKey>(['etape', 'createdat_deal'])
 
 // Espace télépro : colonnes inutiles pour lui (ni affichées, ni proposées dans « Colonnes »)
 const TELEPRO_EXCLUDED_COLS = new Set<ColKey>(['formation_souhaitee', 'parcoursup_verdict', 'closer', 'createdat_deal'])
@@ -1570,6 +1481,7 @@ export default function CRMContactsTable({
   // Déterminer les colonnes visibles (en respectant l'ordre courant)
   function isColVisible(key: ColKey): boolean {
     if (key === PINNED_COL) return true
+    if (DEAL_COLS.has(key)) return false
     if (mode === 'telepro' ? TELEPRO_EXCLUDED_COLS.has(key) : TELEPRO_ONLY_COLS.has(key)) return false
     if (hiddenCols.has(key)) return false
     if (key === 'lead_status'        && !leadStatusOptions?.length) return false
@@ -1577,7 +1489,7 @@ export default function CRMContactsTable({
   }
 
   const visibleCols = colOrder.filter(isColVisible)
-  const menuCols = colOrder.filter(k => (mode === 'telepro' ? !TELEPRO_EXCLUDED_COLS.has(k) : !TELEPRO_ONLY_COLS.has(k)))
+  const menuCols = colOrder.filter(k => !DEAL_COLS.has(k) && (mode === 'telepro' ? !TELEPRO_EXCLUDED_COLS.has(k) : !TELEPRO_ONLY_COLS.has(k)))
   const dynamicCols = extraColumns ?? []
   const displayCols = useMemo(
     () => pinOrigineToken(mixedColOrder).filter(entry => {
@@ -2218,8 +2130,7 @@ export default function CRMContactsTable({
             const name = [contact.firstname, contact.lastname].filter(Boolean).join(' ') || contact.email || contact.hubspot_contact_id
             const deal = contact.deal
             const selected = selectedIds?.has(contact.hubspot_contact_id) || false
-            const stage = deal?.dealstage ? STAGE_MAP[deal.dealstage] : undefined
-            const stageText = [stage?.label ?? (deal?.dealstage ? deal.dealstage : contact.hs_lead_status), contact.formation_souhaitee]
+            const stageText = [contact.hs_lead_status, contact.formation_souhaitee]
               .filter(Boolean).join(' · ')
             const created = shortDate(contact.contact_createdate)
             const formDate = shortDate(contact.recent_conversion_date)
@@ -2254,8 +2165,8 @@ export default function CRMContactsTable({
                         {name}
                       </span>
                       <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: crmV2.textMuted, whiteSpace: 'nowrap', overflow: 'hidden' }}>
-                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: stage?.color ?? crmV2.borderStrong, flexShrink: 0 }} />
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{stageText || 'Sans transaction'}</span>
+                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: contact.hs_lead_status ? leadStatusColor(contact.hs_lead_status) : crmV2.borderStrong, flexShrink: 0 }} />
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{stageText || 'Sans statut'}</span>
                       </span>
                       <span style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 11, color: crmV2.textFaint, whiteSpace: 'nowrap', overflow: 'hidden' }}>
                         {created && (
@@ -2308,12 +2219,6 @@ export default function CRMContactsTable({
                     padding: '10px 12px 12px', margin: '0 12px 10px',
                     background: crmV2.bgHover, border: `1px solid ${crmV2.border}`, borderRadius: 12,
                   }}>
-                    {deal && (
-                      <div style={{ minWidth: 0, gridColumn: '1 / -1' }}>
-                        <div style={labelStyle}>Étape</div>
-                        {renderCell('etape', contact)}
-                      </div>
-                    )}
                     <div style={{ minWidth: 0 }}>
                       <div style={labelStyle}>Télépro</div>
                       {renderCell('telepro', contact)}

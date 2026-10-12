@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo, type ReactNode } from 'react
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import {
-  ArrowLeft, BarChart3, Briefcase, Clock, ListChecks, LifeBuoy, LogOut, Mail, Phone, Plus, RefreshCw, Repeat2, RotateCcw, School, Tag, X,
+  ArrowLeft, BarChart3, Clock, ListChecks, LifeBuoy, LogOut, Mail, Phone, Plus, RefreshCw, Repeat2, RotateCcw, School, Tag, X,
 } from 'lucide-react'
 import Link from 'next/link'
 import WeekCalendar from '@/components/WeekCalendar'
@@ -60,7 +60,6 @@ export default function TeleproClient({
   const [showGuide, setShowGuide] = useState(false)
   const [showResources, setShowResources] = useState(false)
   const [crmTotal, setCrmTotal] = useState(0)
-  const [txTotal] = useState(0)
   const [plusOpen, setPlusOpen] = useState(false)
   // Mobile : la vue complète des contacts (vues, filtres avancés) reste accessible
   const [contactsAdvanced, setContactsAdvanced] = useState(false)
@@ -602,7 +601,6 @@ export default function TeleproClient({
       { key: 'mails', label: 'Mes mails', icon: <Mail size={18} />, onClick: () => goTab('mails'), active: activeTab === 'mails', badge: mailsUnread },
       { key: 'stats', label: 'Mes stats', icon: <BarChart3 size={18} />, onClick: () => goTab('stats'), active: activeTab === 'stats' },
       { key: 'horaires', label: 'Mes horaires', icon: <Clock size={18} />, onClick: () => goTab('horaires'), active: activeTab === 'horaires' },
-      { key: 'transactions', label: 'Mes transactions', icon: <Briefcase size={18} />, onClick: () => goTab('transactions'), active: activeTab === 'transactions', badge: txTotal },
       { key: 'repop', label: 'Repop', icon: <Repeat2 size={18} />, onClick: () => goTab('repop'), active: activeTab === 'repop' },
       ...(!previewMode ? [
         ...(myLyceesCount > 0 ? [{ key: 'lycees', label: 'Mes lycées', icon: <School size={18} />, href: '/admin/crm-v2/lycees', badge: myLyceesCount }] : []),
@@ -650,7 +648,6 @@ export default function TeleproClient({
     { id: 'stats', label: 'Mes stats' },
     { id: 'horaires', label: 'Mes horaires' },
     { id: 'suivi', label: 'Suivi RDV' },
-    { id: 'transactions', label: 'Mes transactions', count: txTotal > 0 ? txTotal : undefined },
     { id: 'repop', label: 'Repop' },
   ]
 
