@@ -159,6 +159,7 @@ export interface MetaAdInsight {
   frequency?: number
   // Lead-specific (calculé après en mergeant avec meta_lead_events)
   leads?: number
+  new_leads?: number         // leads dont le contact a été créé par ce lead (absent du CRM avant)
   cpl?: number               // spend / leads
   status?: string            // ACTIVE / PAUSED / ARCHIVED — pour les niveaux campaign/adset/ad
 }

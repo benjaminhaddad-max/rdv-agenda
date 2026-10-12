@@ -17,7 +17,8 @@ import { presetRange, type GoogleDatePreset } from '@/lib/google-ads'
  */
 
 function cacheKey(accountId: string, level: string, datePreset: string, since?: string, until?: string): string {
-  const raw = `${accountId}|${level}|${datePreset}|${since || ''}|${until || ''}`
+  // v2 : ajout de new_leads (les entrées en cache antérieures ne l'ont pas)
+  const raw = `v2|${accountId}|${level}|${datePreset}|${since || ''}|${until || ''}`
   return createHash('sha256').update(raw).digest('hex').slice(0, 32)
 }
 
@@ -81,6 +82,8 @@ export async function GET(req: NextRequest) {
   // On agrège par campaign_id / adset_id / ad_id selon le level
   const groupCol = level === 'campaign' ? 'campaign_id' : level === 'adset' ? 'adset_id' : level === 'ad' ? 'ad_id' : null
   const leadCounts = new Map<string, number>()
+  // Nouveaux leads = contact créé dans le CRM par ce lead (il n'y était pas avant)
+  const newLeadCounts = new Map<string, number>()
   if (groupCol) {
     // Construit la fenêtre de dates pour matcher la query
     let dateFrom: Date | null = null
@@ -98,16 +101,25 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let q: any = db.from('meta_lead_events').select(`${groupCol}, status`)
-      .not(groupCol, 'is', null)
-    if (dateFrom) q = q.gte('received_at', dateFrom.toISOString())
-    if (dateTo) q = q.lte('received_at', dateTo.toISOString())
-    const { data: events } = await q
-    for (const e of (events ?? []) as Array<Record<string, string>>) {
-      const id = e[groupCol] as string
-      if (!id) continue
-      leadCounts.set(id, (leadCounts.get(id) || 0) + 1)
+    // Paginé : PostgREST plafonne à 1 000 lignes par requête
+    const PAGE = 1000
+    for (let from = 0; ; from += PAGE) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let q: any = db.from('meta_lead_events').select(`${groupCol}, status, contact_created`)
+        .not(groupCol, 'is', null)
+        .order('received_at', { ascending: true })
+        .range(from, from + PAGE - 1)
+      if (dateFrom) q = q.gte('received_at', dateFrom.toISOString())
+      if (dateTo) q = q.lte('received_at', dateTo.toISOString())
+      const { data: events } = await q
+      const rows = (events ?? []) as Array<Record<string, string | boolean | null>>
+      for (const e of rows) {
+        const id = e[groupCol] as string
+        if (!id) continue
+        leadCounts.set(id, (leadCounts.get(id) || 0) + 1)
+        if (e.contact_created === true) newLeadCounts.set(id, (newLeadCounts.get(id) || 0) + 1)
+      }
+      if (rows.length < PAGE) break
     }
   }
 
@@ -115,8 +127,9 @@ export async function GET(req: NextRequest) {
   const enriched: MetaAdInsight[] = insights.map(i => {
     const id = level === 'campaign' ? i.campaign_id : level === 'adset' ? i.adset_id : level === 'ad' ? i.ad_id : null
     const leads = id ? (leadCounts.get(id) || 0) : 0
+    const new_leads = id ? (newLeadCounts.get(id) || 0) : 0
     const cpl = leads > 0 ? Number((i.spend / leads).toFixed(2)) : 0
-    return { ...i, leads, cpl }
+    return { ...i, leads, new_leads, cpl }
   })
 
   // Tri par spend desc
@@ -129,8 +142,9 @@ export async function GET(req: NextRequest) {
       clicks: acc.clicks + i.clicks,
       spend: acc.spend + i.spend,
       leads: acc.leads + (i.leads || 0),
+      new_leads: acc.new_leads + (i.new_leads || 0),
     }),
-    { impressions: 0, clicks: 0, spend: 0, leads: 0 },
+    { impressions: 0, clicks: 0, spend: 0, leads: 0, new_leads: 0 },
   )
   const totalCtr = totals.impressions > 0 ? Number(((totals.clicks / totals.impressions) * 100).toFixed(2)) : 0
   const totalCpl = totals.leads > 0 ? Number((totals.spend / totals.leads).toFixed(2)) : 0

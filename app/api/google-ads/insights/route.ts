@@ -21,6 +21,9 @@ import {
  *   2. utm_campaign = ID de campagne,
  *   3. utm_campaign = nom de campagne (casse / espaces ignorés).
  *   4. gclid seul → campagne retrouvée via click_view (mémorisée dans google_ads_gclid_campaigns).
+ * Nouveaux leads = contacts créés dans le CRM par leur soumission Google
+ * (contact_createdate au plus 5 min avant la 1re soumission de la période) :
+ * ils n'étaient pas dans le CRM avant cette campagne.
  * Un gclid partagé par plusieurs contacts (cookie resté sur une tablette de
  * salon) ne compte que pour le premier contact. Les leads Google sans
  * campagne identifiable sont comptés à part.
@@ -33,7 +36,7 @@ const CACHE_TTL_MS = 30 * 60_000
 
 type ResponseData = {
   insights: GoogleCampaignInsight[]
-  totals: { impressions: number; clicks: number; spend: number; leads: number; unattributed_leads: number; shared_device_excluded: number; ctr: number; cpc: number; cpl: number }
+  totals: { impressions: number; clicks: number; spend: number; leads: number; new_leads: number; unattributed_leads: number; shared_device_excluded: number; ctr: number; cpc: number; cpl: number }
   currency: string
   account_name: string
   customer_id: string
@@ -94,13 +97,17 @@ export async function GET(req: NextRequest) {
   const byName = new Map(result.campaigns.map(c => [norm(c.campaign_name), c.campaign_id]))
   const contactsByCampaign = new Map<string, Set<string>>()
   const unattributed = new Set<string>()
-  const credit = (campaignId: string | null, contact: string) => {
+  // 1re soumission Google de chaque contact sur la période
+  const firstSubmitAt = new Map<string, string>()
+  const credit = (campaignId: string | null, contact: string, submittedAt: string) => {
+    const prev = firstSubmitAt.get(contact)
+    if (!prev || new Date(submittedAt) < new Date(prev)) firstSubmitAt.set(contact, submittedAt)
     if (!campaignId) { unattributed.add(contact); return }
     if (!contactsByCampaign.has(campaignId)) contactsByCampaign.set(campaignId, new Set())
     contactsByCampaign.get(campaignId)!.add(contact)
   }
   // Leads dont le seul signal Google est le gclid : rattachés plus bas via click_view
-  const gclidOnly: Array<{ contact: string; gclid: string }> = []
+  const gclidOnly: Array<{ contact: string; gclid: string; submittedAt: string }> = []
 
   const PAGE = 1000
   for (let from = 0; ; from += PAGE) {
@@ -114,7 +121,7 @@ export async function GET(req: NextRequest) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     const rows = (data ?? []) as Array<{
       id: string; data: Record<string, unknown> | null; source_url: string | null; referrer: string | null
-      utm_source: string | null; utm_medium: string | null; utm_campaign: string | null
+      utm_source: string | null; utm_medium: string | null; utm_campaign: string | null; submitted_at: string
     }>
 
     for (const r of rows) {
@@ -131,14 +138,14 @@ export async function GET(req: NextRequest) {
         || (byId.has(utmCampaign) ? utmCampaign : null)
         || (utmCampaign ? byName.get(norm(utmCampaign)) : null)
         || null
-      if (campaignId) { credit(campaignId, contact); continue }
+      if (campaignId) { credit(campaignId, contact, r.submitted_at); continue }
 
       // Signal Google hors click ID (UTM / hsa_net) : lead Google, campagne inconnue
       const withoutClickIds = collectAdAttribution({ clickIds: {}, utm, urls })
       withoutClickIds.clickIds = {}
       const gclid = typeof tracking.gclid === 'string' ? tracking.gclid : null
-      if (detectAdOrigine(withoutClickIds) === ORIGINE_ADS_GOOGLE || !gclid) { credit(null, contact); continue }
-      gclidOnly.push({ contact, gclid })
+      if (detectAdOrigine(withoutClickIds) === ORIGINE_ADS_GOOGLE || !gclid) { credit(null, contact, r.submitted_at); continue }
+      gclidOnly.push({ contact, gclid, submittedAt: r.submitted_at })
     }
     if (rows.length < PAGE) break
   }
@@ -194,19 +201,38 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  for (const { contact, gclid } of gclidOnly) {
+  for (const { contact, gclid, submittedAt } of gclidOnly) {
     const first = firstByGclid.get(gclid)
     if (first && first.contact !== contact) { sharedDeviceExcluded++; continue }
     const campaignId = known.get(gclid)?.campaign_id
-    credit(campaignId && byId.has(campaignId) ? campaignId : null, contact)
+    credit(campaignId && byId.has(campaignId) ? campaignId : null, contact, submittedAt)
   }
+
+  // Nouveaux leads : contact créé par cette soumission (marge 5 min : le contact
+  // est créé juste avant l'enregistrement de la soumission). Un contact déjà
+  // présent dans le CRM avant n'est pas nouveau.
+  const NEW_CONTACT_MARGIN_MS = 5 * 60_000
+  const newContacts = new Set<string>()
+  const credited = [...firstSubmitAt.keys()]
+  for (let i = 0; i < credited.length; i += 200) {
+    const { data } = await db.from('crm_contacts')
+      .select('hubspot_contact_id, contact_createdate')
+      .in('hubspot_contact_id', credited.slice(i, i + 200))
+    for (const c of (data ?? []) as Array<{ hubspot_contact_id: string; contact_createdate: string | null }>) {
+      const first = firstSubmitAt.get(c.hubspot_contact_id)
+      if (!first || !c.contact_createdate) continue
+      if (new Date(c.contact_createdate).getTime() >= new Date(first).getTime() - NEW_CONTACT_MARGIN_MS) newContacts.add(c.hubspot_contact_id)
+    }
+  }
+  const countNew = (set: Iterable<string>) => { let n = 0; for (const c of set) if (newContacts.has(c)) n++; return n }
 
   // Un contact rattaché à une campagne n'est pas compté en plus dans « sans campagne »
   for (const set of contactsByCampaign.values()) for (const c of set) unattributed.delete(c)
 
   const insights = result.campaigns.map(c => {
-    const leads = contactsByCampaign.get(c.campaign_id)?.size ?? 0
-    return { ...c, leads, cpl: leads > 0 ? Number((c.spend / leads).toFixed(2)) : 0 }
+    const contacts = contactsByCampaign.get(c.campaign_id)
+    const leads = contacts?.size ?? 0
+    return { ...c, leads, new_leads: contacts ? countNew(contacts) : 0, cpl: leads > 0 ? Number((c.spend / leads).toFixed(2)) : 0 }
   }).sort((a, b) => b.spend - a.spend)
 
   // 3. Totaux (les leads sans campagne comptent dans le total et le CPL global)
@@ -215,6 +241,7 @@ export async function GET(req: NextRequest) {
     { impressions: 0, clicks: 0, spend: 0, leads: 0 },
   )
   const leads = sum.leads + unattributed.size
+  const newLeads = insights.reduce((n, i) => n + i.new_leads, 0) + countNew(unattributed)
 
   const responseData: ResponseData = {
     insights,
@@ -223,6 +250,7 @@ export async function GET(req: NextRequest) {
       clicks: sum.clicks,
       spend: Number(sum.spend.toFixed(2)),
       leads,
+      new_leads: newLeads,
       unattributed_leads: unattributed.size,
       shared_device_excluded: sharedDeviceExcluded,
       ctr: sum.impressions > 0 ? Number(((sum.clicks / sum.impressions) * 100).toFixed(2)) : 0,

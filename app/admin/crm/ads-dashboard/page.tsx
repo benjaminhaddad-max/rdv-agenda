@@ -38,6 +38,7 @@ type Insight = {
   reach?: number
   frequency?: number
   leads?: number
+  new_leads?: number
   cpl?: number
 }
 
@@ -350,7 +351,7 @@ export default function AdsDashboardPage() {
                         key={id}
                         icon={<AdsIconTile icon={<Facebook size={15} />} color="#1877F2" />}
                         title={name || '(sans nom)'}
-                        subtitle={`${fmtNumber(i.impressions)} imp. · CTR ${i.ctr.toFixed(2)}% · ${(i.leads || 0) > 0 ? `CPL ${fmtCurrency(i.cpl || 0, data.currency)}` : 'CPL —'}`}
+                        subtitle={`${fmtNumber(i.impressions)} imp. · CTR ${i.ctr.toFixed(2)}% · ${(i.leads || 0) > 0 ? `CPL ${fmtCurrency(i.cpl || 0, data.currency)}${newLeadsPctLabel(i.leads || 0, i.new_leads)}` : 'CPL —'}`}
                         right={
                           <div style={{ textAlign: 'right' }}>
                             <div style={{ fontSize: 13, fontWeight: 700, color: crmV2.text }}>{fmtCurrency(i.spend, data.currency)}</div>
@@ -373,6 +374,7 @@ export default function AdsDashboardPage() {
                         <CrmV2Th style={num}>Dépensé</CrmV2Th>
                         <CrmV2Th style={num}>CPC</CrmV2Th>
                         <CrmV2Th style={num}>Leads CRM</CrmV2Th>
+                        <CrmV2Th style={num}><span title={NEW_LEADS_HELP}>% nouveaux</span></CrmV2Th>
                         <CrmV2Th style={num}>CPL</CrmV2Th>
                       </tr>
                     </thead>
@@ -398,6 +400,7 @@ export default function AdsDashboardPage() {
                               {fmtNumber(i.leads || 0)}
                             </span>
                           </CrmV2Td>
+                          <CrmV2Td style={num}><NewLeadsPct leads={i.leads || 0} newLeads={i.new_leads} /></CrmV2Td>
                           <CrmV2Td style={num}>
                             {(i.leads || 0) > 0 ? fmtCurrency(i.cpl || 0, data.currency) : '—'}
                           </CrmV2Td>
@@ -451,6 +454,7 @@ type GoogleInsight = {
   ctr: number
   cpc: number
   leads: number
+  new_leads?: number
   cpl: number
 }
 
@@ -581,7 +585,7 @@ function GoogleAdsSection({ datePreset, periodLabel, refreshToken, isMobile, onD
                     key={i.campaign_id}
                     icon={<AdsIconTile icon={<GoogleAdsIcon size={15} />} />}
                     title={i.campaign_name || '(sans nom)'}
-                    subtitle={`${fmtNumber(i.impressions)} imp. · CTR ${i.ctr.toFixed(2)}% · ${i.leads > 0 ? `CPL ${fmtCurrency(i.cpl, data.currency)}` : 'CPL —'}`}
+                    subtitle={`${fmtNumber(i.impressions)} imp. · CTR ${i.ctr.toFixed(2)}% · ${i.leads > 0 ? `CPL ${fmtCurrency(i.cpl, data.currency)}${newLeadsPctLabel(i.leads, i.new_leads)}` : 'CPL —'}`}
                     right={
                       <div style={{ textAlign: 'right' }}>
                         <div style={{ fontSize: 13, fontWeight: 700, color: crmV2.text }}>{fmtCurrency(i.spend, data.currency)}</div>
@@ -604,6 +608,7 @@ function GoogleAdsSection({ datePreset, periodLabel, refreshToken, isMobile, onD
                     <CrmV2Th style={num}>Dépensé</CrmV2Th>
                     <CrmV2Th style={num}>CPC</CrmV2Th>
                     <CrmV2Th style={num}>Leads CRM</CrmV2Th>
+                    <CrmV2Th style={num}><span title={NEW_LEADS_HELP}>% nouveaux</span></CrmV2Th>
                     <CrmV2Th style={num}>CPL</CrmV2Th>
                   </tr>
                 </thead>
@@ -629,6 +634,7 @@ function GoogleAdsSection({ datePreset, periodLabel, refreshToken, isMobile, onD
                       <CrmV2Td style={num}>
                         <span style={{ fontWeight: 600, color: i.leads > 0 ? crmV2.success : crmV2.textFaint }}>{fmtNumber(i.leads)}</span>
                       </CrmV2Td>
+                      <CrmV2Td style={num}><NewLeadsPct leads={i.leads} newLeads={i.new_leads} /></CrmV2Td>
                       <CrmV2Td style={num}>{i.leads > 0 ? fmtCurrency(i.cpl, data.currency) : '—'}</CrmV2Td>
                     </CrmV2Tr>
                   ))}
@@ -912,6 +918,22 @@ function GoogleAdsIcon({ size = 18, style }: { size?: number; style?: React.CSSP
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
+
+const NEW_LEADS_HELP = "Part des leads de la campagne qui n'étaient pas dans le CRM avant : le contact a été créé par ce lead."
+
+/** % de nouveaux leads (contact créé par la campagne) ; — sans lead ou avant que l'API ne renvoie new_leads. */
+function NewLeadsPct({ leads, newLeads }: { leads: number; newLeads?: number }) {
+  if (leads <= 0 || newLeads == null) return <span style={{ color: crmV2.textFaint }}>—</span>
+  return (
+    <span title={`${fmtNumber(newLeads)} nouveau${newLeads > 1 ? 'x' : ''} sur ${fmtNumber(leads)} lead${leads > 1 ? 's' : ''}`}>
+      {Math.round((newLeads / leads) * 100)}%
+    </span>
+  )
+}
+
+function newLeadsPctLabel(leads: number, newLeads?: number): string {
+  return leads > 0 && newLeads != null ? ` · ${Math.round((newLeads / leads) * 100)}% nouveaux` : ''
+}
 
 function fmtNumber(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace('.0', '') + ' M'

@@ -155,6 +155,7 @@ export type GoogleCampaignInsight = {
   ctr: number
   cpc: number
   leads?: number
+  new_leads?: number // leads dont le contact a été créé par cette soumission (absent du CRM avant)
   cpl?: number
 }
 
