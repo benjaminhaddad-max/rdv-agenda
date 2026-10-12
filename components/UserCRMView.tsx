@@ -386,6 +386,9 @@ function AdvancedFilterRow({
 export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOnly, onTotalChange, initialSourceFilter }: Props) {
   // ─ Présentation V2 (mobile, panneau de filtres, emplacement du bouton Colonnes)
   const isMobile = useIsMobile()
+  // Télépro (ordinateur) : la page a déjà son en-tête + l'onglet « Mes contacts (N) »
+  // → pas de second titre, tout tient sur une ligne pour laisser la hauteur au tableau.
+  const compactLayout = mode === 'telepro' && !isMobile
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
   const [columnsSlot, setColumnsSlot] = useState<HTMLDivElement | null>(null)
 
@@ -1092,7 +1095,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
 
   // Recherche pilule + historique des derniers contacts ouverts
   const searchBox = (
-    <div style={{ position: 'relative', flex: isMobile ? 1 : '0 1 280px', minWidth: isMobile ? 0 : 220 }}>
+    <div style={{ position: 'relative', flex: isMobile ? 1 : compactLayout ? '0 1 230px' : '0 1 280px', minWidth: isMobile ? 0 : compactLayout ? 180 : 220 }}>
       <div
         onFocus={() => setSearchFocused(true)}
         onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
@@ -1277,6 +1280,154 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
     </>
   )
 
+  // ── Onglets de vues (privées à l'utilisateur) ───────────────────────
+  const viewTabs = (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 0,
+      ...(compactLayout
+        ? { flex: 1, minWidth: 0 }
+        : { margin: isMobile ? '0 -12px' : '0 -28px', padding: isMobile ? '0 12px' : '0 28px' }),
+      overflowX: 'auto', overflowY: 'hidden', scrollbarWidth: 'none',
+    }}>
+      {views.map(view => {
+        const isActive = activeViewId === view.id
+        const isRenaming = renamingViewId === view.id
+        return (
+          <div
+            key={view.id}
+            onClick={() => { if (!isRenaming) applyView(view) }}
+            onDoubleClick={() => {
+              if (!view.isDefault && !view.isShared) { setRenamingViewId(view.id); setRenameValue(view.name) }
+            }}
+            style={{
+              padding: isMobile ? '10px 12px' : '10px 14px',
+              borderBottom: `3px solid ${isActive ? crmV2.text : 'transparent'}`,
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+              whiteSpace: 'nowrap', flexShrink: 0,
+            }}
+          >
+            {isRenaming ? (
+              <input
+                autoFocus
+                value={renameValue}
+                onChange={e => setRenameValue(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') renameView(view.id, renameValue)
+                  if (e.key === 'Escape') setRenamingViewId(null)
+                }}
+                onBlur={() => renameView(view.id, renameValue)}
+                onClick={e => e.stopPropagation()}
+                style={{
+                  background: crmV2.bg, border: `1px solid ${crmV2.gold}`,
+                  borderRadius: crmV2.radiusPill, padding: '3px 10px', color: crmV2.text,
+                  fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+                  outline: 'none', width: Math.max(80, renameValue.length * 8),
+                }}
+              />
+            ) : (
+              <span style={{
+                fontSize: 14, fontWeight: isActive ? 600 : 500,
+                color: isActive ? crmV2.text : crmV2.textMuted,
+              }}>
+                {view.name}
+              </span>
+            )}
+            {!view.isDefault && isActive && !isRenaming && (
+              <button
+                type="button"
+                onClick={e => {
+                  e.stopPropagation()
+                  if (view.isShared) unpinSharedView(view.id)
+                  else deleteView(view.id)
+                }}
+                title={view.isShared ? 'Retirer de mes onglets' : 'Supprimer la vue'}
+                aria-label={view.isShared ? 'Retirer de mes onglets' : 'Supprimer la vue'}
+                style={{
+                  background: 'none', border: 'none', padding: 0, marginLeft: 2,
+                  color: crmV2.textFaint, cursor: 'pointer', display: 'flex',
+                }}
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+        )
+      })}
+
+      <div style={{ width: 1, height: 18, background: NAVY_BDR, margin: '0 6px', flexShrink: 0 }} />
+
+      {/* Sauvegarder les filtres dans la vue active */}
+      {viewChanged && !activeView?.isDefault && (
+        <button
+          type="button"
+          onClick={saveActiveView}
+          style={{
+            height: 28, padding: '0 12px', background: crmV2.goldSoft,
+            border: `1px solid ${crmV2.goldBorder}`, borderRadius: crmV2.radiusPill,
+            color: crmV2.goldDark, fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
+            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+            whiteSpace: 'nowrap', marginRight: 4, flexShrink: 0,
+          }}
+        >
+          <Save size={14} /> Sauvegarder
+        </button>
+      )}
+
+      {/* Créer une nouvelle vue */}
+      {creatingView ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 6px', flexShrink: 0 }}>
+          <input
+            autoFocus
+            value={newViewName}
+            onChange={e => setNewViewName(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') createView(newViewName)
+              if (e.key === 'Escape') { setCreatingView(false); setNewViewName('') }
+            }}
+            placeholder="Nom de la vue…"
+            style={{
+              background: crmV2.bg, border: `1px solid ${crmV2.gold}`,
+              borderRadius: crmV2.radiusPill, padding: '4px 12px', color: crmV2.text,
+              fontSize: 13, fontFamily: 'inherit', outline: 'none', width: 140,
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => createView(newViewName)}
+            aria-label="Créer la vue"
+            style={{ background: crmV2.primary, border: 'none', borderRadius: crmV2.radiusPill, width: 26, height: 26, padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Check size={14} color="#ffffff" />
+          </button>
+          <button
+            type="button"
+            onClick={() => { setCreatingView(false); setNewViewName('') }}
+            aria-label="Annuler"
+            style={{ background: 'none', border: 'none', padding: 0, color: TEXT_DIM, cursor: 'pointer', display: 'flex' }}
+          >
+            <X size={14} />
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => mode === 'telepro' ? setAddViewOpen(true) : setCreatingView(true)}
+          title={mode === 'telepro'
+            ? 'Ajouter une vue existante créée en admin'
+            : 'Enregistrer les filtres actuels comme une nouvelle vue privée'}
+          style={{
+            padding: '10px 12px', background: 'none', border: 'none',
+            color: crmV2.link, cursor: 'pointer', display: 'flex',
+            alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+            whiteSpace: 'nowrap', flexShrink: 0,
+          }}
+        >
+          <Plus size={14} /> {mode === 'telepro' ? 'Ajouter' : 'Vue'}
+        </button>
+      )}
+    </div>
+  )
+
   return (
     <div style={{
       display: 'flex',
@@ -1289,6 +1440,27 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
     }}>
 
       {/* ── En-tête blanc : titre, compteur, actions, onglets de vues ───── */}
+      {compactLayout ? (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0,
+          background: crmV2.bg, borderBottom: `1px solid ${crmV2.border}`, padding: '0 16px',
+        }}>
+          {viewTabs}
+          <CrmV2Button
+            size="sm"
+            onClick={() => { setPage(0); fetchContacts() }}
+            disabled={loading}
+            icon={<RefreshCw size={13} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />}
+          >
+            {loading ? 'Chargement…' : 'Actualiser'}
+          </CrmV2Button>
+          <CrmV2Button size="sm" variant="primary" onClick={openCreate} icon={<Plus size={13} />}>
+            Créer un contact
+          </CrmV2Button>
+          {/* Bouton « Colonnes » rendu ici par CRMContactsTable (portail) */}
+          <div ref={setColumnsSlot} />
+        </div>
+      ) : (
       <CrmV2Header
         title={isTransactionsTitle ? 'Mes Transactions' : 'Mes Contacts'}
         subtitle={total > 0
@@ -1309,155 +1481,14 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
           </>
         }
       >
-        {/* ── Onglets de vues (privées à l'utilisateur) ─────────────────── */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 0,
-          margin: isMobile ? '0 -12px' : '0 -28px', padding: isMobile ? '0 12px' : '0 28px',
-          overflowX: 'auto', overflowY: 'hidden', scrollbarWidth: 'none',
-        }}>
-          {views.map(view => {
-            const isActive = activeViewId === view.id
-            const isRenaming = renamingViewId === view.id
-            return (
-              <div
-                key={view.id}
-                onClick={() => { if (!isRenaming) applyView(view) }}
-                onDoubleClick={() => {
-                  if (!view.isDefault && !view.isShared) { setRenamingViewId(view.id); setRenameValue(view.name) }
-                }}
-                style={{
-                  padding: isMobile ? '10px 12px' : '10px 14px',
-                  borderBottom: `3px solid ${isActive ? crmV2.text : 'transparent'}`,
-                  cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-                  whiteSpace: 'nowrap', flexShrink: 0,
-                }}
-              >
-                {isRenaming ? (
-                  <input
-                    autoFocus
-                    value={renameValue}
-                    onChange={e => setRenameValue(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter') renameView(view.id, renameValue)
-                      if (e.key === 'Escape') setRenamingViewId(null)
-                    }}
-                    onBlur={() => renameView(view.id, renameValue)}
-                    onClick={e => e.stopPropagation()}
-                    style={{
-                      background: crmV2.bg, border: `1px solid ${crmV2.gold}`,
-                      borderRadius: crmV2.radiusPill, padding: '3px 10px', color: crmV2.text,
-                      fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
-                      outline: 'none', width: Math.max(80, renameValue.length * 8),
-                    }}
-                  />
-                ) : (
-                  <span style={{
-                    fontSize: 14, fontWeight: isActive ? 600 : 500,
-                    color: isActive ? crmV2.text : crmV2.textMuted,
-                  }}>
-                    {view.name}
-                  </span>
-                )}
-                {!view.isDefault && isActive && !isRenaming && (
-                  <button
-                    type="button"
-                    onClick={e => {
-                      e.stopPropagation()
-                      if (view.isShared) unpinSharedView(view.id)
-                      else deleteView(view.id)
-                    }}
-                    title={view.isShared ? 'Retirer de mes onglets' : 'Supprimer la vue'}
-                    aria-label={view.isShared ? 'Retirer de mes onglets' : 'Supprimer la vue'}
-                    style={{
-                      background: 'none', border: 'none', padding: 0, marginLeft: 2,
-                      color: crmV2.textFaint, cursor: 'pointer', display: 'flex',
-                    }}
-                  >
-                    <X size={14} />
-                  </button>
-                )}
-              </div>
-            )
-          })}
-
-          <div style={{ width: 1, height: 18, background: NAVY_BDR, margin: '0 6px', flexShrink: 0 }} />
-
-          {/* Sauvegarder les filtres dans la vue active */}
-          {viewChanged && !activeView?.isDefault && (
-            <button
-              type="button"
-              onClick={saveActiveView}
-              style={{
-                height: 28, padding: '0 12px', background: crmV2.goldSoft,
-                border: `1px solid ${crmV2.goldBorder}`, borderRadius: crmV2.radiusPill,
-                color: crmV2.goldDark, fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
-                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
-                whiteSpace: 'nowrap', marginRight: 4, flexShrink: 0,
-              }}
-            >
-              <Save size={14} /> Sauvegarder
-            </button>
-          )}
-
-          {/* Créer une nouvelle vue */}
-          {creatingView ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 6px', flexShrink: 0 }}>
-              <input
-                autoFocus
-                value={newViewName}
-                onChange={e => setNewViewName(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') createView(newViewName)
-                  if (e.key === 'Escape') { setCreatingView(false); setNewViewName('') }
-                }}
-                placeholder="Nom de la vue…"
-                style={{
-                  background: crmV2.bg, border: `1px solid ${crmV2.gold}`,
-                  borderRadius: crmV2.radiusPill, padding: '4px 12px', color: crmV2.text,
-                  fontSize: 13, fontFamily: 'inherit', outline: 'none', width: 140,
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => createView(newViewName)}
-                aria-label="Créer la vue"
-                style={{ background: crmV2.primary, border: 'none', borderRadius: crmV2.radiusPill, width: 26, height: 26, padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              >
-                <Check size={14} color="#ffffff" />
-              </button>
-              <button
-                type="button"
-                onClick={() => { setCreatingView(false); setNewViewName('') }}
-                aria-label="Annuler"
-                style={{ background: 'none', border: 'none', padding: 0, color: TEXT_DIM, cursor: 'pointer', display: 'flex' }}
-              >
-                <X size={14} />
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => mode === 'telepro' ? setAddViewOpen(true) : setCreatingView(true)}
-              title={mode === 'telepro'
-                ? 'Ajouter une vue existante créée en admin'
-                : 'Enregistrer les filtres actuels comme une nouvelle vue privée'}
-              style={{
-                padding: '10px 12px', background: 'none', border: 'none',
-                color: crmV2.link, cursor: 'pointer', display: 'flex',
-                alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
-                whiteSpace: 'nowrap', flexShrink: 0,
-              }}
-            >
-              <Plus size={14} /> {mode === 'telepro' ? 'Ajouter' : 'Vue'}
-            </button>
-          )}
-        </div>
+        {viewTabs}
       </CrmV2Header>
+      )}
 
       {/* ── Corps : carte tableau ─────────────────────────────────────────── */}
       <div style={{
         flex: 1, minHeight: 0, minWidth: 0, display: 'flex', flexDirection: 'column',
-        padding: isMobile ? '10px 10px 0' : '16px 28px 20px', gap: isMobile ? 8 : 0,
+        padding: isMobile ? '10px 10px 0' : compactLayout ? '10px 16px 12px' : '16px 28px 20px', gap: isMobile ? 8 : 0,
       }}>
         {/* Mobile : recherche + bouton filtres avec compteur */}
         {isMobile && (
@@ -1493,14 +1524,18 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
           {/* Barre d'outils : recherche, filtres pilules, Autres filtres, Colonnes */}
           {!isMobile && (
             <div style={{
-              display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px', flexWrap: 'wrap',
+              display: 'flex', alignItems: 'center', gap: compactLayout ? 6 : 8, padding: compactLayout ? '8px 10px' : '12px 14px', flexWrap: 'wrap',
               borderBottom: `1px solid ${crmV2.border}`, flexShrink: 0,
             }}>
               {searchBox}
               {filterPills}
-              <div style={{ flex: 1 }} />
-              {/* Bouton « Colonnes » rendu ici par CRMContactsTable (portail) */}
-              <div ref={setColumnsSlot} />
+              {!compactLayout && (
+                <>
+                  <div style={{ flex: 1 }} />
+                  {/* Bouton « Colonnes » rendu ici par CRMContactsTable (portail) */}
+                  <div ref={setColumnsSlot} />
+                </>
+              )}
             </div>
           )}
 

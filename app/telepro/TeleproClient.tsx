@@ -653,16 +653,17 @@ export default function TeleproClient({
     }}>
       {previewBanner}
       <CrmV2Header
+        compact
         title={(
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ width: 36, height: 36, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: '#241F3F', boxShadow: '0 0 0 2px rgba(94,188,227,0.35)', display: 'inline-block' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ width: 30, height: 30, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: '#241F3F', boxShadow: '0 0 0 2px rgba(94,188,227,0.35)', display: 'inline-block' }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo-hub-diploma-mark.png" alt="Hub Diploma" width={36} height={36} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+              <img src="/logo-hub-diploma-mark.png" alt="Hub Diploma" width={30} height={30} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
             </span>
             Bonjour {firstName}
+            <span style={{ fontSize: 13, fontWeight: 500, color: crmV2.textMuted, letterSpacing: 0 }}>· Placement RDV — Télépro</span>
           </span>
         )}
-        subtitle="Placement RDV — Télépro"
         actions={(
           <>
             {!isAdmin && (

@@ -32,6 +32,7 @@ export function CrmV2Header({
   actions,
   back,
   children,
+  compact,
 }: {
   title: ReactNode
   subtitle?: ReactNode
@@ -40,6 +41,8 @@ export function CrmV2Header({
   back?: { href: string; label: string }
   /** Onglets (CrmV2Tabs) collés sous le titre */
   children?: ReactNode
+  /** En-tête resserré (laisse plus de hauteur au contenu, ex. tableaux) */
+  compact?: boolean
 }) {
   const isMobile = useIsMobile()
   return (
@@ -47,7 +50,7 @@ export function CrmV2Header({
       style={{
         background: crmV2.bg,
         borderBottom: `1px solid ${crmV2.border}`,
-        padding: isMobile ? '14px 12px 0' : '20px 28px 0',
+        padding: isMobile ? '14px 12px 0' : compact ? '12px 28px 0' : '20px 28px 0',
         flexShrink: 0,
       }}
     >
@@ -64,8 +67,8 @@ export function CrmV2Header({
       )}
       {/* Mobile : titre et actions passent à la ligne au lieu de déborder */}
       <div style={{
-        display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
-        gap: isMobile ? 10 : '12px 16px', marginBottom: children ? 12 : (isMobile ? 12 : 16),
+        display: 'flex', alignItems: compact ? 'center' : 'flex-start', justifyContent: 'space-between',
+        gap: isMobile ? 10 : '12px 16px', marginBottom: children ? (compact ? 4 : 12) : (isMobile ? 12 : 16),
         flexWrap: 'wrap',
       }}>
         <div style={isMobile ? { minWidth: 0 } : undefined}>
