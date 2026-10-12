@@ -17,11 +17,13 @@ import {
   MapPin,
   Clock,
   MessageSquare,
+  Pencil,
   QrCode,
   Rocket,
   Save,
   Settings2,
   Trash2,
+  X,
   Users,
   Video,
 } from 'lucide-react'
@@ -602,6 +604,8 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const [timeEndEdit, setTimeEndEdit] = useState('')
   const [zoomEdit, setZoomEdit] = useState('')
   const [typeEdit, setTypeEdit] = useState<EventTypeId>('salon')
+  const [nameEditing, setNameEditing] = useState(false)
+  const [nameEdit, setNameEdit] = useState('')
 
   const [smsDraft, setSmsDraft] = useState<Record<string, string>>({})
   const [emailDraft, setEmailDraft] = useState<Record<string, EmailValue>>({})
@@ -766,6 +770,36 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       } else {
         setToast('Repassé en brouillon')
       }
+      await load()
+    } catch (e) {
+      setToast(e instanceof Error ? e.message : 'Erreur')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function saveName() {
+    const name = nameEdit.trim()
+    if (!name) {
+      setToast('Le titre ne peut pas être vide')
+      return
+    }
+    if (name === data?.event?.name) {
+      setNameEditing(false)
+      return
+    }
+    setBusy(true)
+    try {
+      const res = await fetch(`/api/events-studio/events/${id}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Erreur')
+      setToast('Titre enregistré')
+      setNameEditing(false)
       await load()
     } catch (e) {
       setToast(e instanceof Error ? e.message : 'Erreur')
@@ -1178,17 +1212,71 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             >
               <EventAvatar typeId={typeEdit} size={isMobile ? 48 : 56} />
               <div style={{ flex: isMobile ? '1 1 0' : '1 1 320px', minWidth: isMobile ? 0 : 260 }}>
-                <h1
-                  style={{
-                    margin: 0,
-                    fontSize: isMobile ? 20 : 24,
-                    fontWeight: 600,
-                    letterSpacing: '-0.02em',
-                    overflowWrap: 'anywhere',
-                  }}
-                >
-                  {ev.name}
-                </h1>
+                {nameEditing ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <input
+                      autoFocus
+                      value={nameEdit}
+                      onChange={(e) => setNameEdit(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') void saveName()
+                        if (e.key === 'Escape') setNameEditing(false)
+                      }}
+                      disabled={busy}
+                      aria-label="Titre de l’événement"
+                      style={{
+                        flex: '1 1 260px',
+                        minWidth: 0,
+                        fontSize: isMobile ? 17 : 20,
+                        fontWeight: 600,
+                        padding: '6px 10px',
+                        border: `1px solid ${crmV2.border}`,
+                        borderRadius: 8,
+                        background: crmV2.bg,
+                        color: crmV2.text,
+                      }}
+                    />
+                    <CrmV2Button size="sm" variant="primary" onClick={() => void saveName()} disabled={busy}>
+                      <Save size={14} /> Enregistrer
+                    </CrmV2Button>
+                    <CrmV2Button size="sm" variant="ghost" onClick={() => setNameEditing(false)} disabled={busy}>
+                      <X size={14} />
+                    </CrmV2Button>
+                  </div>
+                ) : (
+                  <h1
+                    style={{
+                      margin: 0,
+                      fontSize: isMobile ? 20 : 24,
+                      fontWeight: 600,
+                      letterSpacing: '-0.02em',
+                      overflowWrap: 'anywhere',
+                    }}
+                  >
+                    {ev.name}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNameEdit(ev.name || '')
+                        setNameEditing(true)
+                      }}
+                      title="Modifier le titre"
+                      aria-label="Modifier le titre"
+                      style={{
+                        marginLeft: 8,
+                        verticalAlign: 'middle',
+                        background: 'none',
+                        border: 'none',
+                        padding: 4,
+                        cursor: 'pointer',
+                        color: crmV2.textMuted,
+                        display: 'inline-flex',
+                      }}
+                    >
+                      <Pencil size={15} />
+                    </button>
+                  </h1>
+                )}
                 <div
                   style={{
                     display: 'flex',

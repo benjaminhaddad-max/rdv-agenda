@@ -236,7 +236,11 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const patch: any = {}
-  if (typeof body.name === 'string') patch.name = body.name.trim()
+  if (typeof body.name === 'string') {
+    const name = body.name.trim()
+    if (!name) return NextResponse.json({ error: 'Le titre ne peut pas être vide' }, { status: 400 })
+    patch.name = name
+  }
   if (typeof body.description === 'string') patch.description = body.description.trim() || null
   if (typeof body.location === 'string') patch.location = body.location.trim()
   if (typeof body.status === 'string' && ['draft', 'published', 'cancelled'].includes(body.status)) {
@@ -306,14 +310,18 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     (typeof patch.event_date === 'string' && patch.event_date !== current.event_date) ||
     (typeof patch.event_time_end === 'string' && patch.event_time_end !== current.event_time_end)
 
-  if ((zoomChanged && nextType === 'webinaire' && nextZoom) || scheduleChanged) {
+  // Titre modifié : rafraîchir aussi les textes encore au défaut (le titre y est embarqué)
+  const nameChanged = typeof patch.name === 'string' && patch.name !== current.name
+  const textsChanged = scheduleChanged || nameChanged
+
+  if ((zoomChanged && nextType === 'webinaire' && nextZoom) || textsChanged) {
     const evForComms = {
       ...current,
       ...patch,
       event_type: nextType,
       zoom_join_url: nextZoom,
     }
-    if (scheduleChanged && eventHasComms(evForComms)) {
+    if (textsChanged && eventHasComms(evForComms)) {
       // Rafraîchir les textes encore au défaut (date/heure embarquées) ; garder les customs.
       const oldDefaultsEmails = buildDefaultCustomEmails({ ...current, event_type: nextType })
       const oldDefaultsSms = buildDefaultCustomSms({ ...current, event_type: nextType })
