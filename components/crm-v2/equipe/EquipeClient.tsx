@@ -33,7 +33,7 @@ import {
 import { AdminIconButton, AdminNotice, AdminSpin } from '@/components/crm-v2/admin/AdminUi'
 import { PanelCard } from '@/components/crm-v2/panels/PanelUi'
 import { CredentialBox, type TeamMember } from '@/components/crm-v2/panels/TeamMemberManager'
-import { CallDebrief, CallList, CallTeamSummary, useCallAnalysis, type CallAnalysisData } from '@/components/crm-v2/equipe/CallAnalysis'
+import { CallDebrief, CallList, CallTeamSummary, ConversionByKindStrip, useCallAnalysis, type CallAnalysisData } from '@/components/crm-v2/equipe/CallAnalysis'
 import { PlanningDayCell, PlanningDayHeader, PlanningLegend, PlanningWeekSummary, usePlanningWeek, type PlanningData } from '@/components/crm-v2/equipe/PlanningWeek'
 import { DayScheduleEditor, SlotChip, VERDICTS, VerdictPill, WEEKDAYS, fmtMinutes as fmtPlannedMinutes, type DayReport } from '@/components/planning/PlanningUi'
 import { addParisDays, parisDateKey, parisMonthEndKey, parisWeekStartKey } from '@/lib/date-paris'
@@ -1307,6 +1307,7 @@ function MemberDetail({ row, actions, ...common }: TableCommon & { row: Row; act
         {actions && <div onClick={e => e.stopPropagation()}>{actions}</div>}
       </div>
       {tab === 'telepros' && row.stats && <MemberStatsStrip s={row.stats} />}
+      {tab === 'telepros' && <ConversionByKindStrip data={common.calls} userId={row.id} />}
       {tab === 'telepros' && days.length > 0 && (
         <MemberDaysTable days={days} onEdit={d => common.onEditDay(row, d)} calls={common.calls} userId={row.id} />
       )}

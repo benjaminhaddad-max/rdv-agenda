@@ -14,7 +14,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getAircallCall, pickAircallAudioUrl } from '@/lib/aircall'
-import { talkSeconds, type CallRow } from '@/lib/suivi-commercial'
+import { isOutboundTalk2min, talkSeconds, type CallRow } from '@/lib/suivi-commercial'
 
 export const MIN_TALK_SEC = 120
 /** Un RDV créé dans cette fenêtre après l'appel = l'appel a converti. */
@@ -50,16 +50,15 @@ export type CallCause = typeof CALL_CAUSES[number]['id']
  * comme un premier appel à froid.
  */
 export const CALL_KINDS = [
-  { id: 'premier_appel', label: 'Premier appel', hint: 'Aucune conversation avant avec ce contact : appel à froid' },
-  { id: 'relance', label: 'Relance', hint: 'Contact déjà eu au téléphone avant, sans RDV ni inscription' },
+  { id: 'premier_appel', label: 'Premier appel', hint: 'Première conversation de 2 min et plus avec ce contact : appel à froid' },
+  { id: 'relance', label: 'Relance', hint: 'Contact déjà eu au téléphone avant (2 min et plus), sans RDV ni inscription' },
   { id: 'suivi_rdv', label: 'Suivi RDV', hint: 'Le contact a déjà un RDV (passé ou à venir) : relance, rappel ou point après le RDV' },
   { id: 'suivi_inscription', label: 'Suivi inscription', hint: "Le contact a déjà une inscription sur la plateforme : point sur l'inscription / le paiement" },
 ] as const
 
 export type CallKind = typeof CALL_KINDS[number]['id']
 
-/** Conversation antérieure : décrochée, hors messagerie, ≥ 45 s. */
-const PRIOR_CALL_MIN_SEC = 45
+/** Conversation antérieure : décrochée, hors messagerie, ≥ 2 min de conversation réelle. */
 const PRIOR_LOOKBACK_MS = 180 * 86_400_000
 
 /**
@@ -103,15 +102,15 @@ export async function classifyCallKinds(
     }
     for (let from = 0; from < 10_000; from += 1000) {
       const { data } = await db.from('aircall_calls')
-        .select('aircall_call_id, hubspot_contact_id, started_at, status, duration_sec')
+        .select('aircall_call_id, hubspot_contact_id, started_at, ended_at, answered_at:payload->answered_at, status, duration_sec')
         .in('hubspot_contact_id', ids)
         .eq('answered', true)
-        .gte('duration_sec', PRIOR_CALL_MIN_SEC)
+        .gte('duration_sec', MIN_TALK_SEC)
         .gte('started_at', new Date(minStart - PRIOR_LOOKBACK_MS).toISOString())
         .order('started_at', { ascending: true })
         .range(from, from + 999)
-      for (const r of (data ?? []) as Array<{ aircall_call_id: number; hubspot_contact_id: string; started_at: string; status: string | null }>) {
-        if (r.status === 'voicemail') continue
+      for (const r of (data ?? []) as Array<CallRow & { aircall_call_id: number; hubspot_contact_id: string }>) {
+        if (r.status === 'voicemail' || talkSeconds(r) < MIN_TALK_SEC) continue
         const list = prior.get(r.hubspot_contact_id) ?? []
         list.push({ id: Number(r.aircall_call_id), at: Date.parse(r.started_at) })
         prior.set(r.hubspot_contact_id, list)
@@ -142,6 +141,91 @@ export async function classifyCallKinds(
     out.set(c.aircall_call_id, before.length
       ? { kind: 'relance', detail: `${before.length} conversation${before.length > 1 ? 's' : ''} avant, la dernière le ${day(before[before.length - 1].at)}` }
       : { kind: 'premier_appel', detail: '' })
+  }
+  return out
+}
+
+export type ConversionBucket = { talk2: number; rdv: number }
+export type ConversionByKind = {
+  /** Premières conversations ≥ 2 min avec le contact (leads froids, candidatures…) */
+  froid: ConversionBucket
+  /** Relances, suivis de RDV, suivis d'inscription */
+  relance: ConversionBucket
+  /** RDV placés sans conversation ≥ 2 min juste avant (SMS, appel court, entrant…) */
+  rdv_sans_appel: number
+  rdv_total: number
+}
+
+/**
+ * « ≥ 2 min → RDV » séparé entre appels froids et relances, par télépro.
+ * Chaque RDV placé (telepro_id, créé sur la période) est rattaché à la
+ * dernière conversation ≥ 2 min de ce télépro avec le contact dans les
+ * 3 jours avant (ou 30 min après) ; il prend le type de cette conversation.
+ * Taux = RDV du type / conversations ≥ 2 min du type, comme le taux global.
+ */
+export async function buildConversionByKind(
+  db: SupabaseClient,
+  opts: { fromIso: string; toIso: string; userIds?: string[] },
+): Promise<Record<string, ConversionByKind>> {
+  const fromMs = Date.parse(opts.fromIso)
+  const calls: Array<CallRow & { aircall_call_id: number }> = []
+  for (let from = 0; from < 20_000; from += 1000) {
+    let q = db.from('aircall_calls')
+      .select('aircall_call_id, rdv_user_id, direction, answered, status, duration_sec, started_at, ended_at, answered_at:payload->answered_at, hubspot_contact_id')
+      .eq('direction', 'outbound')
+      .gte('duration_sec', MIN_TALK_SEC)
+      .not('rdv_user_id', 'is', null)
+      .gte('started_at', new Date(fromMs - RDV_WINDOW_AFTER_MS).toISOString())
+      .lt('started_at', opts.toIso)
+      .order('started_at', { ascending: true })
+      .range(from, from + 999)
+    if (opts.userIds?.length) q = q.in('rdv_user_id', opts.userIds)
+    const { data, error } = await q
+    if (error) throw new Error(error.message)
+    calls.push(...((data ?? []) as Array<CallRow & { aircall_call_id: number }>))
+    if (!data || data.length < 1000) break
+  }
+  const talk2 = calls.filter(isOutboundTalk2min)
+
+  // RDV sans telepro_id : rattachés au télépro de la conversation qui les précède
+  const rdvs: Array<{ telepro_id: string | null; hubspot_contact_id: string | null; created_at: string }> = []
+  for (let from = 0; from < 20_000; from += 1000) {
+    let q = db.from('rdv_appointments')
+      .select('telepro_id, hubspot_contact_id, created_at')
+      .gte('created_at', opts.fromIso).lt('created_at', opts.toIso)
+      .order('created_at', { ascending: true })
+      .range(from, from + 999)
+    if (opts.userIds?.length) q = q.or(`telepro_id.in.(${opts.userIds.join(',')}),telepro_id.is.null`)
+    const { data, error } = await q
+    if (error) throw new Error(error.message)
+    rdvs.push(...((data ?? []) as typeof rdvs))
+    if (!data || data.length < 1000) break
+  }
+
+  const kinds = await classifyCallKinds(db, talk2.map(c => ({
+    aircall_call_id: Number(c.aircall_call_id), hubspot_contact_id: c.hubspot_contact_id, started_at: c.started_at,
+  })))
+  const bucketOf = (id: number): 'froid' | 'relance' => (kinds.get(id)?.kind ?? 'premier_appel') === 'premier_appel' ? 'froid' : 'relance'
+
+  const out: Record<string, ConversionByKind> = {}
+  const get = (id: string) => (out[id] ??= { froid: { talk2: 0, rdv: 0 }, relance: { talk2: 0, rdv: 0 }, rdv_sans_appel: 0, rdv_total: 0 })
+  for (const c of talk2) {
+    if (Date.parse(c.started_at) < fromMs) continue
+    get(c.rdv_user_id as string)[bucketOf(Number(c.aircall_call_id))].talk2++
+  }
+  for (const r of rdvs) {
+    const t = Date.parse(r.created_at)
+    const call = r.hubspot_contact_id
+      ? talk2.filter(c => (!r.telepro_id || c.rdv_user_id === r.telepro_id) && c.hubspot_contact_id === r.hubspot_contact_id)
+        .filter(c => { const s = Date.parse(c.started_at); return s >= t - RDV_WINDOW_AFTER_MS && s <= t + RDV_WINDOW_BEFORE_MS })
+        .pop()
+      : undefined
+    const userId = r.telepro_id ?? (call?.rdv_user_id as string | undefined)
+    if (!userId) continue
+    const o = get(userId)
+    o.rdv_total++
+    if (call) o[bucketOf(Number(call.aircall_call_id))].rdv++
+    else o.rdv_sans_appel++
   }
   return out
 }
@@ -714,6 +798,7 @@ export async function buildCallReport(
     causes: CALL_CAUSES,
     criteria: CALL_CRITERIA,
     kinds: CALL_KINDS,
+    conversion: await buildConversionByKind(db, { fromIso: start, toIso: end, userIds: userId ? [userId] : undefined }).catch(() => null),
     coaching: await loadCoaching(db, from, to, userId),
     team,
     unrecorded_lines: unrecordedLines,

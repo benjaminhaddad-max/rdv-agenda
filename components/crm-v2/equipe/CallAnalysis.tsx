@@ -48,12 +48,20 @@ export type AnalyzedCall = {
   kind_detail?: string | null
 }
 export type KindDef = { id: string; label: string; hint: string }
+export type ConversionByKind = {
+  froid: { talk2: number; rdv: number }
+  relance: { talk2: number; rdv: number }
+  rdv_sans_appel: number
+  rdv_total: number
+}
 export type CallAnalysisData = {
   ready: boolean
   ai_ready: boolean
   causes: CauseDef[]
   criteria?: CriterionDef[]
   kinds?: KindDef[]
+  /** « ≥ 2 min → RDV » séparé appels froids / relances, par télépro */
+  conversion?: Record<string, ConversionByKind> | null
   coaching?: Record<string, CoachingEntry>
   team: Record<string, TeamCallStats>
   /** Appels sans RDV sur des lignes Aircall qui n'enregistrent pas */
@@ -140,6 +148,45 @@ export function KindChip({ data, id, count, detail }: { data: CallAnalysisData |
     }}>
       {def?.label ?? id}{count != null && <span style={{ fontWeight: 800 }}>{count}</span>}
     </span>
+  )
+}
+
+/**
+ * « ≥ 2 min → RDV » d'un télépro, séparé entre appels froids (première
+ * conversation avec le contact) et relances / suivis, + d'où viennent ses RDV.
+ */
+export function ConversionByKindStrip({ data, userId }: { data: CallAnalysisData | null; userId: string }) {
+  const c = data?.conversion?.[userId]
+  if (!c || (!c.rdv_total && !c.froid.talk2 && !c.relance.talk2)) return null
+  const card = (title: string, hint: string, color: string, b: { talk2: number; rdv: number }) => {
+    const rate = b.talk2 ? Math.round((b.rdv / b.talk2) * 100) : null
+    return (
+      <div title={hint} style={{ background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderLeft: `4px solid ${color}`, borderRadius: 10, padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <span style={{ fontSize: 10.5, fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{title}</span>
+        <span style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 22, fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: rate == null ? crmV2.textFaint : rate >= 60 ? crmV2.successStrong : rate >= 35 ? '#d97706' : '#dc2626' }}>
+            {rate == null ? '—' : `${rate} %`}
+          </span>
+          <span style={{ fontSize: 12.5, color: crmV2.textMuted }}>
+            {b.talk2} conversation{b.talk2 > 1 ? 's' : ''} ≥ 2 min → <strong style={{ color: crmV2.text }}>{b.rdv} RDV</strong>
+          </span>
+        </span>
+      </div>
+    )
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ fontSize: 12.5, color: crmV2.textMuted }}>
+        <strong style={{ color: crmV2.text }}>{c.rdv_total} RDV placé{c.rdv_total > 1 ? 's' : ''}</strong>
+        {' : '}<strong style={{ color: KIND_COLORS.premier_appel }}>{c.froid.rdv} sur appel froid</strong>
+        {' · '}<strong style={{ color: KIND_COLORS.relance }}>{c.relance.rdv} sur relance</strong>
+        {c.rdv_sans_appel > 0 && <span title="Pas de conversation de 2 min et plus avec le contact dans les 3 jours avant le RDV (SMS, appel court, appel entrant…)"> · {c.rdv_sans_appel} sans conversation de 2 min</span>}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 8 }}>
+        {card('Appels froids · ≥ 2 min → RDV', 'Première conversation de 2 min et plus avec le contact (leads froids, candidatures…)', KIND_COLORS.premier_appel, c.froid)}
+        {card('Relances & suivis · ≥ 2 min → RDV', 'Contact déjà eu en conversation de 2 min et plus, ou qui avait déjà un RDV / une inscription', KIND_COLORS.relance, c.relance)}
+      </div>
+    </div>
   )
 }
 
