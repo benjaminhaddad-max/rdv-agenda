@@ -33,7 +33,7 @@ import {
 import { AdminIconButton, AdminNotice, AdminSpin } from '@/components/crm-v2/admin/AdminUi'
 import { PanelCard } from '@/components/crm-v2/panels/PanelUi'
 import { CredentialBox, type TeamMember } from '@/components/crm-v2/panels/TeamMemberManager'
-import { CallDebrief, CallList, CallTeamSummary, ConversionByKindStrip, useCallAnalysis, type CallAnalysisData } from '@/components/crm-v2/equipe/CallAnalysis'
+import { CallDebrief, CallList, CallTeamSummary, ConversionByKindStrip, useCallAnalysis, type CallAnalysisData, type TypeBucket } from '@/components/crm-v2/equipe/CallAnalysis'
 import { PlanningDayCell, PlanningDayHeader, PlanningLegend, PlanningWeekSummary, usePlanningWeek, type PlanningData } from '@/components/crm-v2/equipe/PlanningWeek'
 import { DayScheduleEditor, SlotChip, VERDICTS, VerdictPill, WEEKDAYS, fmtMinutes as fmtPlannedMinutes, type DayReport } from '@/components/planning/PlanningUi'
 import { addParisDays, parisDateKey, parisMonthEndKey, parisWeekStartKey } from '@/lib/date-paris'
@@ -193,6 +193,13 @@ type Row = {
   color: string | null
   member: EquipeMember | null
   stats: AgentMetrics | null
+  /** Appels froids ≥ 2 min (analyse des appels) : remplace les « ≥ 2 min » tous types */
+  froid?: TypeBucket | null
+}
+
+/** Taux « ≥ 2 min → RDV » des appels froids (RDV + petites offres vendues), en %. */
+function coldRate(f: TypeBucket | null | undefined): number | null {
+  return f?.talk2 ? Math.round(((f.rdv + f.offre) / f.talk2) * 1000) / 10 : null
 }
 
 /**
@@ -224,7 +231,7 @@ function sortValue(r: Row, key: SortKey, presence: Record<string, DayReport[]> |
   switch (key) {
     case 'calls': return s.calls_outbound
     case 'answered': return s.calls_outbound_talk_2min + s.calls_outbound_talk_short
-    case 'talk2': return s.calls_outbound_talk_2min
+    case 'talk2': return r.froid ? r.froid.talk2 : s.calls_outbound_talk_2min
     case 'talk': return s.talk_time_sec
     case 'rdv': return s.rdv_total
     case 'minPerRdv': return minPerRdv(s.talk_time_sec, s.rdv_total) ?? 1e9
@@ -234,7 +241,7 @@ function sortValue(r: Row, key: SortKey, presence: Record<string, DayReport[]> |
     case 'cancelled': return s.rdv_annules
     case 'showRate': return s.show_rate ?? -1
     case 'closingRate': return s.closing_rate ?? -1
-    case 'talk2Rdv': return s.conversion_talk_2min ?? -1
+    case 'talk2Rdv': return (r.froid ? coldRate(r.froid) : s.conversion_talk_2min) ?? -1
     case 'venus': return s.rdv_venus
     case 'preinscrits': return s.rdv_preinscrits
     case 'avgTalk2': return s.avg_talk_2min_sec ?? -1
@@ -422,14 +429,15 @@ export default function EquipeClient() {
     if (statsReady && stats) for (const a of stats.agents) if (!a.unmapped) byId.set(a.user_id, a)
     const out: Row[] = list.map(m => ({
       id: m.id, name: m.name, color: m.avatar_color, member: m, stats: byId.get(m.id) ?? null,
+      froid: calls.data?.team[m.id]?.by_type?.froid ?? null,
     }))
     const known = new Set(list.map(m => m.id))
     for (const a of byId.values()) {
       if (known.has(a.user_id)) continue
-      out.push({ id: a.user_id, name: a.name, color: a.avatar_color, member: null, stats: a })
+      out.push({ id: a.user_id, name: a.name, color: a.avatar_color, member: null, stats: a, froid: calls.data?.team[a.user_id]?.by_type?.froid ?? null })
     }
     return out
-  }, [members, tab, stats, statsReady])
+  }, [members, tab, stats, statsReady, calls.data])
 
   const q = search.trim().toLowerCase()
   const filtered = q ? rows.filter(r => `${r.name} ${r.member?.email ?? ''}`.toLowerCase().includes(q)) : rows
@@ -716,11 +724,11 @@ const TELEPRO_COLS: Col[] = [
   { key: 'presence', label: 'Présence', title: "Jours présents (au moins un appel), heures prévues et journées bien faites / partielles / sans appel" },
   { key: 'calls', label: 'Appels', title: 'Appels sortants Aircall' },
   { key: 'answered', label: 'Décrochés', title: 'Décrochés humains ≥ 10 s (et part des appels)' },
-  { key: 'talk2', label: 'Appels ≥ 2 min', title: 'Conversations de 2 minutes ou plus (et part des appels)' },
+  { key: 'talk2', label: '≥ 2 min froid', title: 'Conversations de 2 minutes ou plus en appel froid (premier vrai échange avec le lead) / toutes les conversations ≥ 2 min' },
   { key: 'avgTalk2', label: 'Durée moy. ≥ 2 min', title: 'Durée moyenne des conversations de 2 minutes ou plus', defaultHidden: true },
   { key: 'talk', label: "Temps d'appel", title: 'Temps de conversation réel' },
   { key: 'rdv', label: 'RDV placés', title: 'Tous les RDV placés, même sans appel (SMS, etc.)' },
-  { key: 'talk2Rdv', label: '≥ 2 min → RDV', title: 'RDV placés / appels ≥ 2 min : une conversation de 2 min doit se transformer en RDV' },
+  { key: 'talk2Rdv', label: 'Froid → RDV', title: "Appels froids ≥ 2 min qui finissent en RDV (ou petite offre) : lu par l'IA dans chaque appel, CRM en attendant l'analyse" },
   { key: 'minPerRdv', label: 'Min / RDV', title: "Minutes d'appel par RDV placé" },
   { key: 'venus', label: 'RDV venus', title: 'Le closer a saisi une issue (ni no-show ni annulé) — et part des RDV placés' },
   { key: 'noShow', label: 'No-show', defaultHidden: true },
@@ -917,7 +925,7 @@ function MembersTable({
   )
 }
 
-function cellValue(tab: Tab, key: SortKey, s: AgentMetrics): ReactNode {
+function cellValue(tab: Tab, key: SortKey, s: AgentMetrics, froid?: TypeBucket | null): ReactNode {
   if (key.startsWith('brand:')) {
     const b = s.by_brand[key.slice(6) as RdvBrand]
     if (!b?.rdv_total) return '—'
@@ -931,10 +939,15 @@ function cellValue(tab: Tab, key: SortKey, s: AgentMetrics): ReactNode {
       const n = s.calls_outbound_talk_2min + s.calls_outbound_talk_short
       return n ? <>{fmtInt(n)} <Faint>{fmtPct(s.answer_rate)}</Faint></> : '—'
     }
-    case 'talk2': return s.calls_outbound_talk_2min
-      ? <>{fmtInt(s.calls_outbound_talk_2min)} <Faint>{fmtPct(s.talk_2min_rate)}</Faint></>
-      : '—'
-    case 'talk2Rdv': return <strong style={{ color: rateColor(s.conversion_talk_2min, 60, 35) }}>{fmtPct(s.conversion_talk_2min)}</strong>
+    case 'talk2':
+      if (froid) return froid.talk2 ? <span title={`${s.calls_outbound_talk_2min} appels ≥ 2 min en tout (relances comprises)`}>{fmtInt(froid.talk2)} <Faint>/ {fmtInt(s.calls_outbound_talk_2min)}</Faint></span> : '—'
+      return s.calls_outbound_talk_2min
+        ? <>{fmtInt(s.calls_outbound_talk_2min)} <Faint>{fmtPct(s.talk_2min_rate)}</Faint></>
+        : '—'
+    case 'talk2Rdv': {
+      const v = froid ? coldRate(froid) : s.conversion_talk_2min
+      return <strong style={{ color: rateColor(v, 60, 35) }}>{fmtPct(v)}</strong>
+    }
     case 'venus': return s.rdv_venus
       ? <>{fmtInt(s.rdv_venus)} <Faint>{fmtPct(pct(s.rdv_venus, s.rdv_total))}</Faint></>
       : '—'
@@ -1220,7 +1233,7 @@ function MemberRow({
           </CrmV2Td>
         ) : (
           <CrmV2Td key={c.key} style={{ textAlign: 'right', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
-            {s ? cellValue(tab, c.key, s) : statsLoading ? <span style={{ color: crmV2.textFaint }}>…</span> : '—'}
+            {s ? cellValue(tab, c.key, s, row.froid) : statsLoading ? <span style={{ color: crmV2.textFaint }}>…</span> : '—'}
           </CrmV2Td>
         ))}
 
@@ -1306,7 +1319,7 @@ function MemberDetail({ row, actions, ...common }: TableCommon & { row: Row; act
         </span>
         {actions && <div onClick={e => e.stopPropagation()}>{actions}</div>}
       </div>
-      {tab === 'telepros' && row.stats && <MemberStatsStrip s={row.stats} />}
+      {tab === 'telepros' && row.stats && <MemberStatsStrip s={row.stats} froid={row.froid} />}
       {tab === 'telepros' && <ConversionByKindStrip data={common.calls} userId={row.id} from={common.callRange.from} to={common.callRange.to} onDone={common.onCallsChanged} />}
       {tab === 'telepros' && days.length > 0 && (
         <MemberDaysTable days={days} onEdit={d => common.onEditDay(row, d)} calls={common.calls} userId={row.id} />
@@ -1354,16 +1367,20 @@ function PeriodNav({ label, onPrev, onNext, onToday, todayLabel }: {
 }
 
 /** Stats du télépro sur la période (semaine en mode Planning). */
-function MemberStatsStrip({ s }: { s: AgentMetrics }) {
+function MemberStatsStrip({ s, froid }: { s: AgentMetrics; froid?: TypeBucket | null }) {
   const answered = s.calls_outbound_talk_2min + s.calls_outbound_talk_short
   const mpr = minPerRdv(s.talk_time_sec, s.rdv_total)
   const items: Array<[string, ReactNode, ReactNode?]> = [
     ['Appels', fmtInt(s.calls_outbound)],
     ['Décrochés', fmtInt(answered), fmtPct(s.answer_rate)],
-    ['≥ 2 min', fmtInt(s.calls_outbound_talk_2min), fmtPct(s.talk_2min_rate)],
+    froid
+      ? ['≥ 2 min froid', fmtInt(froid.talk2), `/ ${fmtInt(s.calls_outbound_talk_2min)}`]
+      : ['≥ 2 min', fmtInt(s.calls_outbound_talk_2min), fmtPct(s.talk_2min_rate)],
     ["Temps d'appel", fmtMinutes(s.talk_time_sec)],
     ['RDV placés', fmtInt(s.rdv_total)],
-    ['≥ 2 min → RDV', <span key="c" style={{ color: rateColor(s.conversion_talk_2min, 60, 35) }}>{fmtPct(s.conversion_talk_2min)}</span>],
+    froid
+      ? ['Froid → RDV', froid.talk2 ? <span key="c" style={{ color: rateColor(coldRate(froid), 60, 35) }}>{fmtPct(coldRate(froid))}</span> : '—', froid.talk2 ? `${froid.rdv + froid.offre} RDV` : undefined]
+      : ['≥ 2 min → RDV', <span key="c" style={{ color: rateColor(s.conversion_talk_2min, 60, 35) }}>{fmtPct(s.conversion_talk_2min)}</span>],
     ['Min / RDV', mpr != null ? `${mpr} min` : '—'],
     ['RDV venus', fmtInt(s.rdv_venus), fmtPct(pct(s.rdv_venus, s.rdv_total))],
     ['No-show', fmtInt(s.rdv_no_show)],

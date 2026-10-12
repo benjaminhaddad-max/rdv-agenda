@@ -683,7 +683,12 @@ async function selectAnalyses(
   return { data: [], error: { message: 'call_analyses illisible' } }
 }
 
-type TypeBucket = { analyzed: number; rdv: number; offre: number }
+/**
+ * Appels ≥ 2 min d'un type (froid / relance) : type et issue lus par l'IA
+ * quand l'appel est analysé (`analyzed`), sinon tirés du CRM (historique du
+ * contact, RDV / petite offre enregistrés juste après).
+ */
+type TypeBucket = { talk2: number; rdv: number; offre: number; analyzed: number }
 type TeamStats = {
   talk2: number; no_rdv: number; recorded: number; analyzed: number; pending: number; direct_sales: number
   causes: Record<string, number>; score_sum: number; proposed: number
@@ -735,7 +740,11 @@ export async function buildCallReport(
     }
     throw new Error(error.message)
   }
-  const kinds = await classifyCallKinds(db, rows.filter(r => r.status === 'done'))
+  // Historique CRM : type des appels pas encore lus par l'IA (et contexte affiché)
+  const toClassify = new Map<number, { aircall_call_id: number; hubspot_contact_id: string | null; started_at: string }>()
+  for (const r of rows) if (r.status === 'done') toClassify.set(Number(r.aircall_call_id), r)
+  for (const c of all) toClassify.set(c.aircall_call_id, c)
+  const kinds = await classifyCallKinds(db, [...toClassify.values()])
     .catch(() => new Map<number, { kind: CallKind; detail: string }>())
   // Analyses d'avant la v81 (appels sans RDV, sans type ni issue) : type
   // déduit du CRM, issue « pas de RDV » ; reclassées par la file d'analyse.
@@ -752,7 +761,7 @@ export async function buildCallReport(
 
   // Agrégats par télépro
   const team: Record<string, TeamStats> = {}
-  const bucket = (): TypeBucket => ({ analyzed: 0, rdv: 0, offre: 0 })
+  const bucket = (): TypeBucket => ({ talk2: 0, rdv: 0, offre: 0, analyzed: 0 })
   const get = (id: string) => (team[id] ??= {
     talk2: 0, no_rdv: 0, recorded: 0, analyzed: 0, pending: 0, direct_sales: 0, causes: {}, score_sum: 0, proposed: 0, criteria_sum: {}, criteria_n: 0,
     talk2_recorded: 0, talk2_unrecorded: 0, by_type: { froid: bucket(), relance: bucket() },
@@ -780,14 +789,23 @@ export async function buildCallReport(
     const r = rowById.get(c.aircall_call_id)
     if (!r || (r.status === 'done' && 'outcome' in r && !r.outcome)) t.pending++
   }
+  // Froid / relance sur TOUS les appels ≥ 2 min de la période : lecture de
+  // l'IA quand elle existe, CRM sinon (pas de taux faussé pendant l'analyse)
+  for (const c of all) {
+    const r = rowById.get(c.aircall_call_id)
+    const ai = r?.status === 'done' && !!r.outcome
+    const type = ai ? typeOf(r!) : kinds.get(c.aircall_call_id)?.kind ?? 'premier_appel'
+    const b = get(c.rdv_user_id).by_type[type === 'premier_appel' ? 'froid' : 'relance']
+    b.talk2++
+    if (ai) b.analyzed++
+    const outcome = ai ? r!.outcome : c.crm_success ? 'rdv_pris' : 'aucun'
+    if (outcome === 'rdv_pris') b.rdv++
+    else if (outcome === 'offre_vendue') b.offre++
+  }
   for (const r of rows) {
     if (!r.rdv_user_id || r.status !== 'done') continue
     const t = get(r.rdv_user_id)
     t.analyzed++
-    const b = t.by_type[typeOf(r) === 'premier_appel' ? 'froid' : 'relance']
-    b.analyzed++
-    if (r.outcome === 'rdv_pris') b.rdv++
-    else if (r.outcome === 'offre_vendue') b.offre++
     if (r.cause) t.causes[r.cause] = (t.causes[r.cause] ?? 0) + 1
     t.score_sum += r.score ?? 0
     if (r.rdv_proposed) t.proposed++

@@ -25,7 +25,8 @@ export type TeamCallStats = {
   /** Issue lue par l'IA : appels froids (premier appel) / relances & suivis */
   by_type?: { froid: TypeBucket; relance: TypeBucket }
 }
-export type TypeBucket = { analyzed: number; rdv: number; offre: number }
+/** Appels ≥ 2 min d'un type : `analyzed` = lus par l'IA, les autres d'après le CRM */
+export type TypeBucket = { talk2: number; rdv: number; offre: number; analyzed: number }
 export type CriterionDef = { id: string; label: string; hint: string }
 export type CoachingEntry = {
   content: { forces: string[]; axes: Array<{ titre: string; detail: string; exemple: string }>; phrase_cle: string }
@@ -166,35 +167,49 @@ export function ConversionByKindStrip({ data, userId, from, to, onDone }: {
 }) {
   const [running, setRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const stopRef = useRef(false)
+  const startedRef = useRef<string | null>(null)
+  const unmountedRef = useRef(false)
+  useEffect(() => {
+    unmountedRef.current = false
+    return () => { unmountedRef.current = true }
+  }, [])
   const s = data?.team[userId]
   const bt = s?.by_type
-  if (!s || !bt || !s.talk2) return null
+  const pending = s?.pending ?? 0
 
-  async function run() {
-    setRunning(true)
-    setError(null)
-    stopRef.current = false
-    try {
-      for (let i = 0; i < 30 && !stopRef.current; i++) {
-        const res = await fetch(ADMIN_ENDPOINT, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ from, to, user_id: userId, limit: 8 }),
-        })
-        const j = await res.json().catch(() => ({}))
-        if (!res.ok) { setError(j.error || 'Analyse impossible'); break }
-        onDone()
-        if (!j.processed || !(j.remaining > 0)) break
+  // Analyse automatique dès l'ouverture de la fiche : les appels en attente
+  // (nouveaux ou à reclasser) passent sans clic, une fois par période affichée
+  // (le cron fait le reste toutes les 10 min).
+  useEffect(() => {
+    const key = `${userId}|${from}|${to}`
+    if (!data?.ai_ready || pending === 0 || startedRef.current === key) return
+    startedRef.current = key
+    ;(async () => {
+      setRunning(true)
+      setError(null)
+      try {
+        for (let i = 0; i < 30 && !unmountedRef.current; i++) {
+          const res = await fetch(ADMIN_ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ from, to, user_id: userId, limit: 8 }),
+          })
+          const j = await res.json().catch(() => ({}))
+          if (!res.ok) { setError(j.error || 'Analyse impossible'); break }
+          if (!unmountedRef.current) onDone()
+          if (!j.processed || !(j.remaining > 0)) break
+        }
+      } finally {
+        if (!unmountedRef.current) setRunning(false)
       }
-    } finally {
-      setRunning(false)
-    }
-  }
+    })()
+  }, [data?.ai_ready, pending, userId, from, to, onDone])
+
+  if (!s || !bt || !s.talk2) return null
 
   const card = (title: string, hint: string, color: string, b: TypeBucket) => {
     const won = b.rdv + b.offre
-    const rate = b.analyzed ? Math.round((won / b.analyzed) * 100) : null
+    const rate = b.talk2 ? Math.round((won / b.talk2) * 100) : null
     return (
       <div title={hint} style={{ background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderLeft: `4px solid ${color}`, borderRadius: 10, padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 2 }}>
         <span style={{ fontSize: 10.5, fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{title}</span>
@@ -203,7 +218,7 @@ export function ConversionByKindStrip({ data, userId, from, to, onDone }: {
             {rate == null ? '—' : `${rate} %`}
           </span>
           <span style={{ fontSize: 12.5, color: crmV2.textMuted }}>
-            {b.analyzed} appel{b.analyzed > 1 ? 's' : ''} ≥ 2 min → <strong style={{ color: crmV2.text }}>{b.rdv} RDV</strong>
+            {b.talk2 ? <>{b.talk2} appel{b.talk2 > 1 ? 's' : ''} ≥ 2 min → <strong style={{ color: crmV2.text }}>{b.rdv} RDV</strong></> : 'aucun appel ≥ 2 min'}
             {b.offre > 0 && <> + <strong style={{ color: crmV2.text }}>{b.offre} petite{b.offre > 1 ? 's' : ''} offre{b.offre > 1 ? 's' : ''}</strong></>}
           </span>
         </span>
@@ -211,23 +226,26 @@ export function ConversionByKindStrip({ data, userId, from, to, onDone }: {
     )
   }
   const analyzed = bt.froid.analyzed + bt.relance.analyzed
+  const total = bt.froid.talk2 + bt.relance.talk2
   const unrecorded = s.talk2_unrecorded ?? 0
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 12.5, color: crmV2.textMuted }}>
         <span>
-          <strong style={{ color: crmV2.text }}>{bt.froid.rdv + bt.relance.rdv} RDV pris au téléphone</strong>
+          <strong style={{ color: crmV2.text }}>{bt.froid.rdv + bt.relance.rdv} RDV sur ses appels ≥ 2 min</strong>
           {' : '}<strong style={{ color: KIND_COLORS.premier_appel }}>{bt.froid.rdv} sur appel froid</strong>
           {' · '}<strong style={{ color: KIND_COLORS.relance }}>{bt.relance.rdv} sur relance</strong>
-          <span title="L'IA écoute chaque appel de 2 min et plus : type d'appel et RDV pris ou non sont lus dans la conversation">
-            {' '}— d&apos;après l&apos;analyse de {analyzed} appel{analyzed > 1 ? 's' : ''} sur {s.talk2}
+          <span title="L'IA écoute chaque appel de 2 min et plus : type d'appel et RDV pris ou non sont lus dans la conversation. En attendant, le type et le RDV viennent du CRM.">
+            {' '}— {analyzed} / {total} appel{total > 1 ? 's' : ''} écouté{analyzed > 1 ? 's' : ''} par l&apos;IA
           </span>
-          {s.pending > 0 && <span style={{ color: crmV2.goldDark }}> · {s.pending} à analyser</span>}
+          {s.pending > 0 && (
+            <span style={{ color: crmV2.goldDark }} title="Analyse automatique : à l'ouverture de la fiche et toutes les 10 min (les appels de moins de 20 min attendent le passage suivant)">
+              {' · '}{s.pending} {running ? 'en cours d\'analyse…' : 'en attente d\'analyse automatique'}
+            </span>
+          )}
           {unrecorded > 0 && <span style={{ color: '#b45309' }} title="Ligne Aircall sans enregistrement : impossible à analyser"> · {unrecorded} non enregistré{unrecorded > 1 ? 's' : ''}</span>}
         </span>
-        {s.pending > 0 && (running
-          ? <><CrmV2Button size="sm" onClick={() => { stopRef.current = true }}>Arrêter</CrmV2Button><AdminSpin /></>
-          : <CrmV2Button size="sm" variant="primary" icon={<Sparkles size={13} />} disabled={!data?.ai_ready} onClick={run}>Analyser les {s.pending} appels</CrmV2Button>)}
+        {running && <AdminSpin />}
       </div>
       {error && <AdminNotice tone="error">{error}</AdminNotice>}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 8 }}>
