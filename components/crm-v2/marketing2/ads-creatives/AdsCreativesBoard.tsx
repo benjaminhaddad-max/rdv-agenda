@@ -10,7 +10,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
-import { AlertTriangle, ChevronRight, Copy, Plus, RefreshCw, Settings2 } from 'lucide-react'
+import { AlertTriangle, BookOpen, ChevronRight, Copy, Plus, Presentation, RefreshCw, Settings2 } from 'lucide-react'
 import {
   CrmV2Body, CrmV2Button, CrmV2Card, CrmV2Empty, CrmV2Field, CrmV2Header, CrmV2Input,
   CrmV2Page, CrmV2Segmented, CrmV2Spinner, CrmV2Table, CrmV2TableCard, CrmV2Tabs, CrmV2Td, CrmV2Th, CrmV2Toggle, CrmV2Tr,
@@ -20,7 +20,7 @@ import { useIsMobile } from '@/lib/useIsMobile'
 import { BRAND_CONFIG } from '@/lib/events-studio/config'
 import {
   ADS_BRANDS, DEFAULT_DELAYS, diffDays, formatEuros, parisDay,
-  CAMPAIGN_KINDS, CAMPAIGN_KIND_LABELS,
+  CAMPAIGN_KINDS,
   type AdsBrand, type AdsCreativesSettings, type AdsEventRow, type BrandDelays, type CampaignKind, type CreativeItem, type CreativeRole, type FolderFile,
 } from '@/lib/ads-creatives'
 import CampaignDrawer, { StatusBadge } from './CampaignDrawer'
@@ -240,7 +240,7 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
           items={ADS_BRANDS.map((b) => ({
             id: b,
             label: BRAND_CONFIG[b].name,
-            count: byBrand[b].filter((e) => e.until >= today).length,
+            count: byBrand[b].filter((e) => e.kind === kind && e.until >= today).length,
           }))}
           value={brand}
           onChange={(k: string) => pickBrand(k as AdsBrand)}
@@ -261,14 +261,33 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
 
         {error && <div style={errorBanner}><AlertTriangle size={16} /> {error}</div>}
 
+        {/* Deux plannings séparés : événements et guides (deadlines différentes) */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12, marginBottom: 16, maxWidth: 640 }}>
+          {CAMPAIGN_KINDS.map((k) => {
+            const active = k === kind
+            const late = brandEvents.filter((e) => e.kind === k && e.until >= today && !e.no_campaign
+              && (['static', 'video'] as const).some((r) => !e.items.some((i) => i.role === r)) && e.creas_deadline < today).length
+            return (
+              <button key={k} type="button" onClick={() => pickKind(k)} style={{ ...kindCard, ...(active ? kindCardActive : {}) }}>
+                <span style={{ ...kindIcon, ...(active ? { background: crmV2.goldGradient, color: '#fff' } : {}) }}>
+                  {k === 'guide' ? <BookOpen size={18} /> : <Presentation size={18} />}
+                </span>
+                <span style={{ textAlign: 'left', minWidth: 0 }}>
+                  <span style={{ display: 'block', fontSize: 15, fontWeight: 800, color: crmV2.text }}>
+                    {k === 'guide' ? 'Guides' : 'Webinaires & JPO'}
+                  </span>
+                  <span style={{ display: 'block', fontSize: 12, color: crmV2.textMuted, marginTop: 2 }}>
+                    {kindCount(k)} {k === 'guide' ? 'en cours ou à venir' : 'à venir'}
+                    {late > 0 && <span style={{ color: TONES.late.color, fontWeight: 700 }}> · {late} en retard</span>}
+                  </span>
+                </span>
+              </button>
+            )
+          })}
+        </div>
+
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <CrmV2Segmented
-            items={CAMPAIGN_KINDS.map((k) => ({ id: k, label: `${CAMPAIGN_KIND_LABELS[k]} (${kindCount(k)})` }))}
-            value={kind}
-            onChange={(v) => pickKind(v as CampaignKind)}
-            size="sm"
-          />
           <CrmV2Segmented
             items={[
               { id: 'upcoming', label: `À venir (${upcoming.length})` },
@@ -547,6 +566,15 @@ function SettingsCard({
 
 /* ─── Styles ──────────────────────────────────────────────────────── */
 
+const kindCard: CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: crmV2.radiusLg,
+  borderWidth: 1.5, borderStyle: 'solid', borderColor: crmV2.border, background: crmV2.bg, cursor: 'pointer', fontFamily: 'inherit', minWidth: 0,
+}
+const kindCardActive: CSSProperties = { borderColor: crmV2.gold, boxShadow: `0 0 0 3px ${crmV2.goldSoft}` }
+const kindIcon: CSSProperties = {
+  width: 38, height: 38, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  background: crmV2.bgMuted, color: crmV2.textMuted,
+}
 const monthCell: CSSProperties = {
   padding: '14px 14px 6px', fontSize: 13, background: crmV2.bgHover, borderBottom: `1px solid ${crmV2.border}`,
 }
