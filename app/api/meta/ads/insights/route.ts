@@ -18,7 +18,7 @@ import { presetRange, type GoogleDatePreset } from '@/lib/google-ads'
 
 function cacheKey(accountId: string, level: string, datePreset: string, since?: string, until?: string): string {
   // v2 : ajout de new_leads (les entrées en cache antérieures ne l'ont pas)
-  const raw = `v3|${accountId}|${level}|${datePreset}|${since || ''}|${until || ''}`
+  const raw = `v4|${accountId}|${level}|${datePreset}|${since || ''}|${until || ''}`
   return createHash('sha256').update(raw).digest('hex').slice(0, 32)
 }
 
@@ -84,6 +84,14 @@ export async function GET(req: NextRequest) {
   const leadCounts = new Map<string, number>()
   // Nouveaux leads = contact créé dans le CRM par ce lead (il n'y était pas avant)
   const newLeadCounts = new Map<string, number>()
+  // Formulaires Meta (webinaire / événement) par campagne / adset / ad : form_id → nb de leads
+  const formsByGroup = new Map<string, Map<string, number>>()
+  const addForm = (id: string, formId: string | null, n = 1) => {
+    if (!formId) return
+    if (!formsByGroup.has(id)) formsByGroup.set(id, new Map())
+    const m = formsByGroup.get(id)!
+    m.set(formId, (m.get(formId) || 0) + n)
+  }
   if (groupCol) {
     // Construit la fenêtre de dates pour matcher la query
     let dateFrom: Date | null = null
@@ -105,7 +113,7 @@ export async function GET(req: NextRequest) {
     const PAGE = 1000
     for (let from = 0; ; from += PAGE) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let q: any = db.from('meta_lead_events').select(`${groupCol}, status, contact_created`)
+      let q: any = db.from('meta_lead_events').select(`${groupCol}, status, contact_created, form_id`)
         .not(groupCol, 'is', null)
         .order('received_at', { ascending: true })
         .range(from, from + PAGE - 1)
@@ -118,9 +126,37 @@ export async function GET(req: NextRequest) {
         if (!id) continue
         leadCounts.set(id, (leadCounts.get(id) || 0) + 1)
         if (e.contact_created === true) newLeadCounts.set(id, (newLeadCounts.get(id) || 0) + 1)
+        addForm(id, e.form_id as string | null)
       }
       if (rows.length < PAGE) break
     }
+
+    // Lignes sans lead sur la période : formulaire retrouvé via leurs leads toutes dates confondues
+    const groupId = (i: MetaAdInsight) => (level === 'campaign' ? i.campaign_id : level === 'adset' ? i.adset_id : i.ad_id)
+    const missing = [...new Set(insights.map(groupId).filter((id): id is string => !!id && !formsByGroup.has(id)))]
+    for (let k = 0; k < missing.length; k += 100) {
+      const { data } = await db.from('meta_lead_events').select(`${groupCol}, form_id`)
+        .in(groupCol, missing.slice(k, k + 100))
+        .order('received_at', { ascending: false })
+        .limit(1000)
+      // Compte 0 lead sur la période : seul le lien formulaire est utile
+      const seen = new Set<string>()
+      for (const e of (data ?? []) as Array<Record<string, string | null>>) {
+        const id = e[groupCol]
+        const formId = e.form_id
+        if (!id || !formId || seen.has(`${id}|${formId}`)) continue
+        seen.add(`${id}|${formId}`)
+        addForm(id, formId, 0)
+      }
+    }
+  }
+
+  // Noms des formulaires
+  const allFormIds = [...new Set([...formsByGroup.values()].flatMap(m => [...m.keys()]))]
+  const formNames = new Map<string, string>()
+  for (let k = 0; k < allFormIds.length; k += 200) {
+    const { data } = await db.from('meta_lead_forms').select('form_id, name').in('form_id', allFormIds.slice(k, k + 200))
+    for (const f of (data ?? []) as Array<{ form_id: string; name: string | null }>) formNames.set(f.form_id, f.name || f.form_id)
   }
 
   // Enrichit chaque insight avec le lead count + CPL
@@ -129,7 +165,12 @@ export async function GET(req: NextRequest) {
     const leads = id ? (leadCounts.get(id) || 0) : 0
     const new_leads = id ? (newLeadCounts.get(id) || 0) : 0
     const cpl = leads > 0 ? Number((i.spend / leads).toFixed(2)) : 0
-    return { ...i, leads, new_leads, cpl }
+    const forms = id && formsByGroup.has(id)
+      ? [...formsByGroup.get(id)!.entries()]
+        .map(([form_id, n]) => ({ form_id, name: formNames.get(form_id) || form_id, leads: n }))
+        .sort((a, b) => b.leads - a.leads)
+      : []
+    return { ...i, leads, new_leads, cpl, forms }
   })
 
   // Tri par spend desc

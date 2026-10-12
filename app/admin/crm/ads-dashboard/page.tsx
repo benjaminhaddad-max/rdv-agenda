@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState, useCallback } from 'react'
-import { Facebook, RefreshCw, Calendar, BarChart3, Building2, ChevronDown, ChevronUp, Layers } from 'lucide-react'
+import { Facebook, RefreshCw, Calendar, BarChart3, Building2, ChevronDown, ChevronUp, Layers, FileText } from 'lucide-react'
 import {
   CrmV2Body, CrmV2Button, CrmV2Card, CrmV2Empty, CrmV2Header, CrmV2Page,
   CrmV2Search, CrmV2Spinner, CrmV2Table, CrmV2TableCard, CrmV2Tabs, CrmV2Td, CrmV2Th, CrmV2Tr,
@@ -40,6 +40,7 @@ type Insight = {
   leads?: number
   new_leads?: number
   cpl?: number
+  forms?: Array<{ form_id: string; name: string; leads: number }>
 }
 
 type InsightsResponse = {
@@ -350,7 +351,7 @@ export default function AdsDashboardPage() {
                       <AdsMobileRow
                         key={id}
                         icon={<AdsIconTile icon={<Facebook size={15} />} color="#1877F2" />}
-                        title={name || '(sans nom)'}
+                        title={<>{name || '(sans nom)'}<MetaFormsLine forms={i.forms} /></>}
                         subtitle={`${fmtNumber(i.impressions)} imp. · CTR ${i.ctr.toFixed(2)}% · ${(i.leads || 0) > 0 ? `CPL ${fmtCurrency(i.cpl || 0, data.currency)}${newLeadsPctLabel(i.leads || 0, i.new_leads)}` : 'CPL —'}`}
                         right={
                           <div style={{ textAlign: 'right' }}>
@@ -384,10 +385,15 @@ export default function AdsDashboardPage() {
                           <CrmV2Td>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                               <AdsIconTile icon={<Facebook size={15} />} color="#1877F2" />
-                              <span style={{ fontWeight: 600, color: crmV2.link, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 360 }}>
-                                {name || '(sans nom)'}
-                              </span>
-                              <AdsFaint>{id}</AdsFaint>
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                                  <span style={{ fontWeight: 600, color: crmV2.link, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 360 }}>
+                                    {name || '(sans nom)'}
+                                  </span>
+                                  <AdsFaint>{id}</AdsFaint>
+                                </div>
+                                <MetaFormsLine forms={i.forms} />
+                              </div>
                             </div>
                           </CrmV2Td>
                           <CrmV2Td style={num}>{fmtNumber(i.impressions)}</CrmV2Td>
@@ -648,6 +654,23 @@ function GoogleAdsSection({ datePreset, periodLabel, refreshToken, isMobile, onD
         </>
       )}
     </>
+  )
+}
+
+/** Formulaire(s) Meta Lead Ads (webinaire / événement) reliés à la ligne, d'après les leads reçus dans le CRM. */
+function MetaFormsLine({ forms }: { forms?: Array<{ form_id: string; name: string; leads: number }> }) {
+  if (!forms || forms.length === 0) return null
+  const clean = (n: string) => n.replace(/^formulaire\s*([-–:]\s*)?/i, '')
+  const [main, ...others] = forms
+  return (
+    <div
+      title={forms.map(f => `${f.name} (${f.leads} lead${f.leads > 1 ? 's' : ''})`).join('\n')}
+      style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 3, fontSize: 12, color: crmV2.textMuted, minWidth: 0, maxWidth: 460 }}
+    >
+      <FileText size={12} style={{ flexShrink: 0 }} />
+      <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{clean(main.name)}</span>
+      {others.length > 0 && <span style={{ flexShrink: 0, color: crmV2.textFaint }}>+{others.length}</span>}
+    </div>
   )
 }
 
