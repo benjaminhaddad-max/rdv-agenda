@@ -185,7 +185,7 @@ export default function CampaignCard({
           title="Ads Manager"
           owner={settings?.ads_owner_name}
           status={adsStatus(ev, today)}
-          dateLine={<>Allumage le <b>{frDay(ev.campaign_start)}</b> · fin le <b>{frDay(ev.campaign_end)}</b></>}
+          dateLine={<>Allumage le <b>{frDay(ev.campaign_start)}</b> · extinction le <b>{frDay(ev.campaign_end)}</b>{ev.campaign_end === ev.day ? ' (jour J)' : ''}</>}
           borderLeft={!isMobile}
           borderTop={isMobile}
         >
@@ -227,11 +227,14 @@ export default function CampaignCard({
 
 function Timeline({ ev, today, isMobile }: { ev: AdsEventRow; today: string; isMobile: boolean }) {
   const creasDone = (['static', 'video'] as const).every((r) => ev.items.some((i) => i.role === r))
+  const eventLabel = ev.event_type === 'jpo' ? 'JPO' : 'Webinaire'
+  const sameDayEnd = ev.campaign_end === ev.day
   const steps: Array<{ label: string; day: string; late: boolean; done: boolean }> = [
     { label: 'Créas', day: ev.creas_deadline, done: creasDone, late: !creasDone && today > ev.creas_deadline && !ev.no_campaign },
     { label: 'Allumage', day: ev.campaign_start, done: !!ev.launched_at, late: !ev.launched_at && today > ev.campaign_start && !ev.no_campaign },
-    { label: ev.event_type === 'jpo' ? 'JPO' : 'Webinaire', day: ev.day, done: today > ev.day, late: false },
-    { label: 'Extinction', day: ev.campaign_end, done: today > ev.campaign_end, late: false },
+    // Extinction le jour de l'événement : une seule étape « Webinaire · extinction »
+    { label: sameDayEnd ? `${eventLabel} · extinction` : eventLabel, day: ev.day, done: today > ev.day, late: false },
+    ...(sameDayEnd ? [] : [{ label: 'Extinction', day: ev.campaign_end, done: today > ev.campaign_end, late: false }]),
   ]
   // Position d'aujourd'hui : entre quelles étapes ?
   const idx = steps.findIndex((s) => today < s.day) // première étape à venir

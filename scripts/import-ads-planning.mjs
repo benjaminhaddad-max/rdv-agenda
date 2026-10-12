@@ -10,8 +10,10 @@
  *   CPL cible, Budget cible, Leads attendus, Logique budget, Intervenant, CTA, Pourquoi, Points à vérifier, Statut).
  * - Relançable : une ligne = (marque, N°). Une relance met à jour le brief et les dates,
  *   sans toucher aux dépôts de créas, à la coche « en ligne » ni au rattachement à l'événement.
- * - Les dates d'allumage / livraison / extinction ne sont stockées que si elles diffèrent
- *   de la règle de la marque (ads_brand_settings) : sinon elles suivent les délais réglés.
+ * - Les dates d'allumage / livraison ne sont stockées que si elles diffèrent de la règle de
+ *   la marque (ads_brand_settings) : sinon elles suivent les délais réglés.
+ * - La colonne Extinction du fichier est ignorée : l'extinction suit la règle de la marque
+ *   (le jour de l'événement).
  */
 import * as XLSX from 'xlsx'
 import { createClient } from '@supabase/supabase-js'
@@ -40,7 +42,6 @@ const COLS = {
   geo: /^g[ée]o$/i,
   funnel: /^funnel$/i,
   launch: /^allumage/i,
-  end: /^extinction/i,
   creas: /^livraison/i,
   ref_diploma: /^r[ée]f[ée]rence/i,
   cpl_ref: /^cpl r[ée]f/i,
@@ -98,7 +99,6 @@ for (const r of rows.slice(headerIdx + 1)) {
   if (!num || !day || !title) continue
   const launch = col.launch >= 0 ? toDay(r[col.launch]) : null
   const creas = col.creas >= 0 ? toDay(r[col.creas]) : null
-  const end = col.end >= 0 ? toDay(r[col.end]) : null
   const calcLaunch = addDays(day, -delays.launch_days)
   const effLaunch = launch || calcLaunch
   lines.push({
@@ -128,7 +128,7 @@ for (const r of rows.slice(headerIdx + 1)) {
     // Dates saisies seulement si elles s'écartent de la règle de la marque
     launch_date: launch && launch !== calcLaunch ? launch : null,
     creas_date: creas && creas !== addDays(effLaunch, -delays.creas_days) ? creas : null,
-    end_date: end && end !== addDays(day, delays.end_days) ? end : null,
+    end_date: null,
   })
 }
 
@@ -136,7 +136,7 @@ console.log(`${sheetName} : ${lines.length} lignes (${brand}, délais ${delays.l
 for (const l of lines) {
   console.log(
     `  n${l.num} ${l.event_date} ${l.title.slice(0, 60)} | budget ${l.budget_target ?? '—'} € · CPL ${l.cpl_target ?? '—'} · leads ${l.leads_expected ?? '—'}` +
-    (l.launch_date ? ` | allumage ${l.launch_date}` : '') + (l.creas_date ? ` | créas ${l.creas_date}` : '') + (l.end_date ? ` | fin ${l.end_date}` : ''),
+    (l.launch_date ? ` | allumage ${l.launch_date}` : '') + (l.creas_date ? ` | créas ${l.creas_date}` : '') ,
   )
 }
 if (dry) process.exit(0)

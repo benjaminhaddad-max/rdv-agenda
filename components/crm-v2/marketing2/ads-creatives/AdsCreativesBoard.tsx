@@ -197,7 +197,7 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
     <CrmV2Page>
       <CrmV2Header
         title="Créas Ads"
-        subtitle={`JPO et webinaires · créas ${dl.creas_days} j avant l’allumage · allumage J-${dl.launch_days} · extinction J+${dl.end_days}`}
+        subtitle={`JPO et webinaires · créas ${dl.creas_days} j avant l’allumage · allumage J-${dl.launch_days} · extinction ${dl.end_days ? `J+${dl.end_days}` : 'le jour de l’événement'}`}
         actions={
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             <CrmV2Input

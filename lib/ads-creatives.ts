@@ -5,7 +5,7 @@
  * Dates (délais réglables par marque, ads_brand_settings) :
  *   allumage     = événement − launch_days   (Diploma 15 j, Medibox 21 j)
  *   livraison    = allumage − creas_days     (Diploma 7 j, Medibox 5 j)
- *   extinction   = événement + end_days      (1 j)
+ *   extinction   = événement + end_days      (0 = le jour de l'événement)
  * Une date saisie à la main sur la campagne remplace la date calculée.
  *
  * Seuls les JPO et webinaires ont une campagne (pas les salons).
@@ -23,9 +23,9 @@ export const ADS_BRANDS: AdsBrand[] = ['diploma', 'medibox', 'edumove']
 
 export type BrandDelays = { brand: AdsBrand; launch_days: number; creas_days: number; end_days: number }
 export const DEFAULT_DELAYS: Record<AdsBrand, BrandDelays> = {
-  diploma: { brand: 'diploma', launch_days: 15, creas_days: 7, end_days: 1 },
-  edumove: { brand: 'edumove', launch_days: 15, creas_days: 7, end_days: 1 },
-  medibox: { brand: 'medibox', launch_days: 21, creas_days: 5, end_days: 1 },
+  diploma: { brand: 'diploma', launch_days: 15, creas_days: 7, end_days: 0 },
+  edumove: { brand: 'edumove', launch_days: 15, creas_days: 7, end_days: 0 },
+  medibox: { brand: 'medibox', launch_days: 21, creas_days: 5, end_days: 0 },
 }
 
 /** Champs du brief (colonnes du planning). */
