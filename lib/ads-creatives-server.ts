@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { createServiceClient } from '@/lib/supabase'
 import { getApiUserContext } from '@/lib/api-auth'
 import { createEventsClient } from '@/lib/events-studio/client'
+import { eventTypeOf } from '@/lib/events-studio/config'
 import {
   computeSchedule,
   parisDay,
@@ -10,6 +11,7 @@ import {
   type AdsCreativesSettings,
   type AdsEventRow,
   type CreativeItem,
+  ADS_EVENT_TYPES,
 } from '@/lib/ads-creatives'
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://hub.diploma-sante.fr').replace(/\/$/, '')
@@ -21,6 +23,8 @@ export const DEFAULT_SETTINGS: AdsCreativesSettings = {
   static_owner_phone: null,
   video_owner_name: null,
   video_owner_phone: null,
+  ads_owner_name: null,
+  ads_owner_phone: null,
   reminders_enabled: true,
 }
 
@@ -62,10 +66,11 @@ type EventsDbRow = {
   event_date: string
   location: string | null
   status: string
+  zoom_join_url: string | null
 }
 
 /**
- * Tous les événements de l'onglet Événements (base Events), hors annulés,
+ * Événements JPO / webinaires de l'onglet Événements (base Events), hors annulés,
  * fusionnés avec leurs dépôts de créas et le planning de campagne.
  */
 export async function loadAdsEvents(
@@ -76,13 +81,15 @@ export async function loadAdsEvents(
   const events = createEventsClient()
   let q = events
     .from('events')
-    .select('id, name, brand, event_type, event_date, location, status')
+    .select('id, name, brand, event_type, event_date, location, status, zoom_join_url')
     .neq('status', 'cancelled')
     .order('event_date', { ascending: true })
   if (opts.fromDay) q = q.gte('event_date', `${opts.fromDay}T00:00:00`)
   const { data, error } = await q
   if (error) throw new Error(error.message)
-  const rows = (data || []) as EventsDbRow[]
+  // Campagnes Ads : JPO et webinaires uniquement (pas les salons).
+  const rows = ((data || []) as EventsDbRow[]).filter((r) =>
+    (ADS_EVENT_TYPES as readonly string[]).includes(eventTypeOf(r).id))
   if (rows.length === 0) return []
 
   const ids = rows.map((r) => r.id)
@@ -101,7 +108,9 @@ export async function loadAdsEvents(
     items.set(it.event_id, list)
   }
 
-  return rows.map((r) => {
+  return rows.map((row) => {
+    // Lien Zoom non exposé (page partagée)
+    const r = { ...row, zoom_join_url: undefined }
     const m = meta.get(r.id)
     const day = parisDay(r.event_date)
     const override = (m?.campaign_start as string | null) || null
@@ -110,6 +119,8 @@ export async function loadAdsEvents(
       day,
       ...computeSchedule(day, settings, override),
       no_campaign: !!m?.no_campaign,
+      launched_at: (m?.launched_at as string | null) || null,
+      launched_by: (m?.launched_by as string | null) || null,
       campaign_start_override: override,
       notes: (m?.notes as string | null) || null,
       items: items.get(r.id) || [],

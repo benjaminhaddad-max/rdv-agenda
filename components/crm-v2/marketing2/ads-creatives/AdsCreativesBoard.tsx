@@ -1,47 +1,89 @@
 'use client'
 
 /**
- * Dashboard collaboratif Ads × événements.
- * Utilisé dans le CRM (/admin/crm-v2/creas-ads) et sur le lien partagé avec les
- * créatifs (/creas-ads/[token]) : même tableau, réglages réservés au CRM.
+ * Dashboard collaboratif Ads × événements (JPO + webinaires).
+ * Utilisé dans le CRM (/admin/crm-v2/creas-ads) et sur le lien partagé
+ * (/creas-ads/[token]) : même vue, réglages réservés au CRM.
+ *
+ * Une carte par événement, trois colonnes :
+ *   Créas statiques · Créas vidéo  → dépôt d'un dossier (10 Go max)
+ *   Ads Manager                    → date de lancement + coche « en ligne »
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type ReactNode } from 'react'
+import * as tus from 'tus-js-client'
 import {
-  AlertTriangle, BellRing, Check, Copy, FileUp, FolderUp, Link2, Paperclip, RefreshCw, Settings2, Trash2, X,
+  AlertTriangle, CalendarClock, Check, ChevronDown, ChevronRight, Copy, Download, FolderOpen, FolderUp,
+  Image as ImageIcon, MapPin, Megaphone, RefreshCw, Rocket, Settings2, Trash2, Video,
 } from 'lucide-react'
 import {
-  CrmV2Body, CrmV2Button, CrmV2Card, CrmV2Empty, CrmV2Field, CrmV2Header, CrmV2Input, CrmV2Page,
-  CrmV2Spinner, CrmV2StatusPill, CrmV2Table, CrmV2TableCard, CrmV2Tabs, CrmV2Td, CrmV2Th, CrmV2Toggle, CrmV2Tr,
+  CrmV2Body, CrmV2Button, CrmV2Card, CrmV2Empty, CrmV2Field, CrmV2Header, CrmV2Input, CrmV2KpiCard, CrmV2KpiGrid,
+  CrmV2Page, CrmV2Spinner, CrmV2Tabs, CrmV2Toggle,
 } from '@/components/crm-v2/primitives'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import { useIsMobile } from '@/lib/useIsMobile'
-import { createClient } from '@/lib/supabase'
 import { BRAND_CONFIG, eventTypeOf, type EventBrand } from '@/lib/events-studio/config'
 import {
-  ADS_CREATIVES_BUCKET, ADS_CREATIVES_MAX_FILE_BYTES, CREATIVE_ROLE_LABELS, CREATIVE_ROLES,
-  diffDays, frDay, parisDay,
-  type AdsCreativesSettings, type AdsEventRow, type CreativeItem, type CreativeRole,
+  ADS_CREATIVES_BUCKET, ADS_CREATIVES_MAX_FOLDER_BYTES, CREATIVE_ROLE_LABELS,
+  diffDays, formatBytes, frDay, parisDay,
+  type AdsCreativesSettings, type AdsEventRow, type CreativeItem, type CreativeRole, type FolderFile,
 } from '@/lib/ads-creatives'
 
 type Settings = AdsCreativesSettings & { share_token?: string; share_url?: string }
+type Tone = 'done' | 'warn' | 'late' | 'idle' | 'off'
 
 const NAME_KEY = 'ads-creatives-author'
+const STORAGE_HOST = (() => {
+  try {
+    const ref = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL || '').hostname.split('.')[0]
+    return `https://${ref}.storage.supabase.co`
+  } catch {
+    return ''
+  }
+})()
+
+const TONES: Record<Tone, { color: string; bg: string; border: string }> = {
+  done: { color: '#15803d', bg: '#ecfdf3', border: '#bbf7d0' },
+  warn: { color: '#c2410c', bg: '#fff7ed', border: '#fed7aa' },
+  late: { color: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
+  idle: { color: crmV2.textMuted, bg: crmV2.bg, border: crmV2.border },
+  off: { color: crmV2.textFaint, bg: crmV2.bgHover, border: crmV2.borderLight },
+}
+
+const TYPE_COLORS: Record<string, { color: string; bg: string }> = {
+  jpo: { color: '#7c3aed', bg: '#f3e8ff' },
+  webinaire: { color: '#0369a1', bg: '#e0f2fe' },
+}
 
 function readName(): string {
   try { return localStorage.getItem(NAME_KEY) || '' } catch { return '' }
 }
 
-/** Statut d'une colonne de créas pour un événement. */
-function cellStatus(ev: AdsEventRow, role: CreativeRole, today: string): { label: string; color: string; bg: string } {
-  if (ev.items.some((i) => i.role === role)) return { label: 'Déposé', color: crmV2.successStrong, bg: 'rgba(22,163,74,0.1)' }
-  if (ev.no_campaign) return { label: 'Pas de campagne', color: crmV2.textFaint, bg: crmV2.chipBg }
+/* ─── Statuts ─────────────────────────────────────────────────────── */
+
+function creativeStatus(ev: AdsEventRow, role: CreativeRole, today: string): { tone: Tone; label: string } {
+  if (ev.items.some((i) => i.role === role)) return { tone: 'done', label: 'Déposé' }
+  if (ev.no_campaign) return { tone: 'off', label: 'Pas de campagne' }
   const d = diffDays(today, ev.creas_deadline)
-  if (d < 0) return { label: `En retard · ${-d} j`, color: crmV2.danger, bg: crmV2.dangerSoft }
-  if (d === 0) return { label: 'Aujourd’hui', color: '#c2410c', bg: 'rgba(234,88,12,0.12)' }
-  if (d <= 3) return { label: `J-${d}`, color: '#c2410c', bg: 'rgba(234,88,12,0.12)' }
-  return { label: `J-${d}`, color: crmV2.textMuted, bg: crmV2.chipBg }
+  if (ev.day < today) return { tone: 'off', label: 'Non déposé' }
+  if (d < 0) return { tone: 'late', label: `En retard de ${-d} j` }
+  if (d === 0) return { tone: 'warn', label: 'À rendre aujourd’hui' }
+  if (d <= 3) return { tone: 'warn', label: `Plus que ${d} j` }
+  return { tone: 'idle', label: `Dans ${d} j` }
 }
+
+function adsStatus(ev: AdsEventRow, today: string): { tone: Tone; label: string } {
+  if (ev.launched_at) return { tone: 'done', label: 'En ligne' }
+  if (ev.no_campaign) return { tone: 'off', label: 'Pas de campagne' }
+  if (ev.day < today) return { tone: 'off', label: 'Non lancée' }
+  const d = diffDays(today, ev.campaign_start)
+  if (d < 0) return { tone: 'late', label: `En retard de ${-d} j` }
+  if (d === 0) return { tone: 'warn', label: 'À lancer aujourd’hui' }
+  if (d <= 3) return { tone: 'warn', label: `Lancement dans ${d} j` }
+  return { tone: 'idle', label: `Lancement dans ${d} j` }
+}
+
+/* ─── Page ────────────────────────────────────────────────────────── */
 
 export default function AdsCreativesBoard({ token }: { token?: string }) {
   const isMobile = useIsMobile()
@@ -59,6 +101,7 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
   useEffect(() => { setAuthor(readName()) }, [])
 
   const qs = token ? `?token=${encodeURIComponent(token)}` : ''
+  const tokenParam = token ? `&token=${encodeURIComponent(token)}` : ''
 
   const load = useCallback(async () => {
     try {
@@ -78,14 +121,13 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
 
   useEffect(() => {
     load()
-    // Collaboratif : on rafraîchit régulièrement pour voir les dépôts des autres.
-    const id = setInterval(load, 60_000)
+    const id = setInterval(load, 60_000) // collaboratif : on voit les dépôts des autres
     return () => clearInterval(id)
   }, [load])
 
   const flash = (msg: string) => {
     setToast(msg)
-    setTimeout(() => setToast(null), 2500)
+    setTimeout(() => setToast(null), 3000)
   }
 
   const saveAuthor = (v: string) => {
@@ -97,17 +139,25 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
   const past = useMemo(() => [...events.filter((e) => e.day < today)].reverse(), [events, today])
   const list = tab === 'upcoming' ? upcoming : past
 
-  const urgent = useMemo(
-    () => upcoming.filter((e) => !e.no_campaign && CREATIVE_ROLES.some((r) =>
-      !e.items.some((i) => i.role === r) && diffDays(today, e.creas_deadline) <= 3 && today < e.campaign_start)).length,
-    [upcoming, today],
-  )
+  const kpis = useMemo(() => {
+    const active = upcoming.filter((e) => !e.no_campaign)
+    const missing = (e: AdsEventRow) => (['static', 'video'] as const).filter((r) => !e.items.some((i) => i.role === r)).length
+    return {
+      creasSoon: active.reduce((n, e) => {
+        const d = diffDays(today, e.creas_deadline)
+        return n + (d >= 0 && d <= 7 ? missing(e) : 0)
+      }, 0),
+      creasLate: active.reduce((n, e) => n + (diffDays(today, e.creas_deadline) < 0 ? missing(e) : 0), 0),
+      toLaunch: active.filter((e) => !e.launched_at && diffDays(today, e.campaign_start) <= 7).length,
+      live: active.filter((e) => !!e.launched_at).length,
+    }
+  }, [upcoming, today])
 
-  const addItem = async (ev: AdsEventRow, role: CreativeRole, payload: Partial<CreativeItem>) => {
+  const addFolder = async (ev: AdsEventRow, role: CreativeRole, label: string, files: FolderFile[]) => {
     const r = await fetch('/api/ads-creatives/items', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, event_id: ev.id, role, added_by: author || null, ...payload }),
+      body: JSON.stringify({ token, event_id: ev.id, role, kind: 'folder', label, files, added_by: author || null }),
     })
     const json = await r.json()
     if (!r.ok) throw new Error(json.error || 'Erreur')
@@ -115,36 +165,33 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
   }
 
   const removeItem = async (ev: AdsEventRow, item: CreativeItem) => {
-    if (!confirm(`Retirer « ${item.label || item.url || 'ce fichier'} » ?`)) return
-    const r = await fetch(`/api/ads-creatives/items?id=${item.id}${token ? `&token=${encodeURIComponent(token)}` : ''}`, { method: 'DELETE' })
+    if (!confirm(`Supprimer le dossier « ${item.label || 'sans nom'} » et ses fichiers ?`)) return
+    const r = await fetch(`/api/ads-creatives/items?id=${item.id}${tokenParam}`, { method: 'DELETE' })
     if (!r.ok) return flash('Suppression impossible')
     setEvents((prev) => prev.map((e) => (e.id === ev.id ? { ...e, items: e.items.filter((i) => i.id !== item.id) } : e)))
   }
 
-  const patchEvent = async (ev: AdsEventRow, patch: Record<string, unknown>) => {
+  const patchEvent = async (ev: AdsEventRow, patch: Record<string, unknown>, optimistic: Partial<AdsEventRow>) => {
+    setEvents((prev) => prev.map((e) => (e.id === ev.id ? { ...e, ...optimistic } : e)))
     const r = await fetch(`/api/ads-creatives/events/${ev.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token, ...patch }),
     })
-    if (!r.ok) return flash('Enregistrement impossible')
+    if (!r.ok) flash('Enregistrement impossible')
     load()
   }
 
-  const fileHref = (item: CreativeItem) =>
-    item.kind === 'link'
-      ? item.url || '#'
-      : `/api/ads-creatives/file?path=${encodeURIComponent(item.path || '')}${token ? `&token=${encodeURIComponent(token)}` : ''}`
-
-  const subtitle = settings
-    ? `Campagne lancée ${settings.campaign_days} j avant l’événement · créas attendues ${settings.lead_days} j avant le lancement · relances SMS à J-3, J-2, J-1`
-    : undefined
+  const fileUrl = (f: FolderFile) =>
+    `/api/ads-creatives/file?path=${encodeURIComponent(f.path)}&name=${encodeURIComponent(f.name)}${tokenParam}`
 
   return (
     <CrmV2Page>
       <CrmV2Header
-        title="Créas Ads × événements"
-        subtitle={subtitle}
+        title="Créas Ads"
+        subtitle={settings
+          ? `JPO et webinaires · campagne lancée ${settings.campaign_days} j avant l’événement · créas à déposer ${settings.lead_days} j avant le lancement`
+          : 'JPO et webinaires'}
         actions={
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             <CrmV2Input
@@ -152,7 +199,7 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
               value={author}
               onChange={(e) => saveAuthor(e.target.value)}
               style={{ width: 130 }}
-              title="Affiché à côté de tes dépôts"
+              title="Affiché sur tes dépôts et tes validations"
             />
             <CrmV2Button size="sm" icon={<RefreshCw size={14} />} onClick={() => { setLoading(true); load() }}>
               Actualiser
@@ -178,84 +225,53 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
 
       <CrmV2Body>
         {crm && showSettings && settings && (
-          <SettingsCard settings={settings} onSaved={() => { flash('Réglages enregistrés'); load() }} flash={flash} />
-        )}
-
-        {urgent > 0 && tab === 'upcoming' && (
-          <div style={banner}>
-            <BellRing size={16} />
-            <span>
-              <b>{urgent}</b> événement{urgent > 1 ? 's' : ''} avec des créas attendues dans 3 jours ou moins (ou en retard).
-            </span>
-          </div>
+          <SettingsCard key={JSON.stringify(settings)} settings={settings} onSaved={() => { flash('Réglages enregistrés'); load() }} flash={flash} />
         )}
 
         {error && (
-          <div style={{ ...banner, background: crmV2.dangerSoft, color: crmV2.danger, borderColor: 'rgba(242,84,91,0.3)' }}>
-            <AlertTriangle size={16} /> {error}
-          </div>
+          <div style={errorBanner}><AlertTriangle size={16} /> {error}</div>
+        )}
+
+        {tab === 'upcoming' && upcoming.length > 0 && (
+          <CrmV2KpiGrid style={{ marginBottom: 18 }}>
+            <CrmV2KpiCard label="Créas sous 7 j" value={kpis.creasSoon} icon={<CalendarClock size={16} />} color={kpis.creasSoon ? TONES.warn.color : crmV2.text} />
+            <CrmV2KpiCard label="Créas en retard" value={kpis.creasLate} icon={<AlertTriangle size={16} />} color={kpis.creasLate ? TONES.late.color : crmV2.text} />
+            <CrmV2KpiCard label="À lancer sous 7 j" value={kpis.toLaunch} icon={<Rocket size={16} />} color={kpis.toLaunch ? TONES.warn.color : crmV2.text} />
+            <CrmV2KpiCard label="En ligne" value={kpis.live} icon={<Megaphone size={16} />} color={kpis.live ? TONES.done.color : crmV2.text} />
+          </CrmV2KpiGrid>
         )}
 
         {loading && events.length === 0 ? (
           <CrmV2Spinner />
         ) : list.length === 0 ? (
-          <CrmV2Empty title={tab === 'upcoming' ? 'Aucun événement à venir' : 'Aucun événement passé'} description="Les événements créés dans l’onglet Événements apparaissent ici automatiquement." />
-        ) : isMobile ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <CrmV2Empty
+            title={tab === 'upcoming' ? 'Aucune JPO ni webinaire à venir' : 'Aucun événement passé'}
+            description="Les JPO et webinaires créés dans l’onglet Événements apparaissent ici automatiquement."
+          />
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {list.map((ev) => (
-              <CrmV2Card key={ev.id} style={{ opacity: ev.no_campaign ? 0.6 : 1 }}>
-                <EventInfo ev={ev} />
-                <Schedule ev={ev} today={today} />
-                {CREATIVE_ROLES.map((role) => (
-                  <div key={role} style={{ marginTop: 12 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                      <span style={{ fontWeight: 700, fontSize: 13 }}>{CREATIVE_ROLE_LABELS[role]}</span>
-                      <StatusPill s={cellStatus(ev, role, today)} />
-                    </div>
-                    <CreativeCell ev={ev} role={role} token={token} fileHref={fileHref} onAdd={addItem} onRemove={removeItem} flash={flash} />
-                  </div>
-                ))}
-                {crm && <NoCampaignToggle ev={ev} onChange={(v) => patchEvent(ev, { no_campaign: v })} />}
-              </CrmV2Card>
+              <EventCard
+                key={ev.id}
+                ev={ev}
+                today={today}
+                isMobile={isMobile}
+                crm={crm}
+                settings={settings}
+                token={token}
+                author={author}
+                fileUrl={fileUrl}
+                onAddFolder={addFolder}
+                onRemove={removeItem}
+                onLaunched={(v) => patchEvent(ev, { launched: v, by: author || null }, {
+                  launched_at: v ? new Date().toISOString() : null,
+                  launched_by: v ? author || null : null,
+                })}
+                onNoCampaign={(v) => patchEvent(ev, { no_campaign: v }, { no_campaign: v })}
+                flash={flash}
+              />
             ))}
           </div>
-        ) : (
-          <CrmV2TableCard>
-            <CrmV2Table>
-              <thead>
-                <tr>
-                  <CrmV2Th>Événement</CrmV2Th>
-                  <CrmV2Th>Date</CrmV2Th>
-                  <CrmV2Th>Lieu</CrmV2Th>
-                  <CrmV2Th>Planning</CrmV2Th>
-                  <CrmV2Th style={{ minWidth: 240 }}>{CREATIVE_ROLE_LABELS.static}{settings?.static_owner_name ? ` · ${settings.static_owner_name}` : ''}</CrmV2Th>
-                  <CrmV2Th style={{ minWidth: 240 }}>{CREATIVE_ROLE_LABELS.video}{settings?.video_owner_name ? ` · ${settings.video_owner_name}` : ''}</CrmV2Th>
-                  {crm && <CrmV2Th>Campagne</CrmV2Th>}
-                </tr>
-              </thead>
-              <tbody>
-                {list.map((ev) => (
-                  <CrmV2Tr key={ev.id} style={{ opacity: ev.no_campaign ? 0.55 : 1 }}>
-                    <CrmV2Td style={{ verticalAlign: 'top' }}><EventInfo ev={ev} /></CrmV2Td>
-                    <CrmV2Td style={{ verticalAlign: 'top', whiteSpace: 'nowrap' }}>{frDayLong(ev.day)}</CrmV2Td>
-                    <CrmV2Td style={{ verticalAlign: 'top' }}>{ev.location || <span style={{ color: crmV2.textFaint }}>—</span>}</CrmV2Td>
-                    <CrmV2Td style={{ verticalAlign: 'top' }}><Schedule ev={ev} today={today} /></CrmV2Td>
-                    {CREATIVE_ROLES.map((role) => (
-                      <CrmV2Td key={role} style={{ verticalAlign: 'top' }}>
-                        <div style={{ marginBottom: 6 }}><StatusPill s={cellStatus(ev, role, today)} /></div>
-                        <CreativeCell ev={ev} role={role} token={token} fileHref={fileHref} onAdd={addItem} onRemove={removeItem} flash={flash} />
-                      </CrmV2Td>
-                    ))}
-                    {crm && (
-                      <CrmV2Td style={{ verticalAlign: 'top' }}>
-                        <NoCampaignToggle ev={ev} onChange={(v) => patchEvent(ev, { no_campaign: v })} />
-                      </CrmV2Td>
-                    )}
-                  </CrmV2Tr>
-                ))}
-              </tbody>
-            </CrmV2Table>
-          </CrmV2TableCard>
         )}
       </CrmV2Body>
 
@@ -264,187 +280,415 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
   )
 }
 
-/* ─── Sous-composants ─────────────────────────────────────────────── */
+/* ─── Carte événement ─────────────────────────────────────────────── */
 
-function frDayLong(day: string) {
-  const s = new Date(`${day}T12:00:00Z`).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
-  return s.charAt(0).toUpperCase() + s.slice(1)
-}
-
-function EventInfo({ ev }: { ev: AdsEventRow }) {
+function EventCard({
+  ev, today, isMobile, crm, settings, token, author, fileUrl, onAddFolder, onRemove, onLaunched, onNoCampaign, flash,
+}: {
+  ev: AdsEventRow
+  today: string
+  isMobile: boolean
+  crm: boolean
+  settings: Settings | null
+  token?: string
+  author: string
+  fileUrl: (f: FolderFile) => string
+  onAddFolder: (ev: AdsEventRow, role: CreativeRole, label: string, files: FolderFile[]) => Promise<void>
+  onRemove: (ev: AdsEventRow, item: CreativeItem) => void
+  onLaunched: (v: boolean) => void
+  onNoCampaign: (v: boolean) => void
+  flash: (m: string) => void
+}) {
   const type = eventTypeOf(ev)
+  const typeColor = TYPE_COLORS[type.id] || { color: crmV2.textMuted, bg: crmV2.chipBg }
   const brand = BRAND_CONFIG[ev.brand as EventBrand]?.name
+  const d = new Date(`${ev.day}T12:00:00Z`)
+  const daysToEvent = diffDays(today, ev.day)
+  const missingCreas = (['static', 'video'] as const)
+    .filter((r) => !ev.items.some((i) => i.role === r))
+    .map((r) => (r === 'static' ? 'statiques' : 'vidéo'))
+
   return (
-    <div style={{ minWidth: 160 }}>
-      <div style={{ fontWeight: 700, color: crmV2.text, fontSize: 14 }}>{ev.name}</div>
-      <div style={{ fontSize: 12, color: crmV2.textFaint, marginTop: 2 }}>
-        {[type.short || type.label, brand].filter(Boolean).join(' · ')}
+    <div style={{ ...card, opacity: ev.no_campaign ? 0.6 : 1 }}>
+      {/* En-tête */}
+      <div style={{ display: 'flex', gap: 14, alignItems: 'center', padding: isMobile ? 14 : '16px 20px', flexWrap: 'wrap' }}>
+        <div style={dateBlock}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: crmV2.goldDark }}>
+            {d.toLocaleDateString('fr-FR', { month: 'short', timeZone: 'UTC' }).replace('.', '')}
+          </div>
+          <div style={{ fontSize: 22, fontWeight: 800, lineHeight: 1, color: crmV2.text }}>{d.getUTCDate()}</div>
+          <div style={{ fontSize: 11, color: crmV2.textMuted }}>
+            {d.toLocaleDateString('fr-FR', { weekday: 'short', timeZone: 'UTC' }).replace('.', '')}
+          </div>
+        </div>
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 4 }}>
+            <span style={{ ...typePill, color: typeColor.color, background: typeColor.bg }}>{type.short || type.label}</span>
+            {brand && <span style={{ fontSize: 12, color: crmV2.textFaint }}>{brand}</span>}
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: crmV2.text }}>{ev.name}</div>
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center', fontSize: 13, color: crmV2.textMuted, marginTop: 3 }}>
+            <MapPin size={13} style={{ flexShrink: 0 }} />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.location || (type.id === 'webinaire' ? 'En ligne' : '—')}</span>
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: isMobile ? 'flex-start' : 'flex-end', gap: 6 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: crmV2.textMuted }}>
+            {daysToEvent > 0 ? `Événement dans ${daysToEvent} j` : daysToEvent === 0 ? 'Aujourd’hui' : `Il y a ${-daysToEvent} j`}
+          </span>
+          {crm && (
+            <button type="button" onClick={() => onNoCampaign(!ev.no_campaign)} style={linkBtn}>
+              {ev.no_campaign ? 'Réactiver la campagne' : 'Pas de campagne'}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Trois colonnes */}
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, minmax(0, 1fr))', borderTop: `1px solid ${crmV2.borderLight}` }}>
+        {(['static', 'video'] as const).map((role, i) => (
+          <Lane
+            key={role}
+            icon={role === 'static' ? <ImageIcon size={15} /> : <Video size={15} />}
+            title={CREATIVE_ROLE_LABELS[role]}
+            owner={role === 'static' ? settings?.static_owner_name : settings?.video_owner_name}
+            status={creativeStatus(ev, role, today)}
+            dateLine={<>À déposer le <b>{frDay(ev.creas_deadline)}</b></>}
+            borderLeft={!isMobile && i > 0}
+            borderTop={isMobile}
+          >
+            <FolderLane
+              ev={ev}
+              role={role}
+              token={token}
+              fileUrl={fileUrl}
+              onAddFolder={onAddFolder}
+              onRemove={onRemove}
+              flash={flash}
+            />
+          </Lane>
+        ))}
+        <Lane
+          icon={<Megaphone size={15} />}
+          title="Ads Manager"
+          owner={settings?.ads_owner_name}
+          status={adsStatus(ev, today)}
+          dateLine={<>Lancement le <b>{frDay(ev.campaign_start)}</b></>}
+          borderLeft={!isMobile}
+          borderTop={isMobile}
+        >
+          <label style={{ ...launchBox, ...(ev.launched_at ? launchBoxOn : {}) }}>
+            <input
+              type="checkbox"
+              checked={!!ev.launched_at}
+              onChange={(e) => {
+                if (!e.target.checked && !confirm('Décocher : la campagne n’est plus en ligne ?')) return
+                onLaunched(e.target.checked)
+              }}
+              style={{ width: 18, height: 18, accentColor: TONES.done.color, cursor: 'pointer' }}
+            />
+            <span style={{ fontWeight: 600 }}>{ev.launched_at ? 'Campagne en ligne' : 'Marquer la campagne en ligne'}</span>
+          </label>
+          {ev.launched_at && (
+            <div style={{ fontSize: 12, color: crmV2.textMuted, marginTop: 6 }}>
+              Lancée le {frDay(parisDay(ev.launched_at))}{ev.launched_by ? ` par ${ev.launched_by}` : ''}
+            </div>
+          )}
+          {!ev.launched_at && !ev.no_campaign && missingCreas.length > 0 && (
+            <div style={{ fontSize: 12, color: crmV2.textFaint, marginTop: 6 }}>
+              En attente des créas {missingCreas.join(' et ')}
+            </div>
+          )}
+          {!author && !ev.launched_at && (
+            <div style={{ fontSize: 11, color: crmV2.textFaint, marginTop: 4 }}>Renseigne ton prénom en haut pour signer la validation.</div>
+          )}
+        </Lane>
       </div>
     </div>
   )
 }
 
-function Schedule({ ev, today }: { ev: AdsEventRow; today: string }) {
-  const d = diffDays(today, ev.creas_deadline)
+function Lane({
+  icon, title, owner, status, dateLine, borderLeft, borderTop, children,
+}: {
+  icon: ReactNode
+  title: string
+  owner?: string | null
+  status: { tone: Tone; label: string }
+  dateLine: ReactNode
+  borderLeft?: boolean
+  borderTop?: boolean
+  children: ReactNode
+}) {
+  const t = TONES[status.tone]
   return (
-    <div style={{ fontSize: 12, lineHeight: 1.6, color: crmV2.textMuted, whiteSpace: 'nowrap', marginTop: 4 }}>
-      <div>Créas pour le <b style={{ color: d <= 3 && today < ev.campaign_start ? '#c2410c' : crmV2.text }}>{frDay(ev.creas_deadline)}</b></div>
-      <div>Lancement le <b style={{ color: crmV2.text }}>{frDay(ev.campaign_start)}</b></div>
+    <div style={{
+      padding: 16, minWidth: 0,
+      borderLeft: borderLeft ? `1px solid ${crmV2.borderLight}` : undefined,
+      borderTop: borderTop ? `1px solid ${crmV2.borderLight}` : undefined,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+        <span style={{ color: crmV2.textMuted, display: 'inline-flex' }}>{icon}</span>
+        <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: crmV2.textMuted }}>{title}</span>
+        {owner && <span style={{ fontSize: 12, color: crmV2.textFaint }}>· {owner}</span>}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 13, color: crmV2.textMuted }}>{dateLine}</span>
+        <span style={{
+          fontSize: 12, fontWeight: 700, color: t.color, background: t.bg, border: `1px solid ${t.border}`,
+          padding: '3px 10px', borderRadius: crmV2.radiusPill, whiteSpace: 'nowrap',
+          display: 'inline-flex', alignItems: 'center', gap: 4,
+        }}>
+          {status.tone === 'done' && <Check size={12} />}
+          {status.label}
+        </span>
+      </div>
+      {children}
     </div>
   )
 }
 
-function StatusPill({ s }: { s: { label: string; color: string; bg: string } }) {
-  return <CrmV2StatusPill label={s.label} color={s.color} bg={s.bg} />
+/* ─── Dépôt de dossiers ───────────────────────────────────────────── */
+
+type PickedFile = { file: File; rel: string }
+
+/** Parcourt récursivement un dossier glissé-déposé. */
+async function readDroppedEntry(entry: FileSystemEntry, prefix = ''): Promise<PickedFile[]> {
+  if (entry.isFile) {
+    const file = await new Promise<File>((res, rej) => (entry as FileSystemFileEntry).file(res, rej))
+    return [{ file, rel: `${prefix}${entry.name}` }]
+  }
+  const reader = (entry as FileSystemDirectoryEntry).createReader()
+  const out: PickedFile[] = []
+  // readEntries renvoie les entrées par lots : on boucle jusqu'à un lot vide.
+  for (;;) {
+    const batch = await new Promise<FileSystemEntry[]>((res, rej) => reader.readEntries(res, rej))
+    if (batch.length === 0) break
+    for (const child of batch) out.push(...(await readDroppedEntry(child, `${prefix}${entry.name}/`)))
+  }
+  return out
 }
 
-function NoCampaignToggle({ ev, onChange }: { ev: AdsEventRow; onChange: (v: boolean) => void }) {
-  return (
-    <div style={{ marginTop: 8 }} title="Désactive les relances pour cet événement">
-      <CrmV2Toggle checked={!ev.no_campaign} onChange={(v: boolean) => onChange(!v)} label={ev.no_campaign ? 'Pas de campagne' : 'Campagne'} />
-    </div>
-  )
+function uploadOne(path: string, signature: string, file: File, onProgress: (sent: number) => void): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const upload = new tus.Upload(file, {
+      endpoint: `${STORAGE_HOST}/storage/v1/upload/resumable/sign`,
+      headers: { 'x-signature': signature, 'x-upsert': 'true' },
+      chunkSize: 6 * 1024 * 1024, // imposé par Supabase
+      retryDelays: [0, 2000, 5000, 10000, 20000],
+      uploadDataDuringCreation: true,
+      removeFingerprintOnSuccess: true,
+      metadata: {
+        bucketName: ADS_CREATIVES_BUCKET,
+        objectName: path,
+        contentType: file.type || 'application/octet-stream',
+      },
+      onProgress: (sent) => onProgress(sent),
+      onError: (err) => {
+        const status = (err as tus.DetailedError).originalResponse?.getStatus?.()
+        reject(new Error(status === 413
+          ? `« ${file.name} » dépasse la taille max autorisée par le stockage`
+          : err.message))
+      },
+      onSuccess: () => resolve(),
+    })
+    upload.start()
+  })
 }
 
-function CreativeCell({
-  ev, role, token, fileHref, onAdd, onRemove, flash,
+function FolderLane({
+  ev, role, token, fileUrl, onAddFolder, onRemove, flash,
 }: {
   ev: AdsEventRow
   role: CreativeRole
   token?: string
-  fileHref: (i: CreativeItem) => string
-  onAdd: (ev: AdsEventRow, role: CreativeRole, payload: Partial<CreativeItem>) => Promise<void>
+  fileUrl: (f: FolderFile) => string
+  onAddFolder: (ev: AdsEventRow, role: CreativeRole, label: string, files: FolderFile[]) => Promise<void>
   onRemove: (ev: AdsEventRow, item: CreativeItem) => void
   flash: (m: string) => void
 }) {
   const items = ev.items.filter((i) => i.role === role)
-  const [linkOpen, setLinkOpen] = useState(false)
-  const [url, setUrl] = useState('')
-  const [busy, setBusy] = useState<string | null>(null)
-  const filesRef = useRef<HTMLInputElement>(null)
-  const folderRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [progress, setProgress] = useState<{ sent: number; total: number; name: string } | null>(null)
+  const [dragOver, setDragOver] = useState(false)
 
   useEffect(() => {
     // webkitdirectory n'est pas dans les types React : on le pose à la main.
-    folderRef.current?.setAttribute('webkitdirectory', '')
+    inputRef.current?.setAttribute('webkitdirectory', '')
   }, [])
 
-  const submitLink = async () => {
-    if (!url.trim()) return
-    setBusy('Ajout…')
-    try {
-      await onAdd(ev, role, { kind: 'link', url: url.trim() })
-      setUrl('')
-      setLinkOpen(false)
-      flash('Lien ajouté')
-    } catch (e) {
-      flash(e instanceof Error ? e.message : 'Erreur')
-    } finally {
-      setBusy(null)
-    }
-  }
+  const upload = async (picked: PickedFile[]) => {
+    const files = picked.filter((p) => !p.file.name.startsWith('.') && p.file.size > 0)
+    if (files.length === 0) return flash('Dossier vide')
+    const total = files.reduce((n, p) => n + p.file.size, 0)
+    if (total > ADS_CREATIVES_MAX_FOLDER_BYTES) return flash(`Dossier trop lourd (${formatBytes(total)}) — 10 Go max`)
+    const label = files[0].rel.includes('/') ? files[0].rel.split('/')[0] : 'Dossier'
+    const folder = `${Date.now()}${Math.random().toString(36).slice(2, 6)}`
+    const sentBy = new Map<string, number>()
+    const report = () => setProgress({ sent: [...sentBy.values()].reduce((a, b) => a + b, 0), total, name: label })
+    report()
 
-  const uploadFiles = async (list: FileList | null) => {
-    if (!list || list.length === 0) return
-    const files = Array.from(list).filter((f) => !f.name.startsWith('.'))
-    const tooBig = files.find((f) => f.size > ADS_CREATIVES_MAX_FILE_BYTES)
-    if (tooBig) return flash(`« ${tooBig.name} » dépasse 500 Mo — mets plutôt un lien Drive / WeTransfer`)
-    const supabase = createClient()
-    let done = 0
     try {
-      for (const file of files) {
-        setBusy(`Envoi ${done + 1}/${files.length}…`)
-        const res = await fetch('/api/ads-creatives/upload', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token, event_id: ev.id, fileName: file.name, size: file.size }),
-        })
-        const slot = await res.json()
-        if (!res.ok) throw new Error(slot.error || 'Upload impossible')
-        const { error } = await supabase.storage
-          .from(ADS_CREATIVES_BUCKET)
-          .uploadToSignedUrl(slot.path, slot.token, file, { contentType: file.type || 'application/octet-stream' })
-        if (error) throw error
-        const rel = (file as File & { webkitRelativePath?: string }).webkitRelativePath
-        await onAdd(ev, role, { kind: 'file', path: slot.path, label: rel || file.name, size: file.size })
-        done++
+      const done: FolderFile[] = []
+      const queue = [...files]
+      // 3 envois en parallèle
+      const worker = async () => {
+        for (let p = queue.shift(); p; p = queue.shift()) {
+          const res = await fetch('/api/ads-creatives/upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token, event_id: ev.id, folder, fileName: p.rel, size: p.file.size }),
+          })
+          const slot = await res.json()
+          if (!res.ok) throw new Error(slot.error || 'Upload impossible')
+          const key = p.rel
+          await uploadOne(slot.path, slot.token, p.file, (sent) => { sentBy.set(key, sent); report() })
+          sentBy.set(key, p.file.size)
+          report()
+          done.push({ path: slot.path, name: p.rel, size: p.file.size })
+        }
       }
-      flash(`${done} fichier${done > 1 ? 's' : ''} déposé${done > 1 ? 's' : ''}`)
+      await Promise.all([worker(), worker(), worker()])
+      done.sort((a, b) => a.name.localeCompare(b.name))
+      await onAddFolder(ev, role, label, done)
+      flash(`Dossier « ${label} » déposé (${done.length} fichier${done.length > 1 ? 's' : ''})`)
     } catch (e) {
       flash(e instanceof Error ? e.message : 'Upload impossible')
     } finally {
-      setBusy(null)
-      if (filesRef.current) filesRef.current.value = ''
-      if (folderRef.current) folderRef.current.value = ''
+      setProgress(null)
+      if (inputRef.current) inputRef.current.value = ''
     }
   }
 
+  const onPick = (list: FileList | null) => {
+    if (!list) return
+    upload(Array.from(list).map((file) => ({
+      file,
+      rel: (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name,
+    })))
+  }
+
+  const onDrop = async (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    setDragOver(false)
+    if (progress) return
+    const entries = Array.from(e.dataTransfer.items)
+      .map((it) => it.webkitGetAsEntry?.())
+      .filter((x): x is FileSystemEntry => !!x)
+    if (!entries.some((x) => x.isDirectory)) return flash('Glisse un dossier (pas des fichiers seuls)')
+    const all: PickedFile[] = []
+    for (const entry of entries) all.push(...(await readDroppedEntry(entry)))
+    upload(all)
+  }
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {items.map((it) => (
-        <div key={it.id} style={itemRow}>
-          {it.kind === 'link' ? <Link2 size={13} style={{ flexShrink: 0 }} /> : <Paperclip size={13} style={{ flexShrink: 0 }} />}
-          <a href={fileHref(it)} target="_blank" rel="noreferrer" style={itemLink} title={it.label || it.url || ''}>
-            {it.label || prettyUrl(it.url)}
-          </a>
-          {it.added_by && <span style={{ color: crmV2.textFaint, fontSize: 11, flexShrink: 0 }}>{it.added_by}</span>}
-          <button type="button" onClick={() => onRemove(ev, it)} style={iconBtn} aria-label="Retirer">
-            <Trash2 size={12} />
-          </button>
-        </div>
+        <FolderRow key={it.id} item={it} fileUrl={fileUrl} onRemove={() => onRemove(ev, it)} />
       ))}
 
-      {linkOpen ? (
-        <div style={{ display: 'flex', gap: 4 }}>
-          <CrmV2Input
-            autoFocus
-            placeholder="Lien Drive, WeTransfer, Canva…"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') submitLink(); if (e.key === 'Escape') setLinkOpen(false) }}
-            style={{ flex: 1, minWidth: 0, fontSize: 13, padding: '6px 10px' }}
-          />
-          <button type="button" onClick={submitLink} style={{ ...iconBtn, color: crmV2.successStrong }} aria-label="Ajouter"><Check size={15} /></button>
-          <button type="button" onClick={() => setLinkOpen(false)} style={iconBtn} aria-label="Annuler"><X size={15} /></button>
+      {progress ? (
+        <div style={dropZone}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: crmV2.text, marginBottom: 6 }}>
+            Envoi de « {progress.name} »…
+          </div>
+          <div style={{ height: 6, borderRadius: 3, background: crmV2.bgMuted, overflow: 'hidden' }}>
+            <div style={{
+              height: '100%', width: `${Math.round((progress.sent / Math.max(1, progress.total)) * 100)}%`,
+              background: crmV2.goldGradient, transition: 'width .3s',
+            }} />
+          </div>
+          <div style={{ fontSize: 12, color: crmV2.textMuted, marginTop: 4 }}>
+            {formatBytes(progress.sent)} / {formatBytes(progress.total)} — garde la page ouverte
+          </div>
         </div>
-      ) : busy ? (
-        <span style={{ fontSize: 12, color: crmV2.textMuted }}>{busy}</span>
       ) : (
-        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-          <SmallBtn onClick={() => setLinkOpen(true)} icon={<Link2 size={12} />}>Lien</SmallBtn>
-          <SmallBtn onClick={() => folderRef.current?.click()} icon={<FolderUp size={12} />}>Dossier</SmallBtn>
-          <SmallBtn onClick={() => filesRef.current?.click()} icon={<FileUp size={12} />}>Fichiers</SmallBtn>
+        <div
+          onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={onDrop}
+          onClick={() => inputRef.current?.click()}
+          style={{ ...dropZone, cursor: 'pointer', ...(dragOver ? dropZoneActive : {}) }}
+        >
+          <FolderUp size={18} style={{ color: crmV2.goldDark }} />
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: crmV2.text }}>
+              {items.length ? 'Ajouter un autre dossier' : 'Déposer le dossier'}
+            </div>
+            <div style={{ fontSize: 12, color: crmV2.textFaint }}>Glisser ici ou cliquer · 10 Go max</div>
+          </div>
         </div>
       )}
-      <input ref={filesRef} type="file" multiple hidden onChange={(e) => uploadFiles(e.target.files)} />
-      <input ref={folderRef} type="file" multiple hidden onChange={(e) => uploadFiles(e.target.files)} />
+      <input ref={inputRef} type="file" multiple hidden onChange={(e) => onPick(e.target.files)} />
     </div>
   )
 }
 
-function SmallBtn({ onClick, icon, children }: { onClick: () => void; icon: ReactNode; children: ReactNode }) {
+function FolderRow({ item, fileUrl, onRemove }: { item: CreativeItem; fileUrl: (f: FolderFile) => string; onRemove: () => void }) {
+  const [open, setOpen] = useState(false)
+  const files = item.files || []
+  const downloadAll = () => {
+    // Téléchargements successifs (le navigateur peut demander d'autoriser les téléchargements multiples).
+    files.forEach((f, i) => setTimeout(() => {
+      const a = document.createElement('a')
+      a.href = fileUrl(f)
+      a.download = f.name.split('/').pop() || 'fichier'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+    }, i * 700))
+  }
+
+  // Ancien format (lien / fichier seul, avant les dossiers)
+  if (item.kind !== 'folder') {
+    const href = item.kind === 'link' ? item.url || '#' : fileUrl({ path: item.path || '', name: item.label || 'fichier', size: 0 })
+    return (
+      <div style={folderRow}>
+        <FolderOpen size={16} style={{ color: crmV2.goldDark, flexShrink: 0 }} />
+        <a href={href} target="_blank" rel="noreferrer" style={{ ...folderName, color: crmV2.link }}>{item.label || item.url}</a>
+        <button type="button" onClick={onRemove} style={iconBtn} aria-label="Supprimer"><Trash2 size={13} /></button>
+      </div>
+    )
+  }
+
   return (
-    <button type="button" onClick={onClick} style={smallBtn}>
-      {icon}
-      {children}
-    </button>
+    <div style={{ border: `1px solid ${TONES.done.border}`, borderRadius: crmV2.radius, background: TONES.done.bg, overflow: 'hidden' }}>
+      <div style={{ ...folderRow, border: 'none', background: 'transparent' }}>
+        <button type="button" onClick={() => setOpen((v) => !v)} style={iconBtn} aria-label="Voir les fichiers">
+          {open ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+        </button>
+        <FolderOpen size={16} style={{ color: crmV2.goldDark, flexShrink: 0 }} />
+        <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={() => setOpen((v) => !v)}>
+          <div style={folderName}>{item.label}</div>
+          <div style={{ fontSize: 11, color: crmV2.textMuted }}>
+            {item.file_count ?? files.length} fichier{(item.file_count ?? files.length) > 1 ? 's' : ''} · {formatBytes(item.size || 0)}
+            {item.added_by ? ` · ${item.added_by}` : ''} · {frDay(parisDay(item.created_at))}
+          </div>
+        </div>
+        <button type="button" onClick={downloadAll} style={iconBtn} aria-label="Tout télécharger" title="Tout télécharger"><Download size={14} /></button>
+        <button type="button" onClick={onRemove} style={iconBtn} aria-label="Supprimer" title="Supprimer"><Trash2 size={13} /></button>
+      </div>
+      {open && (
+        <div style={{ borderTop: `1px solid ${TONES.done.border}`, background: crmV2.bg, maxHeight: 220, overflowY: 'auto' }}>
+          {files.map((f) => (
+            <a key={f.path} href={fileUrl(f)} target="_blank" rel="noreferrer" style={fileRow}>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                {f.name.includes('/') ? f.name.split('/').slice(1).join('/') : f.name}
+              </span>
+              <span style={{ color: crmV2.textFaint, flexShrink: 0 }}>{formatBytes(f.size)}</span>
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 
-function prettyUrl(u: string | null) {
-  if (!u) return 'lien'
-  try {
-    const x = new URL(u)
-    return x.hostname.replace(/^www\./, '') + (x.pathname.length > 1 ? x.pathname.slice(0, 18) + (x.pathname.length > 18 ? '…' : '') : '')
-  } catch {
-    return u
-  }
-}
+/* ─── Réglages (CRM) ──────────────────────────────────────────────── */
 
 function SettingsCard({ settings, onSaved, flash }: { settings: Settings; onSaved: () => void; flash: (m: string) => void }) {
   const [draft, setDraft] = useState(settings)
   const [saving, setSaving] = useState(false)
-  useEffect(() => setDraft(settings), [settings])
   const set = (k: keyof Settings, v: unknown) => setDraft((d) => ({ ...d, [k]: v }))
 
   const save = async (extra: Record<string, unknown> = {}) => {
@@ -459,6 +703,8 @@ function SettingsCard({ settings, onSaved, flash }: { settings: Settings; onSave
         static_owner_phone: draft.static_owner_phone,
         video_owner_name: draft.video_owner_name,
         video_owner_phone: draft.video_owner_phone,
+        ads_owner_name: draft.ads_owner_name,
+        ads_owner_phone: draft.ads_owner_phone,
         reminders_enabled: draft.reminders_enabled,
         ...extra,
       }),
@@ -474,32 +720,40 @@ function SettingsCard({ settings, onSaved, flash }: { settings: Settings; onSave
     try { await navigator.clipboard.writeText(settings.share_url); flash('Lien copié') } catch { flash(settings.share_url) }
   }
 
+  const owners: Array<[string, keyof Settings, keyof Settings]> = [
+    ['Créas statiques', 'static_owner_name', 'static_owner_phone'],
+    ['Créas vidéo', 'video_owner_name', 'video_owner_phone'],
+    ['Ads Manager', 'ads_owner_name', 'ads_owner_phone'],
+  ]
+
   return (
-    <CrmV2Card style={{ marginBottom: 16 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
-        <CrmV2Field label="Responsable créas statiques">
-          <CrmV2Input value={draft.static_owner_name || ''} onChange={(e) => set('static_owner_name', e.target.value)} placeholder="Prénom Nom" />
-        </CrmV2Field>
-        <CrmV2Field label="Téléphone (SMS)">
-          <CrmV2Input value={draft.static_owner_phone || ''} onChange={(e) => set('static_owner_phone', e.target.value)} placeholder="06…" />
-        </CrmV2Field>
-        <CrmV2Field label="Responsable créas vidéo">
-          <CrmV2Input value={draft.video_owner_name || ''} onChange={(e) => set('video_owner_name', e.target.value)} placeholder="Prénom Nom" />
-        </CrmV2Field>
-        <CrmV2Field label="Téléphone (SMS)">
-          <CrmV2Input value={draft.video_owner_phone || ''} onChange={(e) => set('video_owner_phone', e.target.value)} placeholder="06…" />
-        </CrmV2Field>
+    <CrmV2Card style={{ marginBottom: 18 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: crmV2.text, marginBottom: 10 }}>Responsables (reçoivent les relances SMS)</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
+        {owners.map(([label, nameKey, phoneKey]) => (
+          <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <CrmV2Field label={label}>
+              <CrmV2Input value={(draft[nameKey] as string) || ''} onChange={(e) => set(nameKey, e.target.value)} placeholder="Prénom Nom" />
+            </CrmV2Field>
+            <CrmV2Input value={(draft[phoneKey] as string) || ''} onChange={(e) => set(phoneKey, e.target.value)} placeholder="Téléphone 06…" />
+          </div>
+        ))}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12, marginTop: 14 }}>
         <CrmV2Field label="Lancement campagne (jours avant l’événement)">
           <CrmV2Input type="number" min={0} value={draft.campaign_days} onChange={(e) => set('campaign_days', Number(e.target.value))} />
         </CrmV2Field>
-        <CrmV2Field label="Créas attendues (jours avant le lancement)">
+        <CrmV2Field label="Créas à déposer (jours avant le lancement)">
           <CrmV2Input type="number" min={0} value={draft.lead_days} onChange={(e) => set('lead_days', Number(e.target.value))} />
         </CrmV2Field>
       </div>
+      <div style={{ fontSize: 12, color: crmV2.textMuted, marginTop: 10, lineHeight: 1.5 }}>
+        Relances à 9 h — créas : J-3, J-2, J-1, le jour J puis chaque jour de retard · Ads Manager : le jour du lancement puis chaque jour tant que la campagne n’est pas cochée en ligne.
+      </div>
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginTop: 14 }}>
-        <CrmV2Toggle checked={draft.reminders_enabled} onChange={(v: boolean) => set('reminders_enabled', v)} label="Relances SMS automatiques (9 h)" />
+        <CrmV2Toggle checked={draft.reminders_enabled} onChange={(v: boolean) => set('reminders_enabled', v)} label="Relances SMS automatiques" />
         <div style={{ flex: 1 }} />
-        <CrmV2Button size="sm" icon={<Copy size={14} />} onClick={copy}>Copier le lien créatifs</CrmV2Button>
+        <CrmV2Button size="sm" icon={<Copy size={14} />} onClick={copy}>Copier le lien partagé</CrmV2Button>
         <CrmV2Button size="sm" onClick={() => { if (confirm('Générer un nouveau lien ? L’ancien ne marchera plus.')) save({ regenerate_token: true }) }}>
           Nouveau lien
         </CrmV2Button>
@@ -513,27 +767,49 @@ function SettingsCard({ settings, onSaved, flash }: { settings: Settings; onSave
 
 /* ─── Styles ──────────────────────────────────────────────────────── */
 
-const banner: CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', marginBottom: 14,
-  background: 'rgba(234,88,12,0.08)', color: '#9a3412', border: '1px solid rgba(234,88,12,0.25)',
-  borderRadius: crmV2.radius, fontSize: 13,
+const card: CSSProperties = {
+  background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: crmV2.radiusLg, boxShadow: crmV2.shadow, overflow: 'hidden',
 }
-const itemRow: CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: crmV2.radiusSm,
-  background: crmV2.bgHover, border: `1px solid ${crmV2.borderLight}`, fontSize: 13, color: crmV2.textMuted, minWidth: 0,
+const dateBlock: CSSProperties = {
+  width: 58, padding: '8px 0', textAlign: 'center', borderRadius: crmV2.radius,
+  background: crmV2.goldSoft, border: `1px solid ${crmV2.goldBorder}`, flexShrink: 0,
 }
-const itemLink: CSSProperties = {
-  color: crmV2.link, textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0,
+const typePill: CSSProperties = {
+  fontSize: 11, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', padding: '2px 8px', borderRadius: crmV2.radiusPill,
+}
+const linkBtn: CSSProperties = {
+  border: 'none', background: 'transparent', color: crmV2.textFaint, fontSize: 12, cursor: 'pointer', padding: 0,
+  textDecoration: 'underline', fontFamily: 'inherit',
+}
+const dropZone: CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: crmV2.radius,
+  border: `1.5px dashed ${crmV2.borderStrong}`, background: crmV2.bgHover, flexWrap: 'wrap',
+}
+const dropZoneActive: CSSProperties = { borderColor: crmV2.gold, background: crmV2.goldSoft }
+const folderRow: CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: crmV2.radius,
+  border: `1px solid ${crmV2.borderLight}`, background: crmV2.bgHover, minWidth: 0,
+}
+const folderName: CSSProperties = {
+  fontSize: 13, fontWeight: 600, color: crmV2.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: 'none', flex: 1, minWidth: 0,
+}
+const fileRow: CSSProperties = {
+  display: 'flex', gap: 8, padding: '6px 12px 6px 36px', fontSize: 12, color: crmV2.link, textDecoration: 'none',
+  borderBottom: `1px solid ${crmV2.borderLight}`,
 }
 const iconBtn: CSSProperties = {
-  border: 'none', background: 'transparent', cursor: 'pointer', color: crmV2.textFaint, padding: 2, display: 'inline-flex', flexShrink: 0,
+  border: 'none', background: 'transparent', cursor: 'pointer', color: crmV2.textMuted, padding: 3, display: 'inline-flex', flexShrink: 0,
 }
-const smallBtn: CSSProperties = {
-  display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 9px', fontSize: 12, fontWeight: 600,
-  border: `1px dashed ${crmV2.borderStrong}`, borderRadius: crmV2.radiusPill, background: crmV2.bg,
-  color: crmV2.textMuted, cursor: 'pointer', fontFamily: 'inherit',
+const launchBox: CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: crmV2.radius,
+  border: `1.5px solid ${crmV2.border}`, background: crmV2.bgHover, cursor: 'pointer', fontSize: 13, color: crmV2.text,
+}
+const launchBoxOn: CSSProperties = { borderColor: TONES.done.border, background: TONES.done.bg, color: TONES.done.color }
+const errorBanner: CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', marginBottom: 14, background: crmV2.dangerSoft,
+  color: crmV2.danger, border: '1px solid rgba(242,84,91,0.3)', borderRadius: crmV2.radius, fontSize: 13,
 }
 const toastStyle: CSSProperties = {
   position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: crmV2.primary, color: '#fff',
-  padding: '10px 18px', borderRadius: crmV2.radiusPill, fontSize: 13, boxShadow: crmV2.shadowPanel, zIndex: 1000,
+  padding: '10px 18px', borderRadius: crmV2.radiusPill, fontSize: 13, boxShadow: crmV2.shadowPanel, zIndex: 1000, maxWidth: '90vw',
 }

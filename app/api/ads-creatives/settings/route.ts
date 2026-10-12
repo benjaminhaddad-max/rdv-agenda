@@ -16,7 +16,7 @@ export async function PUT(req: NextRequest) {
       patch[k] = n
     }
   }
-  for (const k of ['static_owner_name', 'static_owner_phone', 'video_owner_name', 'video_owner_phone'] as const) {
+  for (const k of ['static_owner_name', 'static_owner_phone', 'video_owner_name', 'video_owner_phone', 'ads_owner_name', 'ads_owner_phone'] as const) {
     if (k in body) patch[k] = String(body[k] || '').trim().slice(0, 80) || null
   }
   if ('reminders_enabled' in body) patch.reminders_enabled = !!body.reminders_enabled

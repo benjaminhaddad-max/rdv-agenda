@@ -5,10 +5,16 @@
  *   lancement campagne = jour de l'événement − campaign_days
  *   créas attendues    = lancement − lead_days
  * Ex. événement le 30/10 → campagne le 15/10 → créas pour le 08/10.
+ *
+ * Seuls les JPO et webinaires ont une campagne (pas les salons).
  */
 
 export const ADS_CREATIVES_BUCKET = 'ads-creatives'
-export const ADS_CREATIVES_MAX_FILE_BYTES = 500 * 1024 * 1024
+/** Taille max d'un dossier de créas (somme de ses fichiers). */
+export const ADS_CREATIVES_MAX_FOLDER_BYTES = 10 * 1024 * 1024 * 1024
+
+/** Types d'événements avec une campagne Ads. */
+export const ADS_EVENT_TYPES = ['jpo', 'webinaire'] as const
 
 export type CreativeRole = 'static' | 'video'
 export const CREATIVE_ROLES: CreativeRole[] = ['static', 'video']
@@ -21,14 +27,19 @@ export type CreativeItem = {
   id: string
   event_id: string
   role: CreativeRole
-  kind: 'link' | 'file'
+  kind: 'link' | 'file' | 'folder'
   url: string | null
   path: string | null
   label: string | null
   size: number | null
   added_by: string | null
   created_at: string
+  /** kind = folder : fichiers du dossier */
+  files: FolderFile[] | null
+  file_count: number | null
 }
+
+export type FolderFile = { path: string; name: string; size: number }
 
 export type AdsCreativesSettings = {
   campaign_days: number
@@ -37,6 +48,8 @@ export type AdsCreativesSettings = {
   static_owner_phone: string | null
   video_owner_name: string | null
   video_owner_phone: string | null
+  ads_owner_name: string | null
+  ads_owner_phone: string | null
   reminders_enabled: boolean
   share_token?: string
 }
@@ -54,6 +67,9 @@ export type AdsEventRow = {
   campaign_start: string
   creas_deadline: string
   no_campaign: boolean
+  /** Campagne cochée « en ligne » dans la colonne Ads Manager */
+  launched_at: string | null
+  launched_by: string | null
   campaign_start_override: string | null
   notes: string | null
   items: CreativeItem[]
@@ -111,6 +127,29 @@ export function reminderText(opts: {
   else if (daysLeft === 0) when = `deadline aujourd'hui pour ${what}`
   else when = `${what} sont en retard de ${-daysLeft} j`
   return `${hello}${when} - ${ev}. Lien : ${opts.link}`
+}
+
+/** Relance du responsable Ads : le jour du lancement puis chaque jour de retard jusqu'à l'événement. */
+export function adsReminderText(opts: {
+  ownerName: string | null
+  eventName: string
+  eventDay: string
+  campaignStart: string
+  today: string
+  link: string
+}): string | null {
+  const late = diffDays(opts.campaignStart, opts.today)
+  if (late < 0 || opts.today >= opts.eventDay) return null
+  const hello = opts.ownerName ? `Hello ${opts.ownerName.split(' ')[0]}, ` : ''
+  const name = opts.eventName.length > 40 ? `${opts.eventName.slice(0, 39).trim()}…` : opts.eventName
+  const when = late === 0 ? `c'est le jour de lancement de la campagne` : `la campagne n'est pas lancée (retard ${late} j)`
+  return `${hello}${when} - ${name} (${frDay(opts.eventDay)}). Coche-la quand elle est en ligne : ${opts.link}`
+}
+
+export function formatBytes(n: number): string {
+  if (n >= 1024 ** 3) return `${(n / 1024 ** 3).toFixed(1).replace('.', ',')} Go`
+  if (n >= 1024 ** 2) return `${Math.round(n / 1024 ** 2)} Mo`
+  return `${Math.max(1, Math.round(n / 1024))} Ko`
 }
 
 export function frDay(day: string): string {
