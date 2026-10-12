@@ -418,7 +418,7 @@ export default function TeleproClient({
       case 'agenda':
         // Agenda RDV : « Équipe » (repérer où il reste de la place avant de
         // placer un RDV) ou « Moi » (les RDV qu'il a placés ou qu'il close).
-        return <div style={{ ...fullHeight, minHeight: isMobile ? 0 : 560 }}><WeekCalendar teamView mineId={teleproUser.id || undefined} /></div>
+        return <div style={{ ...fullHeight, minHeight: isMobile ? 0 : 560 }}><WeekCalendar teamView dense mineId={teleproUser.id || undefined} /></div>
       case 'suivi':
         // Tableau de suivi rempli automatiquement à chaque RDV placé par le
         // télépro ; statut dérivé de l'agenda, modifiable à la main.
@@ -705,13 +705,17 @@ export default function TeleproClient({
         )}
       >
         {!isAdmin && (
-          <CrmV2Tabs bordered={false} items={tabs} value={activeTab === 'today' ? 'contacts' : activeTab} onChange={id => setActiveTab(id as TeleproTab)} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <CrmV2Tabs bordered={false} items={tabs} value={activeTab === 'today' ? 'contacts' : activeTab} onChange={id => setActiveTab(id as TeleproTab)} />
+            </div>
+            {/* Recherche globale CRM — retrouver et ouvrir n'importe quelle fiche
+                (contact / transaction), même non attribuée au télépro. Sur la
+                ligne des onglets pour laisser la hauteur au contenu. */}
+            {skin(<CRMGlobalSearchBar inline />, { width: 360, flexShrink: 1, minWidth: 220 })}
+          </div>
         )}
       </CrmV2Header>
-
-      {/* Recherche globale CRM — permet de retrouver et ouvrir n'importe quelle
-          fiche (contact / transaction), même non attribuée au télépro. */}
-      {!isAdmin && skin(<CRMGlobalSearchBar />, { flexShrink: 0 })}
 
       <main style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
         {tabContent()}

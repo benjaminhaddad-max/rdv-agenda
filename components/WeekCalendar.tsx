@@ -97,6 +97,7 @@ const HOURS = Array.from({ length: GRID_END_HOUR - GRID_START_HOUR }, (_, i) => 
 const HOUR_HEIGHT = 70        // hauteur min d'une tranche en vue semaine (défile sur les petits écrans)
 const HOUR_HEIGHT_DAY = 64    // hauteur min d'une tranche en vue jour (ordinateur)
 const HOUR_HEIGHT_MOBILE = 36 // hauteur min d'une tranche sur mobile
+const HOUR_HEIGHT_DENSE = 44  // hauteur min d'une tranche en mode resserré (espace télépro)
 
 /** Couleurs de FOND post-RDV — le CONTOUR reste toujours la couleur du closer. */
 /** Code couleur du CRM : issue d'un RDV passé (les RDV à venir prennent la couleur du closer). */
@@ -294,8 +295,10 @@ function capitalize(s: string): string {
 
 export default function WeekCalendar({
   adminMode = false, closerId, closerColor, closerName, teamView = false, allowAssign = false,
-  title, onNewRdv, toolbarExtra, mineId,
+  title, onNewRdv, toolbarExtra, mineId, dense = false,
 }: {
+  /** En-tête sur une seule barre + grille resserrée : toute la journée visible sans défiler (espace télépro) */
+  dense?: boolean
   adminMode?: boolean
   closerId?: string
   /** Espace télépro : active les sous-onglets « Équipe » / « Moi » (RDV placés ou closés par cette personne) */
@@ -312,6 +315,8 @@ export default function WeekCalendar({
   toolbarExtra?: ReactNode
 }) {
   const isMobile = useIsMobile()
+  const tight = dense && !isMobile
+  const [legendOpen, setLegendOpen] = useState(false)
   const mobileViewInit = useRef(false)
   const [currentWeekStart, setCurrentWeekStart] = useState(() =>
     startOfWeek(new Date(), { weekStartsOn: 1 })
@@ -703,8 +708,11 @@ export default function WeekCalendar({
   ) {
     const isDay = scale === 'day'
     const compact = scale === 'compact'
+    // Mode resserré (semaine) : un RDV court tient sur une ligne, nom puis heure de début
+    const durationMin = (new Date(appt.end_at).getTime() - new Date(appt.start_at).getTime()) / 60_000
+    const oneLine = tight && !isDay && durationMin < 45
     // Mobile (jour / 2 jours) : carte sur une ligne, nom puis heure
-    const inline = isMobile && !compact
+    const inline = (isMobile && !compact) || oneLine
     const height = durationToPercent(appt.start_at, appt.end_at, day)
     // RDV hors plage (avant 9 h / après 21 h) : collé au bord plutôt que hors grille
     const top = Math.min(timeToPercent(appt.start_at, day), 100 - Math.min(height, 100))
@@ -803,11 +811,11 @@ export default function WeekCalendar({
           border: `1px solid ${palette.border}`,
           // Carré à peine arrondi (5 px : hors des règles d'arrondi de la skin V2)
           borderRadius: compact ? 4 : 5,
-          padding: isDay && !isMobile ? '5px 10px' : compact ? '1px 3px' : inline ? '0 8px' : (sideBySide ? '2px 6px' : '2px 8px'),
+          padding: isDay && !isMobile ? '5px 10px' : compact ? '1px 3px' : inline ? (oneLine && sideBySide ? '0 5px' : '0 8px') : (sideBySide ? '2px 6px' : '2px 8px'),
           display: 'flex',
           flexDirection: inline ? 'row' : 'column',
           alignItems: inline ? 'center' : 'stretch',
-          gap: inline ? 6 : 0,
+          gap: inline ? (oneLine ? 4 : 6) : 0,
           cursor: isCancelled ? 'pointer' : 'grab',
           overflow: 'hidden',
           zIndex: isDragging ? 9 : 1,
@@ -872,8 +880,12 @@ export default function WeekCalendar({
           )}
         </div>
 
-        {/* Ligne 2 : heure (+ mode et niveau) */}
-        {!compact && (
+        {/* Ligne 2 : heure (+ mode et niveau) — sur une ligne : heure de début seule, masquée si cartes côte à côte */}
+        {oneLine ? !sideBySide && (
+          <span style={{ fontSize: metaSize, fontWeight: 600, color: timeColor, whiteSpace: 'nowrap', flexShrink: 0 }}>
+            {startLabel}
+          </span>
+        ) : !compact && (
           <div style={{
             display: 'flex', alignItems: 'center', gap: 4, minWidth: 0, flexShrink: 0,
             fontSize: metaSize, fontWeight: 600, color: timeColor, whiteSpace: 'nowrap', overflow: 'hidden',
@@ -1017,6 +1029,14 @@ export default function WeekCalendar({
           {ev.competitor ? ev.competitor.split(' ')[0] : short} {ev.time_start || ''}
         </span>
       </div>
+    ) : tight && !ev.competitor ? (
+      // Mode resserré : type, horaires puis nom sur une seule ligne
+      <div style={line}>
+        {dot}
+        <span style={{ color: c.text, flexShrink: 0 }}>{short}</span>
+        <span style={{ color: c.text, fontWeight: 600, flexShrink: 0 }}>{ev.time_start || ''}</span>
+        <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.name}</span>
+      </div>
     ) : ev.competitor ? (
       <div style={line}>
         {dot}
@@ -1050,7 +1070,7 @@ export default function WeekCalendar({
     const scale: CardScale = single ? 'day' : compact ? 'compact' : 'week'
     const timeCol = isMobile ? 34 : 52
     const gridCols = `${timeCol}px repeat(${days.length}, minmax(0, 1fr))`
-    const hourHeight = isMobile ? HOUR_HEIGHT_MOBILE : single ? HOUR_HEIGHT_DAY : HOUR_HEIGHT
+    const hourHeight = isMobile ? HOUR_HEIGHT_MOBILE : tight ? HOUR_HEIGHT_DENSE : single ? HOUR_HEIGHT_DAY : HOUR_HEIGHT
     const lineColor = '#e4e9f0'
 
     return (
@@ -1097,7 +1117,7 @@ export default function WeekCalendar({
                   display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, padding: '6px 0',
                   borderLeft: `1px solid ${crmV2.border}`, cursor: busyDay ? 'pointer' : 'default', minWidth: 0,
                 } : {
-                  display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', minWidth: 0,
+                  display: 'flex', alignItems: 'center', gap: 6, padding: tight ? '3px 10px' : '8px 12px', minWidth: 0,
                   borderLeft: `1px solid ${crmV2.border}`, cursor: busyDay ? 'pointer' : 'default',
                 }}
               >
@@ -1132,7 +1152,8 @@ export default function WeekCalendar({
             </div>
             {days.map(day => {
               const evs = eventsForDay(day)
-              const shown = pinsExpanded ? evs : evs.slice(0, compact ? 1 : 3)
+              const pinLimit = compact ? 1 : tight ? 2 : 3
+              const shown = pinsExpanded ? evs : evs.slice(0, pinLimit)
               return (
                 <div key={day.toISOString()} style={{
                   borderLeft: `1px solid ${crmV2.border}`, padding: compact ? 2 : '3px 4px',
@@ -1149,7 +1170,7 @@ export default function WeekCalendar({
                       +{evs.length - shown.length} autre{evs.length - shown.length > 1 ? 's' : ''}
                     </button>
                   )}
-                  {pinsExpanded && evs.length > (compact ? 1 : 3) && (
+                  {pinsExpanded && evs.length > pinLimit && (
                     <button
                       type="button"
                       onClick={() => setPinsExpanded(false)}
@@ -1165,7 +1186,7 @@ export default function WeekCalendar({
         )}
 
         {/* Grille — remplit toute la hauteur dispo (défile seulement si l'écran est trop court) */}
-        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minHeight: 0, display: 'flex', flexDirection: 'column', paddingTop: 8 }}>
+        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minHeight: 0, display: 'flex', flexDirection: 'column', paddingTop: tight ? 6 : 8 }}>
           <div style={{
             display: 'grid', gridTemplateColumns: gridCols, position: 'relative',
             flex: '1 0 auto', minHeight: `${HOURS.length * hourHeight}px`,
@@ -1371,12 +1392,110 @@ export default function WeekCalendar({
 
   const subtitle = <>{rangeLabel()}</>
 
+  // Mode resserré : chiffres de la semaine en pastilles dans la barre d'outils
+  const statChip = (label: string, value: ReactNode, color: string, title: string) => (
+    <span title={title} style={{
+      display: 'inline-flex', alignItems: 'baseline', gap: 5, height: 32, boxSizing: 'border-box', padding: '0 10px',
+      borderRadius: 999, border: `1px solid ${crmV2.border}`, background: crmV2.bgSoft, whiteSpace: 'nowrap', flexShrink: 0,
+      lineHeight: '30px',
+    }}>
+      <span style={{ fontSize: 15, fontWeight: 700, color, fontVariantNumeric: 'tabular-nums' }}>{value}</span>
+      <span style={{ fontSize: 11, fontWeight: 600, color: crmV2.textMuted }}>{label}</span>
+    </span>
+  )
+
+  // Mode resserré : navigation, vues, filtres, chiffres et légende sur une seule barre
+  const tightToolbar = (
+    <div style={{
+      background: crmV2.bg, borderBottom: `1px solid ${crmV2.border}`, padding: '8px 16px',
+      display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', flexShrink: 0, position: 'relative', zIndex: 10,
+    }}>
+      <AgendaRoundButton onClick={goPrev} label="Période précédente" size={32}><ChevronLeft size={15} /></AgendaRoundButton>
+      <CrmV2Button variant="secondary" size="sm" onClick={goToday}>Aujourd’hui</CrmV2Button>
+      <AgendaRoundButton onClick={goNext} label="Période suivante" size={32}><ChevronRight size={15} /></AgendaRoundButton>
+      <span style={{ fontSize: 15, fontWeight: 700, color: crmV2.text, whiteSpace: 'nowrap', margin: '0 6px 0 2px' }}>{rangeLabel()}</span>
+      <CrmV2Segmented
+        size="sm"
+        items={viewItems.map(v => ({
+          id: v.id,
+          label: (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              {v.id === 'list' ? <List size={13} /> : v.id === 'day' ? <CalendarDays size={13} /> : <CalendarRange size={13} />}
+              {v.label}
+            </span>
+          ),
+        }))}
+        value={view}
+        onChange={id => setView(id as CalendarView)}
+      />
+      {scopeTabs}
+      {closerFilter}
+      {statChip(
+        'RDV placés',
+        placedCount ?? '…',
+        crmV2.goldDark,
+        `RDV pris (créés) par l'équipe entre lundi et dimanche de cette semaine (${weekRangeShort}), quelle que soit leur date`,
+      )}
+      {statChip(
+        'présence',
+        presence.rate == null ? '—' : `${presence.rate} %`,
+        presenceColor,
+        `Taux de présence — ${presenceTitle}`,
+      )}
+      {loading && <span style={{ fontSize: 12, color: crmV2.textFaint, whiteSpace: 'nowrap' }}>Chargement…</span>}
+      <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+        {canBlock && (
+          <CrmV2Button size="sm" icon={<Ban size={13} />} onClick={openBlankUnavailability}>Indispo</CrmV2Button>
+        )}
+        {toolbarExtra}
+        {legend && (
+          <span
+            style={{ position: 'relative', display: 'inline-flex' }}
+            onMouseEnter={() => setLegendOpen(true)}
+            onMouseLeave={() => setLegendOpen(false)}
+          >
+            <button
+              type="button"
+              onClick={() => setLegendOpen(o => !o)}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4, height: 32, padding: '0 12px', borderRadius: 999,
+                border: `1px solid ${crmV2.border}`, background: crmV2.bg, color: crmV2.textMuted,
+                fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+              }}
+            >
+              {POST_RDV_LEGEND.map(item => (
+                <span key={item.label} style={{ width: 9, height: 9, borderRadius: 3, background: item.color, flexShrink: 0 }} />
+              ))}
+              <span style={{ marginLeft: 3 }}>Légende</span>
+            </button>
+            {legendOpen && (
+              <div style={{
+                position: 'absolute', top: '100%', right: 0, paddingTop: 6, zIndex: 30,
+              }}>
+                <div style={{
+                  background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: 12, boxShadow: crmV2.shadowPanel,
+                  padding: '10px 12px', width: 'max-content',
+                }}>
+                  {legend}
+                </div>
+              </div>
+            )}
+          </span>
+        )}
+        {newRdvAction && (
+          <CrmV2Button variant="primary" size="sm" icon={<Plus size={13} />} onClick={newRdvAction}>Nouveau RDV</CrmV2Button>
+        )}
+      </span>
+    </div>
+  )
+
   return (
     <div style={{
       display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, position: 'relative',
       background: crmV2.bgSoft, color: crmV2.text, fontFamily: 'inherit',
     }}>
       {/* En-tête V2 : titre, période, navigation, vues, action principale, filtres */}
+      {tight ? tightToolbar : (
       <div style={{
         background: crmV2.bg, borderBottom: `1px solid ${crmV2.border}`,
         padding: isMobile ? '14px 12px 0' : '20px 28px 0', flexShrink: 0,
@@ -1513,8 +1632,9 @@ export default function WeekCalendar({
           />
         </div>
       </div>
+      )}
 
-      {statsBar}
+      {!tight && statsBar}
 
       {/* Calendrier */}
       {view !== 'list' ? (
@@ -1523,7 +1643,7 @@ export default function WeekCalendar({
             {renderTimeGrid(visibleDays)}
           </div>
         ) : (
-          <div style={{ flex: 1, minHeight: 0, padding: '16px 28px 20px', display: 'flex' }}>
+          <div style={{ flex: 1, minHeight: 0, padding: tight ? '8px 16px 10px' : '16px 28px 20px', display: 'flex' }}>
             <div style={{
               flex: 1, minWidth: 0, background: crmV2.bg, border: `1px solid ${crmV2.border}`,
               borderRadius: crmV2.radiusLg, boxShadow: crmV2.shadow, overflow: 'hidden',
@@ -1535,7 +1655,7 @@ export default function WeekCalendar({
         )
       ) : (
         /* Vue liste */
-        <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? 12 : '16px 28px 20px' }}>
+        <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? 12 : tight ? '10px 16px 16px' : '16px 28px 20px' }}>
           {agendaEvents.length > 0 && (
             <div style={{
               display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 12,

@@ -76,7 +76,8 @@ function dealMatchesAllTokens(d: DealHit, tokens: string[]): boolean {
   return tokens.every((t) => h.includes(t))
 }
 
-export default function CRMGlobalSearchBar() {
+/** `inline` : sans bandeau propre, à glisser dans une barre existante (ex. à droite des onglets). */
+export default function CRMGlobalSearchBar({ inline = false }: { inline?: boolean } = {}) {
   const router = useRouter()
   const pathname = usePathname()
   const wrapRef = useRef<HTMLDivElement | null>(null)
@@ -228,7 +229,7 @@ export default function CRMGlobalSearchBar() {
 
   return (
     <div
-      style={{
+      style={inline ? { position: 'relative', zIndex: 50, width: '100%' } : {
         position: 'sticky',
         top: 0,
         zIndex: 50,
@@ -318,8 +319,7 @@ export default function CRMGlobalSearchBar() {
             style={{
               position: 'absolute',
               top: 'calc(100% + 6px)',
-              left: 0,
-              width: '100%',
+              ...(inline ? { right: 0, width: 'max(100%, 560px)' } : { left: 0, width: '100%' }),
               background: crmV2.bg,
               border: `1px solid ${crmV2.border}`,
               borderRadius: 12,
