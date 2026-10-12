@@ -24,7 +24,7 @@ import { crmV2 } from '@/lib/crm-v2-theme'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { BRAND_CONFIG, eventTypeOf, type EventBrand } from '@/lib/events-studio/config'
 import {
-  ADS_CREATIVES_BUCKET, ADS_CREATIVES_MAX_FOLDER_BYTES, CREATIVE_ROLE_LABELS,
+  ADS_CREATIVES_BUCKET, ADS_CREATIVES_MAX_FOLDER_BYTES, CREATIVE_MAX, CREATIVE_ROLE_LABELS, CREATIVE_UNIT, countCreatives,
   diffDays, formatBytes, frDay, parisDay,
   type AdsCreativesSettings, type AdsEventRow, type CreativeItem, type CreativeRole, type FolderFile,
 } from '@/lib/ads-creatives'
@@ -581,8 +581,21 @@ function FolderLane({
     upload(all)
   }
 
+  const max = CREATIVE_MAX[role]
+  const [one, many] = CREATIVE_UNIT[role]
+  const count = countCreatives(ev.items, role)
+  const over = count > max
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ ...briefBox, ...(over ? briefOver : {}) }}>
+        <span><b>{max} {many} différentes max</b> par événement</span>
+        {items.length > 0 && (
+          <span style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
+            {count} / {max} {count > 1 ? many : one}{over ? ' · au-dessus du max' : ''}
+          </span>
+        )}
+      </div>
       {items.map((it) => (
         <FolderRow key={it.id} item={it} fileUrl={fileUrl} onRemove={() => onRemove(ev, it)} />
       ))}
@@ -785,6 +798,12 @@ const dropZone: CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: crmV2.radius,
   border: `1.5px dashed ${crmV2.borderStrong}`, background: crmV2.bgHover, flexWrap: 'wrap',
 }
+const briefBox: CSSProperties = {
+  display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+  fontSize: 12, color: crmV2.textMuted, padding: '6px 10px', borderRadius: crmV2.radiusSm,
+  background: crmV2.chipBg, border: `1px solid ${crmV2.chipBorder}`,
+}
+const briefOver: CSSProperties = { color: '#c2410c', background: '#fff7ed', borderColor: '#fed7aa' }
 const dropZoneActive: CSSProperties = { borderColor: crmV2.gold, background: crmV2.goldSoft }
 const folderRow: CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: crmV2.radius,
