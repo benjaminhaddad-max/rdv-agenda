@@ -87,6 +87,12 @@ type EventsDbRow = {
 type CampaignDbRow = Omit<AdsEventRow, 'name' | 'day' | 'until' | 'location' | 'campaign_start' | 'creas_deadline' | 'campaign_end' | 'items'> & {
   title: string
   event_date: string
+  location: string | null
+}
+
+/** « Visioconference » : lieu technique des webinaires dans Événements. */
+export function isVisioLocation(loc: string | null | undefined): boolean {
+  return /^visio/i.test((loc || '').trim())
 }
 
 export async function loadBrandDelays(db: SupabaseClient): Promise<Record<AdsBrand, BrandDelays>> {
@@ -199,7 +205,8 @@ export async function loadAdsEvents(
         until: kind === 'guide' ? schedule.campaign_end : day,
         // Horaire saisi, sinon horaire par défaut du type (webinaire 18h30, JPO 10h – 18h)
         event_time: c.event_time || (kind === 'event' ? defaultEventTime(c.event_type) : null),
-        location: ev?.location || null,
+        // Lieu de l'événement (rattaché) sinon lieu saisi dans le brief ; pas de lieu pour une visio
+        location: (ev?.location && !isVisioLocation(ev.location) ? ev.location : null) || c.location || null,
         ...schedule,
         items: items.get(c.id) || [],
       } as AdsEventRow

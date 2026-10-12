@@ -24,7 +24,7 @@ const typeColorStyle = (ev: AdsEventRow) => {
 }
 
 export default function CampaignDrawer({
-  ev, today, crm, settings, token, author, fileUrl, onAddFolder, onItemAdded, onRemove, onLaunched, onEdit, onSaveTime, onClose, flash,
+  ev, today, crm, settings, token, author, fileUrl, onAddFolder, onItemAdded, onRemove, onLaunched, onEdit, onSaveTime, onSaveLocation, onClose, flash,
 }: {
   ev: AdsEventRow
   today: string
@@ -40,11 +40,14 @@ export default function CampaignDrawer({
   onEdit: () => void
   /** CRM : modifier l'horaire directement depuis la fiche */
   onSaveTime: (time: string) => void
+  /** CRM : modifier le lieu (JPO / présentiel) depuis la fiche */
+  onSaveLocation: (location: string) => void
   onClose: () => void
   flash: (m: string) => void
 }) {
   const [more, setMore] = useState(false)
   const isGuide = ev.kind === 'guide'
+  const physical = !isGuide && ev.event_type !== 'webinaire'
   const eventLabel = campaignTypeLabel(ev)
   const days = diffDays(ev.campaign_start, ev.campaign_end) + 1
   const pc = pilierColor(ev.pilier)
@@ -76,6 +79,7 @@ export default function CampaignDrawer({
               : <>
                   {capitalize(new Date(`${ev.day}T12:00:00Z`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }))}
                   {ev.event_time ? ` · ${ev.event_time}` : ''}
+                  {physical && ev.location ? ` · ${ev.location}` : ''}
                 </>}
           </div>
         </div>
@@ -105,6 +109,24 @@ export default function CampaignDrawer({
                 />
               ) : (
                 <span style={{ fontSize: 14, fontWeight: 700, color: crmV2.text }}>{ev.event_time || '—'}</span>
+              )}
+            </div>
+          )}
+          {physical && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+              <span style={fieldLabel}>Lieu</span>
+              {crm ? (
+                <input
+                  key={ev.location || ''}
+                  defaultValue={ev.location || ''}
+                  placeholder="Adresse de l’événement (à renseigner)"
+                  onBlur={(e) => { if (e.target.value.trim() !== (ev.location || '')) onSaveLocation(e.target.value.trim()) }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+                  style={{ ...timeInput, flex: 1, minWidth: 0 }}
+                  title="Modifier le lieu"
+                />
+              ) : (
+                <span style={{ fontSize: 14, fontWeight: 700, color: ev.location ? crmV2.text : crmV2.danger }}>{ev.location || 'Lieu à confirmer'}</span>
               )}
             </div>
           )}
@@ -141,7 +163,7 @@ export default function CampaignDrawer({
             )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px', marginTop: 12 }}>
               <Field label="Cible" value={ev.cible} />
-              <Field label="Géo" value={ev.geo || ev.location} />
+              <Field label="Géo" value={ev.geo} />
               <Field label="Intervenant" value={ev.intervenant} />
               <Field label={isGuide ? 'Après le téléchargement' : 'CTA'} value={ev.cta} />
               <Field label="Webinaires liés" value={ev.linked_webinars} />

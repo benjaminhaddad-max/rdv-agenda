@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { resolveAdsAccess } from '@/lib/ads-creatives-server'
+import { createEventsClient } from '@/lib/events-studio/client'
 import { ADS_CREATIVES_BUCKET, BRIEF_FIELDS, BRIEF_NUMERIC, type FolderFile } from '@/lib/ads-creatives'
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
@@ -7,7 +8,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 /**
  * PATCH /api/ads-creatives/campaigns/[id]
  *   { launched?, by? }                       — coche « en ligne » (CRM ou lien partagé)
- *   { brief fields…, title?, event_date?, event_time?, launch_date?, creas_date?, end_date?, no_campaign? } — CRM
+ *   { brief fields…, title?, event_date?, event_time?, location?, launch_date?, creas_date?, end_date?, no_campaign? } — CRM
  */
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -39,10 +40,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       if (k in body) patch[k] = DATE_RE.test(String(body[k] || '')) ? body[k] : null
     }
     if ('no_campaign' in body) patch.no_campaign = !!body.no_campaign
+    if ('location' in body) patch.location = String(body.location || '').trim().slice(0, 300) || null
   }
 
   const { error } = await access.db.from('ads_campaigns').update(patch).eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Campagne rattachée à une JPO / un présentiel : le lieu est aussi celui de l'événement
+  if (patch.location) {
+    const { data: c } = await access.db.from('ads_campaigns').select('event_id, event_type').eq('id', id).maybeSingle()
+    if (c?.event_id && c.event_type !== 'webinaire') {
+      const { error: evError } = await createEventsClient().from('events').update({ location: patch.location }).eq('id', c.event_id)
+      if (evError) return NextResponse.json({ ok: true, warning: `Lieu non reporté dans Événements : ${evError.message}` })
+    }
+  }
   return NextResponse.json({ ok: true })
 }
 

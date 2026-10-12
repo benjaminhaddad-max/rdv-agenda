@@ -25,6 +25,7 @@ export default function CampaignEditDrawer({
     title: ev.name,
     event_date: ev.day,
     event_time: toStr(ev.event_time),
+    location: toStr(ev.location),
     status: toStr(ev.status),
     pilier: toStr(ev.pilier),
     funnel: toStr(ev.funnel),
@@ -53,10 +54,13 @@ export default function CampaignEditDrawer({
   const set = (k: string, v: string | boolean) => setD((p) => ({ ...p, [k]: v }))
   const linked = !!ev.event_id
   const isGuide = ev.kind === 'guide'
+  // JPO / présentiel : lieu obligatoire pour le ciblage Ads
+  const physical = !isGuide && ev.event_type !== 'webinaire'
 
   const save = async () => {
     setSaving(true)
     const payload: Record<string, unknown> = { ...d }
+    if (!physical) delete payload.location
     // Nom et date viennent de l'onglet Événements une fois rattaché
     if (linked && !isGuide) { delete payload.title; delete payload.event_date }
     const r = await fetch(`/api/ads-creatives/campaigns/${ev.id}`, {
@@ -143,6 +147,7 @@ export default function CampaignEditDrawer({
           </>
         )}
         {linked && !isGuide && text('event_time', 'Horaire', '18h30')}
+        {physical && text('location', 'Lieu', '29 rue Lauriston, 75016 Paris')}
         <div style={grid2}>
           <CrmV2Field label="Statut">
             <CrmV2Select value={d.status as string} onChange={(e) => set('status', e.target.value)}>

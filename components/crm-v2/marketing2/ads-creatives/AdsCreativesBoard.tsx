@@ -425,7 +425,7 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
                     </tr>,
                     ...rows.map((ev) => {
                       const pc = pilierColor(ev.pilier)
-                      const sub = [ev.kind === 'event' ? ev.event_time : null, ev.pilier, ev.funnel, ev.budget_target != null ? formatEuros(ev.budget_target) : null].filter(Boolean).join(' · ')
+                      const sub = [ev.kind === 'event' ? ev.event_time : null, ev.kind === 'event' && ev.event_type !== 'webinaire' ? ev.location || 'Lieu à confirmer' : null, ev.pilier, ev.funnel, ev.budget_target != null ? formatEuros(ev.budget_target) : null].filter(Boolean).join(' · ')
                       const days = diffDays(ev.campaign_start, ev.campaign_end) + 1
                       return (
                         <CrmV2Tr key={ev.id} onClick={() => setOpenId(ev.id)} style={{ opacity: ev.no_campaign ? 0.5 : 1 }}>
@@ -494,6 +494,17 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
               body: JSON.stringify({ event_time: time }),
             })
             flash(r.ok ? 'Horaire enregistré' : 'Enregistrement impossible')
+            load()
+          }}
+          onSaveLocation={async (location) => {
+            setEvents((prev) => prev.map((e) => (e.id === opened.id ? { ...e, location: location || null } : e)))
+            const r = await fetch(`/api/ads-creatives/campaigns/${opened.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ location }),
+            })
+            const json = await r.json().catch(() => ({}))
+            flash(!r.ok ? 'Enregistrement impossible' : json.warning || 'Lieu enregistré')
             load()
           }}
           onClose={() => setOpenId(null)}
