@@ -42,4 +42,19 @@ export function adsStatus(ev: AdsEventRow, today: string): Status {
   return { tone: 'idle', label: 'À lancer' }
 }
 
+/** Avancement d'une campagne (filtre du tableau). */
+export type Stage = 'creas' | 'launch' | 'live'
+export const STAGE_LABELS: Record<Stage, string> = {
+  creas: 'En attente de créa',
+  launch: 'En attente de mise en ligne',
+  live: 'En ligne',
+}
+
+/** En ligne ; sinon en attente de mise en ligne si statique + vidéo déposés ; sinon en attente de créa. */
+export function campaignStage(ev: AdsEventRow): Stage | null {
+  if (ev.launched_at) return 'live'
+  if (ev.no_campaign) return null
+  return (['static', 'video'] as const).every((r) => ev.items.some((i) => i.role === r)) ? 'launch' : 'creas'
+}
+
 export { short as shortDay }

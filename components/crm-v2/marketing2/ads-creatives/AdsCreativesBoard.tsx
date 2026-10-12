@@ -24,7 +24,7 @@ import {
 } from '@/lib/ads-creatives'
 import CampaignDrawer, { StatusBadge } from './CampaignDrawer'
 import CampaignEditDrawer from './CampaignEditDrawer'
-import { adsStatus, creativeStatus, guidePdfStatus, shortDay } from './status'
+import { STAGE_LABELS, adsStatus, campaignStage, creativeStatus, guidePdfStatus, shortDay, type Stage } from './status'
 import { TONES, pilierColor, typeColor } from './ui'
 
 type Settings = AdsCreativesSettings & { share_token?: string; share_url?: string }
@@ -62,6 +62,9 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
   const [tab, setTab] = useState<'upcoming' | 'past'>('upcoming')
   // Vue : tout, webinaires & JPO, ou guides
   const [kind, setKind] = useState<View>('event')
+  // Filtres : type d'événement et avancement de la campagne
+  const [typeFilter, setTypeFilter] = useState<'all' | 'webinaire' | 'jpo'>('all')
+  const [stageFilter, setStageFilter] = useState<'all' | Stage>('all')
   const [showSettings, setShowSettings] = useState(false)
   const [editing, setEditing] = useState<AdsEventRow | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
@@ -125,12 +128,18 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
   const brandEvents = byBrand[brand]
   const inView = (e: AdsEventRow, v: View) => v === 'all' || e.kind === v
   const kindCount = (k: View) => brandEvents.filter((e) => inView(e, k) && e.until >= today).length
-  const kindEvents = useMemo(() => brandEvents.filter((e) => kind === 'all' || e.kind === kind), [brandEvents, kind])
+  const isGuide = kind === 'guide'
+  const kindEvents = useMemo(() => brandEvents.filter((e) => (kind === 'all' || e.kind === kind)
+    && (isGuide || typeFilter === 'all' || (e.kind === 'event' && e.event_type === typeFilter))), [brandEvents, kind, isGuide, typeFilter])
   // Un guide reste « à venir » tant qu'il est diffusé
   const upcoming = useMemo(() => kindEvents.filter((e) => e.until >= today), [kindEvents, today])
   const past = useMemo(() => [...kindEvents.filter((e) => e.until < today)].reverse(), [kindEvents, today])
-  const isGuide = kind === 'guide'
-  const list = tab === 'upcoming' ? upcoming : past
+  const tabList = tab === 'upcoming' ? upcoming : past
+  const stageCount = (st: Stage) => tabList.filter((e) => campaignStage(e) === st).length
+  const list = useMemo(
+    () => (stageFilter === 'all' ? tabList : tabList.filter((e) => campaignStage(e) === stageFilter)),
+    [tabList, stageFilter],
+  )
 
   const opened = openId ? events.find((e) => e.id === openId) || null : null
 
@@ -307,6 +316,27 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
             onChange={(v) => setTab(v as 'upcoming' | 'past')}
             size="sm"
           />
+          {!isGuide && (
+            <CrmV2Segmented
+              items={[
+                { id: 'all', label: 'Tous types' },
+                { id: 'webinaire', label: 'Webinaires' },
+                { id: 'jpo', label: 'JPO' },
+              ]}
+              value={typeFilter}
+              onChange={(v) => setTypeFilter(v as 'all' | 'webinaire' | 'jpo')}
+              size="sm"
+            />
+          )}
+          <CrmV2Segmented
+            items={[
+              { id: 'all', label: 'Tous statuts' },
+              ...(['creas', 'launch', 'live'] as Stage[]).map((st) => ({ id: st, label: `${STAGE_LABELS[st]} (${stageCount(st)})` })),
+            ]}
+            value={stageFilter}
+            onChange={(v) => setStageFilter(v as 'all' | Stage)}
+            size="sm"
+          />
           </div>
           {tab === 'upcoming' && upcoming.length > 0 && (
             <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 13, color: crmV2.textMuted }}>
@@ -323,7 +353,9 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
           <CrmV2Spinner />
         ) : list.length === 0 ? (
           <CrmV2Empty
-            title={isGuide
+            title={stageFilter !== 'all' || (!isGuide && typeFilter !== 'all')
+              ? 'Aucune campagne pour ces filtres'
+              : isGuide
               ? (tab === 'upcoming' ? `Aucun guide ${BRAND_CONFIG[brand].name} en cours ou à venir` : 'Aucun guide terminé')
               : (tab === 'upcoming' ? `Aucune campagne ${BRAND_CONFIG[brand].name} à venir` : 'Aucune campagne passée')}
             description={isGuide
