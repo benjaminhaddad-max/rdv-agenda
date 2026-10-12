@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Importe un planning Ads (xlsx) dans ads_campaigns :
+ * Importe un planning Ads (xlsx ou export CSV) dans ads_campaigns :
  *   - planning d'événements (onglet « Planning webinaires ») → sous-onglet Événements ;
  *   - planning de guides (onglet « Planning guides », colonnes Début / Fin) → sous-onglet Guides.
  * Le type est détecté tout seul (colonne « Guide » ou « Début »).
@@ -20,6 +20,7 @@
  *   (le jour de l'événement).
  */
 import * as XLSX from 'xlsx'
+import { readFileSync } from 'fs'
 import { createClient } from '@supabase/supabase-js'
 
 const args = process.argv.slice(2)
@@ -40,7 +41,7 @@ const COLS = {
   date: /^date$/i,
   event_time: /^horaire$/i,
   pilier: /^pilier$/i,
-  title: /^webinaire$|^événement$|^evenement$|^guide$/i,
+  title: /^webinaire$|^titre du webinaire$|^événement$|^evenement$|^guide$/i,
   format_contenu: /^format/i,
   direction_crea: /^direction/i,
   start: /^d[ée]but$/i,
@@ -65,7 +66,10 @@ const COLS = {
   status: /^statut$/i,
 }
 
-const wb = XLSX.readFile(file, { cellDates: true })
+// CSV (export Google Sheet) : lu en UTF-8, cellules gardées en texte (dates JJ/MM/AAAA)
+const wb = /\.csv$/i.test(file)
+  ? XLSX.read(readFileSync(file, 'utf8'), { type: 'string', raw: true })
+  : XLSX.readFile(file, { cellDates: true })
 const sheetName = wb.SheetNames.find((n) => /planning/i.test(n)) || wb.SheetNames[0]
 const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, raw: true, defval: null })
 const headerIdx = rows.findIndex((r) => r.some((c) => typeof c === 'string' && COLS.num.test(c.trim())))

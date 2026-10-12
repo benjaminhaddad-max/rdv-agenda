@@ -4,7 +4,7 @@
  * chaque campagne à son événement (event_id) — mêmes réglages que la création
  * depuis l'onglet Événements : textes email/SMS par défaut + formulaire CRM lié.
  *
- * Événements créés en brouillon (aucun envoi). Webinaires : lien Zoom à ajouter.
+ * Événements créés en brouillon (aucun envoi). Webinaires : Zoom par défaut de la marque, sinon à ajouter.
  *
  * Usage : bun --env-file=.env.local scripts/create-events-from-ads-campaigns.ts [--apply]
  */
@@ -83,7 +83,9 @@ for (const c of todo) {
   if (!eventId) {
     const brandCfg = BRAND_CONFIG[brand] || BRAND_CONFIG.diploma
     const article = articleOf(c.title, type)
-    const commsEv = { name: c.title, article, event_date: eventDate, event_time_end: end, location, zoom_join_url: null, event_type: type, brand }
+    // Webinaire : Zoom par défaut de la marque (Edumove), comme l'assistant de création
+    const zoom = type === 'webinaire' ? brandCfg.defaultZoom || null : null
+    const commsEv = { name: c.title, article, event_date: eventDate, event_time_end: end, location, zoom_join_url: zoom, event_type: type, brand }
     const { data: ev, error: evError } = await events.from('events').insert({
       name: c.title,
       article,
@@ -99,7 +101,7 @@ for (const c of todo) {
       sms_sender: brand === 'edumove' ? 'EDUMOVE' : brand === 'medibox' ? 'MEDIBOX' : 'DIPLOMA',
       sms_push_type: 1,
       sms_stop: false,
-      zoom_join_url: null,
+      zoom_join_url: zoom,
       custom_sms: buildDefaultCustomSms(commsEv),
       custom_emails: buildDefaultCustomEmails(commsEv),
       brand,
