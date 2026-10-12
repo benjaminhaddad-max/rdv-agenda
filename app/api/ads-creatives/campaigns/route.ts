@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireApiUser } from '@/lib/api-auth'
 import { createServiceClient } from '@/lib/supabase'
-import { ADS_BRANDS } from '@/lib/ads-creatives'
+import { ADS_BRANDS, addDays } from '@/lib/ads-creatives'
 
-/** POST /api/ads-creatives/campaigns — { brand, title, event_date, event_type? } : campagne ajoutée à la main (CRM). */
+/** POST /api/ads-creatives/campaigns — { brand, kind?, title, event_date, event_type? } : campagne ou guide ajouté à la main (CRM). */
 export async function POST(req: NextRequest) {
   const auth = await requireApiUser()
   if (!auth.ok) return auth.response
@@ -16,7 +16,10 @@ export async function POST(req: NextRequest) {
   }
   const { data, error } = await createServiceClient()
     .from('ads_campaigns')
-    .insert({ brand, title, event_date, event_type: body.event_type === 'jpo' ? 'jpo' : 'webinaire', status: 'À valider' })
+    .insert(body.kind === 'guide'
+      // Guide : diffusion d'un mois par défaut, à ajuster dans le brief
+      ? { brand, kind: 'guide', title, event_date, event_type: 'guide', end_date: addDays(event_date, 30), status: 'À valider' }
+      : { brand, kind: 'event', title, event_date, event_type: body.event_type === 'jpo' ? 'jpo' : 'webinaire', status: 'À valider' })
     .select('id')
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

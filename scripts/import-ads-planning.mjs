@@ -1,6 +1,9 @@
 #!/usr/bin/env bun
 /**
- * Importe un planning Ads (xlsx, onglet « Planning webinaires ») dans ads_campaigns.
+ * Importe un planning Ads (xlsx) dans ads_campaigns :
+ *   - planning d'événements (onglet « Planning webinaires ») → sous-onglet Événements ;
+ *   - planning de guides (onglet « Planning guides », colonnes Début / Fin) → sous-onglet Guides.
+ * Le type est détecté tout seul (colonne « Guide » ou « Début »).
  *
  * Usage :
  *   bun --env-file=.env.local run scripts/import-ads-planning.mjs <fichier.xlsx> --brand medibox [--dry]
@@ -36,7 +39,12 @@ const COLS = {
   date: /^date$/i,
   event_time: /^horaire$/i,
   pilier: /^pilier$/i,
-  title: /^webinaire$|^événement$|^evenement$/i,
+  title: /^webinaire$|^événement$|^evenement$|^guide$/i,
+  format_contenu: /^format/i,
+  direction_crea: /^direction/i,
+  start: /^d[ée]but$/i,
+  finish: /^fin$/i,
+  linked_webinars: /^webinaires? li/i,
   accroche: /^accroche/i,
   cible: /^cible$/i,
   geo: /^g[ée]o$/i,
@@ -50,7 +58,7 @@ const COLS = {
   leads_expected: /^leads attendus/i,
   budget_logic: /^logique budget/i,
   intervenant: /^intervenant/i,
-  cta: /^cta/i,
+  cta: /^cta|^apr[èe]s le t[ée]l[ée]chargement/i,
   why: /^pourquoi/i,
   to_check: /^points? à v[ée]rifier/i,
   status: /^statut$/i,
@@ -89,13 +97,54 @@ const addDays = (day, n) => {
 }
 
 const { data: delaysRow } = await db.from('ads_brand_settings').select('*').eq('brand', brand).maybeSingle()
-const delays = delaysRow || { launch_days: 15, creas_days: 7, end_days: 1 }
+const delays = { launch_days: 15, creas_days: 7, end_days: 0, guide_creas_days: 7, ...(delaysRow || {}) }
+const isGuide = col.start >= 0 && col.finish >= 0
 
 const lines = []
 for (const r of rows.slice(headerIdx + 1)) {
   const num = toNum(r[col.num])
-  const day = toDay(r[col.date])
   const title = text(r[col.title])
+  if (isGuide) {
+    const start = toDay(r[col.start])
+    const finish = toDay(r[col.finish])
+    if (!num || !start || !title) continue
+    const budget = toNum(r[col.budget_target])
+    const cpl = toNum(r[col.cpl_target])
+    const creas = col.creas >= 0 ? toDay(r[col.creas]) : null
+    lines.push({
+      brand,
+      kind: 'guide',
+      import_key: `g${num}`,
+      num,
+      title,
+      event_date: start,
+      event_type: 'guide',
+      pilier: text(r[col.pilier]),
+      accroche: text(r[col.accroche]),
+      format_contenu: text(r[col.format_contenu]),
+      direction_crea: text(r[col.direction_crea]),
+      cible: text(r[col.cible]),
+      geo: text(r[col.geo]),
+      funnel: text(r[col.funnel]),
+      ref_diploma: text(r[col.ref_diploma]),
+      cpl_ref: toNum(r[col.cpl_ref]),
+      cpl_target: cpl,
+      budget_target: budget,
+      // Colonne calculée dans le fichier (formule) : on la recalcule
+      leads_expected: toNum(r[col.leads_expected]) ?? (budget && cpl ? Math.round(budget / cpl) : null),
+      budget_logic: text(r[col.budget_logic]),
+      linked_webinars: text(r[col.linked_webinars]),
+      cta: text(r[col.cta]),
+      why: text(r[col.why]),
+      to_check: text(r[col.to_check]),
+      status: text(r[col.status]),
+      launch_date: null,
+      end_date: finish,
+      creas_date: creas && creas !== addDays(start, -delays.guide_creas_days) ? creas : null,
+    })
+    continue
+  }
+  const day = toDay(r[col.date])
   if (!num || !day || !title) continue
   const launch = col.launch >= 0 ? toDay(r[col.launch]) : null
   const creas = col.creas >= 0 ? toDay(r[col.creas]) : null
@@ -103,6 +152,7 @@ for (const r of rows.slice(headerIdx + 1)) {
   const effLaunch = launch || calcLaunch
   lines.push({
     brand,
+    kind: 'event',
     import_key: `n${num}`,
     num,
     title,
@@ -132,11 +182,11 @@ for (const r of rows.slice(headerIdx + 1)) {
   })
 }
 
-console.log(`${sheetName} : ${lines.length} lignes (${brand}, délais ${delays.launch_days}/${delays.creas_days}/${delays.end_days})`)
+console.log(`${sheetName} : ${lines.length} ${isGuide ? 'guides' : 'événements'} (${brand})`)
 for (const l of lines) {
   console.log(
-    `  n${l.num} ${l.event_date} ${l.title.slice(0, 60)} | budget ${l.budget_target ?? '—'} € · CPL ${l.cpl_target ?? '—'} · leads ${l.leads_expected ?? '—'}` +
-    (l.launch_date ? ` | allumage ${l.launch_date}` : '') + (l.creas_date ? ` | créas ${l.creas_date}` : '') ,
+    `  ${l.import_key} ${l.event_date}${l.kind === 'guide' ? ` → ${l.end_date}` : ''} ${l.title.slice(0, 55)} | budget ${l.budget_target ?? '—'} € · CPL ${l.cpl_target ?? '—'} · leads ${l.leads_expected ?? '—'}` +
+    (l.launch_date ? ` | allumage ${l.launch_date}` : '') + (l.creas_date ? ` | créas ${l.creas_date}` : ''),
   )
 }
 if (dry) process.exit(0)

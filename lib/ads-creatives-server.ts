@@ -74,16 +74,16 @@ type EventsDbRow = {
   zoom_join_url: string | null
 }
 
-type CampaignDbRow = Omit<AdsEventRow, 'name' | 'day' | 'location' | 'campaign_start' | 'creas_deadline' | 'campaign_end' | 'items'> & {
+type CampaignDbRow = Omit<AdsEventRow, 'name' | 'day' | 'until' | 'location' | 'campaign_start' | 'creas_deadline' | 'campaign_end' | 'items'> & {
   title: string
   event_date: string
 }
 
 export async function loadBrandDelays(db: SupabaseClient): Promise<Record<AdsBrand, BrandDelays>> {
   const out = { ...DEFAULT_DELAYS }
-  const { data } = await db.from('ads_brand_settings').select('brand, launch_days, creas_days, end_days')
+  const { data } = await db.from('ads_brand_settings').select('*')
   for (const r of (data || []) as BrandDelays[]) {
-    if ((ADS_BRANDS as string[]).includes(r.brand)) out[r.brand] = r
+    if ((ADS_BRANDS as string[]).includes(r.brand)) out[r.brand] = { ...DEFAULT_DELAYS[r.brand], ...r }
   }
   return out
 }
@@ -121,7 +121,7 @@ export async function loadAdsEvents(
   const { data: cData, error: cError } = await db
     .from('ads_campaigns')
     .select('*')
-    .gte('event_date', fromDay)
+    .or(`event_date.gte.${fromDay},end_date.gte.${fromDay}`)
     .order('event_date', { ascending: true })
   if (cError) {
     throw new Error(/does not exist|schema cache/.test(cError.message) ? 'Migration v74 (campagnes Ads) non appliquée' : cError.message)
@@ -136,7 +136,7 @@ export async function loadAdsEvents(
     const day = parisDay(ev.event_date)
     const type = eventTypeOf(ev).id as 'webinaire' | 'jpo'
     // Ligne importée du planning, même marque et même jour, pas encore rattachée
-    const match = campaigns.find((c) => !c.event_id && c.brand === brand && c.event_date === day)
+    const match = campaigns.find((c) => (c.kind || 'event') === 'event' && !c.event_id && c.brand === brand && c.event_date === day)
     if (match) {
       const { error } = await db.from('ads_campaigns').update({ event_id: ev.id, updated_at: new Date().toISOString() }).eq('id', match.id).is('event_id', null)
       if (!error) match.event_id = ev.id
@@ -144,7 +144,7 @@ export async function loadAdsEvents(
     }
     const { data: created } = await db
       .from('ads_campaigns')
-      .insert({ brand, event_id: ev.id, title: ev.name, event_date: day, event_type: type })
+      .insert({ brand, kind: 'event', event_id: ev.id, title: ev.name, event_date: day, event_type: type })
       .select('*')
       .maybeSingle()
     // Course possible avec un autre chargement : l'index unique sur event_id fait foi.
@@ -178,13 +178,17 @@ export async function loadAdsEvents(
       // L'événement fait foi pour le nom, la date et le lieu une fois rattaché.
       const day = ev ? parisDay(ev.event_date) : c.event_date
       const { title, ...rest } = c
+      const kind = c.kind === 'guide' ? 'guide' : 'event'
+      const schedule = computeSchedule(day, delays[brandOf(c.brand)], { ...c, kind })
       return {
         ...rest,
+        kind,
         brand: brandOf(c.brand),
         name: ev?.name || title,
         day,
+        until: kind === 'guide' ? schedule.campaign_end : day,
         location: ev?.location || null,
-        ...computeSchedule(day, delays[brandOf(c.brand)], c),
+        ...schedule,
         items: items.get(c.id) || [],
       } as AdsEventRow
     })

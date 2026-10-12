@@ -9,6 +9,10 @@
  * Une date saisie à la main sur la campagne remplace la date calculée.
  *
  * Seuls les JPO et webinaires ont une campagne (pas les salons).
+ *
+ * Guides (kind = 'guide') : campagne sans événement, diffusée du début
+ * (launch_date) à la fin (end_date) ; créas + guide livrés guide_creas_days
+ * avant le début.
  */
 
 export const ADS_CREATIVES_BUCKET = 'ads-creatives'
@@ -21,17 +25,22 @@ export const ADS_EVENT_TYPES = ['jpo', 'webinaire'] as const
 export type AdsBrand = 'diploma' | 'medibox' | 'edumove'
 export const ADS_BRANDS: AdsBrand[] = ['diploma', 'medibox', 'edumove']
 
-export type BrandDelays = { brand: AdsBrand; launch_days: number; creas_days: number; end_days: number }
+export type BrandDelays = { brand: AdsBrand; launch_days: number; creas_days: number; end_days: number; guide_creas_days: number }
 export const DEFAULT_DELAYS: Record<AdsBrand, BrandDelays> = {
-  diploma: { brand: 'diploma', launch_days: 15, creas_days: 7, end_days: 0 },
-  edumove: { brand: 'edumove', launch_days: 15, creas_days: 7, end_days: 0 },
-  medibox: { brand: 'medibox', launch_days: 21, creas_days: 5, end_days: 0 },
+  diploma: { brand: 'diploma', launch_days: 15, creas_days: 7, end_days: 0, guide_creas_days: 7 },
+  edumove: { brand: 'edumove', launch_days: 15, creas_days: 7, end_days: 0, guide_creas_days: 7 },
+  medibox: { brand: 'medibox', launch_days: 21, creas_days: 5, end_days: 0, guide_creas_days: 7 },
 }
+
+export type CampaignKind = 'event' | 'guide'
+export const CAMPAIGN_KINDS: CampaignKind[] = ['event', 'guide']
+export const CAMPAIGN_KIND_LABELS: Record<CampaignKind, string> = { event: 'Événements', guide: 'Guides' }
 
 /** Champs du brief (colonnes du planning). */
 export const BRIEF_FIELDS = [
   'pilier', 'accroche', 'cible', 'geo', 'funnel', 'ref_diploma', 'cpl_ref', 'cpl_target', 'budget_target',
   'leads_expected', 'budget_logic', 'intervenant', 'cta', 'why', 'to_check', 'status',
+  'format_contenu', 'direction_crea', 'linked_webinars',
 ] as const
 export type BriefField = (typeof BRIEF_FIELDS)[number]
 export const BRIEF_NUMERIC: BriefField[] = ['cpl_ref', 'cpl_target', 'budget_target', 'leads_expected']
@@ -97,6 +106,7 @@ export type AdsCreativesSettings = {
 export type AdsEventRow = {
   id: string
   brand: AdsBrand
+  kind: CampaignKind
   /** Événement de l'onglet Événements rattaché (null = ligne importée du planning) */
   event_id: string | null
   num: number | null
@@ -104,8 +114,10 @@ export type AdsEventRow = {
   event_type: 'webinaire' | 'jpo'
   event_time: string | null
   location: string | null
-  /** Jour de l'événement (Europe/Paris) */
+  /** Jour de l'événement (Europe/Paris) ; guide : jour de début */
   day: string
+  /** Dernier jour utile (événement, ou fin de diffusion d'un guide) : sert au tri À venir / Passés */
+  until: string
   /** Allumage / livraison créas / extinction (calculés ou saisis) */
   campaign_start: string
   creas_deadline: string
@@ -136,6 +148,10 @@ export type AdsEventRow = {
   why: string | null
   to_check: string | null
   status: string | null
+  // Guides
+  format_contenu: string | null
+  direction_crea: string | null
+  linked_webinars: string | null
 }
 
 /** YYYY-MM-DD du jour en Europe/Paris. */
@@ -157,9 +173,18 @@ export function diffDays(a: string, b: string): number {
 
 export function computeSchedule(
   eventDay: string,
-  delays: Pick<BrandDelays, 'launch_days' | 'creas_days' | 'end_days'>,
-  overrides: { launch_date?: string | null; creas_date?: string | null; end_date?: string | null } = {},
+  delays: Pick<BrandDelays, 'launch_days' | 'creas_days' | 'end_days' | 'guide_creas_days'>,
+  overrides: { launch_date?: string | null; creas_date?: string | null; end_date?: string | null; kind?: CampaignKind } = {},
 ): { campaign_start: string; creas_deadline: string; campaign_end: string } {
+  if (overrides.kind === 'guide') {
+    // Guide : eventDay = début de diffusion
+    const start = overrides.launch_date || eventDay
+    return {
+      campaign_start: start,
+      creas_deadline: overrides.creas_date || addDays(start, -(delays.guide_creas_days ?? 7)),
+      campaign_end: overrides.end_date || start,
+    }
+  }
   const campaign_start = overrides.launch_date || addDays(eventDay, -delays.launch_days)
   return {
     campaign_start,

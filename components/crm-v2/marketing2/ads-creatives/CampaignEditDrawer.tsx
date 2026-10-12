@@ -41,6 +41,9 @@ export default function CampaignEditDrawer({
     budget_logic: toStr(ev.budget_logic),
     why: toStr(ev.why),
     to_check: toStr(ev.to_check),
+    format_contenu: toStr(ev.format_contenu),
+    direction_crea: toStr(ev.direction_crea),
+    linked_webinars: toStr(ev.linked_webinars),
     launch_date: toStr(ev.launch_date),
     creas_date: toStr(ev.creas_date),
     end_date: toStr(ev.end_date),
@@ -49,12 +52,13 @@ export default function CampaignEditDrawer({
   const [saving, setSaving] = useState(false)
   const set = (k: string, v: string | boolean) => setD((p) => ({ ...p, [k]: v }))
   const linked = !!ev.event_id
+  const isGuide = ev.kind === 'guide'
 
   const save = async () => {
     setSaving(true)
     const payload: Record<string, unknown> = { ...d }
     // Nom et date viennent de l'onglet Événements une fois rattaché
-    if (linked) { delete payload.title; delete payload.event_date }
+    if (linked && !isGuide) { delete payload.title; delete payload.event_date }
     const r = await fetch(`/api/ads-creatives/campaigns/${ev.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -109,8 +113,20 @@ export default function CampaignEditDrawer({
       }
     >
       <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {section('Événement')}
-        {linked ? (
+        {section(isGuide ? 'Guide' : 'Événement')}
+        {isGuide ? (
+          <>
+            {text('title', 'Titre')}
+            <div style={grid2}>
+              <CrmV2Field label="Début de diffusion">
+                <CrmV2Input type="date" value={d.event_date as string} onChange={(e) => set('event_date', e.target.value)} />
+              </CrmV2Field>
+              <CrmV2Field label="Fin de diffusion">
+                <CrmV2Input type="date" value={d.end_date as string} onChange={(e) => set('end_date', e.target.value)} />
+              </CrmV2Field>
+            </div>
+          </>
+        ) : linked ? (
           <div style={{ fontSize: 13, color: crmV2.textMuted, background: crmV2.bgHover, padding: '10px 12px', borderRadius: crmV2.radius }}>
             <b style={{ color: crmV2.text }}>{ev.name}</b> — {frDay(ev.day)}<br />
             Nom et date viennent de l’onglet Événements.
@@ -126,7 +142,7 @@ export default function CampaignEditDrawer({
             </div>
           </>
         )}
-        {linked && text('event_time', 'Horaire', 'Mer. 19h00')}
+        {linked && !isGuide && text('event_time', 'Horaire', 'Mer. 19h00')}
         <div style={grid2}>
           <CrmV2Field label="Statut">
             <CrmV2Select value={d.status as string} onChange={(e) => set('status', e.target.value)}>
@@ -148,10 +164,12 @@ export default function CampaignEditDrawer({
           {text('cible', 'Cible', 'Terminale + Parents')}
           {text('geo', 'Géo', 'France entière')}
         </div>
-        {area('accroche', 'Accroche / angle')}
+        {area('accroche', isGuide ? 'Accroche pub' : 'Accroche / angle')}
+        {area('direction_crea', 'Direction créa (consignes pour les créatifs)')}
+        {isGuide && area('format_contenu', 'Format et contenu')}
         <div style={grid2}>
-          {text('intervenant', 'Intervenant')}
-          {text('cta', 'CTA post-événement')}
+          {isGuide ? text('linked_webinars', 'Webinaires liés') : text('intervenant', 'Intervenant')}
+          {text('cta', isGuide ? 'Après le téléchargement' : 'CTA post-événement')}
         </div>
 
         {section('Budget')}
@@ -166,7 +184,12 @@ export default function CampaignEditDrawer({
         {area('why', 'Pourquoi / comment')}
         {area('to_check', 'Points à vérifier')}
 
-        {section('Dates de campagne')}
+        {!isGuide && section('Dates de campagne')}
+        {isGuide ? (
+          <CrmV2Field label="Livraison guide + créas (vide = calculée)">
+            <CrmV2Input type="date" value={d.creas_date as string} onChange={(e) => set('creas_date', e.target.value)} />
+          </CrmV2Field>
+        ) : <>
         <div style={{ fontSize: 12, color: crmV2.textMuted, marginTop: -4 }}>
           Vide = date calculée avec les délais de la marque (actuellement : créas {frDay(ev.creas_deadline)}, allumage {frDay(ev.campaign_start)}, extinction {frDay(ev.campaign_end)}).
         </div>
@@ -181,6 +204,7 @@ export default function CampaignEditDrawer({
             <CrmV2Input type="date" value={d.end_date as string} onChange={(e) => set('end_date', e.target.value)} />
           </CrmV2Field>
         </div>
+        </>}
         <CrmV2Toggle checked={d.no_campaign as boolean} onChange={(v: boolean) => set('no_campaign', v)} label="Pas de campagne Ads pour cet événement (aucune relance)" />
       </div>
     </CrmV2Drawer>

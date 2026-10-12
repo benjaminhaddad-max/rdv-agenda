@@ -10,7 +10,7 @@ import { Check, ChevronDown, ChevronRight, Image as ImageIcon, Megaphone, Pencil
 import { CrmV2Button, CrmV2Drawer } from '@/components/crm-v2/primitives'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import {
-  formatEuros, frDay, parisDay,
+  diffDays, formatEuros, frDay, parisDay,
   type AdsCreativesSettings, type AdsEventRow, type CreativeItem, type CreativeRole, type FolderFile,
 } from '@/lib/ads-creatives'
 import FolderLane from './FolderLane'
@@ -35,7 +35,9 @@ export default function CampaignDrawer({
   flash: (m: string) => void
 }) {
   const [more, setMore] = useState(false)
-  const eventLabel = ev.event_type === 'jpo' ? 'JPO' : 'Webinaire'
+  const isGuide = ev.kind === 'guide'
+  const eventLabel = isGuide ? 'Guide' : ev.event_type === 'jpo' ? 'JPO' : 'Webinaire'
+  const days = diffDays(ev.campaign_start, ev.campaign_end) + 1
   const pc = pilierColor(ev.pilier)
   const fc = funnelColor(ev.funnel)
   const sc = statusColor(ev.status)
@@ -60,8 +62,12 @@ export default function CampaignDrawer({
           </div>
           <div style={{ fontSize: 17, fontWeight: 700, lineHeight: 1.35, color: crmV2.text }}>{ev.name}</div>
           <div style={{ fontSize: 13, color: crmV2.textMuted, marginTop: 4 }}>
-            {capitalize(new Date(`${ev.day}T12:00:00Z`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }))}
-            {ev.event_time ? ` · ${ev.event_time}` : ''}
+            {isGuide
+              ? `Diffusé du ${frDay(ev.campaign_start)} au ${frDay(ev.campaign_end)} · ${days} jours`
+              : <>
+                  {capitalize(new Date(`${ev.day}T12:00:00Z`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }))}
+                  {ev.event_time ? ` · ${ev.event_time}` : ''}
+                </>}
           </div>
         </div>
       }
@@ -75,23 +81,49 @@ export default function CampaignDrawer({
       <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 22 }}>
         {/* Dates clés */}
         <Section title="Planning">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-            <DateBox label="Créas à déposer" day={ev.creas_deadline} />
-            <DateBox label="Allumage" day={ev.campaign_start} />
-            <DateBox label={ev.campaign_end === ev.day ? `${eventLabel} · extinction` : 'Extinction'} day={ev.campaign_end} />
-          </div>
+          {isGuide ? (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+              <DateBox label="Guide + créas à livrer" day={ev.creas_deadline} />
+              <DateBox label="Début de diffusion" day={ev.campaign_start} />
+              <DateBox label="Fin de diffusion" day={ev.campaign_end} />
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+              <DateBox label="Créas à déposer" day={ev.creas_deadline} />
+              <DateBox label="Allumage" day={ev.campaign_start} />
+              <DateBox label={ev.campaign_end === ev.day ? `${eventLabel} · extinction` : 'Extinction'} day={ev.campaign_end} />
+            </div>
+          )}
         </Section>
 
         {/* Brief */}
-        {(ev.accroche || ev.cible || ev.budget_target != null) && (
+        {(ev.accroche || ev.cible || ev.budget_target != null || ev.direction_crea) && (
           <Section title="Brief">
             {ev.accroche && <div style={quote}>{ev.accroche}</div>}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px', marginTop: ev.accroche ? 12 : 0 }}>
+            {ev.direction_crea && (
+              <div style={{ ...creaBox, marginTop: 10 }}>
+                <div style={{ ...fieldLabel, color: crmV2.goldDark }}>Direction créa</div>
+                <div style={{ fontSize: 13, color: crmV2.text, lineHeight: 1.5, marginTop: 2 }}>{ev.direction_crea}</div>
+              </div>
+            )}
+            {ev.format_contenu && (
+              <div style={{ marginTop: 10 }}>
+                <div style={fieldLabel}>Format et contenu</div>
+                <div style={{ fontSize: 13, color: crmV2.text, lineHeight: 1.5 }}>{ev.format_contenu}</div>
+              </div>
+            )}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px', marginTop: 12 }}>
               <Field label="Cible" value={ev.cible} />
               <Field label="Géo" value={ev.geo || ev.location} />
               <Field label="Intervenant" value={ev.intervenant} />
-              <Field label="CTA" value={ev.cta} />
-              <Field label="Budget" value={ev.budget_target != null ? formatEuros(ev.budget_target) : null} />
+              <Field label={isGuide ? 'Après le téléchargement' : 'CTA'} value={ev.cta} />
+              <Field label="Webinaires liés" value={ev.linked_webinars} />
+              <Field
+                label="Budget"
+                value={ev.budget_target != null
+                  ? `${formatEuros(ev.budget_target)}${isGuide && days > 0 ? ` · ${formatEuros(ev.budget_target / days)}/jour` : ''}`
+                  : null}
+              />
               <Field
                 label="CPL cible · leads"
                 value={ev.cpl_target != null || ev.leads_expected != null
@@ -150,7 +182,7 @@ export default function CampaignDrawer({
           <div style={{ fontSize: 12, color: crmV2.textMuted, marginTop: 6 }}>
             {ev.launched_at
               ? `Lancée le ${frDay(parisDay(ev.launched_at))}${ev.launched_by ? ` par ${ev.launched_by}` : ''}`
-              : `À allumer le ${frDay(ev.campaign_start)}${author ? '' : ' · renseigne ton prénom en haut pour signer'}`}
+              : `${isGuide ? 'Début de diffusion' : 'À allumer'} le ${frDay(ev.campaign_start)}${author ? '' : ' · renseigne ton prénom en haut pour signer'}`}
           </div>
         </Section>
       </div>
@@ -228,6 +260,9 @@ const fieldLabel: CSSProperties = {
 const quote: CSSProperties = {
   fontSize: 13.5, lineHeight: 1.55, color: crmV2.text, fontStyle: 'italic',
   padding: '10px 14px', borderLeft: `3px solid ${crmV2.gold}`, background: crmV2.goldSoft, borderRadius: `0 ${crmV2.radius}px ${crmV2.radius}px 0`,
+}
+const creaBox: CSSProperties = {
+  padding: '10px 12px', borderRadius: crmV2.radius, background: crmV2.bg, border: `1px dashed ${crmV2.goldBorder}`,
 }
 const note: CSSProperties = {
   fontSize: 12.5, lineHeight: 1.5, color: '#9a3412', background: TONES.warn.bg, border: `1px solid ${TONES.warn.border}`,

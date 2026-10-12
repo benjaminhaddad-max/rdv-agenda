@@ -20,7 +20,8 @@ import { useIsMobile } from '@/lib/useIsMobile'
 import { BRAND_CONFIG } from '@/lib/events-studio/config'
 import {
   ADS_BRANDS, DEFAULT_DELAYS, diffDays, formatEuros, parisDay,
-  type AdsBrand, type AdsCreativesSettings, type AdsEventRow, type BrandDelays, type CreativeItem, type CreativeRole, type FolderFile,
+  CAMPAIGN_KINDS, CAMPAIGN_KIND_LABELS,
+  type AdsBrand, type AdsCreativesSettings, type AdsEventRow, type BrandDelays, type CampaignKind, type CreativeItem, type CreativeRole, type FolderFile,
 } from '@/lib/ads-creatives'
 import CampaignDrawer, { StatusBadge } from './CampaignDrawer'
 import CampaignEditDrawer from './CampaignEditDrawer'
@@ -31,6 +32,7 @@ type Settings = AdsCreativesSettings & { share_token?: string; share_url?: strin
 
 const NAME_KEY = 'ads-creatives-author'
 const BRAND_KEY = 'ads-creatives-brand'
+const KIND_KEY = 'ads-creatives-kind'
 
 function readLocal(key: string): string {
   try { return localStorage.getItem(key) || '' } catch { return '' }
@@ -55,6 +57,7 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
   const [toast, setToast] = useState<string | null>(null)
   const [brand, setBrand] = useState<AdsBrand>('diploma')
   const [tab, setTab] = useState<'upcoming' | 'past'>('upcoming')
+  const [kind, setKind] = useState<CampaignKind>('event')
   const [showSettings, setShowSettings] = useState(false)
   const [editing, setEditing] = useState<AdsEventRow | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
@@ -65,6 +68,7 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
     setAuthor(readLocal(NAME_KEY))
     const b = readLocal(BRAND_KEY)
     if ((ADS_BRANDS as string[]).includes(b)) setBrand(b as AdsBrand)
+    if (readLocal(KIND_KEY) === 'guide') setKind('guide')
   }, [])
 
   const qs = token ? `?token=${encodeURIComponent(token)}` : ''
@@ -103,14 +107,23 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
     writeLocal(BRAND_KEY, b)
   }
 
+  const pickKind = (k: CampaignKind) => {
+    setKind(k)
+    writeLocal(KIND_KEY, k)
+  }
+
   const byBrand = useMemo(() => {
     const out = { diploma: [], medibox: [], edumove: [] } as Record<AdsBrand, AdsEventRow[]>
     for (const e of events) out[e.brand]?.push(e)
     return out
   }, [events])
   const brandEvents = byBrand[brand]
-  const upcoming = useMemo(() => brandEvents.filter((e) => e.day >= today), [brandEvents, today])
-  const past = useMemo(() => [...brandEvents.filter((e) => e.day < today)].reverse(), [brandEvents, today])
+  const kindCount = (k: CampaignKind) => brandEvents.filter((e) => e.kind === k && e.until >= today).length
+  const kindEvents = useMemo(() => brandEvents.filter((e) => e.kind === kind), [brandEvents, kind])
+  // Un guide reste « à venir » tant qu'il est diffusé
+  const upcoming = useMemo(() => kindEvents.filter((e) => e.until >= today), [kindEvents, today])
+  const past = useMemo(() => [...kindEvents.filter((e) => e.until < today)].reverse(), [kindEvents, today])
+  const isGuide = kind === 'guide'
   const list = tab === 'upcoming' ? upcoming : past
 
   const opened = openId ? events.find((e) => e.id === openId) || null : null
@@ -171,16 +184,16 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
   }
 
   const addCampaign = async () => {
-    const title = prompt(`Titre de la nouvelle campagne ${BRAND_CONFIG[brand].name} :`)
+    const title = prompt(`Titre ${kind === 'guide' ? 'du nouveau guide' : 'de la nouvelle campagne'} ${BRAND_CONFIG[brand].name} :`)
     if (!title?.trim()) return
-    const date = prompt('Date de l’événement (JJ/MM/AAAA) :')
+    const date = prompt(kind === 'guide' ? 'Date de début de diffusion (JJ/MM/AAAA) :' : 'Date de l’événement (JJ/MM/AAAA) :')
     const m = date?.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
     if (!m) return flash('Date invalide (format JJ/MM/AAAA)')
     const event_date = `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`
     const r = await fetch('/api/ads-creatives/campaigns', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ brand, title: title.trim(), event_date }),
+      body: JSON.stringify({ brand, kind, title: title.trim(), event_date }),
     })
     const json = await r.json().catch(() => ({}))
     if (!r.ok) return flash(json.error || 'Erreur')
@@ -197,7 +210,9 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
     <CrmV2Page>
       <CrmV2Header
         title="Créas Ads"
-        subtitle={`JPO et webinaires · créas ${dl.creas_days} j avant l’allumage · allumage J-${dl.launch_days} · extinction ${dl.end_days ? `J+${dl.end_days}` : 'le jour de l’événement'}`}
+        subtitle={kind === 'guide'
+          ? `Guides téléchargeables · guide + créas livrés ${dl.guide_creas_days} j avant le début de diffusion`
+          : `JPO et webinaires · créas ${dl.creas_days} j avant l’allumage · allumage J-${dl.launch_days} · extinction ${dl.end_days ? `J+${dl.end_days}` : 'le jour de l’événement'}`}
         actions={
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             <CrmV2Input
@@ -225,7 +240,7 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
           items={ADS_BRANDS.map((b) => ({
             id: b,
             label: BRAND_CONFIG[b].name,
-            count: byBrand[b].filter((e) => e.day >= today).length,
+            count: byBrand[b].filter((e) => e.until >= today).length,
           }))}
           value={brand}
           onChange={(k: string) => pickBrand(k as AdsBrand)}
@@ -247,6 +262,13 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
         {error && <div style={errorBanner}><AlertTriangle size={16} /> {error}</div>}
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <CrmV2Segmented
+            items={CAMPAIGN_KINDS.map((k) => ({ id: k, label: `${CAMPAIGN_KIND_LABELS[k]} (${kindCount(k)})` }))}
+            value={kind}
+            onChange={(v) => pickKind(v as CampaignKind)}
+            size="sm"
+          />
           <CrmV2Segmented
             items={[
               { id: 'upcoming', label: `À venir (${upcoming.length})` },
@@ -256,6 +278,7 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
             onChange={(v) => setTab(v as 'upcoming' | 'past')}
             size="sm"
           />
+          </div>
           {tab === 'upcoming' && upcoming.length > 0 && (
             <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 13, color: crmV2.textMuted }}>
               {kpis.budget > 0 && <span><b style={{ color: crmV2.text }}>{formatEuros(kpis.budget)}</b> de budget</span>}
@@ -271,8 +294,12 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
           <CrmV2Spinner />
         ) : list.length === 0 ? (
           <CrmV2Empty
-            title={tab === 'upcoming' ? `Aucune campagne ${BRAND_CONFIG[brand].name} à venir` : 'Aucune campagne passée'}
-            description="Les JPO et webinaires créés dans l’onglet Événements apparaissent ici automatiquement."
+            title={isGuide
+              ? (tab === 'upcoming' ? `Aucun guide ${BRAND_CONFIG[brand].name} en cours ou à venir` : 'Aucun guide terminé')
+              : (tab === 'upcoming' ? `Aucune campagne ${BRAND_CONFIG[brand].name} à venir` : 'Aucune campagne passée')}
+            description={isGuide
+              ? 'Les guides s’ajoutent par import du planning ou avec le bouton « Campagne ».'
+              : 'Les JPO et webinaires créés dans l’onglet Événements apparaissent ici automatiquement.'}
           />
         ) : isMobile ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -304,10 +331,10 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
               <thead>
                 <tr>
                   <CrmV2Th style={{ width: 70 }}>Date</CrmV2Th>
-                  <CrmV2Th>Campagne</CrmV2Th>
+                  <CrmV2Th>{isGuide ? 'Guide' : 'Campagne'}</CrmV2Th>
                   <CrmV2Th style={{ width: 150 }}>Créas statiques</CrmV2Th>
                   <CrmV2Th style={{ width: 150 }}>Créas vidéo</CrmV2Th>
-                  <CrmV2Th style={{ width: 100 }}>Allumage</CrmV2Th>
+                  <CrmV2Th style={{ width: isGuide ? 130 : 100 }}>{isGuide ? 'Diffusion' : 'Allumage'}</CrmV2Th>
                   <CrmV2Th style={{ width: 160 }}>Ads Manager</CrmV2Th>
                 </tr>
               </thead>
@@ -320,7 +347,7 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
                       <td colSpan={6} style={monthCell}>
                         <span style={{ fontWeight: 800, color: crmV2.text }}>{monthLabel(`${month}-01`)}</span>
                         <span style={{ color: crmV2.textFaint, fontWeight: 500 }}>
-                          {' · '}{rows.length} campagne{rows.length > 1 ? 's' : ''}
+                          {' · '}{rows.length} {isGuide ? 'guide' : 'campagne'}{rows.length > 1 ? 's' : ''}
                           {budget > 0 ? ` · ${formatEuros(budget)}` : ''}
                           {leads > 0 ? ` · ${leads.toLocaleString('fr-FR')} leads` : ''}
                         </span>
@@ -329,6 +356,7 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
                     ...rows.map((ev) => {
                       const pc = pilierColor(ev.pilier)
                       const sub = [ev.pilier, ev.funnel, ev.budget_target != null ? formatEuros(ev.budget_target) : null].filter(Boolean).join(' · ')
+                      const days = diffDays(ev.campaign_start, ev.campaign_end) + 1
                       return (
                         <CrmV2Tr key={ev.id} onClick={() => setOpenId(ev.id)} style={{ opacity: ev.no_campaign ? 0.5 : 1 }}>
                           <CrmV2Td style={cellPad}><DayCell day={ev.day} /></CrmV2Td>
@@ -343,7 +371,16 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
                           </CrmV2Td>
                           <CrmV2Td style={cellPad}><StatusBadge s={creativeStatus(ev, 'static', today)} /></CrmV2Td>
                           <CrmV2Td style={cellPad}><StatusBadge s={creativeStatus(ev, 'video', today)} /></CrmV2Td>
-                          <CrmV2Td style={{ ...cellPad, color: crmV2.textMuted, whiteSpace: 'nowrap' }}>{shortDay(ev.campaign_start)}</CrmV2Td>
+                          <CrmV2Td style={{ ...cellPad, color: crmV2.textMuted, whiteSpace: 'nowrap' }}>
+                            {ev.kind === 'guide' ? (
+                              <>
+                                <div>jusqu’au {shortDay(ev.campaign_end)}</div>
+                                <div style={{ fontSize: 11.5, color: crmV2.textFaint }}>
+                                  {days} j{ev.budget_target ? ` · ${formatEuros(ev.budget_target / days)}/j` : ''}
+                                </div>
+                              </>
+                            ) : shortDay(ev.campaign_start)}
+                          </CrmV2Td>
                           <CrmV2Td style={cellPad}><StatusBadge s={adsStatus(ev, today)} /></CrmV2Td>
                         </CrmV2Tr>
                       )
@@ -468,11 +505,11 @@ function SettingsCard({
       </div>
 
       <div style={{ ...settingsTitle, marginTop: 18 }}>Délais de campagne par marque (en jours)</div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 12 }}>
         {ADS_BRANDS.map((b) => (
           <div key={b} style={{ padding: 12, borderRadius: crmV2.radius, border: `1px solid ${crmV2.borderLight}`, background: crmV2.bgHover }}>
             <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>{BRAND_CONFIG[b].name}</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
               <CrmV2Field label="Allumage J-">
                 <CrmV2Input type="number" min={0} value={dl[b].launch_days} onChange={(e) => setDelay(b, 'launch_days', Number(e.target.value))} />
               </CrmV2Field>
@@ -481,6 +518,9 @@ function SettingsCard({
               </CrmV2Field>
               <CrmV2Field label="Extinction J+">
                 <CrmV2Input type="number" min={0} value={dl[b].end_days} onChange={(e) => setDelay(b, 'end_days', Number(e.target.value))} />
+              </CrmV2Field>
+              <CrmV2Field label="Guides : créas avant">
+                <CrmV2Input type="number" min={0} value={dl[b].guide_creas_days} onChange={(e) => setDelay(b, 'guide_creas_days', Number(e.target.value))} />
               </CrmV2Field>
             </div>
           </div>

@@ -82,7 +82,8 @@ export async function GET(req: NextRequest) {
       const text = adsReminderText({
         ownerName: settings.ads_owner_name,
         eventName: ev.name,
-        eventDay: ev.day,
+        // Guide : relances Ads jusqu'à la fin de diffusion
+        eventDay: ev.until,
         campaignStart: ev.campaign_start,
         today,
         link,
