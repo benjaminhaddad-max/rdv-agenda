@@ -4,6 +4,8 @@
  * Mails de RDV Diploma Santé envoyés depuis des modèles transactionnels Brevo
  * (tag « rdv-crm » dans Brevo → Modèles). Le texte, l'objet et le design se
  * modifient directement dans Brevo ; le CRM n'envoie que les données ci-dessous.
+ * Les modèles (charte 2026) sont générés par scripts/brevo-rdv-templates.mjs
+ * (aperçus : `preview`, mise à jour Brevo : `push`) — y faire les retouches.
  *
  * Paramètres disponibles dans les modèles ({{ params.X }}) :
  *   PRENOM, DATE (« mardi 14 octobre à 17h00 »), HEURE (« 17h00 »),
