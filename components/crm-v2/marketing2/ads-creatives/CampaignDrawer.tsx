@@ -24,7 +24,7 @@ const typeColorStyle = (ev: AdsEventRow) => {
 }
 
 export default function CampaignDrawer({
-  ev, today, crm, settings, token, author, fileUrl, onAddFolder, onItemAdded, onRemove, onLaunched, onEdit, onClose, flash,
+  ev, today, crm, settings, token, author, fileUrl, onAddFolder, onItemAdded, onRemove, onLaunched, onEdit, onSaveTime, onClose, flash,
 }: {
   ev: AdsEventRow
   today: string
@@ -38,6 +38,8 @@ export default function CampaignDrawer({
   onRemove: (ev: AdsEventRow, item: CreativeItem) => void
   onLaunched: (v: boolean) => void
   onEdit: () => void
+  /** CRM : modifier l'horaire directement depuis la fiche */
+  onSaveTime: (time: string) => void
   onClose: () => void
   flash: (m: string) => void
 }) {
@@ -88,6 +90,24 @@ export default function CampaignDrawer({
       <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 22 }}>
         {/* Dates clés */}
         <Section title="Planning">
+          {!isGuide && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+              <span style={fieldLabel}>Horaire</span>
+              {crm ? (
+                <input
+                  key={ev.event_time || ''}
+                  defaultValue={ev.event_time || ''}
+                  placeholder={ev.event_type === 'jpo' ? '10h – 18h' : '18h30'}
+                  onBlur={(e) => { if (e.target.value.trim() !== (ev.event_time || '')) onSaveTime(e.target.value.trim()) }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+                  style={timeInput}
+                  title="Modifier l’horaire"
+                />
+              ) : (
+                <span style={{ fontSize: 14, fontWeight: 700, color: crmV2.text }}>{ev.event_time || '—'}</span>
+              )}
+            </div>
+          )}
           {isGuide ? (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
               <DateBox label="Guide + créas à livrer" day={ev.creas_deadline} />
@@ -282,6 +302,10 @@ const fieldLabel: CSSProperties = {
 const quote: CSSProperties = {
   fontSize: 13.5, lineHeight: 1.55, color: crmV2.text, fontStyle: 'italic',
   padding: '10px 14px', borderLeft: `3px solid ${crmV2.gold}`, background: crmV2.goldSoft, borderRadius: `0 ${crmV2.radius}px ${crmV2.radius}px 0`,
+}
+const timeInput: CSSProperties = {
+  fontSize: 14, fontWeight: 700, color: crmV2.text, fontFamily: 'inherit', width: 150,
+  padding: '6px 10px', borderRadius: crmV2.radiusSm, border: `1px solid ${crmV2.border}`, background: crmV2.bg,
 }
 const creaBox: CSSProperties = {
   padding: '10px 12px', borderRadius: crmV2.radius, background: crmV2.bg, border: `1px dashed ${crmV2.goldBorder}`,

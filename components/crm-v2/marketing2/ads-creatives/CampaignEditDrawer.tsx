@@ -138,11 +138,11 @@ export default function CampaignEditDrawer({
               <CrmV2Field label="Date">
                 <CrmV2Input type="date" value={d.event_date as string} onChange={(e) => set('event_date', e.target.value)} />
               </CrmV2Field>
-              {text('event_time', 'Horaire', 'Mer. 19h00')}
+              {text('event_time', 'Horaire', '18h30')}
             </div>
           </>
         )}
-        {linked && !isGuide && text('event_time', 'Horaire', 'Mer. 19h00')}
+        {linked && !isGuide && text('event_time', 'Horaire', '18h30')}
         <div style={grid2}>
           <CrmV2Field label="Statut">
             <CrmV2Select value={d.status as string} onChange={(e) => set('status', e.target.value)}>

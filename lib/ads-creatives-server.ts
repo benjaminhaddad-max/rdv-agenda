@@ -6,6 +6,7 @@ import { createEventsClient } from '@/lib/events-studio/client'
 import { eventTypeOf } from '@/lib/events-studio/config'
 import {
   computeSchedule,
+  defaultEventTime,
   parisDay,
   addDays,
   type AdsBrand,
@@ -188,6 +189,8 @@ export async function loadAdsEvents(
         name: ev?.name || title,
         day,
         until: kind === 'guide' ? schedule.campaign_end : day,
+        // Horaire saisi, sinon horaire par défaut du type (webinaire 18h30, JPO 10h – 18h)
+        event_time: c.event_time || (kind === 'event' ? defaultEventTime(c.event_type) : null),
         location: ev?.location || null,
         ...schedule,
         items: items.get(c.id) || [],

@@ -196,6 +196,13 @@ export function computeSchedule(
   }
 }
 
+/** Horaire par défaut d'un événement (modifiable campagne par campagne). */
+export function defaultEventTime(eventType: string | null | undefined): string | null {
+  if (eventType === 'webinaire') return '18h30'
+  if (eventType === 'jpo') return '10h – 18h'
+  return null
+}
+
 /** Libellé court du type : Guide, Webinaire, JPO, Présentiel. */
 export function campaignTypeLabel(ev: Pick<AdsEventRow, 'kind' | 'event_type'>): string {
   if (ev.kind === 'guide') return 'Guide'

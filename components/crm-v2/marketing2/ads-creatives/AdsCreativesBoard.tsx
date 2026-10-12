@@ -389,7 +389,7 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
                     </tr>,
                     ...rows.map((ev) => {
                       const pc = pilierColor(ev.pilier)
-                      const sub = [ev.pilier, ev.funnel, ev.budget_target != null ? formatEuros(ev.budget_target) : null].filter(Boolean).join(' · ')
+                      const sub = [ev.kind === 'event' ? ev.event_time : null, ev.pilier, ev.funnel, ev.budget_target != null ? formatEuros(ev.budget_target) : null].filter(Boolean).join(' · ')
                       const days = diffDays(ev.campaign_start, ev.campaign_end) + 1
                       return (
                         <CrmV2Tr key={ev.id} onClick={() => setOpenId(ev.id)} style={{ opacity: ev.no_campaign ? 0.5 : 1 }}>
@@ -450,6 +450,16 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
           onRemove={removeItem}
           onLaunched={(v) => setLaunched(opened, v)}
           onEdit={() => setEditing(opened)}
+          onSaveTime={async (time) => {
+            setEvents((prev) => prev.map((e) => (e.id === opened.id ? { ...e, event_time: time || null } : e)))
+            const r = await fetch(`/api/ads-creatives/campaigns/${opened.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ event_time: time }),
+            })
+            flash(r.ok ? 'Horaire enregistré' : 'Enregistrement impossible')
+            load()
+          }}
           onClose={() => setOpenId(null)}
           flash={flash}
         />
