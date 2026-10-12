@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useState, useCallback } from 'react'
-import { Facebook, RefreshCw, Calendar, BarChart3, Building2, ChevronDown, ChevronUp, Layers, FileText } from 'lucide-react'
+import { Fragment, useEffect, useMemo, useState, useCallback } from 'react'
+import { Facebook, RefreshCw, Calendar, BarChart3, Building2, ChevronDown, ChevronRight, ChevronUp, Layers, FileText } from 'lucide-react'
 import {
   CrmV2Body, CrmV2Button, CrmV2Card, CrmV2Empty, CrmV2Header, CrmV2Page,
   CrmV2Search, CrmV2Spinner, CrmV2Table, CrmV2TableCard, CrmV2Tabs, CrmV2Td, CrmV2Th, CrmV2Tr,
@@ -122,6 +122,28 @@ export default function AdsDashboardPage() {
   }, [ranges, refreshToken])
 
   useEffect(() => { setShowAllMeta(false) }, [selectedAccount, level])
+
+  // Onglet Campagnes : adsets dépliables sous chaque campagne (une campagne globale
+  // enchaîne plusieurs webinaires, chacun dans son adset avec son formulaire)
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [adsets, setAdsets] = useState<Insight[] | null>(null)
+  const [adsetsLoading, setAdsetsLoading] = useState(false)
+  useEffect(() => { setExpanded(new Set()); setAdsets(null) }, [selectedAccount, datePreset, refreshToken])
+  const toggleCampaign = (campaignId: string) => {
+    setExpanded(prev => {
+      const next = new Set(prev)
+      if (next.has(campaignId)) next.delete(campaignId); else next.add(campaignId)
+      return next
+    })
+    if (adsets || adsetsLoading || !selectedAccount) return
+    setAdsetsLoading(true)
+    const params = new URLSearchParams({ account_id: selectedAccount, level: 'adset', date_preset: datePreset })
+    fetch(`/api/meta/ads/insights?${params.toString()}`)
+      .then(r => r.json())
+      .then(j => setAdsets(Array.isArray(j.insights) ? j.insights : []))
+      .catch(() => setAdsets([]))
+      .finally(() => setAdsetsLoading(false))
+  }
 
   // Charge la liste des ad accounts au mount
   useEffect(() => {
@@ -380,10 +402,26 @@ export default function AdsDashboardPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {visibleRows.map(({ i, id, name }) => (
-                        <CrmV2Tr key={id}>
+                      {visibleRows.map(({ i, id, name }) => {
+                        const canExpand = level === 'campaign' && !!id
+                        const isOpen = canExpand && expanded.has(id!)
+                        const children = isOpen && adsets ? adsets.filter(a => a.campaign_id === id).sort((a, b) => b.spend - a.spend) : []
+                        return (
+                        <Fragment key={id}>
+                        <CrmV2Tr>
                           <CrmV2Td>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                              {canExpand && (
+                                <button
+                                  type="button"
+                                  onClick={() => toggleCampaign(id!)}
+                                  aria-label={isOpen ? 'Replier les adsets' : 'Voir les adsets'}
+                                  title={isOpen ? 'Replier les adsets' : 'Voir les adsets (webinaires, nouveaux leads)'}
+                                  style={expandBtn}
+                                >
+                                  {isOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                                </button>
+                              )}
                               <AdsIconTile icon={<Facebook size={15} />} color="#1877F2" />
                               <div style={{ minWidth: 0 }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
@@ -411,7 +449,40 @@ export default function AdsDashboardPage() {
                             {(i.leads || 0) > 0 ? fmtCurrency(i.cpl || 0, data.currency) : '—'}
                           </CrmV2Td>
                         </CrmV2Tr>
-                      ))}
+                        {isOpen && !adsets && (
+                          <tr><td colSpan={9} style={subRowInfo}><RefreshCw size={13} style={adsSpin} /> Chargement des adsets…</td></tr>
+                        )}
+                        {isOpen && adsets && children.length === 0 && (
+                          <tr><td colSpan={9} style={subRowInfo}>Aucun adset avec des dépenses sur la période.</td></tr>
+                        )}
+                        {children.map(a => (
+                          <CrmV2Tr key={a.adset_id}>
+                            <CrmV2Td style={{ background: crmV2.bgHover }}>
+                              <div style={{ paddingLeft: 62, minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                                  <span style={{ fontSize: 11, fontWeight: 700, color: crmV2.textFaint, textTransform: 'uppercase', letterSpacing: '0.3px', flexShrink: 0 }}>Adset</span>
+                                  <span style={{ fontSize: 13, fontWeight: 600, color: crmV2.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 340 }}>
+                                    {a.adset_name || '(sans nom)'}
+                                  </span>
+                                </div>
+                                <MetaFormsLine forms={a.forms} />
+                              </div>
+                            </CrmV2Td>
+                            <CrmV2Td style={{ ...num, background: crmV2.bgHover }}>{fmtNumber(a.impressions)}</CrmV2Td>
+                            <CrmV2Td style={{ ...num, background: crmV2.bgHover }}>{fmtNumber(a.clicks)}</CrmV2Td>
+                            <CrmV2Td style={{ ...num, background: crmV2.bgHover }}>{a.ctr.toFixed(2)}%</CrmV2Td>
+                            <CrmV2Td style={{ ...num, background: crmV2.bgHover, fontWeight: 600 }}>{fmtCurrency(a.spend, data.currency)}</CrmV2Td>
+                            <CrmV2Td style={{ ...num, background: crmV2.bgHover }}>{fmtCurrency(a.cpc, data.currency)}</CrmV2Td>
+                            <CrmV2Td style={{ ...num, background: crmV2.bgHover }}>
+                              <span style={{ fontWeight: 600, color: (a.leads || 0) > 0 ? crmV2.success : crmV2.textFaint }}>{fmtNumber(a.leads || 0)}</span>
+                            </CrmV2Td>
+                            <CrmV2Td style={{ ...num, background: crmV2.bgHover, fontWeight: 700 }}><NewLeadsPct leads={a.leads || 0} newLeads={a.new_leads} /></CrmV2Td>
+                            <CrmV2Td style={{ ...num, background: crmV2.bgHover }}>{(a.leads || 0) > 0 ? fmtCurrency(a.cpl || 0, data.currency) : '—'}</CrmV2Td>
+                          </CrmV2Tr>
+                        ))}
+                        </Fragment>
+                        )
+                      })}
                     </tbody>
                   </CrmV2Table>
                 )}
@@ -988,4 +1059,9 @@ function fmtCurrency(n: number, currency: string): string {
 
 // ─── Styles ────────────────────────────────────────────────────────────────
 
+const expandBtn: React.CSSProperties = {
+  width: 24, height: 24, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+  border: 'none', borderRadius: 6, background: 'transparent', color: crmV2.textMuted, cursor: 'pointer', padding: 0,
+}
+const subRowInfo: React.CSSProperties = { padding: '10px 16px 10px 78px', fontSize: 12, color: crmV2.textMuted, background: crmV2.bgHover }
 const num: React.CSSProperties = { textAlign: 'right', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }
