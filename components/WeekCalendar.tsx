@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo, type ReactNode } from 'react'
-import { ChevronLeft, ChevronRight, Users, LayoutDashboard, Plus, Check, MapPin, Video, Phone, X, Pin, Ban, List, CalendarDays, CalendarRange } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Users, LayoutDashboard, Plus, Check, MapPin, Video, Phone, X, Pin, Ban, List, CalendarDays, CalendarRange, Mail } from 'lucide-react'
 import { format, startOfWeek, addDays, addWeeks, subWeeks, isSameDay, isToday } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import StatusBadge, { AppointmentStatus } from './StatusBadge'
@@ -70,7 +70,13 @@ type Appointment = {
   users?: { id: string; name: string; avatar_color: string; slug: string }
   telepro_id?: string | null
   telepro?: { id: string; name: string; avatar_color?: string | null } | null
+  /** Mail post-RDV (brochure + inscription) envoyé depuis la fiche RDV */
+  post_rdv_email_sent_at?: string | null
 }
+
+/** Libellé de la pastille « mail post-RDV envoyé ». */
+const postRdvMailTitle = (iso: string) =>
+  `Mail post-RDV envoyé le ${format(new Date(iso), "d MMM 'à' HH'h'mm", { locale: fr })}`
 
 type Commercial = {
   id: string
@@ -851,6 +857,19 @@ export default function WeekCalendar({
               <Check size={isDay ? 11 : 8} strokeWidth={3} />
             </span>
           )}
+          {appt.post_rdv_email_sent_at && !compact && (
+            <span
+              title={postRdvMailTitle(appt.post_rdv_email_sent_at)}
+              style={{
+                marginLeft: isConfirmed ? 0 : 'auto', flexShrink: 0,
+                width: isDay ? 16 : 12, height: isDay ? 16 : 12, borderRadius: '50%',
+                background: '#4fabdb', color: '#fff',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              <Mail size={isDay ? 10 : 8} strokeWidth={2.6} />
+            </span>
+          )}
         </div>
 
         {/* Ligne 2 : heure (+ mode et niveau) */}
@@ -1582,6 +1601,18 @@ export default function WeekCalendar({
                     }}>
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{appt.prospect_name}</span>
                       <MediboxBadge brand={appt.brand} />
+                      {appt.post_rdv_email_sent_at && (
+                        <span
+                          title={postRdvMailTitle(appt.post_rdv_email_sent_at)}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0,
+                            padding: '1px 8px', borderRadius: 999, fontSize: 11, fontWeight: 700,
+                            background: 'rgba(79,171,219,0.14)', color: '#1f7fb0',
+                          }}
+                        >
+                          <Mail size={11} strokeWidth={2.4} /> Mail post-RDV envoyé
+                        </span>
+                      )}
                     </div>
                     <div style={{
                       fontSize: 12, marginTop: 2,

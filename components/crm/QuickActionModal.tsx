@@ -31,6 +31,10 @@ interface Props {
   defaultOwnerId?: string | null
   /** Auteur de l'activité (note, appel, email loggé, réunion) — utilisateur connecté */
   actorOwnerId?: string | null
+  /** RDV dont c'est le mail post-RDV : marque le RDV (pastille de l'agenda) à l'envoi. */
+  appointmentId?: string | null
+  /** Pré-sélectionne le premier modèle de cette catégorie (ex. 'apres-rdv'). */
+  defaultTemplateCategory?: string | null
   onClose: () => void
   onSaved: () => void
 }
@@ -62,7 +66,7 @@ const TASK_TYPES: Array<{ value: string; label: string }> = [
 ]
 
 export default function QuickActionModal({
-  type, contactId, dealId, owners = [], defaultOwnerId, actorOwnerId, onClose, onSaved,
+  type, contactId, dealId, owners = [], defaultOwnerId, actorOwnerId, appointmentId, defaultTemplateCategory, onClose, onSaved,
 }: Props) {
   // Champs communs
   const [subject, setSubject]         = useState('')
@@ -116,6 +120,13 @@ export default function QuickActionModal({
       }).catch(() => {})
     }
   }, [type, contactId])
+
+  // Modèle pré-sélectionné (ex. mail post-RDV depuis la fiche RDV)
+  useEffect(() => {
+    if (!defaultTemplateCategory || selectedTemplateId) return
+    const t = templates.find(x => x.category === defaultTemplateCategory)
+    if (t) setSelectedTemplateId(t.id)
+  }, [defaultTemplateCategory, templates]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Quand on choisit un template, pré-remplir sujet + corps
   useEffect(() => {
@@ -208,6 +219,7 @@ export default function QuickActionModal({
             html:       bodyHtml.trim() || (body.trim() ? plainTextToEmailHtml(body) : undefined),
             replyTo:    emailReplyTo.trim() || undefined,
             ownerId:    actorOwnerId ?? null,
+            appointmentId: appointmentId || undefined,
             attachments: attachments.length > 0 ? attachments : undefined,
           }),
         })
@@ -245,8 +257,8 @@ export default function QuickActionModal({
 
   return (
     <div
-      className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-      onClick={onClose}
+      className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[1100] flex items-center justify-center p-4"
+      onClick={e => { e.stopPropagation(); onClose() }}
     >
       <div
         className={`bg-white rounded-xl shadow-2xl w-full max-h-[92vh] flex flex-col ${type === 'email' && emailMode === 'send' ? 'max-w-6xl' : 'max-w-lg'}`}

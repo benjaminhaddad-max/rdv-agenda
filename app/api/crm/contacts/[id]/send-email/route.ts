@@ -4,6 +4,7 @@ import { sendBrevoEmail, renderTemplate, htmlToText } from '@/lib/brevo'
 import { requireApiRole } from '@/lib/api-auth'
 import { memoryRateLimit } from '@/lib/rate-limit'
 import { wrapCrmEmail } from '@/lib/crm-email-layout'
+import { markPostRdvEmailSent } from '@/lib/post-rdv-email'
 
 /**
  * POST /api/crm/contacts/[id]/send-email
@@ -17,6 +18,7 @@ import { wrapCrmEmail } from '@/lib/crm-email-layout'
  *   templateId    : id d'email_templates (optionnel — alternative à subject+html)
  *   replyTo       : email de réponse (optionnel)
  *   ownerId       : owner du contact qui envoie (pour logguer)
+ *   appointmentId : RDV dont c'est le mail post-RDV (pastille de l'agenda)
  */
 export async function POST(
   req: NextRequest,
@@ -128,6 +130,7 @@ export async function POST(
     metadata: {
       brevo_message_id: messageId ?? null,
       template_id:      body.templateId ?? null,
+      appointment_id:   body.appointmentId ?? null,
       error:            sendError,
     },
     occurred_at:       new Date().toISOString(),
@@ -136,5 +139,8 @@ export async function POST(
   if (sendError) {
     return NextResponse.json({ error: sendError }, { status: 500 })
   }
-  return NextResponse.json({ ok: true, messageId })
+  const postRdvEmailSentAt = typeof body.appointmentId === 'string' && body.appointmentId
+    ? await markPostRdvEmailSent(db, body.appointmentId)
+    : null
+  return NextResponse.json({ ok: true, messageId, postRdvEmailSentAt })
 }

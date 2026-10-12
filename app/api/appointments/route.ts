@@ -10,6 +10,7 @@ import { STAGES, PIPELINE_2026_2027, formatDealName } from '@/lib/hubspot'
 import { createMeetEvent, isGoogleMeetConfigured } from '@/lib/google-meet'
 import { APPOINTMENT_LIST_SELECT, enrichAppointmentsTelepro } from '@/lib/appointment-display'
 import { CAMPUS_OPTIONS, isValidCampus } from '@/lib/campus'
+import { attachPostRdvEmailSentAt } from '@/lib/post-rdv-email'
 import { getApiUserContext } from '@/lib/api-auth'
 import { getDemoUserIds, excludeDemoTeleproFilter } from '@/lib/demo-mode'
 
@@ -145,7 +146,7 @@ export async function GET(req: NextRequest) {
       { status: 500, headers: { 'Cache-Control': 'no-store' } }
     )
   }
-  const enriched = await enrichAppointmentsTelepro(db, data ?? [])
+  const enriched = await attachPostRdvEmailSentAt(db, await enrichAppointmentsTelepro(db, data ?? []))
   return NextResponse.json(enriched, {
     headers: {
       'Cache-Control': 'no-store',

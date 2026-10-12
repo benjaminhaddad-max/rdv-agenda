@@ -4,8 +4,9 @@ import { useState, useRef, useEffect, lazy, Suspense } from 'react'
 import {
   User, Mail, Phone, FileText, Tag, Zap, RefreshCw, Sparkles, ChevronLeft,
   Calendar, CalendarClock, Check, CheckCircle2, Ban, Hourglass, Smartphone, GraduationCap, UserX, Flame, PartyPopper,
-  ThumbsDown, UsersRound, Trophy, Wallet, Trash2, type LucideIcon,
+  ThumbsDown, UsersRound, Trophy, Wallet, Trash2, Send, type LucideIcon,
 } from 'lucide-react'
+import { createPortal } from 'react-dom'
 import { AppointmentStatus, STATUS_CONFIG } from './StatusBadge'
 import { AssignCloserPanel } from './AssignModal'
 import { format } from 'date-fns'
@@ -20,6 +21,8 @@ import MediboxBadge from './MediboxBadge'
 import { RDV_BRANDS, RDV_BRAND_IDS, normalizeRdvBrand, type RdvBrand } from '@/lib/rdv-brand'
 import type { ExtraParticipant } from '@/lib/appointment-participants'
 import LeadCycleControl from './LeadCycleControl'
+import QuickActionModal from './crm/QuickActionModal'
+import { POST_RDV_TEMPLATE_CATEGORY } from '@/lib/post-rdv-email'
 
 const JitsiMeeting = lazy(() => import('./JitsiMeeting'))
 
@@ -58,6 +61,8 @@ type Appointment = {
   email_parent?: string | null
   phone_parent?: string | null
   extra_participants?: ExtraParticipant[] | null
+  /** Mail post-RDV (brochure + inscription) envoyé depuis la fiche RDV — migration v82 */
+  post_rdv_email_sent_at?: string | null
 }
 
 const STATUS_ACTIONS: { status: AppointmentStatus; label: string; icon: LucideIcon; color: string; hint?: string }[] = [
@@ -165,6 +170,8 @@ export default function AppointmentModal({
   const [jpoInvitation, setJpoInvitation] = useState<string | null>(appointment.jpo_invitation || null)
   const [emailParent, setEmailParent] = useState(appointment.email_parent || '')
   const [phoneParent, setPhoneParent] = useState(appointment.phone_parent || '')
+  const [postRdvSentAt, setPostRdvSentAt] = useState<string | null>(appointment.post_rdv_email_sent_at || null)
+  const [showPostRdvMail, setShowPostRdvMail] = useState(false)
 
   // Fix : évite la fermeture accidentelle quand mousedown est sur un bouton
   // et que la souris glisse légèrement sur le backdrop avant le mouseup
@@ -879,6 +886,54 @@ export default function AppointmentModal({
                 )
               })}
             </div>
+
+            {/* Mail post-RDV : brochure + lien d'inscription, modifiable avant envoi */}
+            {appointment.hubspot_contact_id && status !== 'no_show' && status !== 'annule' && (
+              <div style={{
+                marginTop: 12, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+                border: `1px solid ${postRdvSentAt ? 'rgba(16,185,129,0.35)' : crmV2.border}`,
+                background: postRdvSentAt ? 'rgba(16,185,129,0.06)' : crmV2.bg,
+                borderRadius: 12, padding: '10px 12px',
+              }}>
+                <Mail size={15} color={postRdvSentAt ? '#059669' : crmV2.textMuted} />
+                <div style={{ flex: 1, minWidth: 160 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: crmV2.text }}>Mail post-RDV</div>
+                  <div style={{ fontSize: 11, color: postRdvSentAt ? '#059669' : crmV2.textFaint, fontWeight: 500 }}>
+                    {postRdvSentAt
+                      ? `Envoyé le ${format(new Date(postRdvSentAt), "d MMM 'à' HH'h'mm", { locale: fr })}`
+                      : 'Brochure + lien d’inscription — pas encore envoyé'}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPostRdvMail(true)}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'inherit', cursor: 'pointer',
+                    fontSize: 12, fontWeight: 700, borderRadius: 999, padding: '7px 14px',
+                    border: postRdvSentAt ? `1px solid ${crmV2.border}` : 'none',
+                    background: postRdvSentAt ? '#ffffff' : crmV2.gold,
+                    color: postRdvSentAt ? crmV2.text : '#ffffff',
+                  }}
+                >
+                  <Send size={12} /> {postRdvSentAt ? 'Renvoyer' : 'Préparer le mail'}
+                </button>
+              </div>
+            )}
+            {showPostRdvMail && appointment.hubspot_contact_id && typeof document !== 'undefined' && createPortal(
+              <QuickActionModal
+                type="email"
+                contactId={appointment.hubspot_contact_id}
+                appointmentId={appointment.id}
+                defaultTemplateCategory={POST_RDV_TEMPLATE_CATEGORY}
+                onClose={() => setShowPostRdvMail(false)}
+                onSaved={() => {
+                  const now = new Date().toISOString()
+                  setPostRdvSentAt(now)
+                  onUpdate({ id: appointment.id, post_rdv_email_sent_at: now })
+                }}
+              />,
+              document.body,
+            )}
             {saving && (
               <div style={{ marginTop: 8, fontSize: 12, color: crmV2.textMuted }}>
                 Synchronisation…
