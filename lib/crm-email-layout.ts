@@ -11,6 +11,7 @@ const ASSETS = 'https://rdv-agenda.vercel.app'
 const LOGO = 'https://26711031.fs1.hubspotusercontent-eu1.net/hubfs/26711031/logo-diploma-bleu.png'
 
 const NUIT = '#12314d'
+const DORE = '#d3ab67'
 const PANNEAU = '#f4f7fa'
 const FILET = '#e6eaee'
 const TEXTE_2 = '#4d647b'
@@ -24,17 +25,35 @@ export function isFullEmailDocument(html: string): boolean {
   return /<html[\s>]|<body[\s>]/i.test(html)
 }
 
+/** Ligne seule « Libellé → https://… » : devient un bouton dans le mail. */
+const BUTTON_LINE = /^([^\n]{2,80}?)\s*(?:→|->)\s*(https?:\/\/\S+)$/
+
+function pillButton(label: string, href: string, primary: boolean): string {
+  const bg = primary ? DORE : NUIT
+  const fg = primary ? NUIT : '#ffffff'
+  return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:4px 0 22px"><tr><td bgcolor="${bg}" style="background:${bg};border-radius:999px">`
+    + `<a href="${href}" style="display:inline-block;padding:15px 32px;font-family:${CLASH};font-size:15px;line-height:20px;font-weight:600;letter-spacing:.3px;color:${fg};text-decoration:none;border-radius:999px">${label}</a>`
+    + `</td></tr></table>`
+}
+
 /**
  * Texte brut saisi dans le CRM → HTML d'e-mail : échappé, liens cliquables,
- * paragraphes sur les lignes vides, retours à la ligne conservés.
+ * paragraphes sur les lignes vides, retours à la ligne conservés. Une ligne
+ * seule « Libellé → lien » devient un bouton (le dernier en doré : c'est l'action
+ * principale, ex. « Réserver ma place » ; les précédents en bleu nuit).
  */
 export function plainTextToEmailHtml(text: string): string {
-  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
   const linkify = (s: string) => s.replace(/\bhttps?:\/\/[^\s<]+[^\s<.,;:!?)\]]/g, url =>
     `<a href="${url}" style="color:${NUIT};text-decoration:underline">${url}</a>`)
-  return text.replace(/\r\n/g, '\n').trim()
-    .split(/\n{2,}/)
-    .map(par => `<p style="${P_STYLE}">${linkify(esc(par)).replace(/\n/g, '<br>')}</p>`)
+  const pars = text.replace(/\r\n/g, '\n').trim().split(/\n{2,}/)
+  const lastButton = pars.map(par => BUTTON_LINE.test(par.trim())).lastIndexOf(true)
+  return pars
+    .map((par, i) => {
+      const btn = par.trim().match(BUTTON_LINE)
+      if (btn) return pillButton(esc(btn[1].trim()), esc(btn[2]), i === lastButton)
+      return `<p style="${P_STYLE}">${linkify(esc(par)).replace(/\n/g, '<br>')}</p>`
+    })
     .join('\n')
 }
 

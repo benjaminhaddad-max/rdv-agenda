@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { StickyNote, Phone, CheckSquare, X, Mail, Calendar, Send, Eye, Paperclip } from 'lucide-react'
-import { plainTextToEmailHtml, wrapCrmEmail } from '@/lib/crm-email-layout'
+import { isFullEmailDocument, plainTextToEmailHtml, wrapCrmEmail } from '@/lib/crm-email-layout'
 
 export type QuickActionType = 'note' | 'call' | 'task' | 'email' | 'meeting'
 
@@ -123,8 +123,14 @@ export default function QuickActionModal({
     const t = templates.find(x => x.id === selectedTemplateId)
     if (!t) return
     setSubject(t.subject || '')
-    setBodyHtml(t.html_body || '')
-    setBody(stripHtml(t.html_body || '')) // fallback texte pour preview
+    if (t.text_body && !isFullEmailDocument(t.html_body || '')) {
+      // Modèle « texte » : entièrement modifiable, mis en page à l'envoi (papier à en-tête)
+      setBodyHtml('')
+      setBody(t.text_body)
+    } else {
+      setBodyHtml(t.html_body || '')
+      setBody(stripHtml(t.html_body || '')) // fallback texte pour preview
+    }
   }, [selectedTemplateId, templates])
 
   const cfg = TYPE_CONFIG[type]
@@ -479,6 +485,11 @@ export default function QuickActionModal({
               rows={type === 'email' && emailMode === 'send' ? 12 : 5}
               className="w-full px-3 py-2 border rounded-md text-sm resize-y focus:ring-2 focus:ring-[#2ea3f2]/30 focus:border-[#2ea3f2] outline-none"
             />
+            {type === 'email' && emailMode === 'send' && (
+              <p className="text-[10px] text-slate-500 mt-1">
+                Une ligne seule <code>Libellé → https://…</code> devient un bouton dans le mail (le dernier en doré).
+              </p>
+            )}
           </div>
 
           {err && <div className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded">{err}</div>}
