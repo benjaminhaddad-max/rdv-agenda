@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
-import { requireApiRole } from '@/lib/api-auth'
+import { requireApiRoleOrPage } from '@/lib/api-auth'
 
 /**
  * GET /api/meta/ads/accounts — liste les ad accounts Meta connectés
  */
 export async function GET() {
-  const authz = await requireApiRole(['admin'])
+  const authz = await requireApiRoleOrPage(['admin'], 'ads-dashboard')
   if (!authz.ok) return authz.response
 
   const db = createServiceClient()

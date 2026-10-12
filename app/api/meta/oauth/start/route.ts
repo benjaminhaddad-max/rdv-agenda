@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireApiRole } from '@/lib/api-auth'
+import { requireApiRoleOrPage } from '@/lib/api-auth'
 import { buildOauthStartUrl, metaConfigured } from '@/lib/meta'
 
 /**
@@ -7,7 +7,7 @@ import { buildOauthStartUrl, metaConfigured } from '@/lib/meta'
  * Redirige l'utilisateur vers Facebook pour le flow OAuth.
  */
 export async function GET(req: NextRequest) {
-  const authz = await requireApiRole(['admin'])
+  const authz = await requireApiRoleOrPage(['admin'], ['ads-dashboard', 'meta-ads'])
   if (!authz.ok) return authz.response
 
   if (!metaConfigured()) {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireApiUser } from '@/lib/api-auth'
+import { requireApiUserOrPage } from '@/lib/api-auth'
 import { createEventsClient } from '@/lib/events-studio/client'
 import { eventTypeOf } from '@/lib/events-studio/config'
 import { createServiceClient } from '@/lib/supabase'
@@ -17,7 +17,7 @@ const DATE_END_RE = /\[date_end=(\d{4}-\d{2}-\d{2})\]/
  * avec `competitor` renseigné.
  */
 export async function GET(req: NextRequest) {
-  const authz = await requireApiUser()
+  const authz = await requireApiUserOrPage('events')
   if (!authz.ok) return authz.response
 
   const from = req.nextUrl.searchParams.get('from') || ''

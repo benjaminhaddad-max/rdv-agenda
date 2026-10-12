@@ -119,7 +119,16 @@ const MOBILE_TABS = [
   { key: 'agenda', label: 'Agenda', href: '/admin/crm-v2/agenda', icon: Calendar },
 ] as const
 
-export default function CRMSidebarV2() {
+/**
+ * allowedKeys : compte « accès restreint » (lib/restricted-access.ts) —
+ * seuls ces onglets sont affichés, sans compteurs admin.
+ */
+export default function CRMSidebarV2({ allowedKeys }: { allowedKeys?: string[] } = {}) {
+  const restricted = !!allowedKeys
+  const navSections = restricted
+    ? NAV_SECTIONS.map(sec => ({ ...sec, items: sec.items.filter(i => allowedKeys.includes(i.key)) })).filter(sec => sec.items.length > 0)
+    : NAV_SECTIONS
+  const mobileTabs = restricted ? [] : MOBILE_TABS
   const pathname = usePathname()
   const isMobile = useIsMobile()
   const [collapsed, setCollapsed] = useState(false)
@@ -135,7 +144,7 @@ export default function CRMSidebarV2() {
   useEffect(() => {
     let cancelled = false
     async function fetchSupport() {
-      if (document.hidden) return
+      if (document.hidden || restricted) return
       try {
         const res = await fetch('/api/support/tickets?scope=all', { cache: 'no-store' })
         if (!res.ok) return
@@ -147,7 +156,7 @@ export default function CRMSidebarV2() {
     fetchSupport()
     const id = setInterval(fetchSupport, 120_000)
     return () => { cancelled = true; clearInterval(id) }
-  }, [])
+  }, [restricted])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -172,9 +181,9 @@ export default function CRMSidebarV2() {
   }
 
   /** Replie (ou déplie) d'un clic toutes les rubriques sous les favoris. */
-  const allFolded = NAV_SECTIONS.every(sec => foldedSections.includes(sec.title))
+  const allFolded = navSections.every(sec => foldedSections.includes(sec.title))
   const toggleFoldAll = () => {
-    const next = allFolded ? [] : NAV_SECTIONS.map(sec => sec.title)
+    const next = allFolded ? [] : navSections.map(sec => sec.title)
     setFoldedSections(next)
     try { localStorage.setItem('crm-v2-sidebar-folded-sections', JSON.stringify(next)) } catch { /* ignore */ }
   }
@@ -190,7 +199,7 @@ export default function CRMSidebarV2() {
   useEffect(() => {
     let cancelled = false
     async function fetchCount() {
-      if (document.hidden) return
+      if (document.hidden || restricted) return
       try {
         const res = await fetch('/api/admin/errors?resolved=0&count_only=1', { cache: 'no-store' })
         if (!res.ok) return
@@ -201,7 +210,7 @@ export default function CRMSidebarV2() {
     fetchCount()
     const id = setInterval(fetchCount, 180_000)
     return () => { cancelled = true; clearInterval(id) }
-  }, [])
+  }, [restricted])
 
   const badgeFor = (key?: string) => (key === 'errors' ? errorCount : key === 'support' ? supportCount : 0)
 
@@ -211,7 +220,7 @@ export default function CRMSidebarV2() {
     localStorage.setItem('crm-v2-sidebar-collapsed', String(next))
   }
 
-  const navHrefs = NAV_SECTIONS.flatMap(s => s.items.map(i => i.href.split('?')[0]))
+  const navHrefs = navSections.flatMap(s => s.items.map(i => i.href.split('?')[0]))
 
   const isActive = (href: string) => {
     // Liens d'ouverture de panneau : pas d'état actif (évite le double highlight avec Agenda)
@@ -307,7 +316,7 @@ export default function CRMSidebarV2() {
     <nav style={{ flex: 1, overflowY: 'auto', padding: '12px 8px' }}>
       {(() => {
         const favItems = favorites
-          .map(k => NAV_SECTIONS.flatMap(sec => sec.items).find(i => i.key === k))
+          .map(k => navSections.flatMap(sec => sec.items).find(i => i.key === k))
           .filter((i): i is NavItem => !!i)
         if (favItems.length === 0 || collapsed) return null
         return (
@@ -339,7 +348,7 @@ export default function CRMSidebarV2() {
           </div>
         )
       })()}
-      {NAV_SECTIONS.map(section => {
+      {navSections.map(section => {
         // En mode réduit (icônes), on affiche toujours tout. Rubrique repliée : seule la page active reste visible.
         const folded = !collapsed && foldedSections.includes(section.title)
         if (!collapsed && section.items.every(i => favorites.includes(i.key))) return null
@@ -388,7 +397,7 @@ export default function CRMSidebarV2() {
 
   if (isMobile) {
     // Onglet « Menu » actif quand le menu est ouvert ou qu'aucun autre onglet ne correspond à la page
-    const tabActive = MOBILE_TABS.some(t => isActive(t.href))
+    const tabActive = mobileTabs.some(t => isActive(t.href))
     const menuActive = mobileMenuOpen || !tabActive
     const tabStyle = (active: boolean): React.CSSProperties => ({
       flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center',
@@ -424,11 +433,11 @@ export default function CRMSidebarV2() {
             {(() => {
               // Favoris en tête du menu, puis les rubriques (sans les favoris)
               const favItems = favorites
-                .map(k => NAV_SECTIONS.flatMap(sec => sec.items).find(i => i.key === k))
+                .map(k => navSections.flatMap(sec => sec.items).find(i => i.key === k))
                 .filter((i): i is NavItem => !!i)
               const groups = [
                 ...(favItems.length ? [{ title: 'Favoris', items: favItems, fav: true }] : []),
-                ...NAV_SECTIONS.map(sec => ({ title: sec.title, items: sec.items.filter(i => !favorites.includes(i.key)), fav: false })),
+                ...navSections.map(sec => ({ title: sec.title, items: sec.items.filter(i => !favorites.includes(i.key)), fav: false })),
               ].filter(g => g.items.length > 0)
               return groups.map(group => (
                 <div key={group.title} style={{ marginBottom: 8, ...(group.fav ? { paddingBottom: 8, borderBottom: `1px solid ${NAVY.border}` } : {}) }}>
@@ -510,7 +519,7 @@ export default function CRMSidebarV2() {
           display: 'flex', zIndex: 40, paddingBottom: 'env(safe-area-inset-bottom, 0px)',
           fontFamily: crmV2.font,
         }}>
-          {MOBILE_TABS.map(item => {
+          {mobileTabs.map(item => {
             const active = !mobileMenuOpen && isActive(item.href)
             const Icon = item.icon
             return (

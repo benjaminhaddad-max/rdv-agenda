@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabase, createServiceClient } from '@/lib/supabase'
 import { claimsGetter, getAuthUserIdResilient } from '@/lib/auth-resilient'
+import { RESTRICTED_ROLE, normalizeAllowedPages, type RestrictedPage } from '@/lib/restricted-access'
 
 export type ApiRole = 'admin' | 'telepro' | 'closer' | 'manager'
 
@@ -15,6 +16,8 @@ export type ApiUserContext = {
   isDefaultBrandTelepro: boolean
   /** Compte de démonstration (review Apple) — voir lib/demo-mode.ts */
   isDemo: boolean
+  /** Compte « restreint » : pages du CRM autorisées (voir lib/restricted-access.ts) */
+  allowedPages: RestrictedPage[]
 }
 
 const roleAliases: Record<string, ApiRole> = {
@@ -33,6 +36,7 @@ type DbUserRow = {
   crm_scope: string | null
   is_default_brand_telepro: boolean | null
   is_demo: boolean | null
+  allowed_pages: string[] | null
 }
 
 // Profil rdv_users gardé 60 s par instance : évite une requête base à chaque
@@ -46,7 +50,7 @@ async function loadDbUser(authUserId: string): Promise<DbUserRow | null> {
   const db = createServiceClient()
   const { data, error } = await db
     .from('rdv_users')
-    .select('id, role, slug, hubspot_owner_id, crm_brand, crm_scope, is_default_brand_telepro, is_demo')
+    .select('id, role, slug, hubspot_owner_id, crm_brand, crm_scope, is_default_brand_telepro, is_demo, allowed_pages')
     .eq('auth_id', authUserId)
     .maybeSingle()
   if (error) return null
@@ -65,7 +69,8 @@ export const CREATIF_ROLE = 'creatif'
 
 export async function getApiUserContext(): Promise<ApiUserContext | null> {
   const ctx = await getApiUserContextAnyRole()
-  if (!ctx || ctx.role === CREATIF_ROLE) return null
+  // Comptes créatif / restreint : refusés partout sauf routes qui les acceptent explicitement
+  if (!ctx || ctx.role === CREATIF_ROLE || ctx.role === RESTRICTED_ROLE) return null
   return ctx
 }
 
@@ -94,6 +99,7 @@ export async function getApiUserContextAnyRole(): Promise<ApiUserContext | null>
     crmScope: dbUser.crm_scope ?? null,
     isDefaultBrandTelepro: !!dbUser.is_default_brand_telepro,
     isDemo: !!dbUser.is_demo,
+    allowedPages: normalizeAllowedPages(dbUser.allowed_pages),
   }
 }
 
@@ -120,6 +126,31 @@ export async function requireApiRole(roles: ApiRole[]) {
     return { ok: false as const, response: forbidden() }
   }
   return user
+}
+
+/**
+ * Compte « restreint » ayant accès à l'une de ces pages du CRM
+ * (null si non connecté, autre rôle ou page non autorisée).
+ */
+export async function getRestrictedPageUser(pages: RestrictedPage | RestrictedPage[]): Promise<ApiUserContext | null> {
+  const ctx = await getApiUserContextAnyRole()
+  if (!ctx || ctx.role !== RESTRICTED_ROLE) return null
+  const wanted = Array.isArray(pages) ? pages : [pages]
+  return wanted.some(p => ctx.allowedPages.includes(p)) ? ctx : null
+}
+
+/** requireApiRole(roles), ou compte restreint ayant accès à l'une des pages. */
+export async function requireApiRoleOrPage(roles: ApiRole[], pages: RestrictedPage | RestrictedPage[]) {
+  const restricted = await getRestrictedPageUser(pages)
+  if (restricted) return { ok: true as const, ctx: restricted }
+  return requireApiRole(roles)
+}
+
+/** requireApiUser(), ou compte restreint ayant accès à l'une des pages. */
+export async function requireApiUserOrPage(pages: RestrictedPage | RestrictedPage[]) {
+  const restricted = await getRestrictedPageUser(pages)
+  if (restricted) return { ok: true as const, ctx: restricted }
+  return requireApiUser()
 }
 
 function timingSafeEqual(a: string, b: string): boolean {

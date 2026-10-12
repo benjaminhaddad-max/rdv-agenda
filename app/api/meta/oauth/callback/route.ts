@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireApiRole } from '@/lib/api-auth'
+import { requireApiRoleOrPage } from '@/lib/api-auth'
 import { createServiceClient } from '@/lib/supabase'
 import {
   exchangeCodeForUserToken,
@@ -16,7 +16,7 @@ import { logger } from '@/lib/logger'
  * Reçoit le code OAuth après l'autorisation FB et stocke les page tokens.
  */
 export async function GET(req: NextRequest) {
-  const authz = await requireApiRole(['admin'])
+  const authz = await requireApiRoleOrPage(['admin'], ['ads-dashboard', 'meta-ads'])
   if (!authz.ok) return authz.response
 
   const { searchParams } = req.nextUrl

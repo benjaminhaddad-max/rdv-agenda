@@ -8,11 +8,13 @@ import CRMGlobalSearchBar from '@/components/CRMGlobalSearchBar'
 import LogoutButton from '@/components/LogoutButton'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { crmV2 } from '@/lib/crm-v2-theme'
+import { RESTRICTED_ROLE, normalizeAllowedPages } from '@/lib/restricted-access'
 
 type Me = {
   role?: string
   slug?: string
   name?: string
+  allowed_pages?: string[] | null
 }
 
 /* Sections classiques qui existent aussi en V2 (routes bridgées). */
@@ -91,7 +93,9 @@ function Inner({ children }: { children: React.ReactNode }) {
   }, [])
 
   const role = me?.role
-  const showAdminChrome = !embed && role === 'admin'
+  // Compte restreint : même coque que l'admin (sidebar filtrée), sans recherche globale
+  const isRestricted = role === RESTRICTED_ROLE
+  const showAdminChrome = !embed && (role === 'admin' || isRestricted)
   // Barre d'onglets mobile : 56 px + zone de sécurité iOS
   const mobileBottomPad = showAdminChrome && isMobile ? 'calc(56px + env(safe-area-inset-bottom, 0px))' : '0px'
   const showUserChrome = !embed && (role === 'closer' || role === 'telepro')
@@ -109,13 +113,13 @@ function Inner({ children }: { children: React.ReactNode }) {
       className="crm-v2 crm-v2-skin"
       style={{ display: 'flex', minHeight: '100vh', background: crmV2.bgSoft, fontFamily: crmV2.font }}
     >
-      {showAdminChrome && <CRMSidebarV2 />}
+      {showAdminChrome && <CRMSidebarV2 allowedKeys={isRestricted ? normalizeAllowedPages(me?.allowed_pages) : undefined} />}
       <main style={{
         flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column',
         maxHeight: isMobile ? '100dvh' : '100vh', boxSizing: 'border-box', gap: isMobile ? 0 : 8,
         padding: isMobile ? `0 0 ${mobileBottomPad}` : (showAdminChrome ? '8px 8px 8px 0' : 0),
       }}>
-        {showAdminChrome && !hideSearchBar && (
+        {showAdminChrome && !isRestricted && !hideSearchBar && (
           <div className="crm-v2-search-shell" style={{
             background: crmV2.bg,
             border: isMobile ? 'none' : `1px solid ${crmV2.border}`,

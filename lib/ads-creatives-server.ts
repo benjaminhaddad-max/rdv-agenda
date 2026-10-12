@@ -2,6 +2,7 @@ import type { NextRequest } from 'next/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createServiceClient } from '@/lib/supabase'
 import { CREATIF_ROLE, getApiUserContextAnyRole } from '@/lib/api-auth'
+import { RESTRICTED_ROLE } from '@/lib/restricted-access'
 import { createEventsClient } from '@/lib/events-studio/client'
 import { eventTypeOf } from '@/lib/events-studio/config'
 import { htmlToText, sendBrevoEmail } from '@/lib/brevo'
@@ -63,6 +64,10 @@ export async function resolveAdsAccess(
   }
   const ctx = await getApiUserContextAnyRole()
   if (!ctx) return { ok: false, status: 401, error: 'Unauthorized' }
+  // Compte restreint : uniquement si la page Créas Ads lui est ouverte (droits CRM complets)
+  if (ctx.role === RESTRICTED_ROLE && !ctx.allowedPages.includes('creas-ads')) {
+    return { ok: false, status: 403, error: 'Forbidden' }
+  }
   // Compte créatif : mêmes droits que le lien partagé (pas de réglages ni brief).
   return { ok: true, crm: ctx.role !== CREATIF_ROLE, db }
 }

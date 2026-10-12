@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
-import { requireApiRole } from '@/lib/api-auth'
+import { requireApiRoleOrPage } from '@/lib/api-auth'
 import { fetchAdInsights, type InsightsLevel, type DatePreset, type MetaAdInsight } from '@/lib/meta'
 import { createHash } from 'crypto'
 import { presetRange, type GoogleDatePreset } from '@/lib/google-ads'
@@ -24,7 +24,7 @@ function cacheKey(accountId: string, level: string, datePreset: string, since?: 
 }
 
 export async function GET(req: NextRequest) {
-  const authz = await requireApiRole(['admin'])
+  const authz = await requireApiRoleOrPage(['admin'], 'ads-dashboard')
   if (!authz.ok) return authz.response
 
   const sp = req.nextUrl.searchParams

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { claimsGetter, getAuthUserIdResilient } from '@/lib/auth-resilient'
+import { RESTRICTED_ROLE, isRestrictedPathAllowed, restrictedHome } from '@/lib/restricted-access'
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -116,6 +117,11 @@ export async function middleware(request: NextRequest) {
     if (pathname === '/creas' || pathname.startsWith('/creas/')) return response
     return redirectByRole(dbUser, request)
   }
+  // Compte restreint : uniquement ses pages autorisées (rdv_users.allowed_pages)
+  if (dbUser.role === RESTRICTED_ROLE) {
+    if (isRestrictedPathAllowed(pathname, dbUser.allowed_pages)) return response
+    return redirectByRole(dbUser, request)
+  }
   if (pathname === '/creas' || pathname.startsWith('/creas/')) {
     if (dbUser.role !== 'admin') return redirectByRole(dbUser, request)
   }
@@ -165,7 +171,7 @@ export async function middleware(request: NextRequest) {
 
 // Rôle gardé 60 s par instance : évite une requête base à chaque navigation.
 const DB_USER_TTL_MS = 60_000
-type MiddlewareDbUser = { role: string; slug: string; id: string }
+type MiddlewareDbUser = { role: string; slug: string; id: string; allowed_pages?: string[] | null }
 const dbUserCache = new Map<string, { row: MiddlewareDbUser; at: number }>()
 
 async function getUserFromDb(authId: string) {
@@ -177,7 +183,7 @@ async function getUserFromDb(authId: string) {
   )
   const { data } = await db
     .from('rdv_users')
-    .select('role, slug, id')
+    .select('role, slug, id, allowed_pages')
     .eq('auth_id', authId)
     .single()
   if (data) {
@@ -188,7 +194,7 @@ async function getUserFromDb(authId: string) {
 }
 
 function redirectByRole(
-  dbUser: { role: string; slug: string },
+  dbUser: { role: string; slug: string; allowed_pages?: string[] | null },
   request: NextRequest
 ) {
   if (dbUser.role === 'admin') {
@@ -202,6 +208,10 @@ function redirectByRole(
   }
   if (dbUser.role === 'creatif') {
     return NextResponse.redirect(new URL('/creas', request.url))
+  }
+  if (dbUser.role === RESTRICTED_ROLE) {
+    const home = restrictedHome(dbUser.allowed_pages)
+    if (home) return NextResponse.redirect(new URL(home, request.url))
   }
   return NextResponse.redirect(new URL('/login', request.url))
 }

@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server'
-import { requireApiRole } from '@/lib/api-auth'
+import { requireApiRoleOrPage } from '@/lib/api-auth'
 import { runCompetitorEventsScan } from '@/lib/competitor-events'
 
 export const maxDuration = 300
 
 /** POST /api/crm/competitor-events/scan — lance la veille tout de suite (bouton de l'agenda Événements). */
 export async function POST() {
-  const authz = await requireApiRole(['admin', 'manager'])
+  const authz = await requireApiRoleOrPage(['admin', 'manager'], 'events')
   if (!authz.ok) return authz.response
   try {
     const summary = await runCompetitorEventsScan()

@@ -19,7 +19,7 @@ export async function GET() {
   const db = createServiceClient()
   const { data, error } = await db
     .from('rdv_users')
-    .select('id, name, email, role, slug, avatar_color, crm_brand, crm_scope, hubspot_owner_id')
+    .select('id, name, email, role, slug, avatar_color, crm_brand, crm_scope, hubspot_owner_id, allowed_pages')
     .eq('auth_id', userId)
     .single()
 

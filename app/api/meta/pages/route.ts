@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireApiRole } from '@/lib/api-auth'
+import { requireApiRoleOrPage } from '@/lib/api-auth'
 import { createServiceClient } from '@/lib/supabase'
 import { fetchPageLeadForms, subscribePageToLeadgen } from '@/lib/meta'
 
@@ -12,7 +12,7 @@ import { fetchPageLeadForms, subscribePageToLeadgen } from '@/lib/meta'
  */
 
 export async function GET() {
-  const authz = await requireApiRole(['admin'])
+  const authz = await requireApiRoleOrPage(['admin'], ['meta-ads', 'events'])
   if (!authz.ok) return authz.response
 
   const db = createServiceClient()
@@ -44,7 +44,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const authz = await requireApiRole(['admin'])
+  const authz = await requireApiRoleOrPage(['admin'], 'meta-ads')
   if (!authz.ok) return authz.response
 
   const db = createServiceClient()
@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const authz = await requireApiRole(['admin'])
+  const authz = await requireApiRoleOrPage(['admin'], 'meta-ads')
   if (!authz.ok) return authz.response
 
   const db = createServiceClient()
@@ -123,7 +123,7 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const authz = await requireApiRole(['admin'])
+  const authz = await requireApiRoleOrPage(['admin'], 'meta-ads')
   if (!authz.ok) return authz.response
 
   const db = createServiceClient()

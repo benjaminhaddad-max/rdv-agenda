@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireApiRole } from '@/lib/api-auth'
+import { requireApiRoleOrPage } from '@/lib/api-auth'
 import { createServiceClient } from '@/lib/supabase'
 import { normalizeTime } from '@/lib/competitor-events'
 
@@ -8,7 +8,7 @@ import { normalizeTime } from '@/lib/competitor-events'
  * Toute correction manuelle passe l'événement en found_by='manual' : le bot n'y touche plus.
  */
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const authz = await requireApiRole(['admin', 'manager'])
+  const authz = await requireApiRoleOrPage(['admin', 'manager'], 'events')
   if (!authz.ok) return authz.response
   const { id } = await params
 

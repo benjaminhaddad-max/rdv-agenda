@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
-import { requireApiRole } from '@/lib/api-auth'
+import { requireApiRoleOrPage } from '@/lib/api-auth'
 import { collectAdAttribution, detectAdOrigine, ORIGINE_ADS_GOOGLE } from '@/lib/ad-attribution'
 import {
   fetchGoogleCampaignInsights, googleAdsCustomerId, isGoogleAdsConfigured, presetRange, resolveGclidCampaigns,
@@ -56,7 +56,7 @@ function hsaCam(url: string | null): string | null {
 }
 
 export async function GET(req: NextRequest) {
-  const authz = await requireApiRole(['admin'])
+  const authz = await requireApiRoleOrPage(['admin'], 'ads-dashboard')
   if (!authz.ok) return authz.response
 
   const sp = req.nextUrl.searchParams

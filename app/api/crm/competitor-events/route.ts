@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireApiRole, requireApiUser } from '@/lib/api-auth'
+import { requireApiRoleOrPage, requireApiUserOrPage } from '@/lib/api-auth'
 import { createServiceClient } from '@/lib/supabase'
 import { dedupeKeyFor, sanitizeCompetitorEvent } from '@/lib/competitor-events'
 
@@ -10,7 +10,7 @@ import { dedupeKeyFor, sanitizeCompetitorEvent } from '@/lib/competitor-events'
  * POST /api/crm/competitor-events — ajout manuel (admin / manager).
  */
 export async function GET(req: NextRequest) {
-  const authz = await requireApiUser()
+  const authz = await requireApiUserOrPage('events')
   if (!authz.ok) return authz.response
 
   const includeHidden = req.nextUrl.searchParams.get('include_hidden') === '1'
@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const authz = await requireApiRole(['admin', 'manager'])
+  const authz = await requireApiRoleOrPage(['admin', 'manager'], 'events')
   if (!authz.ok) return authz.response
 
   const body = await req.json().catch(() => ({}))
