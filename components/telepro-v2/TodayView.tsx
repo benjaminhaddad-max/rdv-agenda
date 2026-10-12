@@ -21,7 +21,7 @@ import type { TodayData, TodayGoals, TodayLead, TodayReason } from '@/lib/telepr
 type ApiData = TodayData & { goals_default: TodayGoals; can_edit_goals: boolean }
 
 const REASONS: { id: TodayReason; label: string; color: string }[] = [
-  { id: 'repop', label: 'A refait une demande', color: '#dc2626' },
+  { id: 'repop', label: 'Retombé via une nouvelle source', color: '#dc2626' },
   { id: 'relance', label: 'À relancer', color: '#d97706' },
   { id: 'nouveau', label: 'Nouveaux jamais appelés', color: '#0891b2' },
   { id: 'nrp', label: 'NRP à rappeler', color: '#64748b' },
@@ -267,7 +267,7 @@ function PhoneLink({ phone }: { phone: string }) {
 
 /** Quand : la nouvelle demande (repop) ou l'arrivée du lead (nouveau). */
 function reasonWhen(lead: TodayLead): string {
-  if (lead.reason === 'repop' && lead.form_at) return `Demande ${when(lead.form_at)}`
+  if (lead.reason === 'repop' && lead.form_at) return `Retombé ${when(lead.form_at)}${lead.form_name ? ` · ${lead.form_name}` : ''}`
   if (lead.reason === 'nouveau' && lead.created_at) return `Arrivé ${when(lead.created_at)}`
   return ''
 }
@@ -279,7 +279,7 @@ function LeadRow({ lead, first, open, onToggle, isMobile }: { lead: TodayLead; f
     <div style={{ borderTop: first ? 'none' : `1px solid ${crmV2.borderLight}` }}>
       <div onClick={onToggle} style={{
         display: 'grid', alignItems: 'center', gap: 10, padding: '8px 10px', cursor: 'pointer', background: open ? crmV2.bgHover : undefined,
-        gridTemplateColumns: isMobile ? '52px minmax(0, 1fr) 20px' : '58px minmax(140px, 1.2fr) 210px minmax(110px, 0.8fr) 150px 20px',
+        gridTemplateColumns: isMobile ? '52px minmax(0, 1fr) 20px' : '58px minmax(140px, 1.2fr) 240px minmax(110px, 0.8fr) 150px 20px',
       }}>
         <span title={`${lvl.label} — ${lead.score.score}/100`} style={{
           display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 3, height: 26, borderRadius: 999,

@@ -282,7 +282,7 @@ export async function buildToday(
 }
 
 export const REASON_LABELS: Record<TodayReason, string> = {
-  repop: 'A refait une demande',
+  repop: 'Retombé (nouvelle source)',
   relance: 'À relancer',
   nouveau: 'Nouveau, jamais appelé',
   nrp: 'NRP à rappeler',

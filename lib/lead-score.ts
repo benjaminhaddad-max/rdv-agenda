@@ -90,8 +90,8 @@ export function computeLeadScore(input: ScoreInput, now = Date.now()): LeadScore
   const isRepop = form != null && created != null && created - form >= 1
   const formName = input.recent_conversion_event ? ` (${input.recent_conversion_event.slice(0, 60)})` : ''
 
-  if (isRepop && form! <= 7) add(30, `A refait une demande ${since(form!)}${formName}`, input.recent_conversion_date)
-  else if (isRepop && form! <= 30) add(15, `A refait une demande ${since(form!)}${formName}`, input.recent_conversion_date)
+  if (isRepop && form! <= 7) add(30, `Retombé via une nouvelle source ${since(form!)}${formName}`, input.recent_conversion_date)
+  else if (isRepop && form! <= 30) add(15, `Retombé via une nouvelle source ${since(form!)}${formName}`, input.recent_conversion_date)
   else if (created != null && created <= 2) add(20, `Nouveau lead, arrivé ${since(created)}${formName}`, input.created_at)
   else if (created != null && created <= 7) add(10, `Lead récent, arrivé ${since(created)}`, input.created_at)
 
