@@ -2,4 +2,4 @@
 
 Géré automatiquement par Claude (voir CLAUDE.md). Une ligne par tâche en cours, retirée à la fin.
 - Benjamin · 2026-10-12 10:44 · Ambassadeurs : coach Diploma Lab + filtre par coach · BDD v71 · lycee_ambassadeurs · components/crm-v2/lycees/AmbassadeursList.tsx, lib/lycees.ts
-- Aaron Sarfati · 2026-10-12 14:35 · Créas Ads : brief à l’ouverture d’un webinaire · components/crm-v2/marketing2/ads-creatives
+- Aaron Sarfati · 2026-10-12 14:35 · Ads Dashboard : adsets dépliables sous chaque campagne (nouveaux leads par adset) · app/admin/crm/ads-dashboard/page.tsx
