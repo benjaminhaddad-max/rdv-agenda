@@ -20,6 +20,8 @@ import {
   Pencil,
   QrCode,
   Rocket,
+  Ban,
+  Undo2,
   Save,
   Settings2,
   Trash2,
@@ -737,7 +739,12 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
     )
   }, [evForDefaults, data?.event?.brief, data?.event?.brand, data?.event?.zoom_join_url, emailStep, emailBodyValue, typeEdit])
 
-  async function setStatus(status: 'published' | 'draft') {
+  async function setStatus(status: 'published' | 'draft' | 'cancelled') {
+    if (status === 'cancelled' && !confirm(
+      'Annuler cet événement ?\n\nIl sera marqué « Annulé » partout dans le CRM (liste, calendrier, planning), '
+      + 'les rappels automatiques (mails / SMS) ne partiront plus et sa campagne Ads sera masquée.\n\n'
+      + 'Les inscrits ne sont PAS prévenus automatiquement.',
+    )) return
     if (status === 'published' && typeEdit === 'webinaire' && !(zoomEdit.trim() || data?.event?.zoom_join_url)) {
       setToast('Impossible de publier un webinaire sans lien Zoom. Ajoutez le lien Zoom d’abord.')
       return
@@ -767,8 +774,10 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           parts.push(String(json.send.message))
         }
         setToast(parts.join(' · '))
+      } else if (status === 'cancelled') {
+        setToast('Événement annulé')
       } else {
-        setToast('Repassé en brouillon')
+        setToast(data?.event?.status === 'cancelled' ? 'Événement réactivé (en brouillon)' : 'Repassé en brouillon')
       }
       await load()
     } catch (e) {
@@ -1320,7 +1329,11 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                     </CrmV2Button>
                   </a>
                 )}
-                {ev.status !== 'published' ? (
+                {ev.status === 'cancelled' ? (
+                  <CrmV2Button variant="secondary" disabled={busy} onClick={() => setStatus('draft')} icon={<Undo2 size={14} />}>
+                    Réactiver
+                  </CrmV2Button>
+                ) : ev.status !== 'published' ? (
                   <CrmV2Button
                     variant="accent"
                     disabled={busy || zoomBlockPublish}
@@ -1339,6 +1352,11 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                     Dépublier
                   </CrmV2Button>
                 )}
+                {ev.status !== 'cancelled' && (
+                  <CrmV2Button variant="secondary" disabled={busy} onClick={() => setStatus('cancelled')} icon={<Ban size={14} />}>
+                    Annuler l’événement
+                  </CrmV2Button>
+                )}
                 <CrmV2Button variant="danger" disabled={busy} onClick={remove} icon={<Trash2 size={14} />}>
                   Supprimer
                 </CrmV2Button>
@@ -1349,9 +1367,9 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
               <CrmV2StatusPill
                 size="md"
-                label={ev.status === 'published' ? 'Publié' : 'Brouillon'}
-                color={ev.status === 'published' ? '#00866f' : crmV2.textFaint}
-                bg={ev.status === 'published' ? 'rgba(0,189,165,0.12)' : crmV2.chipBg}
+                label={ev.status === 'published' ? 'Publié' : ev.status === 'cancelled' ? 'Annulé' : 'Brouillon'}
+                color={ev.status === 'published' ? '#00866f' : ev.status === 'cancelled' ? crmV2.danger : crmV2.textFaint}
+                bg={ev.status === 'published' ? 'rgba(0,189,165,0.12)' : ev.status === 'cancelled' ? crmV2.dangerSoft : crmV2.chipBg}
               />
               <label
                 style={{
