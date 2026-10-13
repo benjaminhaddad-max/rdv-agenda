@@ -11,7 +11,7 @@ import { campaignTypeLabel, frDay, type AdsEventRow, type VideoScript } from '@/
 
 const MODEL = 'claude-opus-5-5'
 
-const BRANDS: Record<string, string> = {
+export const BRANDS: Record<string, string> = {
   diploma: 'Diploma Santé — prépa privée parisienne spécialisée dans les études de santé (Première Élite, Terminale Santé, PASS, L.AS ; enseignants agrégés, universitaires et docteurs). Ton : premium, sérieux, rassurant, centré sur la réussite et l\'accompagnement.',
   medibox: 'Medibox — prépa aux études de santé implantée en région (PASS, L.AS, lycéens de Première et Terminale). Ton : proche, concret, pédagogique.',
   edumove: 'Edumove — accompagne les étudiants qui veulent faire leurs études de santé (médecine, dentaire, kiné, pharmacie…) en Europe (Espagne, Portugal, Italie, Roumanie, Belgique…). Ton : dynamique, rassurant sur la faisabilité, le financement et l\'installation.',
@@ -66,7 +66,12 @@ const OUTPUT_SCHEMA = {
   },
 }
 
-function describeCampaign(ev: AdsEventRow): string {
+/** « jeudi 15 octobre 2026 » */
+function longDay(day: string): string {
+  return new Date(`${day}T12:00:00Z`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
+}
+
+export function describeCampaign(ev: AdsEventRow): string {
   const isGuide = ev.kind === 'guide'
   const line = (label: string, v: string | number | null | undefined) => (v == null || v === '' ? null : `${label} : ${v}`)
   return [
@@ -75,7 +80,8 @@ function describeCampaign(ev: AdsEventRow): string {
       ? `TYPE : guide téléchargeable (lead magnet), diffusé du ${frDay(ev.campaign_start)} au ${frDay(ev.campaign_end)}`
       : `TYPE : ${campaignTypeLabel(ev)}${ev.event_type === 'webinaire' ? ' (en ligne)' : ''}`,
     `TITRE : ${ev.name}`,
-    isGuide ? null : `DATE : ${frDay(ev.day)}${ev.event_time ? ` · ${ev.event_time}` : ''}`,
+    // Jour de la semaine explicite : sinon le modèle le devine (et se trompe)
+    isGuide ? null : `DATE : ${longDay(ev.day)}${ev.event_time ? ` · ${ev.event_time}` : ''}`,
     isGuide ? null : line('LIEU', ev.location),
     line('PILIER', ev.pilier),
     line('CIBLE', ev.cible),

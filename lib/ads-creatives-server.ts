@@ -270,6 +270,8 @@ export async function notifyCreativesUploaded(
   const launchDay = `<strong>${escapeHtml(frLongDay(campaign_start))}</strong>`
   const reminder = campaign.launched_at
     ? `Pour rappel, la campagne est déjà indiquée comme en ligne : pensez à y ajouter ces créas.`
+    : campaign.scheduled_at
+      ? `Pour rappel, la campagne est déjà indiquée comme programmée : pensez à y ajouter ces créas.`
     : campaign_start < parisDay()
       ? `Pour rappel, la campagne devait être mise en ligne le ${launchDay} : à mettre en ligne dès que possible.`
       : campaign_start === parisDay()

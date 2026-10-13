@@ -125,6 +125,9 @@ export type AdsEventRow = {
   /** Campagne cochée « en ligne » dans la colonne Ads Manager */
   launched_at: string | null
   launched_by: string | null
+  /** Campagne programmée dans l'Ads Manager (pas encore diffusée) ; exclusif avec launched_at */
+  scheduled_at: string | null
+  scheduled_by: string | null
   items: CreativeItem[]
   // Brief
   pilier: string | null
@@ -150,6 +153,26 @@ export type AdsEventRow = {
   /** Brief vidéo : 3 scripts (générés par Claude, modifiables) */
   video_scripts: VideoScript[] | null
   video_scripts_at: string | null
+  /** Texte publicitaire (généré par Claude, modifiable) */
+  ad_texts: AdTexts | null
+  ad_texts_at: string | null
+}
+
+/** Mise en ligne Ads : à faire, programmée ou en ligne. */
+export type AdsState = 'none' | 'scheduled' | 'live'
+export function adsState(ev: Pick<AdsEventRow, 'launched_at' | 'scheduled_at'>): AdsState {
+  return ev.launched_at ? 'live' : ev.scheduled_at ? 'scheduled' : 'none'
+}
+
+/** Texte publicitaire Meta Ads d'une campagne (ads_campaigns.ad_texts). */
+export type AdTexts = {
+  /** Texte principal (au-dessus du visuel) */
+  primary_text: string
+  /** Titre (sous le visuel) */
+  headline: string
+  description: string
+  edited_by: string | null
+  edited_at: string | null
 }
 
 /** Un script de vidéo 20-30 s du brief vidéo (ads_campaigns.video_scripts). */

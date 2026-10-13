@@ -7,7 +7,8 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 /**
  * PATCH /api/ads-creatives/campaigns/[id]
- *   { launched?, by? }                       — coche « en ligne » (CRM ou lien partagé)
+ *   { ads_state?: 'none'|'scheduled'|'live', by? } — mise en ligne Ads (CRM ou lien partagé)
+ *   { launched?, by? }                       — ancien format (en ligne oui / non)
  *   { brief fields…, title?, event_date?, event_time?, location?, launch_date?, creas_date?, end_date?, no_campaign? } — CRM
  */
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -17,9 +18,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
 
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
-  if ('launched' in body) {
-    patch.launched_at = body.launched ? new Date().toISOString() : null
-    patch.launched_by = body.launched ? String(body.by || '').trim().slice(0, 80) || null : null
+  const state = 'ads_state' in body ? body.ads_state : 'launched' in body ? (body.launched ? 'live' : 'none') : undefined
+  if (state !== undefined) {
+    if (!['none', 'scheduled', 'live'].includes(state)) return NextResponse.json({ error: 'ads_state invalide' }, { status: 400 })
+    const now = new Date().toISOString()
+    const by = String(body.by || '').trim().slice(0, 80) || null
+    // Programmée et en ligne s'excluent
+    patch.launched_at = state === 'live' ? now : null
+    patch.launched_by = state === 'live' ? by : null
+    patch.scheduled_at = state === 'scheduled' ? now : null
+    patch.scheduled_by = state === 'scheduled' ? by : null
   }
   if (access.crm) {
     for (const k of BRIEF_FIELDS) {

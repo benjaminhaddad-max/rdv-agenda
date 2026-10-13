@@ -3,17 +3,18 @@
 /**
  * Fiche d'une campagne (panneau à droite, ouvert au clic sur une ligne du tableau) :
  * dates, brief, brief vidéo (3 scripts Claude modifiables), dépôt des dossiers
- * statique / vidéo et coche « campagne en ligne ».
+ * statique / vidéo, texte publicitaire (Claude) et statut Ads : programmée / en ligne.
  */
 
 import { useState, type CSSProperties, type ReactNode } from 'react'
-import { Check, ChevronDown, ChevronRight, Clapperboard, FileText, Image as ImageIcon, Megaphone, Pencil, Video } from 'lucide-react'
+import { CalendarClock, Check, ChevronDown, ChevronRight, Circle, Clapperboard, FileText, Image as ImageIcon, Megaphone, Pencil, Radio, Type, Video } from 'lucide-react'
 import { CrmV2Button, CrmV2Drawer } from '@/components/crm-v2/primitives'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import {
-  campaignTypeLabel, diffDays, formatEuros, frDay, parisDay,
-  type AdsCreativesSettings, type AdsEventRow, type CreativeItem, type CreativeRole, type FolderFile, type VideoScript,
+  adsState, campaignTypeLabel, diffDays, formatEuros, frDay, parisDay,
+  type AdTexts, type AdsCreativesSettings, type AdsState, type AdsEventRow, type CreativeItem, type CreativeRole, type FolderFile, type VideoScript,
 } from '@/lib/ads-creatives'
+import AdTextsLane from './AdTextsLane'
 import FolderLane from './FolderLane'
 import GuidePdfLane from './GuidePdfLane'
 import VideoScriptsLane from './VideoScriptsLane'
@@ -26,7 +27,7 @@ const typeColorStyle = (ev: AdsEventRow) => {
 }
 
 export default function CampaignDrawer({
-  ev, today, crm, settings, token, author, fileUrl, onAddFolder, onUpdateFolder, onItemAdded, onRemove, onLaunched, onEdit, onSaveTime, onSaveLocation, onScriptsSaved, onClose, flash,
+  ev, today, crm, settings, token, author, fileUrl, onAddFolder, onUpdateFolder, onItemAdded, onRemove, onAdsState, onEdit, onSaveTime, onSaveLocation, onScriptsSaved, onAdTextsSaved, onClose, flash,
 }: {
   ev: AdsEventRow
   today: string
@@ -39,7 +40,8 @@ export default function CampaignDrawer({
   onUpdateFolder: (ev: AdsEventRow, item: CreativeItem, change: { remove_paths?: string[]; add_files?: FolderFile[] }) => Promise<void>
   onItemAdded: (ev: AdsEventRow, item: CreativeItem) => void
   onRemove: (ev: AdsEventRow, item: CreativeItem) => void
-  onLaunched: (v: boolean) => void
+  /** Ads Manager : à mettre en ligne / programmée / en ligne */
+  onAdsState: (state: AdsState) => void
   onEdit: () => void
   /** CRM : modifier l'horaire directement depuis la fiche */
   onSaveTime: (time: string) => void
@@ -47,10 +49,13 @@ export default function CampaignDrawer({
   onSaveLocation: (location: string) => void
   /** Brief vidéo : scripts générés ou modifiés */
   onScriptsSaved: (scripts: VideoScript[], at?: string | null) => void
+  /** Texte publicitaire généré ou modifié */
+  onAdTextsSaved: (texts: AdTexts, at?: string | null) => void
   onClose: () => void
   flash: (m: string) => void
 }) {
   const [more, setMore] = useState(false)
+  const state = adsState(ev)
   const isGuide = ev.kind === 'guide'
   const physical = !isGuide && ev.event_type !== 'webinaire'
   const eventLabel = campaignTypeLabel(ev)
@@ -239,24 +244,42 @@ export default function CampaignDrawer({
           </Section>
         ))}
 
+        {/* Texte publicitaire */}
+        {!ev.no_campaign && (
+          <Section title="Texte publicitaire" icon={<Type size={14} />} owner={settings?.ads_owner_name}>
+            <AdTextsLane ev={ev} token={token} author={author} onSaved={onAdTextsSaved} flash={flash} />
+          </Section>
+        )}
+
         {/* Ads Manager */}
         <Section title="Ads Manager" icon={<Megaphone size={14} />} owner={settings?.ads_owner_name} status={adsStatus(ev, today)}>
-          <label style={{ ...launchBox, ...(ev.launched_at ? launchBoxOn : {}) }}>
-            <input
-              type="checkbox"
-              checked={!!ev.launched_at}
-              onChange={(e) => {
-                if (!e.target.checked && !confirm('Décocher : la campagne n’est plus en ligne ?')) return
-                onLaunched(e.target.checked)
-              }}
-              style={{ width: 18, height: 18, accentColor: TONES.done.color, cursor: 'pointer' }}
-            />
-            <span style={{ fontWeight: 600 }}>{ev.launched_at ? 'Campagne en ligne' : 'Marquer la campagne en ligne'}</span>
-          </label>
+          <div style={segWrap} role="radiogroup" aria-label="Statut de la campagne">
+            {ADS_STATES.map((o) => {
+              const on = state === o.id
+              return (
+                <button
+                  key={o.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  onClick={() => {
+                    if (on) return
+                    if (state === 'live' && !confirm('La campagne n’est plus en ligne ?')) return
+                    onAdsState(o.id)
+                  }}
+                  style={{ ...segBtn, ...(on ? { borderColor: TONES[o.tone].border, background: TONES[o.tone].bg, color: TONES[o.tone].color } : {}) }}
+                >
+                  {o.icon} {o.label}
+                </button>
+              )
+            })}
+          </div>
           <div style={{ fontSize: 12, color: crmV2.textMuted, marginTop: 6 }}>
             {ev.launched_at
-              ? `Lancée le ${frDay(parisDay(ev.launched_at))}${ev.launched_by ? ` par ${ev.launched_by}` : ''}`
-              : `${isGuide ? 'Début de diffusion' : 'À allumer'} le ${frDay(ev.campaign_start)}${author ? '' : ' · renseigne ton prénom en haut pour signer'}`}
+              ? `En ligne depuis le ${frDay(parisDay(ev.launched_at))}${ev.launched_by ? ` · ${ev.launched_by}` : ''}`
+              : ev.scheduled_at
+                ? `Programmée le ${frDay(parisDay(ev.scheduled_at))}${ev.scheduled_by ? ` par ${ev.scheduled_by}` : ''} · diffusion prévue le ${frDay(ev.campaign_start)}`
+                : `${isGuide ? 'Début de diffusion' : 'À allumer'} le ${frDay(ev.campaign_start)}${author ? '' : ' · renseigne ton prénom en haut pour signer'}`}
           </div>
         </Section>
       </div>
@@ -350,8 +373,14 @@ const linkBtn: CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 10, border: 'none', background: 'transparent',
   color: crmV2.link, fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: 0, fontFamily: 'inherit',
 }
-const launchBox: CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: crmV2.radius,
-  border: `1.5px solid ${crmV2.border}`, background: crmV2.bg, cursor: 'pointer', fontSize: 13, color: crmV2.text,
+const ADS_STATES: Array<{ id: AdsState; label: string; tone: 'idle' | 'plan' | 'done'; icon: ReactNode }> = [
+  { id: 'none', label: 'À mettre en ligne', tone: 'idle', icon: <Circle size={14} /> },
+  { id: 'scheduled', label: 'Programmée', tone: 'plan', icon: <CalendarClock size={14} /> },
+  { id: 'live', label: 'En ligne', tone: 'done', icon: <Radio size={14} /> },
+]
+const segWrap: CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 6 }
+const segBtn: CSSProperties = {
+  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 8px', borderRadius: crmV2.radius,
+  border: `1.5px solid ${crmV2.border}`, background: crmV2.bg, cursor: 'pointer', fontSize: 13, fontWeight: 600,
+  color: crmV2.textMuted, fontFamily: 'inherit', whiteSpace: 'nowrap',
 }
-const launchBoxOn: CSSProperties = { borderColor: TONES.done.border, background: TONES.done.bg, color: TONES.done.color }

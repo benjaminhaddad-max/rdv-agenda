@@ -4,7 +4,7 @@
  * de créas (statique / vidéo) est encore vide : SMS au responsable à J-3, J-2, J-1
  * avant la deadline créas, le jour J, puis chaque jour de retard jusqu'au lancement.
  * Colonne Ads Manager : SMS au responsable Ads le jour du lancement puis chaque jour
- * tant que la campagne n'est pas cochée « en ligne » (jusqu'à l'événement).
+ * tant que la campagne n’est pas « programmée » ou « en ligne » (jusqu’à l’événement).
  * Une seule relance par événement / colonne / jour (event_ad_creative_reminders).
  */
 
@@ -41,8 +41,8 @@ export async function GET(req: NextRequest) {
 
     const sent: Array<{ event: string; role: string; days_left: number; ok: boolean; text: string; error?: string }> = []
     for (const ev of events) {
-      // Pas de relance créas si la campagne est déjà en ligne (créas faites hors de l'outil)
-      if (ev.no_campaign || ev.launched_at) continue
+      // Pas de relance créas si la campagne est déjà programmée / en ligne (créas faites hors de l'outil)
+      if (ev.no_campaign || ev.launched_at || ev.scheduled_at) continue
       for (const role of CREATIVE_ROLES) {
         if (ev.items.some((i) => i.role === role)) continue
         if (done.has(`${ev.id}:${role}`)) continue
@@ -79,7 +79,7 @@ export async function GET(req: NextRequest) {
     }
     // Colonne Ads Manager
     for (const ev of events) {
-      if (ev.no_campaign || ev.launched_at || done.has(`${ev.id}:ads`)) continue
+      if (ev.no_campaign || ev.launched_at || ev.scheduled_at || done.has(`${ev.id}:ads`)) continue
       const text = adsReminderText({
         ownerName: settings.ads_owner_name,
         eventName: ev.name,

@@ -20,7 +20,7 @@ import { useIsMobile } from '@/lib/useIsMobile'
 import { BRAND_CONFIG } from '@/lib/events-studio/config'
 import {
   ADS_BRANDS, DEFAULT_DELAYS, campaignTypeLabel, diffDays, formatEuros, parisDay,
-  type AdsBrand, type AdsCreativesSettings, type AdsEventRow, type BrandDelays, type CampaignKind, type CreativeItem, type CreativeRole, type FolderFile,
+  type AdsBrand, type AdsCreativesSettings, type AdsEventRow, type AdsState, type BrandDelays, type CampaignKind, type CreativeItem, type CreativeRole, type FolderFile,
 } from '@/lib/ads-creatives'
 import CampaignDrawer, { StatusBadge } from './CampaignDrawer'
 import CampaignEditDrawer from './CampaignEditDrawer'
@@ -164,9 +164,10 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
       budget,
       leads,
       cpl: leads > 0 ? budget / leads : null,
-      creasLate: active.reduce((n, e) => n + (!e.launched_at && diffDays(today, e.creas_deadline) < 0 ? missing(e) : 0), 0),
-      adsLate: active.filter((e) => !e.launched_at && diffDays(today, e.campaign_start) < 0).length,
+      creasLate: active.reduce((n, e) => n + (!e.launched_at && !e.scheduled_at && diffDays(today, e.creas_deadline) < 0 ? missing(e) : 0), 0),
+      adsLate: active.filter((e) => !e.launched_at && !e.scheduled_at && diffDays(today, e.campaign_start) < 0).length,
       live: active.filter((e) => !!e.launched_at).length,
+      scheduled: active.filter((e) => !e.launched_at && !!e.scheduled_at).length,
     }
   }, [upcoming, today])
 
@@ -204,14 +205,21 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
     setEvents((prev) => prev.map((e) => (e.id === ev.id ? { ...e, items: e.items.filter((i) => i.id !== item.id) } : e)))
   }
 
-  const setLaunched = async (ev: AdsEventRow, v: boolean) => {
+  const setAdsState = async (ev: AdsEventRow, state: AdsState) => {
+    const now = new Date().toISOString()
     setEvents((prev) => prev.map((e) => (e.id === ev.id
-      ? { ...e, launched_at: v ? new Date().toISOString() : null, launched_by: v ? author || null : null }
+      ? {
+          ...e,
+          launched_at: state === 'live' ? now : null,
+          launched_by: state === 'live' ? author || null : null,
+          scheduled_at: state === 'scheduled' ? now : null,
+          scheduled_by: state === 'scheduled' ? author || null : null,
+        }
       : e)))
     const r = await fetch(`/api/ads-creatives/campaigns/${ev.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, launched: v, by: author || null }),
+      body: JSON.stringify({ token, ads_state: state, by: author || null }),
     })
     if (!r.ok) flash('Enregistrement impossible')
     load()
@@ -301,7 +309,7 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, minmax(0, 1fr))', gap: 12, marginBottom: 16, maxWidth: 940 }}>
           {VIEWS.map((k) => {
             const active = k === kind
-            const late = brandEvents.filter((e) => inView(e, k) && e.until >= today && !e.no_campaign && !e.launched_at
+            const late = brandEvents.filter((e) => inView(e, k) && e.until >= today && !e.no_campaign && !e.launched_at && !e.scheduled_at
               && (['static', 'video'] as const).some((r) => !e.items.some((i) => i.role === r)) && e.creas_deadline < today).length
             return (
               <button key={k} type="button" onClick={() => pickKind(k)} style={{ ...kindCard, ...(active ? kindCardActive : {}) }}>
@@ -349,7 +357,7 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
           <CrmV2Segmented
             items={[
               { id: 'all', label: 'Tous statuts' },
-              ...(['creas', 'launch', 'live'] as Stage[]).map((st) => ({ id: st, label: `${STAGE_LABELS[st]} (${stageCount(st)})` })),
+              ...(['creas', 'launch', 'scheduled', 'live'] as Stage[]).map((st) => ({ id: st, label: `${STAGE_LABELS[st]} (${stageCount(st)})` })),
             ]}
             value={stageFilter}
             onChange={(v) => setStageFilter(v as 'all' | Stage)}
@@ -362,6 +370,7 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
               {kpis.leads > 0 && <span><b style={{ color: crmV2.text }}>{kpis.leads.toLocaleString('fr-FR')}</b> leads attendus</span>}
               {kpis.creasLate > 0 && <span style={{ color: TONES.late.color, fontWeight: 600 }}>{kpis.creasLate} créa{kpis.creasLate > 1 ? 's' : ''} en retard</span>}
               {kpis.adsLate > 0 && <span style={{ color: TONES.late.color, fontWeight: 600 }}>{kpis.adsLate} campagne{kpis.adsLate > 1 ? 's' : ''} pas lancée{kpis.adsLate > 1 ? 's' : ''}</span>}
+              {kpis.scheduled > 0 && <span style={{ color: TONES.plan.color, fontWeight: 600 }}>{kpis.scheduled} programmée{kpis.scheduled > 1 ? 's' : ''}</span>}
               {kpis.live > 0 && <span style={{ color: TONES.done.color, fontWeight: 600 }}>{kpis.live} en ligne</span>}
             </div>
           )}
@@ -499,10 +508,13 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
           onUpdateFolder={updateFolder}
           onItemAdded={(ev, item) => setEvents((prev) => prev.map((e) => (e.id === ev.id ? { ...e, items: [...e.items, item] } : e)))}
           onRemove={removeItem}
-          onLaunched={(v) => setLaunched(opened, v)}
+          onAdsState={(st) => setAdsState(opened, st)}
           onEdit={() => setEditing(opened)}
           onScriptsSaved={(scripts, at) => setEvents((prev) => prev.map((e) => (e.id === opened.id
             ? { ...e, video_scripts: scripts, video_scripts_at: at ?? e.video_scripts_at }
+            : e)))}
+          onAdTextsSaved={(texts, at) => setEvents((prev) => prev.map((e) => (e.id === opened.id
+            ? { ...e, ad_texts: texts, ad_texts_at: at ?? e.ad_texts_at }
             : e)))}
           onSaveTime={async (time) => {
             setEvents((prev) => prev.map((e) => (e.id === opened.id ? { ...e, event_time: time || null } : e)))

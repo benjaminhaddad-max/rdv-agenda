@@ -2,10 +2,11 @@
 import type { CSSProperties } from 'react'
 import { crmV2 } from '@/lib/crm-v2-theme'
 
-export type Tone = 'done' | 'warn' | 'late' | 'idle' | 'off'
+export type Tone = 'done' | 'plan' | 'warn' | 'late' | 'idle' | 'off'
 
 export const TONES: Record<Tone, { color: string; bg: string; border: string }> = {
   done: { color: '#15803d', bg: '#ecfdf3', border: '#bbf7d0' },
+  plan: { color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe' },
   warn: { color: '#c2410c', bg: '#fff7ed', border: '#fed7aa' },
   late: { color: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
   idle: { color: crmV2.textMuted, bg: crmV2.bg, border: crmV2.border },
