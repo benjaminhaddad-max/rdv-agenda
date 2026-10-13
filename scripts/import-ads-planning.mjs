@@ -151,10 +151,6 @@ for (const r of rows.slice(headerIdx + 1)) {
   }
   const day = toDay(r[col.date])
   if (!num || !day || !title) continue
-  const launch = col.launch >= 0 ? toDay(r[col.launch]) : null
-  const creas = col.creas >= 0 ? toDay(r[col.creas]) : null
-  const calcLaunch = addDays(day, -delays.launch_days)
-  const effLaunch = launch || calcLaunch
   lines.push({
     brand,
     kind: 'event',
@@ -180,9 +176,10 @@ for (const r of rows.slice(headerIdx + 1)) {
     why: text(r[col.why]),
     to_check: text(r[col.to_check]),
     status: text(r[col.status]),
-    // Dates saisies seulement si elles s'écartent de la règle de la marque
-    launch_date: launch && launch !== calcLaunch ? launch : null,
-    creas_date: creas && creas !== addDays(effLaunch, -delays.creas_days) ? creas : null,
+    // Webinaires : allumage toujours calculé (J-webinar_launch_days, 10 j par défaut) —
+    // les dates du planning ne sont pas reprises, sinon elles écrasent la règle
+    launch_date: null,
+    creas_date: null,
     end_date: null,
   })
 }

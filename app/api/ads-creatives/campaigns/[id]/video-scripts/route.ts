@@ -32,7 +32,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ ok: true, scripts, video_scripts_at })
   } catch (e) {
-    return NextResponse.json({ error: `Génération impossible : ${(e as Error).message}` }, { status: 502 })
+    const msg = (e as Error).message || ''
+    console.error('[ads-creatives] scripts vidéo', msg)
+    if (/credit balance/i.test(msg)) {
+      return NextResponse.json({ error: 'Plus de crédit sur le compte API Claude (Anthropic) : à recharger sur console.anthropic.com → Billing' }, { status: 502 })
+    }
+    return NextResponse.json({ error: `Génération impossible : ${msg.slice(0, 200)}` }, { status: 502 })
   }
 }
 
