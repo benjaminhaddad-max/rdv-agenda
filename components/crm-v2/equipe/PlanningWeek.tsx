@@ -10,8 +10,8 @@
  * En tête de chaque jour : télépros présents (au moins un appel) et prévus.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Lock } from 'lucide-react'
+import { forwardRef, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { ChevronDown, Lock } from 'lucide-react'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import {
   SchoolBadge, SlotChip, VERDICTS, VerdictPill, WEEKDAYS, fmtMinutes, type DayReport,
@@ -47,46 +47,180 @@ export function usePlanningWeek(weekStart: string, refreshKey: number, enabled =
 
   useEffect(() => { if (enabled) load() }, [load, refreshKey, enabled])
 
-  const dayCounts = useMemo(() => {
+  const dayCounts = useMemo<PlanningDayCount[]>(() => {
     if (!data) return []
     return data.dates.map((_, i) => {
-      let present = 0, planned = 0
+      const presentList: PlanningDayPerson[] = [], plannedList: PlanningDayPerson[] = []
       for (const m of data.telepros) {
         const d = data.report[m.id]?.[i]
         if (!d) continue
-        if (d.calls > 0) present++
-        if (d.slots.length) planned++
+        if (d.calls > 0) presentList.push({ member: m, day: d })
+        if (d.slots.length) plannedList.push({ member: m, day: d })
       }
-      return { present, planned }
+      const byName = (a: PlanningDayPerson, b: PlanningDayPerson) => a.member.name.localeCompare(b.member.name, 'fr')
+      presentList.sort((a, b) => b.day.calls - a.day.calls)
+      plannedList.sort(byName)
+      return { present: presentList.length, planned: plannedList.length, presentList, plannedList }
     })
   }, [data])
 
   return { data, loading, error, dayCounts, reload: load }
 }
 
-/** En-tête d'une colonne jour : « Lun 5 » + présents / prévus. */
+export type PlanningDayPerson = { member: PlanningMember; day: DayReport }
+export type PlanningDayCount = {
+  present: number
+  planned: number
+  presentList?: PlanningDayPerson[]
+  plannedList?: PlanningDayPerson[]
+}
+
+/**
+ * En-tête d'une colonne jour : « Lun 5 » + présents / prévus. Clic sur les
+ * chiffres → liste déroulante des télépros présents et prévus ce jour-là.
+ */
 export function PlanningDayHeader({ date, index, counts, today }: {
   date: string
   index: number
-  counts?: { present: number; planned: number }
+  counts?: PlanningDayCount
   today: string
 }) {
   const present = counts?.present ?? 0
   const planned = counts?.planned ?? 0
+  const [anchor, setAnchor] = useState<DOMRect | null>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const popRef = useRef<HTMLDivElement>(null)
+  const hasList = present > 0 || planned > 0
+
+  useEffect(() => {
+    if (!anchor) return
+    const close = () => setAnchor(null)
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node
+      if (popRef.current?.contains(t) || btnRef.current?.contains(t)) return
+      close()
+    }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close() }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    window.addEventListener('scroll', close, true)
+    window.addEventListener('resize', close)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+      window.removeEventListener('scroll', close, true)
+      window.removeEventListener('resize', close)
+    }
+  }, [anchor])
+
+  const counter = (
+    <>
+      {date <= today && (
+        <><strong style={{ color: present ? crmV2.successStrong : crmV2.textFaint }}>{present}</strong> présent{present > 1 ? 's' : ''}</>
+      )}
+      {planned > 0 && `${date <= today ? ' · ' : ''}${planned} prévu${planned > 1 ? 's' : ''}`}
+    </>
+  )
+
   return (
     <span style={{ display: 'inline-flex', flexDirection: 'column', gap: 1, textTransform: 'none', letterSpacing: 0 }}>
       <span style={{ fontSize: 12, fontWeight: 700, color: date === today ? crmV2.goldDark : crmV2.text }}>
         {WEEKDAYS[index]} {Number(date.slice(8))}
       </span>
-      <span style={{ fontSize: 11, fontWeight: 500, color: crmV2.textMuted, whiteSpace: 'nowrap' }}>
-        {date <= today && (
-          <><strong style={{ color: present ? crmV2.successStrong : crmV2.textFaint }}>{present}</strong> présent{present > 1 ? 's' : ''}</>
-        )}
-        {planned > 0 && `${date <= today ? ' · ' : ''}${planned} prévu${planned > 1 ? 's' : ''}`}
-      </span>
+      {hasList ? (
+        <button
+          ref={btnRef}
+          type="button"
+          title="Voir qui est présent / prévu"
+          onClick={e => {
+            e.stopPropagation()
+            setAnchor(a => a ? null : (btnRef.current?.getBoundingClientRect() ?? null))
+          }}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 3, padding: 0, border: 'none', background: 'none',
+            cursor: 'pointer', fontSize: 11, fontWeight: 500, color: crmV2.textMuted, whiteSpace: 'nowrap', fontFamily: 'inherit',
+          }}
+        >
+          <span>{counter}</span>
+          <ChevronDown size={12} style={{ transition: 'transform .15s', transform: anchor ? 'rotate(180deg)' : 'none', flexShrink: 0 }} />
+        </button>
+      ) : (
+        <span style={{ fontSize: 11, fontWeight: 500, color: crmV2.textMuted, whiteSpace: 'nowrap' }}>{counter}</span>
+      )}
+      {anchor && counts && (
+        <DayPeoplePopover
+          ref={popRef}
+          anchor={anchor}
+          date={date}
+          today={today}
+          presentList={counts.presentList ?? []}
+          plannedList={counts.plannedList ?? []}
+        />
+      )}
     </span>
   )
 }
+
+const DayPeoplePopover = forwardRef<HTMLDivElement, {
+  anchor: DOMRect
+  date: string
+  today: string
+  presentList: PlanningDayPerson[]
+  plannedList: PlanningDayPerson[]
+}>(function DayPeoplePopover({ anchor, date, today, presentList, plannedList }, ref) {
+  const width = 300
+  const left = Math.max(8, Math.min(anchor.left, window.innerWidth - width - 8))
+  const top = anchor.bottom + 6
+  const showPresent = date <= today
+  const presentIds = new Set(presentList.map(p => p.member.id))
+  // Prévus pas encore / jamais venus (journée passée ou en cours)
+  const absent = showPresent ? plannedList.filter(p => !presentIds.has(p.member.id)) : []
+
+  const section = (label: string, color: string, rows: ReactNode[], empty: string) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div style={{ fontSize: 10.5, fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
+      {rows.length ? rows : <div style={{ fontSize: 12, color: crmV2.textFaint }}>{empty}</div>}
+    </div>
+  )
+  const row = (p: PlanningDayPerson, detail: ReactNode) => (
+    <div key={p.member.id} style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, fontSize: 12.5 }}>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+        <span style={{ width: 7, height: 7, borderRadius: 99, background: p.member.avatar_color || crmV2.textFaint, flexShrink: 0 }} />
+        <span style={{ fontWeight: 600, color: crmV2.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.member.name}</span>
+      </span>
+      <span style={{ fontSize: 11.5, color: crmV2.textMuted, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{detail}</span>
+    </div>
+  )
+  const slotsText = (d: DayReport) => d.slots.map(sl => `${sl.start}–${sl.end}`).join(', ')
+
+  return (
+    <div
+      ref={ref}
+      onClick={e => e.stopPropagation()}
+      style={{
+        position: 'fixed', top, left, width, maxHeight: `calc(100vh - ${Math.round(top) + 16}px)`, overflowY: 'auto', zIndex: 60,
+        background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: 10, boxShadow: '0 10px 30px rgba(15,23,42,.14)',
+        padding: 12, display: 'flex', flexDirection: 'column', gap: 12, textAlign: 'left', cursor: 'default',
+      }}
+    >
+      {showPresent && section(
+        `Présents · ${presentList.length}`, crmV2.successStrong,
+        presentList.map(p => row(p, <>{p.day.first_call} → {p.day.last_call} · {p.day.calls} app.{p.day.rdv ? <> · <strong style={{ color: crmV2.goldDark }}>{p.day.rdv} RDV</strong></> : null}</>)),
+        "Personne n'a appelé",
+      )}
+      {absent.length > 0 && section(
+        `${date < today ? 'Prévus mais absents' : 'Prévus, pas encore là'} · ${absent.length}`, date < today ? '#dc2626' : '#d97706',
+        absent.map(p => row(p, slotsText(p.day))),
+        '',
+      )}
+      {section(
+        `Prévus · ${plannedList.length}`, crmV2.textMuted,
+        plannedList.map(p => row(p, <>{slotsText(p.day)}{showPresent && presentIds.has(p.member.id) ? <span style={{ color: crmV2.successStrong }}> ✓</span> : null}</>)),
+        "Pas d'horaires prévus",
+      )}
+    </div>
+  )
+})
 
 /** Case jour d'un télépro (clic → modifier / imposer les horaires). */
 export function PlanningDayCell({ day, today, onClick }: { day: DayReport; today: string; onClick: () => void }) {

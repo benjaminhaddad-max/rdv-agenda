@@ -34,7 +34,7 @@ import { AdminIconButton, AdminNotice, AdminSpin } from '@/components/crm-v2/adm
 import { PanelCard } from '@/components/crm-v2/panels/PanelUi'
 import { CredentialBox, type TeamMember } from '@/components/crm-v2/panels/TeamMemberManager'
 import { CallDebrief, CallList, CallTeamSummary, ConversionByKindStrip, useCallAnalysis, type CallAnalysisData, type TypeBucket } from '@/components/crm-v2/equipe/CallAnalysis'
-import { PlanningDayCell, PlanningDayHeader, PlanningLegend, PlanningWeekSummary, usePlanningWeek, type PlanningData } from '@/components/crm-v2/equipe/PlanningWeek'
+import { PlanningDayCell, PlanningDayHeader, PlanningLegend, PlanningWeekSummary, usePlanningWeek, type PlanningData, type PlanningDayCount } from '@/components/crm-v2/equipe/PlanningWeek'
 import { DayScheduleEditor, SlotChip, VERDICTS, VerdictPill, WEEKDAYS, fmtMinutes as fmtPlannedMinutes, type DayReport } from '@/components/planning/PlanningUi'
 import { addParisDays, parisDateKey, parisMonthEndKey, parisWeekStartKey } from '@/lib/date-paris'
 import { RDV_BRANDS, RDV_BRAND_IDS, type RdvBrand } from '@/lib/rdv-brand'
@@ -777,7 +777,7 @@ type TableCommon = {
   onToggleCol: (key: string) => void
   mode: Mode
   planning: PlanningData | null
-  planningCounts: Array<{ present: number; planned: number }>
+  planningCounts: PlanningDayCount[]
   onEditDay: (row: Row, day: DayReport) => void
   modeSwitch: ReactNode
   /** Sélecteur ‹ période › (barre du tableau et ligne dépliée) */
