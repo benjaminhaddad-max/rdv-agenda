@@ -7,6 +7,9 @@ import { ADS_CREATIVES_BUCKET, ADS_CREATIVES_MAX_FOLDER_BYTES, ITEM_ROLES, type 
  *   (campaign_id = ads_campaigns.id, stocké dans la colonne event_id)
  *   { …, role: 'guide', kind: 'file', path, label, size } — PDF d'un guide
  *   (les anciens kinds 'link' / 'file' restent acceptés)
+ * PATCH /api/ads-creatives/items — { token?, id, remove_paths?: string[], add_files?: [{ path, name, size }] }
+ *   Modifier un dossier : retirer des fichiers (supprimés du stockage) et/ou en ajouter.
+ *   Un dossier vidé est supprimé.
  * DELETE /api/ads-creatives/items?id=…[&token=…]
  */
 export async function POST(req: NextRequest) {
@@ -90,4 +93,50 @@ export async function DELETE(req: NextRequest) {
     await access.db.storage.from(ADS_CREATIVES_BUCKET).remove(paths.slice(i, i + 1000))
   }
   return NextResponse.json({ ok: true })
+}
+
+export async function PATCH(req: NextRequest) {
+  const body = await req.json().catch(() => ({}))
+  const access = await resolveAdsAccess(req, body.token)
+  if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
+
+  const id = String(body.id || '')
+  const { data: item, error: getError } = await access.db.from('event_ad_creative_items').select('*').eq('id', id).maybeSingle()
+  if (getError) return NextResponse.json({ error: getError.message }, { status: 500 })
+  if (!item) return NextResponse.json({ error: 'Dossier introuvable' }, { status: 404 })
+  if (item.kind !== 'folder') return NextResponse.json({ error: 'Seuls les dossiers sont modifiables' }, { status: 400 })
+
+  const current = (item.files as FolderFile[] | null) || []
+  const remove = new Set((Array.isArray(body.remove_paths) ? body.remove_paths : []).map(String))
+  const removed = current.filter((f) => remove.has(f.path))
+  const added: FolderFile[] = (Array.isArray(body.add_files) ? body.add_files : [])
+    .map((f: Partial<FolderFile>) => ({ path: String(f.path || ''), name: String(f.name || '').slice(0, 300), size: Number(f.size) || 0 }))
+    .filter((f: FolderFile) => f.path.startsWith(`${item.event_id}/`))
+  // Un fichier ajouté avec le même nom remplace l'ancien
+  const addedNames = new Set(added.map((f) => f.name))
+  const replaced = current.filter((f) => !remove.has(f.path) && addedNames.has(f.name))
+  const files = [...current.filter((f) => !remove.has(f.path) && !addedNames.has(f.name)), ...added]
+    .sort((a, b) => a.name.localeCompare(b.name))
+  const size = files.reduce((n, f) => n + f.size, 0)
+  if (size > ADS_CREATIVES_MAX_FOLDER_BYTES) return NextResponse.json({ error: 'Dossier trop lourd (10 Go max)' }, { status: 400 })
+
+  let updated = null
+  if (files.length === 0) {
+    const { error } = await access.db.from('event_ad_creative_items').delete().eq('id', id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  } else {
+    const { data, error } = await access.db
+      .from('event_ad_creative_items')
+      .update({ files, file_count: files.length, size })
+      .eq('id', id)
+      .select('*')
+      .single()
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    updated = data
+  }
+  const paths = [...removed, ...replaced].map((f) => f.path).filter((p) => !added.some((a) => a.path === p))
+  for (let i = 0; i < paths.length; i += 1000) {
+    await access.db.storage.from(ADS_CREATIVES_BUCKET).remove(paths.slice(i, i + 1000))
+  }
+  return NextResponse.json({ item: updated })
 }

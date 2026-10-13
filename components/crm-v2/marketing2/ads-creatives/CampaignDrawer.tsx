@@ -26,7 +26,7 @@ const typeColorStyle = (ev: AdsEventRow) => {
 }
 
 export default function CampaignDrawer({
-  ev, today, crm, settings, token, author, fileUrl, onAddFolder, onItemAdded, onRemove, onLaunched, onEdit, onSaveTime, onSaveLocation, onScriptsSaved, onClose, flash,
+  ev, today, crm, settings, token, author, fileUrl, onAddFolder, onUpdateFolder, onItemAdded, onRemove, onLaunched, onEdit, onSaveTime, onSaveLocation, onScriptsSaved, onClose, flash,
 }: {
   ev: AdsEventRow
   today: string
@@ -36,6 +36,7 @@ export default function CampaignDrawer({
   author: string
   fileUrl: (f: FolderFile) => string
   onAddFolder: (ev: AdsEventRow, role: CreativeRole, label: string, files: FolderFile[]) => Promise<void>
+  onUpdateFolder: (ev: AdsEventRow, item: CreativeItem, change: { remove_paths?: string[]; add_files?: FolderFile[] }) => Promise<void>
   onItemAdded: (ev: AdsEventRow, item: CreativeItem) => void
   onRemove: (ev: AdsEventRow, item: CreativeItem) => void
   onLaunched: (v: boolean) => void
@@ -234,7 +235,7 @@ export default function CampaignDrawer({
             owner={role === 'static' ? settings?.static_owner_name : settings?.video_owner_name}
             status={creativeStatus(ev, role, today)}
           >
-            <FolderLane ev={ev} role={role} token={token} fileUrl={fileUrl} onAddFolder={onAddFolder} onRemove={onRemove} flash={flash} />
+            <FolderLane ev={ev} role={role} token={token} fileUrl={fileUrl} onAddFolder={onAddFolder} onUpdateFolder={onUpdateFolder} onRemove={onRemove} flash={flash} />
           </Section>
         ))}
 

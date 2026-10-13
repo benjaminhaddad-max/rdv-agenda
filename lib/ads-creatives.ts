@@ -66,24 +66,6 @@ export const CREATIVE_ROLE_LABELS: Record<CreativeRole, string> = {
   video: 'Créas vidéo',
 }
 
-/** Brief : nombre max de créas différentes par événement (indication, pas de blocage). */
-export const CREATIVE_MAX: Record<CreativeRole, number> = { static: 5, video: 3 }
-export const CREATIVE_UNIT: Record<CreativeRole, [string, string]> = {
-  static: ['template', 'templates'],
-  video: ['vidéo', 'vidéos'],
-}
-
-const IMAGE_EXT = /\.(png|jpe?g|webp|gif|heic|avif|tiff?|psd|ai|svg|pdf)$/i
-const VIDEO_EXT = /\.(mp4|mov|m4v|webm|avi|mkv|mpe?g)$/i
-
-/** Nombre de créas déposées pour une colonne : images (statique) ou fichiers vidéo (vidéo). */
-export function countCreatives(items: CreativeItem[], role: CreativeRole): number {
-  const re = role === 'static' ? IMAGE_EXT : VIDEO_EXT
-  return items
-    .filter((i) => i.role === role)
-    .reduce((n, i) => n + (i.files?.length ? i.files.filter((f) => re.test(f.name)).length : i.kind === 'file' && re.test(i.label || '') ? 1 : 0), 0)
-}
-
 export type CreativeItem = {
   id: string
   event_id: string

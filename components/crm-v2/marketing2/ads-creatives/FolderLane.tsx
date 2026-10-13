@@ -4,14 +4,16 @@
  * Colonnes « Créas statiques » / « Créas vidéo » : dépôt d'un dossier complet
  * (sélection ou glisser-déposer, 10 Go max), upload reprenable TUS direct vers
  * Supabase Storage (token signé, header x-signature), puis liste des dossiers.
+ * Un dossier déposé reste modifiable : retirer un fichier, ajouter / remplacer
+ * des fichiers (même nom = remplacé).
  */
 
 import { useEffect, useRef, useState, type CSSProperties, type DragEvent } from 'react'
 import * as tus from 'tus-js-client'
-import { ChevronDown, ChevronRight, Download, Eye, FolderOpen, FolderUp, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, Download, Eye, FilePlus, FolderOpen, FolderUp, Trash2 } from 'lucide-react'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import {
-  ADS_CREATIVES_BUCKET, ADS_CREATIVES_MAX_FOLDER_BYTES, CREATIVE_MAX, CREATIVE_UNIT, countCreatives,
+  ADS_CREATIVES_BUCKET, ADS_CREATIVES_MAX_FOLDER_BYTES,
   formatBytes, frDay, parisDay,
   type AdsEventRow, type CreativeItem, type CreativeRole, type FolderFile,
 } from '@/lib/ads-creatives'
@@ -74,13 +76,15 @@ export function uploadOne(path: string, signature: string, file: File, onProgres
 }
 
 export default function FolderLane({
-  ev, role, token, fileUrl, onAddFolder, onRemove, flash,
+  ev, role, token, fileUrl, onAddFolder, onUpdateFolder, onRemove, flash,
 }: {
   ev: AdsEventRow
   role: CreativeRole
   token?: string
   fileUrl: (f: FolderFile) => string
   onAddFolder: (ev: AdsEventRow, role: CreativeRole, label: string, files: FolderFile[]) => Promise<void>
+  /** Modifier un dossier : retirer et/ou ajouter des fichiers */
+  onUpdateFolder: (ev: AdsEventRow, item: CreativeItem, change: { remove_paths?: string[]; add_files?: FolderFile[] }) => Promise<void>
   onRemove: (ev: AdsEventRow, item: CreativeItem) => void
   flash: (m: string) => void
 }) {
@@ -94,39 +98,46 @@ export default function FolderLane({
     inputRef.current?.setAttribute('webkitdirectory', '')
   }, [])
 
-  const upload = async (picked: PickedFile[]) => {
-    const files = picked.filter((p) => !p.file.name.startsWith('.') && p.file.size > 0)
-    if (files.length === 0) return flash('Dossier vide')
+  /** Envoie les fichiers dans un sous-dossier unique du stockage (barre de progression). */
+  const sendFiles = async (files: PickedFile[], label: string): Promise<FolderFile[]> => {
     const total = files.reduce((n, p) => n + p.file.size, 0)
-    if (total > ADS_CREATIVES_MAX_FOLDER_BYTES) return flash(`Dossier trop lourd (${formatBytes(total)}) — 10 Go max`)
-    const label = files[0].rel.includes('/') ? files[0].rel.split('/')[0] : 'Dossier'
     const folder = `${Date.now()}${Math.random().toString(36).slice(2, 6)}`
     const sentBy = new Map<string, number>()
     const report = () => setProgress({ sent: [...sentBy.values()].reduce((a, b) => a + b, 0), total, name: label })
     report()
-
-    try {
-      const done: FolderFile[] = []
-      const queue = [...files]
-      // 3 envois en parallèle
-      const worker = async () => {
-        for (let p = queue.shift(); p; p = queue.shift()) {
-          const res = await fetch('/api/ads-creatives/upload', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ token, campaign_id: ev.id, folder, fileName: p.rel, size: p.file.size }),
-          })
-          const slot = await res.json()
-          if (!res.ok) throw new Error(slot.error || 'Upload impossible')
-          const key = p.rel
-          await uploadOne(slot.path, slot.token, p.file, (sent) => { sentBy.set(key, sent); report() })
-          sentBy.set(key, p.file.size)
-          report()
-          done.push({ path: slot.path, name: p.rel, size: p.file.size })
-        }
+    const done: FolderFile[] = []
+    const queue = [...files]
+    // 3 envois en parallèle
+    const worker = async () => {
+      for (let p = queue.shift(); p; p = queue.shift()) {
+        const res = await fetch('/api/ads-creatives/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, campaign_id: ev.id, folder, fileName: p.rel, size: p.file.size }),
+        })
+        const slot = await res.json()
+        if (!res.ok) throw new Error(slot.error || 'Upload impossible')
+        const key = p.rel
+        await uploadOne(slot.path, slot.token, p.file, (sent) => { sentBy.set(key, sent); report() })
+        sentBy.set(key, p.file.size)
+        report()
+        done.push({ path: slot.path, name: p.rel, size: p.file.size })
       }
-      await Promise.all([worker(), worker(), worker()])
-      done.sort((a, b) => a.name.localeCompare(b.name))
+    }
+    await Promise.all([worker(), worker(), worker()])
+    return done.sort((a, b) => a.name.localeCompare(b.name))
+  }
+
+  const usable = (picked: PickedFile[]) => picked.filter((p) => !p.file.name.startsWith('.') && p.file.size > 0)
+
+  const upload = async (picked: PickedFile[]) => {
+    const files = usable(picked)
+    if (files.length === 0) return flash('Dossier vide')
+    const total = files.reduce((n, p) => n + p.file.size, 0)
+    if (total > ADS_CREATIVES_MAX_FOLDER_BYTES) return flash(`Dossier trop lourd (${formatBytes(total)}) — 10 Go max`)
+    const label = files[0].rel.includes('/') ? files[0].rel.split('/')[0] : 'Dossier'
+    try {
+      const done = await sendFiles(files, label)
       await onAddFolder(ev, role, label, done)
       flash(`Dossier « ${label} » déposé (${done.length} fichier${done.length > 1 ? 's' : ''})`)
     } catch (e) {
@@ -158,23 +169,50 @@ export default function FolderLane({
     upload(all)
   }
 
-  const max = CREATIVE_MAX[role]
-  const [one, many] = CREATIVE_UNIT[role]
-  const count = countCreatives(ev.items, role)
-  const over = count > max
+  /** Ajoute des fichiers à un dossier existant (même nom = remplace le fichier). */
+  const addToFolder = async (item: CreativeItem, list: FileList | null) => {
+    if (!list || progress) return
+    const root = item.label || 'Dossier'
+    const files = usable(Array.from(list).map((file) => ({ file, rel: `${root}/${file.name}` })))
+    if (files.length === 0) return
+    const current = (item.files || []).reduce((n, f) => n + f.size, 0)
+    const total = files.reduce((n, p) => n + p.file.size, 0)
+    if (current + total > ADS_CREATIVES_MAX_FOLDER_BYTES) return flash(`Dossier trop lourd (${formatBytes(current + total)}) — 10 Go max`)
+    try {
+      const done = await sendFiles(files, root)
+      await onUpdateFolder(ev, item, { add_files: done })
+      flash(`${done.length} fichier${done.length > 1 ? 's' : ''} ajouté${done.length > 1 ? 's' : ''} à « ${root} »`)
+    } catch (e) {
+      flash(e instanceof Error ? e.message : 'Upload impossible')
+    } finally {
+      setProgress(null)
+    }
+  }
+
+  const removeFile = async (item: CreativeItem, f: FolderFile) => {
+    const last = (item.files || []).length <= 1
+    const name = f.name.split('/').pop()
+    if (!confirm(last ? `Retirer « ${name} » ? C’est le dernier fichier : le dossier sera supprimé.` : `Retirer « ${name} » du dossier ?`)) return
+    try {
+      await onUpdateFolder(ev, item, { remove_paths: [f.path] })
+      flash('Fichier retiré')
+    } catch (e) {
+      flash(e instanceof Error ? e.message : 'Suppression impossible')
+    }
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ ...briefBox, ...(over ? briefOver : {}) }}>
-        <span><b>{max} {many} différentes max</b> par événement</span>
-        {items.length > 0 && (
-          <span style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
-            {count} / {max} {count > 1 ? many : one}{over ? ' · au-dessus du max' : ''}
-          </span>
-        )}
-      </div>
       {items.map((it) => (
-        <FolderRow key={it.id} item={it} fileUrl={fileUrl} onRemove={() => onRemove(ev, it)} />
+        <FolderRow
+          key={it.id}
+          item={it}
+          fileUrl={fileUrl}
+          busy={!!progress}
+          onRemove={() => onRemove(ev, it)}
+          onRemoveFile={(f) => removeFile(it, f)}
+          onAddFiles={(list) => addToFolder(it, list)}
+        />
       ))}
 
       {progress ? (
@@ -214,8 +252,18 @@ export default function FolderLane({
   )
 }
 
-function FolderRow({ item, fileUrl, onRemove }: { item: CreativeItem; fileUrl: (f: FolderFile) => string; onRemove: () => void }) {
+function FolderRow({
+  item, fileUrl, busy, onRemove, onRemoveFile, onAddFiles,
+}: {
+  item: CreativeItem
+  fileUrl: (f: FolderFile) => string
+  busy: boolean
+  onRemove: () => void
+  onRemoveFile: (f: FolderFile) => void
+  onAddFiles: (list: FileList | null) => void
+}) {
   const [open, setOpen] = useState(true)
+  const addRef = useRef<HTMLInputElement>(null)
   const [viewing, setViewing] = useState<number | null>(null)
   const files = item.files || []
   // Sans `name` : URL signée affichée dans le navigateur (aperçu) au lieu d'un téléchargement.
@@ -261,12 +309,32 @@ function FolderRow({ item, fileUrl, onRemove }: { item: CreativeItem; fileUrl: (
         {files.length > 0 && (
           <button type="button" onClick={() => setViewing(0)} style={iconBtn} aria-label="Aperçu" title="Aperçu des créas"><Eye size={15} /></button>
         )}
+        <button
+          type="button"
+          onClick={() => addRef.current?.click()}
+          disabled={busy}
+          style={iconBtn}
+          aria-label="Ajouter des fichiers"
+          title="Ajouter ou remplacer des fichiers (même nom = remplacé)"
+        >
+          <FilePlus size={14} />
+        </button>
         <button type="button" onClick={downloadAll} style={iconBtn} aria-label="Tout télécharger" title="Tout télécharger"><Download size={14} /></button>
-        <button type="button" onClick={onRemove} style={iconBtn} aria-label="Supprimer" title="Supprimer"><Trash2 size={13} /></button>
+        <button type="button" onClick={onRemove} style={iconBtn} aria-label="Supprimer le dossier" title="Supprimer tout le dossier"><Trash2 size={13} /></button>
+        <input
+          ref={addRef}
+          type="file"
+          multiple
+          hidden
+          onChange={(e) => { onAddFiles(e.target.files); e.target.value = '' }}
+        />
       </div>
       {open && (
         <div style={{ borderTop: `1px solid ${TONES.done.border}`, background: crmV2.bg, maxHeight: 420, overflowY: 'auto' }}>
-          <CreativeThumbs files={files} previewUrl={previewUrl} onOpen={setViewing} />
+          <CreativeThumbs files={files} previewUrl={previewUrl} onOpen={setViewing} onDelete={onRemoveFile} />
+          <button type="button" onClick={() => addRef.current?.click()} disabled={busy} style={addFilesBtn}>
+            <FilePlus size={14} /> Ajouter ou remplacer des fichiers
+          </button>
         </div>
       )}
       {viewing !== null && files[viewing] && (
@@ -290,12 +358,11 @@ const dropZone: CSSProperties = {
   border: `1.5px dashed ${crmV2.borderStrong}`, background: crmV2.bgHover, flexWrap: 'wrap',
 }
 const dropZoneActive: CSSProperties = { borderColor: crmV2.gold, background: crmV2.goldSoft }
-const briefBox: CSSProperties = {
-  display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap',
-  fontSize: 12, color: crmV2.textMuted, padding: '6px 10px', borderRadius: crmV2.radiusSm,
-  background: crmV2.chipBg, border: `1px solid ${crmV2.chipBorder}`,
+const addFilesBtn: CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 6, margin: '0 10px 10px', padding: '6px 10px', borderRadius: crmV2.radiusSm,
+  border: `1px dashed ${crmV2.borderStrong}`, background: crmV2.bgHover, color: crmV2.textMuted,
+  fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
 }
-const briefOver: CSSProperties = { color: '#c2410c', background: '#fff7ed', borderColor: '#fed7aa' }
 const folderRow: CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: crmV2.radius,
   border: `1px solid ${crmV2.borderLight}`, background: crmV2.bgHover, minWidth: 0,

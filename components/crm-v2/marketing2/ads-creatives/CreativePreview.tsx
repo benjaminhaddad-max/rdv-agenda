@@ -7,7 +7,7 @@
 
 import { useEffect, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronLeft, ChevronRight, Download, FileText, File as FileIcon, Play, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Download, FileText, File as FileIcon, Play, Trash2, X } from 'lucide-react'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import { formatBytes, type FolderFile } from '@/lib/ads-creatives'
 
@@ -33,18 +33,21 @@ function ImageThumb({ src }: { src: string }) {
 }
 
 export function CreativeThumbs({
-  files, previewUrl, onOpen,
+  files, previewUrl, onOpen, onDelete,
 }: {
   files: FolderFile[]
   previewUrl: (f: FolderFile) => string
   onOpen: (index: number) => void
+  /** Retirer un fichier du dossier (bouton corbeille sur la vignette) */
+  onDelete?: (f: FolderFile) => void
 }) {
   return (
     <div style={grid}>
       {files.map((f, i) => {
         const kind = previewKind(f.name)
         return (
-          <button key={f.path} type="button" onClick={() => onOpen(i)} style={thumbBtn} title={shortName(f)}>
+          <div key={f.path} style={{ position: 'relative', minWidth: 0 }}>
+          <button type="button" onClick={() => onOpen(i)} style={thumbBtn} title={shortName(f)}>
             <div style={thumbBox}>
               {kind === 'image' && <ImageThumb src={previewUrl(f)} />}
               {kind === 'video' && (
@@ -59,6 +62,12 @@ export function CreativeThumbs({
             </div>
             <div style={thumbName}>{shortName(f)}</div>
           </button>
+          {onDelete && (
+            <button type="button" onClick={() => onDelete(f)} style={deleteBadge} aria-label="Retirer ce fichier" title="Retirer ce fichier du dossier">
+              <Trash2 size={12} />
+            </button>
+          )}
+          </div>
         )
       })}
     </div>
@@ -139,9 +148,13 @@ export function CreativeViewer({
 const grid: CSSProperties = {
   display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 8, padding: 10,
 }
+const deleteBadge: CSSProperties = {
+  position: 'absolute', top: 5, right: 5, width: 24, height: 24, borderRadius: 6, border: 'none', cursor: 'pointer',
+  display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15, 23, 42, 0.65)', color: '#fff',
+}
 const thumbBtn: CSSProperties = {
   display: 'flex', flexDirection: 'column', gap: 4, padding: 0, border: 'none', background: 'transparent',
-  cursor: 'pointer', textAlign: 'left', minWidth: 0, fontFamily: 'inherit',
+  cursor: 'pointer', textAlign: 'left', minWidth: 0, width: '100%', fontFamily: 'inherit',
 }
 const thumbBox: CSSProperties = {
   position: 'relative', aspectRatio: '1 / 1', borderRadius: crmV2.radiusSm, overflow: 'hidden',

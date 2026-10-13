@@ -181,6 +181,20 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
     setEvents((prev) => prev.map((e) => (e.id === ev.id ? { ...e, items: [...e.items, json.item] } : e)))
   }
 
+  /** Dossier modifié (fichiers retirés / ajoutés) ; null = dossier vidé et supprimé */
+  const updateFolder = async (ev: AdsEventRow, item: CreativeItem, change: { remove_paths?: string[]; add_files?: FolderFile[] }) => {
+    const r = await fetch('/api/ads-creatives/items', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, id: item.id, ...change }),
+    })
+    const json = await r.json().catch(() => ({}))
+    if (!r.ok) throw new Error(json.error || 'Modification impossible')
+    setEvents((prev) => prev.map((e) => (e.id === ev.id
+      ? { ...e, items: json.item ? e.items.map((i) => (i.id === item.id ? json.item : i)) : e.items.filter((i) => i.id !== item.id) }
+      : e)))
+  }
+
   const removeItem = async (ev: AdsEventRow, item: CreativeItem) => {
     if (!confirm(item.kind === 'folder'
       ? `Supprimer le dossier « ${item.label || 'sans nom'} » et ses fichiers ?`
@@ -482,6 +496,7 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
           author={author}
           fileUrl={fileUrl}
           onAddFolder={addFolder}
+          onUpdateFolder={updateFolder}
           onItemAdded={(ev, item) => setEvents((prev) => prev.map((e) => (e.id === ev.id ? { ...e, items: [...e.items, item] } : e)))}
           onRemove={removeItem}
           onLaunched={(v) => setLaunched(opened, v)}
