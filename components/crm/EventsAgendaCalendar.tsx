@@ -48,9 +48,9 @@ export const EVENT_BRAND_COLORS: Record<
     label: 'Diploma Santé',
   },
   medibox: {
-    solid: '#22c55e',
-    soft: 'rgba(34, 197, 94, 0.16)',
-    text: '#15803d',
+    solid: '#8b5cf6',
+    soft: 'rgba(139, 92, 246, 0.16)',
+    text: '#6d28d9',
     label: 'Medibox',
   },
   edumove: {
@@ -92,11 +92,11 @@ export const EVENT_TYPE_COLORS: Record<
   },
 }
 
-/** Événements des prépas concurrentes (veille) — violet, bordure en pointillés. */
+/** Événements des prépas concurrentes (veille) — jaune, bordure en pointillés. */
 export const COMPETITOR_COLOR = {
-  solid: '#7c3aed',
-  soft: 'rgba(124, 58, 237, 0.13)',
-  text: '#6d28d9',
+  solid: '#eab308',
+  soft: 'rgba(234, 179, 8, 0.2)',
+  text: '#a16207',
   label: 'Concurrents',
 }
 
@@ -113,7 +113,8 @@ const TYPE_SHORT: Record<string, string> = {
   autre: 'Autre',
 }
 
-const CALENDAR_LEGEND_TYPES = ['webinaire', 'salon', 'jpo'] as const
+/** Légende : une couleur par marque (le type reste lisible dans le libellé). */
+const CALENDAR_LEGEND_BRANDS = ['diploma', 'medibox', 'edumove'] as const
 
 export type CalendarEventRow = {
   id: string
@@ -217,7 +218,6 @@ function toMinutes(t: string | null): number | null {
 function ourItem(ev: CalendarEventRow): CalItem {
   const { dayKey, time } = parisParts(ev.event_date)
   const m = (ev.description || '').match(DATE_END_RE)
-  const typeId = eventTypeOf(ev).id
   const type = eventTypeOf(ev)
   return {
     key: `o:${ev.id}`,
@@ -228,7 +228,7 @@ function ourItem(ev: CalendarEventRow): CalItem {
     time,
     timeEnd: ev.event_time_end && /^\d{1,2}:\d{2}$/.test(ev.event_time_end) ? ev.event_time_end : null,
     startIso: new Date(ev.event_date).getTime(),
-    color: EVENT_TYPE_COLORS[typeId] || EVENT_TYPE_COLORS.autre,
+    color: EVENT_BRAND_COLORS[brandOf(ev)],
     typeShort: type.short,
     sub: `${BRAND_CONFIG[brandOf(ev)].name} · ${type.short}${ev.location ? ` · ${ev.location}` : ''}`,
     href: `/admin/crm/events/${ev.id}`,
@@ -561,12 +561,12 @@ export default function EventsAgendaCalendar({ events, loading }: Props) {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          {CALENDAR_LEGEND_TYPES.map((typeId) => (
+          {CALENDAR_LEGEND_BRANDS.map((b) => (
             <CrmV2StatusPill
-              key={typeId}
-              label={EVENT_TYPE_COLORS[typeId].label}
-              color={EVENT_TYPE_COLORS[typeId].text}
-              bg={EVENT_TYPE_COLORS[typeId].soft}
+              key={b}
+              label={EVENT_BRAND_COLORS[b].label}
+              color={EVENT_BRAND_COLORS[b].text}
+              bg={EVENT_BRAND_COLORS[b].soft}
             />
           ))}
           <button
