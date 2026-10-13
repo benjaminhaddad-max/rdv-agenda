@@ -3,6 +3,8 @@ export const SUPPORT_MAX_FILE_BYTES = 50 * 1024 * 1024
 
 export type SupportStatus = 'nouveau' | 'en_cours' | 'besoin_infos' | 'validation' | 'fait' | 'pas_fait'
 export type SupportPriority = 'basse' | 'normale' | 'urgente'
+/** Approbation d'Aaron (v84) : demandes des comptes « restreint ». null = pas requise. */
+export type SupportApprovalStatus = 'en_attente' | 'approuve' | 'refuse'
 
 export const SUPPORT_STATUS_LABELS: Record<SupportStatus, string> = {
   nouveau: 'En attente',
@@ -44,6 +46,8 @@ export type SupportTicket = {
   status: SupportStatus
   claimed_at: string | null
   pr_url: string | null
+  approval_status: SupportApprovalStatus | null
+  approval_decided_at: string | null
   resolved_at: string | null
   last_message_at: string
   unread_for_author: boolean

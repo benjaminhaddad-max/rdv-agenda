@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
-import { requireApiUser } from '@/lib/api-auth'
+import { requireApiUserOrPage } from '@/lib/api-auth'
 import { SUPPORT_BUCKET, SUPPORT_MAX_FILE_BYTES } from '@/lib/support'
 
 /**
@@ -9,7 +9,7 @@ import { SUPPORT_BUCKET, SUPPORT_MAX_FILE_BYTES } from '@/lib/support'
  * (pas de limite de body Vercel pour les vidéos / notes vocales).
  */
 export async function POST(req: NextRequest) {
-  const auth = await requireApiUser()
+  const auth = await requireApiUserOrPage('service-technique')
   if (!auth.ok) return auth.response
   const { ctx } = auth
 

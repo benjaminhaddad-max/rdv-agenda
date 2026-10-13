@@ -49,9 +49,13 @@ const OPEN_STATUSES: SupportStatus[] = ['nouveau', 'en_cours', 'besoin_infos']
 
 type Tab = 'validation' | 'open' | 'all'
 
-function StatusPill({ status }: { status: SupportStatus }) {
-  const c = STATUS_COLORS[status]
-  return <CrmV2StatusPill label={SUPPORT_STATUS_LABELS[status]} color={c.color} bg={c.bg} />
+/** Demande d'un compte restreint pas encore approuvée par Aaron (v84) */
+const awaitingApproval = (tk: SupportTicket) => tk.approval_status === 'en_attente'
+
+function StatusPill({ ticket }: { ticket: SupportTicket }) {
+  if (awaitingApproval(ticket)) return <CrmV2StatusPill label="À approuver par Aaron" color="#b45309" bg="rgba(245,158,11,0.15)" />
+  const c = STATUS_COLORS[ticket.status]
+  return <CrmV2StatusPill label={SUPPORT_STATUS_LABELS[ticket.status]} color={c.color} bg={c.bg} />
 }
 
 function PriorityPill({ priority }: { priority: SupportPriority }) {
@@ -159,7 +163,7 @@ export default function ServiceTechniqueV2({ initialTicketId }: { initialTicketI
     if (res.ok) {
       const j = await res.json()
       setDetail(prev => {
-        if (prev && prev.ticket.id === j.ticket.id && prev.messages.length === j.messages.length && prev.ticket.status === j.ticket.status) {
+        if (prev && prev.ticket.id === j.ticket.id && prev.messages.length === j.messages.length && prev.ticket.status === j.ticket.status && prev.ticket.approval_status === j.ticket.approval_status) {
           return prev // évite de recharger les médias signés à chaque poll
         }
         return j
@@ -230,13 +234,37 @@ export default function ServiceTechniqueV2({ initialTicketId }: { initialTicketI
     if (res.ok) await Promise.all([loadDetail(selectedId), loadTickets()])
   }
 
+  const [deciding, setDeciding] = useState(false)
+  async function decide(approval: 'approuve' | 'refuse') {
+    if (!selectedId || deciding) return
+    let reason = ''
+    if (approval === 'refuse') {
+      const r = window.prompt('Raison du refus (facultatif, visible par le demandeur) :', '')
+      if (r === null) return
+      reason = r
+    }
+    setDeciding(true)
+    try {
+      const res = await fetch(`/api/support/tickets/${selectedId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ approval, reason }),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) { alert(j.error || 'Erreur'); return }
+      await Promise.all([loadDetail(selectedId), loadTickets()])
+    } finally {
+      setDeciding(false)
+    }
+  }
+
   const current = detail && detail.ticket.id === selectedId ? detail : null
   const t = current?.ticket
   const isAdmin = me?.role === 'admin'
   const canAct = !!t && (t.author_id === me?.id || isAdmin)
 
   const counts = useMemo(() => ({
-    validation: tickets.filter(tk => tk.status === 'validation').length,
+    validation: tickets.filter(tk => tk.status === 'validation' || awaitingApproval(tk)).length,
     open: tickets.filter(tk => OPEN_STATUSES.includes(tk.status)).length,
     all: tickets.length,
   }), [tickets])
@@ -244,7 +272,7 @@ export default function ServiceTechniqueV2({ initialTicketId }: { initialTicketI
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase()
     return tickets.filter(tk => {
-      if (tab === 'validation' && tk.status !== 'validation') return false
+      if (tab === 'validation' && tk.status !== 'validation' && !awaitingApproval(tk)) return false
       if (tab === 'open' && !OPEN_STATUSES.includes(tk.status)) return false
       if (statusFilter && tk.status !== statusFilter) return false
       if (priorityFilter && tk.priority !== priorityFilter) return false
@@ -364,7 +392,7 @@ export default function ServiceTechniqueV2({ initialTicketId }: { initialTicketI
                         {formatDistanceToNow(new Date(tk.last_message_at), { locale: fr, addSuffix: true })}
                       </AdminEllipsis>
                     </div>
-                    <StatusPill status={tk.status} />
+                    <StatusPill ticket={tk} />
                   </AdminMobileRow>
                 ))}
               </AdminMobileList>
@@ -416,7 +444,7 @@ export default function ServiceTechniqueV2({ initialTicketId }: { initialTicketI
                         <AdminOwnerCell name={tk.author_name} empty="—" />
                       </CrmV2Td>
                       <CrmV2Td><PriorityPill priority={tk.priority} /></CrmV2Td>
-                      <CrmV2Td><StatusPill status={tk.status} /></CrmV2Td>
+                      <CrmV2Td><StatusPill ticket={tk} /></CrmV2Td>
                       <CrmV2Td style={{ color: crmV2.textMuted, whiteSpace: 'nowrap' }}>
                         {formatDistanceToNow(new Date(tk.last_message_at), { locale: fr, addSuffix: true })}
                       </CrmV2Td>
@@ -468,7 +496,7 @@ export default function ServiceTechniqueV2({ initialTicketId }: { initialTicketI
               {t ? (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
-                    <StatusPill status={t.status} />
+                    <StatusPill ticket={t} />
                     <PriorityPill priority={t.priority} />
                   </div>
                   <div style={{ fontSize: 18, fontWeight: 700, wordBreak: 'break-word' }}>{t.title}</div>
@@ -515,7 +543,29 @@ export default function ServiceTechniqueV2({ initialTicketId }: { initialTicketI
                 )}
               </div>
             )}
-            {(t.status === 'nouveau' || t.status === 'en_cours') && (
+            {awaitingApproval(t) && (
+              <div style={{
+                fontSize: 13, color: '#b45309', background: 'rgba(245,158,11,0.10)', borderRadius: 12, padding: '10px 12px',
+                display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+              }}>
+                <span style={{ flex: 1, minWidth: 200 }}>
+                  {isAdmin
+                    ? 'Cette demande attend ton approbation avant que le service technique s’en occupe.'
+                    : 'Ta demande attend l’approbation d’Aaron, le service technique s’en occupe dès qu’il l’a validée.'}
+                </span>
+                {isAdmin && (
+                  <span style={{ display: 'inline-flex', gap: 8 }}>
+                    <CrmV2Button variant="primary" icon={<CheckCircle2 size={14} />} disabled={deciding} onClick={() => decide('approuve')}>
+                      Approuver
+                    </CrmV2Button>
+                    <CrmV2Button variant="secondary" disabled={deciding} onClick={() => decide('refuse')}>
+                      Refuser
+                    </CrmV2Button>
+                  </span>
+                )}
+              </div>
+            )}
+            {!awaitingApproval(t) && (t.status === 'nouveau' || t.status === 'en_cours') && (
               <div style={{ fontSize: 12, color: crmV2.textFaint, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <AdminSpin size={13} />
                 {t.status === 'en_cours' ? 'Le service technique travaille dessus…' : 'En attente de prise en charge (quelques minutes).'}

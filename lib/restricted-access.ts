@@ -16,6 +16,8 @@ export const RESTRICTED_PAGES = {
   'events': '/admin/crm-v2/events',
   'forms': '/admin/crm-v2/forms',
   'meta-ads': '/admin/crm-v2/meta-ads',
+  // Demandes soumises à l'approbation d'Aaron (support_tickets.approval_status, v84)
+  'service-technique': '/admin/crm-v2/service-technique',
 } as const
 
 export type RestrictedPage = keyof typeof RESTRICTED_PAGES

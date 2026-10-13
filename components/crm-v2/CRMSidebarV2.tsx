@@ -147,7 +147,9 @@ export default function CRMSidebarV2({ allowedKeys }: { allowedKeys?: string[] }
         const res = await fetch('/api/support/tickets?scope=all', { cache: 'no-store' })
         if (!res.ok) return
         const j = await res.json()
-        const toValidate = (j.tickets || []).filter((t: { status: string }) => t.status === 'validation').length
+        // PR à valider + demandes des comptes restreints à approuver (v84)
+        const toValidate = (j.tickets || []).filter((t: { status: string; approval_status?: string | null }) =>
+          t.status === 'validation' || t.approval_status === 'en_attente').length
         if (!cancelled) setSupportCount(toValidate + (j.unread || 0))
       } catch { /* ignore */ }
     }

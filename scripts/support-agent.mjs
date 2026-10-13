@@ -120,7 +120,9 @@ async function list(onlyAuthorId) {
 
   const now = Date.now()
   const todo = (tickets || []).filter(
-    t => t.status === 'nouveau' || !t.claimed_at || now - new Date(t.claimed_at).getTime() > STALE_CLAIM_MS,
+    t => (t.status === 'nouveau' || !t.claimed_at || now - new Date(t.claimed_at).getTime() > STALE_CLAIM_MS)
+      // Comptes restreints (v84) : on attend qu'Aaron approuve la demande dans le CRM
+      && (t.approval_status == null || t.approval_status === 'approuve'),
   )
   if (todo.length === 0) {
     console.log('AUCUN_TICKET')
@@ -140,8 +142,8 @@ async function list(onlyAuthorId) {
     console.log(`Auteur   : ${t.author_name} (${t.author_role})   Priorité : ${t.priority}   Statut : ${t.status}`)
     console.log(`Créé le  : ${t.created_at}   Page d'origine : ${t.page_url || '—'}`)
     console.log(
-      DIRECT_DEPLOY_USERS[t.author_id]
-        ? 'MODE     : DIRECT — mise en ligne directe sur main autorisée'
+      DIRECT_DEPLOY_USERS[t.author_id] || t.approval_status === 'approuve'
+        ? `MODE     : DIRECT — mise en ligne directe sur main autorisée${t.approval_status === 'approuve' ? ' (demande approuvée par Aaron dans le CRM)' : ''}`
         : 'MODE     : VALIDATION — modif de code uniquement via branche + PR, Aaron valide avant mise en ligne',
     )
     for (const m of messages || []) {

@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
-import { requireApiUser } from '@/lib/api-auth'
+import { requireApiUserOrPage } from '@/lib/api-auth'
 import { sanitizeAttachments } from '@/lib/support-server'
+import { RESTRICTED_ROLE } from '@/lib/restricted-access'
 
 /**
  * GET /api/support/tickets — tickets de l'utilisateur (admin : tous, ?scope=all)
  * POST /api/support/tickets — { title, body, priority, page_url, attachments[] }
  */
 export async function GET(req: NextRequest) {
-  const auth = await requireApiUser()
+  const auth = await requireApiUserOrPage('service-technique')
   if (!auth.ok) return auth.response
   const { ctx } = auth
 
@@ -31,7 +32,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireApiUser()
+  const auth = await requireApiUserOrPage('service-technique')
   if (!auth.ok) return auth.response
   const { ctx } = auth
 
@@ -58,6 +59,8 @@ export async function POST(req: NextRequest) {
       author_role: ctx.role,
       page_url: typeof body.page_url === 'string' ? body.page_url.slice(0, 500) : null,
       priority,
+      // Compte restreint : l'agent attend l'approbation d'Aaron
+      approval_status: ctx.role === RESTRICTED_ROLE ? 'en_attente' : null,
     })
     .select()
     .single()
