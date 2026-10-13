@@ -113,8 +113,10 @@ const TYPE_SHORT: Record<string, string> = {
   autre: 'Autre',
 }
 
-/** Légende : une couleur par marque (le type reste lisible dans le libellé). */
+/** Légende : fond / bordure de la couleur de la marque. */
 const CALENDAR_LEGEND_BRANDS = ['diploma', 'medibox', 'edumove'] as const
+/** Légende : pastille de couleur par type. */
+const CALENDAR_LEGEND_TYPES = ['webinaire', 'salon', 'jpo'] as const
 
 export type CalendarEventRow = {
   id: string
@@ -166,7 +168,10 @@ type CalItem = {
   time: string | null
   timeEnd: string | null
   startIso: number
+  /** Couleur de la marque (fond / bordure) — concurrents en jaune */
   color: { solid: string; soft: string; text: string }
+  /** Couleur du type (pastille) : webinaire, salon, JPO… */
+  typeColor: string
   typeShort: string
   sub: string
   href: string | null
@@ -229,6 +234,7 @@ function ourItem(ev: CalendarEventRow): CalItem {
     timeEnd: ev.event_time_end && /^\d{1,2}:\d{2}$/.test(ev.event_time_end) ? ev.event_time_end : null,
     startIso: new Date(ev.event_date).getTime(),
     color: EVENT_BRAND_COLORS[brandOf(ev)],
+    typeColor: (EVENT_TYPE_COLORS[type.id] || EVENT_TYPE_COLORS.autre).solid,
     typeShort: type.short,
     sub: `${BRAND_CONFIG[brandOf(ev)].name} · ${type.short}${ev.location ? ` · ${ev.location}` : ''}`,
     href: `/admin/crm/events/${ev.id}`,
@@ -249,6 +255,7 @@ function competitorItem(ev: CompetitorEvent): CalItem {
     timeEnd: ev.time_end,
     startIso: new Date(`${ev.start_date}T${ev.time_start || '00:00'}:00`).getTime(),
     color: COMPETITOR_COLOR,
+    typeColor: (EVENT_TYPE_COLORS[ev.event_type] || EVENT_TYPE_COLORS.autre).solid,
     typeShort,
     sub: `${who} · ${typeShort}${ev.location ? ` · ${ev.location}` : ''}`,
     href: null,
@@ -569,6 +576,14 @@ export default function EventsAgendaCalendar({ events, loading }: Props) {
               bg={EVENT_BRAND_COLORS[b].soft}
             />
           ))}
+          <span style={{ width: 1, height: 18, background: crmV2.border, margin: '0 2px' }} />
+          {CALENDAR_LEGEND_TYPES.map((typeId) => (
+            <span key={typeId} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: crmV2.textMuted }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: EVENT_TYPE_COLORS[typeId].solid }} />
+              {EVENT_TYPE_COLORS[typeId].label}
+            </span>
+          ))}
+          <span style={{ width: 1, height: 18, background: crmV2.border, margin: '0 2px' }} />
           <button
             type="button"
             onClick={toggleCompetitors}
@@ -721,7 +736,7 @@ export default function EventsAgendaCalendar({ events, loading }: Props) {
                             overflow: 'hidden',
                           }}
                         >
-                          <span style={{ width: 6, height: 6, borderRadius: '50%', background: it.color.solid, flexShrink: 0 }} />
+                          <span style={{ width: 8, height: 8, borderRadius: '50%', background: it.typeColor, flexShrink: 0 }} title={it.typeShort} />
                           <span style={{ color: it.color.text, flexShrink: 0 }}>
                             {it.kind === 'competitor' ? it.prefix : it.time}
                           </span>
@@ -838,6 +853,7 @@ export default function EventsAgendaCalendar({ events, loading }: Props) {
                             textOverflow: 'ellipsis',
                           }}
                         >
+                          <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: it.typeColor, marginRight: 5, verticalAlign: 'middle' }} title={it.typeShort} />
                           {it.prefix ? `${it.prefix} · ` : ''}
                           {it.name}
                         </ItemShell>
@@ -929,7 +945,7 @@ export default function EventsAgendaCalendar({ events, loading }: Props) {
                           }}
                         >
                           <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0, lineHeight: '15px' }}>
-                            <span style={{ width: 7, height: 7, borderRadius: '50%', background: it.color.solid, flexShrink: 0 }} />
+                            <span style={{ width: 8, height: 8, borderRadius: '50%', background: it.typeColor, flexShrink: 0 }} title={it.typeShort} />
                             <span
                               style={{
                                 fontSize: 12,
@@ -1039,6 +1055,7 @@ export default function EventsAgendaCalendar({ events, loading }: Props) {
                                   whiteSpace: 'nowrap',
                                 }}
                               >
+                                <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: it.typeColor, marginRight: 6, verticalAlign: 'middle' }} title={it.typeShort} />
                                 {it.name}
                               </div>
                               <div
