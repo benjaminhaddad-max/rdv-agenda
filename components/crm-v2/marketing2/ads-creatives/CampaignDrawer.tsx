@@ -2,19 +2,21 @@
 
 /**
  * Fiche d'une campagne (panneau à droite, ouvert au clic sur une ligne du tableau) :
- * dates, brief, dépôt des dossiers statique / vidéo et coche « campagne en ligne ».
+ * dates, brief, brief vidéo (3 scripts Claude modifiables), dépôt des dossiers
+ * statique / vidéo et coche « campagne en ligne ».
  */
 
 import { useState, type CSSProperties, type ReactNode } from 'react'
-import { Check, ChevronDown, ChevronRight, FileText, Image as ImageIcon, Megaphone, Pencil, Video } from 'lucide-react'
+import { Check, ChevronDown, ChevronRight, Clapperboard, FileText, Image as ImageIcon, Megaphone, Pencil, Video } from 'lucide-react'
 import { CrmV2Button, CrmV2Drawer } from '@/components/crm-v2/primitives'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import {
   campaignTypeLabel, diffDays, formatEuros, frDay, parisDay,
-  type AdsCreativesSettings, type AdsEventRow, type CreativeItem, type CreativeRole, type FolderFile,
+  type AdsCreativesSettings, type AdsEventRow, type CreativeItem, type CreativeRole, type FolderFile, type VideoScript,
 } from '@/lib/ads-creatives'
 import FolderLane from './FolderLane'
 import GuidePdfLane from './GuidePdfLane'
+import VideoScriptsLane from './VideoScriptsLane'
 import { adsStatus, creativeStatus, guidePdfStatus, type Status } from './status'
 import { TONES, funnelColor, pill, pilierColor, statusColor, typeColor } from './ui'
 
@@ -24,7 +26,7 @@ const typeColorStyle = (ev: AdsEventRow) => {
 }
 
 export default function CampaignDrawer({
-  ev, today, crm, settings, token, author, fileUrl, onAddFolder, onItemAdded, onRemove, onLaunched, onEdit, onSaveTime, onSaveLocation, onClose, flash,
+  ev, today, crm, settings, token, author, fileUrl, onAddFolder, onItemAdded, onRemove, onLaunched, onEdit, onSaveTime, onSaveLocation, onScriptsSaved, onClose, flash,
 }: {
   ev: AdsEventRow
   today: string
@@ -42,6 +44,8 @@ export default function CampaignDrawer({
   onSaveTime: (time: string) => void
   /** CRM : modifier le lieu (JPO / présentiel) depuis la fiche */
   onSaveLocation: (location: string) => void
+  /** Brief vidéo : scripts générés ou modifiés */
+  onScriptsSaved: (scripts: VideoScript[], at?: string | null) => void
   onClose: () => void
   flash: (m: string) => void
 }) {
@@ -215,6 +219,11 @@ export default function CampaignDrawer({
             />
           </Section>
         )}
+
+        {/* Brief vidéo : 3 scripts */}
+        <Section title="Brief vidéo · scripts" icon={<Clapperboard size={14} />} owner={settings?.video_owner_name}>
+          <VideoScriptsLane ev={ev} crm={crm} token={token} author={author} onSaved={onScriptsSaved} flash={flash} />
+        </Section>
 
         {/* Créas */}
         {(['static', 'video'] as const).map((role) => (

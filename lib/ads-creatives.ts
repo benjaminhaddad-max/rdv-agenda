@@ -165,6 +165,23 @@ export type AdsEventRow = {
   format_contenu: string | null
   direction_crea: string | null
   linked_webinars: string | null
+  /** Brief vidéo : 3 scripts (générés par Claude, modifiables) */
+  video_scripts: VideoScript[] | null
+  video_scripts_at: string | null
+}
+
+/** Un script de vidéo 20-30 s du brief vidéo (ads_campaigns.video_scripts). */
+export type VideoScript = {
+  angle: string
+  hook: string
+  structure: string
+  /** Déroulé scène par scène (plans + voix) */
+  script: string
+  /** Textes incrustés à l'écran */
+  on_screen: string
+  duration: number | null
+  edited_by: string | null
+  edited_at: string | null
 }
 
 /** YYYY-MM-DD du jour en Europe/Paris. */

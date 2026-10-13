@@ -486,6 +486,9 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
           onRemove={removeItem}
           onLaunched={(v) => setLaunched(opened, v)}
           onEdit={() => setEditing(opened)}
+          onScriptsSaved={(scripts, at) => setEvents((prev) => prev.map((e) => (e.id === opened.id
+            ? { ...e, video_scripts: scripts, video_scripts_at: at ?? e.video_scripts_at }
+            : e)))}
           onSaveTime={async (time) => {
             setEvents((prev) => prev.map((e) => (e.id === opened.id ? { ...e, event_time: time || null } : e)))
             const r = await fetch(`/api/ads-creatives/campaigns/${opened.id}`, {
