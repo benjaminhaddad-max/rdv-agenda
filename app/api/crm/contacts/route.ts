@@ -1982,7 +1982,7 @@ export async function GET(req: NextRequest) {
 
   // Nom du dernier / premier formulaire soumis.
   if (formEvent && !formEventParamResolved) {
-    const vals = splitMulti(formEvent).map(s => s.trim()).filter(Boolean)
+    const vals = splitFilterValues(formEvent)
     const quoteNames = (v: string) => `"${String(v).replace(/"/g, '\\"')}"`
     const nameList = vals.map(quoteNames).join(',')
     if (nameList) {
@@ -1992,7 +1992,7 @@ export async function GET(req: NextRequest) {
     }
   }
   if (formEventNot) {
-    const vals = splitMulti(formEventNot)
+    const vals = splitFilterValues(formEventNot)
     query = query.not('recent_conversion_event', 'in', toPostgrestInList(vals))
   }
 
