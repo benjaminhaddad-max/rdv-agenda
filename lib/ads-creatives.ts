@@ -3,7 +3,8 @@
  *
  * Une campagne (table ads_campaigns) par JPO / webinaire et par marque.
  * Dates (délais réglables par marque, ads_brand_settings) :
- *   allumage     = événement − launch_days   (Diploma 15 j, Medibox 21 j)
+ *   allumage     = événement − launch_days   (JPO : Diploma 15 j, Medibox 21 j)
+ *                  webinaire : événement − webinar_launch_days (10 j)
  *   livraison    = allumage − creas_days     (Diploma 7 j, Medibox 5 j)
  *   extinction   = événement + end_days      (0 = le jour de l'événement)
  * Une date saisie à la main sur la campagne remplace la date calculée.
@@ -25,11 +26,20 @@ export const ADS_EVENT_TYPES = ['jpo', 'webinaire'] as const
 export type AdsBrand = 'diploma' | 'medibox' | 'edumove'
 export const ADS_BRANDS: AdsBrand[] = ['diploma', 'medibox', 'edumove']
 
-export type BrandDelays = { brand: AdsBrand; launch_days: number; creas_days: number; end_days: number; guide_creas_days: number }
+export type BrandDelays = {
+  brand: AdsBrand
+  /** Allumage des JPO : événement − N jours */
+  launch_days: number
+  /** Allumage des webinaires : événement − N jours */
+  webinar_launch_days: number
+  creas_days: number
+  end_days: number
+  guide_creas_days: number
+}
 export const DEFAULT_DELAYS: Record<AdsBrand, BrandDelays> = {
-  diploma: { brand: 'diploma', launch_days: 15, creas_days: 7, end_days: 0, guide_creas_days: 7 },
-  edumove: { brand: 'edumove', launch_days: 15, creas_days: 7, end_days: 0, guide_creas_days: 7 },
-  medibox: { brand: 'medibox', launch_days: 21, creas_days: 5, end_days: 0, guide_creas_days: 7 },
+  diploma: { brand: 'diploma', launch_days: 15, webinar_launch_days: 10, creas_days: 7, end_days: 0, guide_creas_days: 7 },
+  edumove: { brand: 'edumove', launch_days: 15, webinar_launch_days: 10, creas_days: 7, end_days: 0, guide_creas_days: 7 },
+  medibox: { brand: 'medibox', launch_days: 21, webinar_launch_days: 10, creas_days: 5, end_days: 0, guide_creas_days: 7 },
 }
 
 export type CampaignKind = 'event' | 'guide'
@@ -176,8 +186,8 @@ export function diffDays(a: string, b: string): number {
 
 export function computeSchedule(
   eventDay: string,
-  delays: Pick<BrandDelays, 'launch_days' | 'creas_days' | 'end_days' | 'guide_creas_days'>,
-  overrides: { launch_date?: string | null; creas_date?: string | null; end_date?: string | null; kind?: CampaignKind } = {},
+  delays: Pick<BrandDelays, 'launch_days' | 'creas_days' | 'end_days' | 'guide_creas_days'> & { webinar_launch_days?: number },
+  overrides: { launch_date?: string | null; creas_date?: string | null; end_date?: string | null; kind?: CampaignKind; event_type?: string | null } = {},
 ): { campaign_start: string; creas_deadline: string; campaign_end: string } {
   if (overrides.kind === 'guide') {
     // Guide : eventDay = début de diffusion
@@ -188,7 +198,8 @@ export function computeSchedule(
       campaign_end: overrides.end_date || start,
     }
   }
-  const campaign_start = overrides.launch_date || addDays(eventDay, -delays.launch_days)
+  const launchDays = overrides.event_type === 'webinaire' ? (delays.webinar_launch_days ?? 10) : delays.launch_days
+  const campaign_start = overrides.launch_date || addDays(eventDay, -launchDays)
   return {
     campaign_start,
     creas_deadline: overrides.creas_date || addDays(campaign_start, -delays.creas_days),

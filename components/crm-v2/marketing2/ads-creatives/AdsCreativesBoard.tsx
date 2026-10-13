@@ -234,7 +234,7 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
           ? 'Webinaires, JPO et guides · toutes les campagnes de la marque'
           : kind === 'guide'
           ? `Guides téléchargeables · guide + créas livrés ${dl.guide_creas_days} j avant le début de diffusion`
-          : `JPO et webinaires · créas ${dl.creas_days} j avant l’allumage · allumage J-${dl.launch_days} · extinction ${dl.end_days ? `J+${dl.end_days}` : 'le jour de l’événement'}`}
+          : `JPO et webinaires · créas ${dl.creas_days} j avant l’allumage · allumage webinaires J-${dl.webinar_launch_days} · JPO J-${dl.launch_days} · extinction ${dl.end_days ? `J+${dl.end_days}` : 'le jour de l’événement'}`}
         actions={
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             <CrmV2Input
@@ -611,12 +611,15 @@ function SettingsCard({
       </div>
 
       <div style={{ ...settingsTitle, marginTop: 18 }}>Délais de campagne par marque (en jours)</div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: 12 }}>
         {ADS_BRANDS.map((b) => (
           <div key={b} style={{ padding: 12, borderRadius: crmV2.radius, border: `1px solid ${crmV2.borderLight}`, background: crmV2.bgHover }}>
             <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>{BRAND_CONFIG[b].name}</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-              <CrmV2Field label="Allumage J-">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
+              <CrmV2Field label="Webinaires J-">
+                <CrmV2Input type="number" min={0} value={dl[b].webinar_launch_days} onChange={(e) => setDelay(b, 'webinar_launch_days', Number(e.target.value))} />
+              </CrmV2Field>
+              <CrmV2Field label="JPO J-">
                 <CrmV2Input type="number" min={0} value={dl[b].launch_days} onChange={(e) => setDelay(b, 'launch_days', Number(e.target.value))} />
               </CrmV2Field>
               <CrmV2Field label="Créas avant">

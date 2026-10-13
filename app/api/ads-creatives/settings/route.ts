@@ -5,7 +5,7 @@ import { ADS_BRANDS } from '@/lib/ads-creatives'
 
 /**
  * PUT /api/ads-creatives/settings — responsables, relances (CRM).
- *   { delays: { medibox: { launch_days, creas_days, end_days, guide_creas_days } } } → délais par marque
+ *   { delays: { medibox: { launch_days, webinar_launch_days, creas_days, end_days, guide_creas_days } } } → délais par marque
  *   { regenerate_token: true } → nouveau lien partagé
  */
 export async function PUT(req: NextRequest) {
@@ -33,7 +33,7 @@ export async function PUT(req: NextRequest) {
       const d = body.delays[brand]
       if (!d) continue
       const row: Record<string, unknown> = { brand, updated_at: new Date().toISOString() }
-      for (const k of ['launch_days', 'creas_days', 'end_days', 'guide_creas_days'] as const) {
+      for (const k of ['launch_days', 'webinar_launch_days', 'creas_days', 'end_days', 'guide_creas_days'] as const) {
         if (d[k] == null) continue
         const n = Math.round(Number(d[k]))
         if (!Number.isFinite(n) || n < 0 || n > 120) return NextResponse.json({ error: `${brand} ${k} invalide` }, { status: 400 })
