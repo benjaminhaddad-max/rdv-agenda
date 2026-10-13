@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 import { createServiceClient } from '@/lib/supabase'
 import { formEventIlikePatterns } from '@/lib/form-event-names'
+import { splitFilterValues } from '@/lib/split-filter-values'
 
 type SupabaseClient = ReturnType<typeof createServiceClient>
 
@@ -35,7 +36,7 @@ function parseFilterValue(filterValue: string): {
   normalizedFormNames: string[]
   distinctPrefixes: string[]
 } {
-  const formNames = filterValue.split(',').map(s => s.trim()).filter(Boolean)
+  const formNames = splitFilterValues(filterValue)
   const normalizedFormNames = [...new Set(formNames)]
   const namesSet = new Set(normalizedFormNames)
   // Un formulaire daté (ex. "Immersion Médecine - 07/07/2026") ne doit pas

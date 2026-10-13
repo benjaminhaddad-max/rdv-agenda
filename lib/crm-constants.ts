@@ -1,4 +1,5 @@
 import { allInscriptionLeadStatuses } from '@/lib/inscription-status'
+import { splitFilterValues } from '@/lib/split-filter-values'
 /**
  * Constantes et types statiques utilisés sur la page CRM principale.
  * Extraits de app/admin/crm/page.tsx — pas de logique, juste des données.
@@ -376,7 +377,7 @@ export function filterGroupsToLegacyFilters(groups: CRMFilterGroup[]): Record<st
   if (!firstGroup) return filters
 
   const pushMulti = (key: string, raw: string) => {
-    const vals = raw.split(',').map(s => s.trim()).filter(Boolean)
+    const vals = splitFilterValues(raw)
     if (vals.length === 0) return
     filters[key] = vals.length > 1 ? vals : vals[0]
   }

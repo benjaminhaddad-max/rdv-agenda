@@ -5,6 +5,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { CRMFilterGroup } from '@/lib/crm-constants'
 import { applyFormEventResultToQuery, resolveFormEventFilter } from '@/lib/form-event-resolver'
+import { splitFilterValues } from '@/lib/split-filter-values'
 
 export interface SavedViewAudienceContact {
   contact_id: string
@@ -17,7 +18,7 @@ const CONTACT_COLUMNS =
   'hubspot_contact_id, email, firstname, lastname, closer_du_contact_owner_id, recent_conversion_event, telepro_user_id, hubspot_owner_id'
 
 function splitCsv(raw: string): string[] {
-  return raw.split(',').map(s => s.trim()).filter(Boolean)
+  return splitFilterValues(raw)
 }
 
 async function collectFormEventExcludeIds(

@@ -14,6 +14,7 @@ import { META_BACKFILL_TERM_IDF_VIEW_ID, resolveMetaBackfillTermIdfContactIds } 
 import { overlaySavedViewParams, type CRMSavedView } from '@/lib/crm-views'
 import { resolveLabCallbackContactIds, fetchLabAppLeadAggregatesCached, filterLabAppLeads } from '@/lib/crm-lab-callbacks'
 import { resolveInscriptionProgrammeContactIds } from '@/lib/inscription-programmes'
+import { splitFilterValues } from '@/lib/split-filter-values'
 
 // Classes prioritaires — filtre SQL via .in()
 const PRIORITY_CLASSES = ['Seconde', 'Première', 'Terminale']
@@ -306,7 +307,7 @@ export async function GET(req: NextRequest) {
   }
 
   async function resolveFormEventContainsContactIds(rawValue: string): Promise<string[]> {
-    const tokens = rawValue.split(',').map(s => s.trim()).filter(Boolean)
+    const tokens = splitFilterValues(rawValue)
     if (tokens.length === 0) return []
     const ids = new Set<string>()
 
@@ -1257,7 +1258,7 @@ export async function GET(req: NextRequest) {
   // Objectif: accélérer drastiquement le chargement des leads "classiques".
   // Edumove (hybrid) : recent_conversion_event:=[noms] || hubspot_contact_id:=[meta].
   // Linova (ids) : hubspot_contact_id:=[...] en batchs.
-  const splitMultiLocal = (v: string) => v.split(',').map(s => s.trim()).filter(Boolean)
+  const splitMultiLocal = (v: string) => splitFilterValues(v)
   const formEventValues = splitMultiLocal(formEvent)
   const formEventNotValues = splitMultiLocal(formEventNot)
   const isLinovaFormEventFilter =
@@ -2225,12 +2226,12 @@ export async function GET(req: NextRequest) {
         case 'contains': query = query.ilike(col, `%${val}%`); break
         case 'not_contains': query = query.not(col, 'ilike', `%${val}%`); break
         case 'is_any': {
-          const vals = val.split(',').filter(Boolean)
+          const vals = splitFilterValues(val)
           if (vals.length > 0) query = query.in(col, vals)
           break
         }
         case 'is_none': {
-          const vals = val.split(',').filter(Boolean)
+          const vals = splitFilterValues(val)
           if (vals.length > 0) query = query.not(col, 'in', toPostgrestInList(vals))
           break
         }

@@ -20,9 +20,10 @@ import {
   v2MenuPanel, v2Option, v2OptionHover, v2PillTrigger, v2FieldTrigger,
   V2Chevron, V2RoundCheck, V2MenuSearch, V2MenuEmpty, V2MenuDivider,
 } from '@/components/crm-v2/filters/styles'
+import { splitFilterValues } from '@/lib/split-filter-values'
 
 function splitCsvIds(value: string): string[] {
-  return value ? value.split(',').map(s => s.trim().normalize('NFC')).filter(Boolean) : []
+  return splitFilterValues(value).map(s => s.normalize('NFC'))
 }
 
 // ── Multi-select dropdown for filters ─────────────────────────────────────

@@ -22,6 +22,7 @@ import {
   UNTREATED_LEAD_STATUSES,
 } from './crm-attribution-buckets'
 import { INSCRIPTION_PROGRAMMES } from './inscription-programmes'
+import { splitFilterValues } from '@/lib/split-filter-values'
 
 export const SUBVIEW_RULE_PREFIX = 'sv_'
 
@@ -50,7 +51,7 @@ const NEGATIVE_OPS: CRMFilterOp[] = ['is_not', 'is_none']
 /** Champs résolus côté API par familles : jamais fusionnés entre règles. */
 const RESOLVED_FIELDS = new Set<string>(['lab_app', 'lab_callback', 'inscription_programme'])
 
-const splitValues = (v: string) => v.split(',').map(s => s.trim()).filter(Boolean)
+const splitValues = (v: string) => splitFilterValues(v)
 
 function parentRules(parent: CRMSavedView): CRMFilterRule[] {
   return parent.groups[0]?.rules ?? []

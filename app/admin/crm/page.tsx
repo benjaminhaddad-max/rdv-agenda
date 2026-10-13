@@ -67,6 +67,7 @@ import {
   V2FilterMultiPill, V2FilterPill, V2AdvancedFiltersLink, V2ToolbarLink, V2ActiveChip,
   V2ContactsPager, V2InlineSpinner,
 } from '@/components/crm-v2/contacts-list/ContactsListParts'
+import { splitFilterValues } from '@/lib/split-filter-values'
 
 // Composants UI extraits dans @/components/crm/*
 
@@ -92,7 +93,7 @@ function isLinovaGroups(groups: CRMFilterGroup[]): boolean {
   if (!first || !Array.isArray(first.rules)) return false
   const rule = first.rules.find(r => r.field === 'form_event' && r.operator === 'is_any')
   if (!rule?.value) return false
-  const vals = rule.value.split(',').map(v => v.trim()).filter(Boolean)
+  const vals = splitFilterValues(rule.value)
   return LINOVA_FORM_NAMES.every(name => vals.includes(name))
 }
 
@@ -2202,8 +2203,8 @@ export default function CRMPage() {
       {stage && <V2ActiveChip label={stage.includes(',') ? `${stage.split(',').length} étapes` : STAGE_OPTIONS.find(o => o.id === stage)?.label ?? stage} onRemove={() => { setStage(''); scheduleRefetch() }} />}
       {closerContactHsId && <V2ActiveChip label={closerContactHsId.includes(',') ? `${closerContactHsId.split(',').length} closers` : closerOptions.find(o => o.id === closerContactHsId)?.label ?? 'Closer du contact'} onRemove={() => { setCloserContactHsId(''); scheduleRefetch() }} />}
       {teleproHsId && <V2ActiveChip label={teleproHsId.includes(',') ? `${teleproHsId.split(',').length} télépros` : teleproOptions.find(o => o.id === teleproHsId)?.label ?? 'Télépro'} onRemove={() => { setTeleproHsId(''); scheduleRefetch() }} />}
-      {formEvent && <V2ActiveChip label={formEvent.includes(',') ? `${formEvent.split(',').length} formulaires` : formEvent} onRemove={() => { setFormEvent(''); scheduleRefetch() }} />}
-      {formEventNot && <V2ActiveChip label={`Formulaire ≠ ${formEventNot.includes(',') ? `${formEventNot.split(',').length} valeurs` : formEventNot}`} onRemove={() => { setFormEventNot(''); scheduleRefetch() }} />}
+      {formEvent && <V2ActiveChip label={splitFilterValues(formEvent).length > 1 ? `${splitFilterValues(formEvent).length} formulaires` : formEvent} onRemove={() => { setFormEvent(''); scheduleRefetch() }} />}
+      {formEventNot && <V2ActiveChip label={`Formulaire ≠ ${splitFilterValues(formEventNot).length > 1 ? `${splitFilterValues(formEventNot).length} valeurs` : formEventNot}`} onRemove={() => { setFormEventNot(''); scheduleRefetch() }} />}
       {period && <V2ActiveChip label={PERIOD_OPTIONS.find(o => o.id === period)?.label ?? period} onRemove={() => setPeriod('')} />}
       {search && <V2ActiveChip label={`« ${search} »`} onRemove={() => { setSearch(''); scheduleRefetch() }} />}
       <V2ToolbarLink tone="danger" icon={<X size={13} />} onClick={() => { resetAll(); scheduleRefetch() }}>
