@@ -208,20 +208,35 @@ export function ConversionByKindStrip({ data, userId, from, to, onDone }: {
   if (!s || !bt || !s.talk2) return null
 
   const card = (title: string, hint: string, color: string, b: TypeBucket) => {
+    // « Conclu » = RDV fixé pendant l'appel, ou vente directe (petite offre
+    // 490-690 € : lien d'inscription envoyé et accepté au téléphone, sans RDV).
     const won = b.rdv + b.offre
     const rate = b.talk2 ? Math.round((won / b.talk2) * 100) : null
     return (
       <div title={hint} style={{ background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderLeft: `4px solid ${color}`, borderRadius: 10, padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 2 }}>
         <span style={{ fontSize: 10.5, fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{title}</span>
-        <span style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 22, fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: rate == null ? crmV2.textFaint : rate >= 60 ? crmV2.successStrong : rate >= 35 ? '#d97706' : '#dc2626' }}>
-            {rate == null ? '—' : `${rate} %`}
-          </span>
-          <span style={{ fontSize: 12.5, color: crmV2.textMuted }}>
-            {b.talk2 ? <>{b.talk2} appel{b.talk2 > 1 ? 's' : ''} ≥ 2 min → <strong style={{ color: crmV2.text }}>{b.rdv} RDV</strong></> : 'aucun appel ≥ 2 min'}
-            {b.offre > 0 && <> + <strong style={{ color: crmV2.text }}>{b.offre} petite{b.offre > 1 ? 's' : ''} offre{b.offre > 1 ? 's' : ''}</strong></>}
-          </span>
-        </span>
+        {b.talk2 ? (
+          <>
+            <span style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 22, fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: rate == null ? crmV2.textFaint : rate >= 60 ? crmV2.successStrong : rate >= 35 ? '#d97706' : '#dc2626' }}>
+                {rate} %
+              </span>
+              <span style={{ fontSize: 12.5, color: crmV2.textMuted }}>
+                de conversations conclues : <strong style={{ color: crmV2.text }}>{won} sur {b.talk2}</strong>
+              </span>
+            </span>
+            <span style={{ fontSize: 12, color: crmV2.textMuted }}>
+              <strong style={{ color: crmV2.text }}>{b.rdv} RDV pris</strong>
+              {b.offre > 0 && (
+                <span title="Pas de RDV : le télépro a vendu directement une petite offre (≈ 490-690 €), le prospect a accepté le lien d'inscription pendant l'appel">
+                  {' · '}<strong style={{ color: crmV2.successStrong }}>{b.offre} vente{b.offre > 1 ? 's' : ''} directe{b.offre > 1 ? 's' : ''}</strong> (lien d&apos;inscription accepté, sans RDV)
+                </span>
+              )}
+            </span>
+          </>
+        ) : (
+          <span style={{ fontSize: 12.5, color: crmV2.textFaint }}>aucune conversation de 2 min ou plus</span>
+        )}
       </div>
     )
   }
@@ -249,8 +264,8 @@ export function ConversionByKindStrip({ data, userId, from, to, onDone }: {
       </div>
       {error && <AdminNotice tone="error">{error}</AdminNotice>}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 8 }}>
-        {card('Appels froids · ≥ 2 min → RDV', "Premier vrai échange avec le lead (lead froid, candidature…), d'après la conversation", KIND_COLORS.premier_appel, bt.froid)}
-        {card('Relances & suivis · ≥ 2 min → RDV', "On s'était déjà parlé, ou RDV / inscription déjà en cours, d'après la conversation", KIND_COLORS.relance, bt.relance)}
+        {card('Appels froids de 2 min ou plus', "Premier vrai échange avec le lead (lead froid, candidature…), d'après la conversation. Conclu = RDV pris ou vente directe.", KIND_COLORS.premier_appel, bt.froid)}
+        {card('Relances & suivis de 2 min ou plus', "On s'était déjà parlé, ou RDV / inscription déjà en cours, d'après la conversation. Conclu = RDV pris ou vente directe.", KIND_COLORS.relance, bt.relance)}
       </div>
     </div>
   )

@@ -199,7 +199,7 @@ type Row = {
   froid?: TypeBucket | null
 }
 
-/** Taux « ≥ 2 min → RDV » des appels froids (RDV + petites offres vendues), en %. */
+/** Part des appels froids ≥ 2 min conclus (RDV pris + ventes directes), en %. */
 function coldRate(f: TypeBucket | null | undefined): number | null {
   return f?.talk2 ? Math.round(((f.rdv + f.offre) / f.talk2) * 1000) / 10 : null
 }
@@ -730,7 +730,7 @@ const TELEPRO_COLS: Col[] = [
   { key: 'avgTalk2', label: 'Durée moy. ≥ 2 min', title: 'Durée moyenne des conversations de 2 minutes ou plus', defaultHidden: true },
   { key: 'talk', label: "Temps d'appel", title: 'Temps de conversation réel' },
   { key: 'rdv', label: 'RDV placés', title: 'Tous les RDV placés, même sans appel (SMS, etc.)' },
-  { key: 'talk2Rdv', label: 'Froid → RDV', title: "Appels froids ≥ 2 min qui finissent en RDV (ou petite offre) : lu par l'IA dans chaque appel, CRM en attendant l'analyse" },
+  { key: 'talk2Rdv', label: 'Froid conclus', title: "Part des appels froids de 2 min ou plus conclus : RDV pris, ou vente directe (petite offre 490-690 € par lien d'inscription, sans RDV). Lu par l'IA dans chaque appel, CRM en attendant l'analyse" },
   { key: 'minPerRdv', label: 'Min / RDV', title: "Minutes d'appel par RDV placé" },
   { key: 'venus', label: 'RDV venus', title: 'Le closer a saisi une issue (ni no-show ni annulé) — et part des RDV placés' },
   { key: 'noShow', label: 'No-show', defaultHidden: true },
@@ -1381,7 +1381,7 @@ function MemberStatsStrip({ s, froid }: { s: AgentMetrics; froid?: TypeBucket | 
     ["Temps d'appel", fmtMinutes(s.talk_time_sec)],
     ['RDV placés', fmtInt(s.rdv_total)],
     froid
-      ? ['Froid → RDV', froid.talk2 ? <span key="c" style={{ color: rateColor(coldRate(froid), 60, 35) }}>{fmtPct(coldRate(froid))}</span> : '—', froid.talk2 ? `${froid.rdv + froid.offre} RDV` : undefined]
+      ? ['Froid conclus', froid.talk2 ? <span key="c" style={{ color: rateColor(coldRate(froid), 60, 35) }}>{fmtPct(coldRate(froid))}</span> : '—', froid.talk2 ? `${froid.rdv + froid.offre} / ${froid.talk2}` : undefined]
       : ['≥ 2 min → RDV', <span key="c" style={{ color: rateColor(s.conversion_talk_2min, 60, 35) }}>{fmtPct(s.conversion_talk_2min)}</span>],
     ['Min / RDV', mpr != null ? `${mpr} min` : '—'],
     ['RDV venus', fmtInt(s.rdv_venus), fmtPct(pct(s.rdv_venus, s.rdv_total))],
