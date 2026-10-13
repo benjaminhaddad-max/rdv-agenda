@@ -8,6 +8,7 @@ import {
 } from '@/components/crm-v2/primitives'
 import { AdsBanner, AdsFaint, AdsIconTile, AdsMobileRow, AdsPillSelect, adsSpin } from '@/components/crm-v2/marketing2/ads/ui'
 import { GoogleCampaignDetail } from '@/components/crm-v2/marketing2/ads/GoogleCampaignDetail'
+import AdsSeasonality from '@/components/crm-v2/marketing2/ads/AdsSeasonality'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import { useIsMobile } from '@/lib/useIsMobile'
 
@@ -311,6 +312,16 @@ export default function AdsDashboardPage() {
             currency={data?.currency || googleData?.currency || 'EUR'}
             isMobile={isMobile}
             macro
+          />
+        )}
+
+        {!loadingAccounts && (
+          <AdsSeasonality
+            accountId={selectedAccount}
+            hasMeta={hasAccounts}
+            refreshToken={refreshToken}
+            currency={data?.currency || googleData?.currency || 'EUR'}
+            isMobile={isMobile}
           />
         )}
 
