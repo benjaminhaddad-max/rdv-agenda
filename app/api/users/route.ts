@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { requireApiRole, requireApiUser } from '@/lib/api-auth'
+import { DEMO_ACCOUNT_LOCKED_ERROR } from '@/lib/demo-mode'
 import { sendBrevoEmail } from '@/lib/brevo'
 import { TEAM_ROLES } from '@/lib/team-roles'
 
@@ -320,9 +321,11 @@ export async function DELETE(req: NextRequest) {
   const db = createServiceClient()
   const { data: row } = await db
     .from('rdv_users')
-    .select('auth_id')
+    .select('auth_id, is_demo')
     .eq('id', id)
     .maybeSingle()
+
+  if (row?.is_demo) return NextResponse.json({ error: DEMO_ACCOUNT_LOCKED_ERROR }, { status: 403 })
 
   if (row?.auth_id) {
     try {

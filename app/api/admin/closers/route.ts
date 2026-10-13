@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { requireApiRole } from '@/lib/api-auth'
+import { DEMO_ACCOUNT_LOCKED_ERROR } from '@/lib/demo-mode'
 import { isHubspotHardOff } from '@/lib/hubspot-hard-off'
 
 const HUBSPOT_TOKEN = process.env.HUBSPOT_ACCESS_TOKEN
@@ -178,12 +179,16 @@ export async function PATCH(req: NextRequest) {
 
   const { data: cl, error: findErr } = await db
     .from('rdv_users')
-    .select('id, name, email, auth_id, hubspot_user_id')
+    .select('id, name, email, auth_id, hubspot_user_id, is_demo')
     .eq('id', userId)
     .single()
 
   if (findErr || !cl?.auth_id) {
     return NextResponse.json({ error: 'Closer introuvable ou sans compte' }, { status: 404 })
+  }
+
+  if (cl.is_demo && (action === 'ban' || action === 'reset-password')) {
+    return NextResponse.json({ error: DEMO_ACCOUNT_LOCKED_ERROR }, { status: 403 })
   }
 
   if (action === 'ban') {

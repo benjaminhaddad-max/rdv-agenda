@@ -16,6 +16,15 @@ import type { ApiUserContext } from '@/lib/api-auth'
 
 export const DEMO_CONTACT_PREFIX = 'DEMO_'
 
+/**
+ * Le compte démo sert à la review Apple : le désactiver, le supprimer ou
+ * changer son mot de passe bloque la review (identifiants figés dans App Store
+ * Connect — désactivation accidentelle le 11/10/2026 → refus Apple).
+ */
+export const DEMO_ACCOUNT_LOCKED_ERROR =
+  "Compte démo de la review Apple : il ne peut pas être désactivé, supprimé ni changer de mot de passe."
+
+
 export function isDemoContactId(id: string | null | undefined): boolean {
   return !!id && id.startsWith(DEMO_CONTACT_PREFIX)
 }

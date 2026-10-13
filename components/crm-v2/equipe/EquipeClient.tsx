@@ -61,6 +61,8 @@ type EquipeMember = TeamMember & {
   is_default_brand_telepro: boolean
   hubspot_owner_id: string | null
   last_sign_in_at: string | null
+  /** Compte démo de la review Apple : ni désactivation, ni suppression, ni nouveau mot de passe */
+  is_demo?: boolean
 }
 
 const TEAMS: Record<Tab, {
@@ -1597,11 +1599,13 @@ function AccountSettings({
           {MAIN_ROLES.map(r => <option key={r} value={r}>{TEAM_ROLE_LABELS[r]}</option>)}
         </CrmV2Select>
       </div>
-      <div style={{ marginLeft: 'auto', alignSelf: 'flex-end' }}>
-        <CrmV2Button size="sm" variant="secondary" icon={<Trash2 size={13} />} onClick={remove} disabled={busy}>
-          Supprimer le compte
-        </CrmV2Button>
-      </div>
+      {!member.is_demo && (
+        <div style={{ marginLeft: 'auto', alignSelf: 'flex-end' }}>
+          <CrmV2Button size="sm" variant="secondary" icon={<Trash2 size={13} />} onClick={remove} disabled={busy}>
+            Supprimer le compte
+          </CrmV2Button>
+        </div>
+      )}
       {error && <AdminNotice tone="error" style={{ flexBasis: '100%' }}>{error}</AdminNotice>}
     </div>
   )
@@ -1659,15 +1663,25 @@ function useAccountActions(tab: Tab, row: Row, onPatch: (id: string, patch: Part
 
   const impersonate = team.impersonateUrl(m)
   const banned = m.is_banned
+  // Compte démo Apple : identifiants figés dans App Store Connect → seul « Réactiver » reste possible
+  const demoLocked = !!m.is_demo && !banned
   const actions = (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, flexShrink: 0 }}>
-      {!banned && m.auth_id && (
+      {m.is_demo && (
+        <span
+          title="Compte utilisé par Apple pour vérifier l'app Hub Diploma — ne pas désactiver ni changer son mot de passe"
+          style={{ fontSize: 11, fontWeight: 600, color: crmV2.textMuted, whiteSpace: 'nowrap' }}
+        >
+          Démo Apple
+        </span>
+      )}
+      {!banned && !demoLocked && m.auth_id && (
         <AdminIconButton icon={<Key size={14} />} title="Identifiants : générer un nouveau mot de passe" onClick={resetPassword} disabled={busy} />
       )}
       {!banned && impersonate && (
         <AdminIconButton icon={<LogIn size={14} />} title={`Se connecter en tant que ce ${team.noun}`} onClick={() => window.open(impersonate, '_blank')} />
       )}
-      {m.auth_id && (
+      {m.auth_id && !demoLocked && (
         <AdminIconButton
           icon={banned ? <UserCheck size={14} /> : <UserX size={14} />}
           title={banned ? 'Réactiver' : 'Désactiver'}

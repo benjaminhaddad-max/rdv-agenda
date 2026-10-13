@@ -57,6 +57,7 @@ export async function GET(req: NextRequest) {
         extra_roles: normalizeExtraRoles(u.extra_roles),
         crm_brand: u.crm_brand ?? null,
         is_default_brand_telepro: !!u.is_default_brand_telepro,
+        is_demo: !!u.is_demo,
         is_banned: bannedUntil ? new Date(bannedUntil).getTime() > now : false,
         last_sign_in_at: authUser?.last_sign_in_at ?? null,
       }
