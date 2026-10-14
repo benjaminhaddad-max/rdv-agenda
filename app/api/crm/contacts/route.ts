@@ -27,6 +27,18 @@ async function getPriorPreinscStageIds(): Promise<string[]> {
   return []
 }
 
+/** Au-delà, une liste d'IDs dans l'URL dépasse la limite de Supabase (~20 000 caractères). */
+const SCOPE_IDS_URL_MAX = 1000
+let contactsByIdsRpcOk: boolean | null = null
+/** crm_contacts_by_ids (migration v88) existe-t-elle ? Mémorisé par instance une fois trouvée. */
+async function contactsByIdsRpcAvailable(db: ReturnType<typeof createServiceClient>): Promise<boolean> {
+  if (contactsByIdsRpcOk) return true
+  const { error } = await db.rpc('crm_contacts_by_ids', { ids: [] }).select('hubspot_contact_id').limit(1)
+  contactsByIdsRpcOk = !error
+  if (error) console.warn('[contacts] crm_contacts_by_ids indisponible (migration v88 ?) :', error.message)
+  return contactsByIdsRpcOk
+}
+
 export async function GET(req: NextRequest) {
   const startedAt = Date.now()
   let engine = 'sql'
@@ -1744,16 +1756,48 @@ export async function GET(req: NextRequest) {
   // → Dès qu'un filtre "qui réduit fortement le scope" est actif, on bascule
   //   en 'exact' (la query est de toute façon rapide sur un index ciblé).
   const sortUsesDealTable = sortInfo.foreignTable === 'crm_deals'
+  // Filtres résolus en amont → liste de contact_ids
+  // (form_event historique complet + segment dédié Meta ADS).
+  let scopedContactIds: string[] | null = null
+  if (formEventContactIds !== null && metaLeadAdsContactIds !== null) {
+    const b = new Set(metaLeadAdsContactIds)
+    scopedContactIds = formEventContactIds.filter(id => b.has(id))
+  } else if (formEventContactIds !== null) {
+    scopedContactIds = formEventContactIds
+  } else if (metaLeadAdsContactIds !== null) {
+    scopedContactIds = metaLeadAdsContactIds
+  }
+  // Demande de rappel Lab : intersection avec les filtres ci-dessus (ET).
+  if (labCallbackContactIds !== null) {
+    if (scopedContactIds === null) {
+      scopedContactIds = labCallbackContactIds
+    } else {
+      const b = new Set(labCallbackContactIds)
+      scopedContactIds = scopedContactIds.filter(id => b.has(id))
+    }
+  }
+  // Longue liste d'IDs (> ~1 600 → URL trop longue, « 400 Bad Request ») :
+  // on part de la fonction crm_contacts_by_ids (v88), appelée en POST, au lieu
+  // d'un .in() dans l'URL. Filtres, tri, pagination et compteur restent identiques.
+  const scopeViaRpc = scopedContactIds !== null && scopedContactIds.length > SCOPE_IDS_URL_MAX
+    && await contactsByIdsRpcAvailable(db)
+  const contactsSource = (count?: 'exact' | 'planned' | 'estimated') => scopeViaRpc
+    ? db.rpc('crm_contacts_by_ids', { ids: scopedContactIds }, count ? { count } : undefined)
+    : db.from('crm_contacts')
+
   // Count-only ultra léger : pas d'embed deals, pas de tri.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query: any
   if (countOnly) {
-    query = db
-      .from('crm_contacts')
-      .select('hubspot_contact_id', { count: countMode, head: true })
+    query = scopeViaRpc
+      // HEAD mettrait la liste dans l'URL : POST + 1 ligne, le total vient du compteur
+      ? contactsSource(countMode).select('hubspot_contact_id').limit(1)
+      : db.from('crm_contacts').select('hubspot_contact_id', { count: countMode, head: true })
   } else {
-    query = db
-      .from('crm_contacts')
+    query = scopeViaRpc
+      ? contactsSource(deferCount ? undefined : countMode)
+      : db.from('crm_contacts')
+    query = query
       .select(
         `hubspot_contact_id, firstname, lastname, email, phone,
          departement, classe_actuelle, zone_localite,
@@ -1765,7 +1809,7 @@ export async function GET(req: NextRequest) {
            hubspot_owner_id, teleprospecteur, closedate, createdate,
            supabase_appt_id
          )` : ''}`,
-        deferCount ? undefined : { count: countMode }
+        scopeViaRpc || deferCount ? undefined : { count: countMode }
       )
     if (sortUsesDealTable) {
       // Si le tri dépend de crm_deals, on garde l'embed (et on limite à 1 deal).
@@ -2043,27 +2087,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Filtres résolus en amont → liste de contact_ids
-  // (form_event historique complet + segment dédié Meta ADS).
-  let scopedContactIds: string[] | null = null
-  if (formEventContactIds !== null && metaLeadAdsContactIds !== null) {
-    const b = new Set(metaLeadAdsContactIds)
-    scopedContactIds = formEventContactIds.filter(id => b.has(id))
-  } else if (formEventContactIds !== null) {
-    scopedContactIds = formEventContactIds
-  } else if (metaLeadAdsContactIds !== null) {
-    scopedContactIds = metaLeadAdsContactIds
-  }
-  // Demande de rappel Lab : intersection avec les filtres ci-dessus (ET).
-  if (labCallbackContactIds !== null) {
-    if (scopedContactIds === null) {
-      scopedContactIds = labCallbackContactIds
-    } else {
-      const b = new Set(labCallbackContactIds)
-      scopedContactIds = scopedContactIds.filter(id => b.has(id))
-    }
-  }
-  if (scopedContactIds !== null) {
+  if (scopedContactIds !== null && !scopeViaRpc) {
     if (scopedContactIds.length === 0) {
       // Aucun contact ne matche → force resultat vide
       query = query.eq('hubspot_contact_id', '__no_match__')
