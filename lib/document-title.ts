@@ -16,6 +16,7 @@ const EXACT_TITLES: Record<string, string> = {
   '/admin/crm/agenda': 'Agenda',
   '/admin/crm/transactions': 'Transactions',
   '/admin/crm/tasks': 'Mes tâches',
+  '/admin/crm/reattribution': 'Réattribution',
   '/admin/crm/import': 'Import CSV',
   '/admin/crm/doublons': 'Doublons',
   '/admin/crm/recherche-prop': 'Recherche propriété',

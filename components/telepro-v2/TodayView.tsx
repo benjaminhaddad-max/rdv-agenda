@@ -17,10 +17,12 @@ import { CrmV2Button, CrmV2Input } from '@/components/crm-v2/primitives'
 import { AdminNotice, AdminSpin } from '@/components/crm-v2/admin/AdminUi'
 import { SCORE_LEVELS } from '@/lib/lead-score'
 import type { TodayData, TodayGoals, TodayLead, TodayReason } from '@/lib/telepro-today'
+import TransferBadge from '@/components/TransferBadge'
 
 type ApiData = TodayData & { goals_default: TodayGoals; can_edit_goals: boolean }
 
 const REASONS: { id: TodayReason; label: string; color: string }[] = [
+  { id: 'transfert', label: 'Transférés par un collègue', color: '#ea580c' },
   { id: 'repop', label: 'Retombé via une nouvelle source', color: '#dc2626' },
   { id: 'relance', label: 'À relancer', color: '#d97706' },
   { id: 'nouveau', label: 'Nouveaux jamais appelés', color: '#0891b2' },
@@ -270,6 +272,7 @@ function PhoneLink({ phone }: { phone: string }) {
 function reasonWhen(lead: TodayLead): string {
   if (lead.reason === 'repop' && lead.form_at) return `Retombé ${when(lead.form_at)}${lead.form_name ? ` · ${lead.form_name}` : ''}`
   if (lead.reason === 'nouveau' && lead.created_at) return `Arrivé ${when(lead.created_at)}`
+  if (lead.reason === 'transfert' && lead.transfer) return `Transféré ${when(lead.transfer.created_at)}${lead.transfer.from_name ? ` · avant : ${lead.transfer.from_name}` : ''}`
   return ''
 }
 
@@ -293,6 +296,11 @@ function LeadRow({ lead, first, open, onToggle, isMobile }: { lead: TodayLead; f
             style={{ fontSize: 13.5, fontWeight: 700, color: crmV2.link, textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {lead.name}
           </a>
+          {lead.transfer && (
+            <span onClick={e => e.stopPropagation()} style={{ display: 'inline-flex', marginTop: 2 }}>
+              <TransferBadge info={lead.transfer} />
+            </span>
+          )}
           <span style={{ fontSize: 11.5, color: crmV2.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {[lead.classe, lead.lead_status].filter(Boolean).join(' · ')}
             {isMobile && ` · ${reason.label}`}

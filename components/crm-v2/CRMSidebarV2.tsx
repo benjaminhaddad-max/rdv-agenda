@@ -8,7 +8,7 @@ import {
   ChevronLeft, ChevronRight, ChevronDown, LogOut, Calendar, CalendarDays,
   BarChart3, CheckSquare, Workflow, Upload, GitMerge, Settings as SettingsIcon,
   Facebook, AlertTriangle, MessageSquare, Menu, X, List,
-  Palette, Repeat2, FileSignature, Phone, ExternalLink, Presentation, PhoneCall, LifeBuoy, Star, ChevronsDownUp, ChevronsUpDown, School,
+  Palette, Repeat2, FileSignature, Phone, ExternalLink, Presentation, PhoneCall, LifeBuoy, Star, ChevronsDownUp, ChevronsUpDown, School, Forward,
 } from 'lucide-react'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { crmV2 } from '@/lib/crm-v2-theme'
@@ -31,7 +31,7 @@ interface NavSection {
 
 /** Toutes les routes sidebar ont une page V2 (redesign ou bridge classique). */
 const READY = new Set([
-  'crm-dashboard', 'agenda', 'contacts', 'transactions', 'tasks',
+  'crm-dashboard', 'agenda', 'contacts', 'reattribution', 'transactions', 'tasks',
   'import', 'doublons', 'recherche-prop', 'proprietes', 'users', 'parametres',
   'campaigns', 'programs', 'mkt-lists', 'brands', 'segments', 'templates',
   'workflows', 'forms', 'meta-ads', 'ads-dashboard', 'creas-ads', 'sms-factor', 'events',
@@ -46,6 +46,7 @@ const NAV_SECTIONS: NavSection[] = [
       { key: 'crm-dashboard', label: 'Dashboard', href: '/admin/crm-v2/dashboard', icon: LayoutDashboard, ready: true },
       { key: 'agenda', label: 'Agenda', href: '/admin/crm-v2/agenda', icon: Calendar, ready: true },
       { key: 'contacts', label: 'Contacts', href: '/admin/crm-v2', icon: Users, ready: true },
+      { key: 'reattribution', label: 'Réattribution', href: '/admin/crm-v2/reattribution', icon: Forward, ready: true },
       { key: 'tasks', label: 'Mes tâches', href: '/admin/crm-v2/tasks', icon: CheckSquare, ready: true },
       { key: 'lycees', label: 'Lycées', href: '/admin/crm-v2/lycees', icon: School, ready: true },
       { key: 'service-technique', label: 'Service technique', href: '/admin/crm-v2/service-technique', icon: LifeBuoy, badgeKey: 'support', ready: true },

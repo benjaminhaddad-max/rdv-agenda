@@ -18,6 +18,7 @@ import { getSettingValue, setSetting } from '@/lib/settings'
 import { buildPlanningReport, type DayReport } from '@/lib/telepro-planning'
 import { isDeadStatus, type LeadScore } from '@/lib/lead-score'
 import { engagementOf, loadContactCalls, loadManualContacts } from '@/lib/lead-engagement'
+import type { CallApproach, TransferBadgeInfo } from '@/lib/telepro-transfers-shared'
 
 export type TodayGoals = { calls: number; talk2: number; rdv: number }
 /**
@@ -54,7 +55,7 @@ export async function setGoals(userId: string | null, goals: Partial<TodayGoals>
 
 // ── Leads à appeler ─────────────────────────────────────────────────────────
 
-export type TodayReason = 'repop' | 'relance' | 'nouveau' | 'nrp'
+export type TodayReason = 'transfert' | 'repop' | 'relance' | 'nouveau' | 'nrp'
 
 export type TodayLead = {
   hubspot_contact_id: string
@@ -75,6 +76,8 @@ export type TodayLead = {
   created_at: string | null
   /** Première origine du lead (jamais écrasée par un repop). */
   origine: string | null
+  /** Lead transféré depuis un autre télépro (v86) : pastille + contexte de l'appel */
+  transfer: TransferBadgeInfo | null
 }
 
 export type TodayRdv = {
@@ -128,7 +131,7 @@ type ContactRow = {
 const CONTACT_COLS = 'hubspot_contact_id, firstname, lastname, phone, mobilephone, classe_actuelle, hs_lead_status, contact_createdate, createdate, recent_conversion_date, recent_conversion_event, num_conversion_events, origine'
 const PER_SECTION = 300
 const MAX_LEADS = 60
-const REASON_ORDER: TodayReason[] = ['repop', 'relance', 'nouveau', 'nrp']
+const REASON_ORDER: TodayReason[] = ['transfert', 'repop', 'relance', 'nouveau', 'nrp']
 
 function teleproIds(u: { hubspot_owner_id?: string | null; hubspot_user_id?: string | null }): string[] {
   return [...new Set([u.hubspot_owner_id, u.hubspot_user_id].map(v => String(v ?? '').trim()).filter(v => /^\d+$/.test(v)))]
@@ -172,6 +175,34 @@ export async function buildToday(
       .then(r => (r.data ?? []) as Array<Omit<TodayTask, 'contact_name' | 'overdue'>>),
   ])
 
+  // ── Leads transférés vers lui (v86) ──
+  const transfers = new Map<string, TransferBadgeInfo & { at: number }>()
+  const { data: transferRows } = await db.from('crm_contact_transfers')
+    .select('id, hubspot_contact_id, from_rdv_user_id, created_at, seen_at, call_approach, call_started_at')
+    .eq('to_rdv_user_id', user.id).gte('created_at', iso30).order('created_at', { ascending: false })
+  const tRows = (transferRows ?? []) as Array<{ id: string; hubspot_contact_id: string; from_rdv_user_id: string | null; created_at: string; seen_at: string | null; call_approach: string | null; call_started_at: string | null }>
+  const fromIds = [...new Set(tRows.map(t => t.from_rdv_user_id).filter((x): x is string => !!x))]
+  const fromNames = new Map<string, string>()
+  if (fromIds.length) {
+    const { data } = await db.from('rdv_users').select('id, name').in('id', fromIds)
+    for (const u of data ?? []) fromNames.set(String(u.id), String(u.name))
+  }
+  for (const t of tRows) {
+    if (transfers.has(t.hubspot_contact_id)) continue
+    transfers.set(t.hubspot_contact_id, {
+      id: t.id, created_at: t.created_at, seen: !!t.seen_at,
+      from_name: t.from_rdv_user_id ? fromNames.get(t.from_rdv_user_id) ?? null : null,
+      approach: (t.call_approach as CallApproach | null) ?? null, call_started_at: t.call_started_at,
+      at: Date.parse(t.created_at),
+    })
+  }
+  const transferContactRows: ContactRow[] = []
+  const transferIds = [...transfers.keys()]
+  for (let i = 0; i < transferIds.length; i += 200) {
+    const { data } = await contactsQuery().in('hubspot_contact_id', transferIds.slice(i, i + 200))
+    transferContactRows.push(...((data ?? []) as ContactRow[]))
+  }
+
   // ── Relances ──
   const orphanContactIds = [...new Set(tasksOrphan.map(t => t.hubspot_contact_id).filter((x): x is string => !!x))]
   const taskContacts = new Map<string, { name: string; mine: boolean }>()
@@ -214,6 +245,7 @@ export async function buildToday(
       candidates.set(row.hubspot_contact_id, e)
     }
   }
+  push(transferContactRows, 'transfert')
   push(repopRows, 'repop')
   push(relanceRows, 'relance')
   push(nouveauRows, 'nouveau')
@@ -221,7 +253,7 @@ export async function buildToday(
 
   const candidateIds = [...candidates.keys()]
   const [calls, manual] = await Promise.all([loadContactCalls(db, candidateIds), loadManualContacts(db, candidateIds)])
-  const counts: Record<TodayReason, number> = { repop: 0, relance: 0, nouveau: 0, nrp: 0 }
+  const counts: Record<TodayReason, number> = { transfert: 0, repop: 0, relance: 0, nouveau: 0, nrp: 0 }
   const leads: TodayLead[] = []
 
   for (const [id, { row, reasons }] of candidates) {
@@ -237,7 +269,10 @@ export async function buildToday(
     const createdMs = created ? Date.parse(created) : null
 
     // Chaque rubrique a sa règle ; on garde la plus prioritaire qui s'applique
+    const transfer = transfers.get(id) ?? null
     const applies: Record<TodayReason, boolean> = {
+      // Transféré par un collègue et pas encore rappelé depuis le transfert
+      transfert: reasons.has('transfert') && !!transfer && (lastCallMs == null || lastCallMs < transfer.at),
       // A refait une demande (≥ 1 jour après sa création) et pas rappelé depuis
       repop: reasons.has('repop') && formMs != null && createdMs != null && formMs - createdMs >= 86_400_000
         && (lastCallMs == null || lastCallMs < formMs),
@@ -269,10 +304,13 @@ export async function buildToday(
       form_name: row.recent_conversion_event,
       created_at: row.contact_createdate || row.createdate,
       origine: row.origine,
+      transfer: transfer ? { id: transfer.id, created_at: transfer.created_at, seen: transfer.seen, from_name: transfer.from_name, approach: transfer.approach, call_started_at: transfer.call_started_at } : null,
     })
   }
 
-  leads.sort((a, b) => b.score.score - a.score.score || REASON_ORDER.indexOf(a.reason) - REASON_ORDER.indexOf(b.reason))
+  // Transferts d'abord (leads confiés par l'admin), puis les plus chauds
+  leads.sort((a, b) => Number(b.reason === 'transfert') - Number(a.reason === 'transfert')
+    || b.score.score - a.score.score || REASON_ORDER.indexOf(a.reason) - REASON_ORDER.indexOf(b.reason))
 
   const day = planning.report[user.id]?.[0]
   return {
@@ -291,6 +329,7 @@ export async function buildToday(
 }
 
 export const REASON_LABELS: Record<TodayReason, string> = {
+  transfert: 'Transféré par un collègue',
   repop: 'Retombé (nouvelle source)',
   relance: 'À relancer',
   nouveau: 'Nouveau, jamais appelé',

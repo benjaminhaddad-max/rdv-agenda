@@ -2,6 +2,8 @@
 
 import { CYCLE_ETAT_COLORS, CYCLE_ETAT_LABELS, RECYCLE_STATUS, currentSeason, leadStatusColor, shortSeason, type CurrentCycleLite } from '@/lib/sales-cycles'
 import LeadCyclesModal from './LeadCyclesModal'
+import TransferBadge from './TransferBadge'
+import type { TransferBadgeInfo } from '@/lib/telepro-transfers-shared'
 import type { CyclePanel } from './LeadCycleControl'
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
@@ -1254,6 +1256,34 @@ export default function CRMContactsTable({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cycleKey])
 
+  // ── Pastille « Transfert » (lead réattribué depuis un autre télépro, v86) ──
+  const [transferMap, setTransferMap] = useState<Record<string, TransferBadgeInfo | null>>({})
+  const transfersAvailable = useRef(true)
+  const transferKey = visibleContacts.map(c => c.hubspot_contact_id).join('|')
+  useEffect(() => {
+    if (!transfersAvailable.current) return
+    const ids = visibleContacts.map(c => c.hubspot_contact_id).filter(id => !(id in transferMap))
+    if (!ids.length) return
+    let cancelled = false
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/crm/transfers/current', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contact_ids: ids }),
+        })
+        if (!res.ok || cancelled) return
+        const j = await res.json() as { available: boolean; transfers: Record<string, TransferBadgeInfo> }
+        if (!j.available) { transfersAvailable.current = false; return }
+        setTransferMap(prev => {
+          const next = { ...prev }
+          for (const id of ids) next[id] = j.transfers[id] ?? null
+          return next
+        })
+      } catch { /* best-effort */ }
+    }, 300)
+    return () => { cancelled = true; clearTimeout(t) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transferKey])
+
   /** Cycle courant à afficher, seulement s'il correspond bien au statut actuel. */
   function currentCycleOf(contact: CRMContact): CurrentCycleLite | null {
     const entry = cycleMap[contact.hubspot_contact_id]
@@ -1823,6 +1853,15 @@ export default function CRMContactsTable({
             >
               {name}
             </a>
+            {transferMap[contact.hubspot_contact_id] && (
+              <TransferBadge
+                info={transferMap[contact.hubspot_contact_id]!}
+                onSeen={() => setTransferMap(prev => {
+                  const cur = prev[contact.hubspot_contact_id]
+                  return cur ? { ...prev, [contact.hubspot_contact_id]: { ...cur, seen: true } } : prev
+                })}
+              />
+            )}
             {/* Actions au survol de la ligne (style HubSpot) */}
             <span className="crm-row-hover-actions" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
               {onOpenDrawer && (
