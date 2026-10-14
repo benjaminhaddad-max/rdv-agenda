@@ -30,12 +30,13 @@ import MyStats from '@/components/telepro-v2/MyStats'
 import TodayView from '@/components/telepro-v2/TodayView'
 import MyMails from '@/components/telepro-v2/MyMails'
 import TeleproContactsMobile from '@/components/telepro-v2/TeleproContactsMobile'
+import LyceesClient from '@/components/crm-v2/lycees/LyceesClient'
 import {
   TpMobileHeader, TpPlusSheet, TpRoundButton, TpTabBar, useLogout, useSupportUnread,
   type TpMenuItem, type TpMobileTab,
 } from '@/components/telepro-v2/ui'
 
-type TeleproTab = 'today' | 'form' | 'mails' | 'stats' | 'horaires' | 'suivi' | 'agenda' | 'historique' | 'repop' | 'contacts' | 'transactions'
+type TeleproTab = 'today' | 'form' | 'mails' | 'stats' | 'horaires' | 'suivi' | 'agenda' | 'historique' | 'repop' | 'contacts' | 'transactions' | 'lycees'
 
 export default function TeleproClient({
   teleproUser,
@@ -65,7 +66,8 @@ export default function TeleproClient({
   const [contactsAdvanced, setContactsAdvanced] = useState(false)
   const supportUnread = useSupportUnread(!previewMode)
   const logout = useLogout()
-  // Lycées attribués (onglet CRM « Lycées ») : bouton affiché seulement s'il y en a
+  // Lycées attribués : onglet « Mes lycées » (même vue que l'onglet admin, limitée
+  // à ce qui lui est attribué). Masqué en aperçu : l'API répond pour l'admin connecté.
   const [myLyceesCount, setMyLyceesCount] = useState(0)
   // Réponses non lues de ses contacts dans la boîte admissions@ (onglet « Mes mails »)
   const [mailsUnread, setMailsUnread] = useState(0)
@@ -484,6 +486,14 @@ export default function TeleproClient({
           </>
         )
       }
+      case 'lycees':
+        // Lycées attribués : fiche, appels, forums, ambassadeurs, mails Diploma Santé / AFEM
+        return (
+          <>
+            {isMobile && <TpMobileHeader title="Mes lycées" subtitle="Les lycées qui te sont attribués : appels, forums, mails." />}
+            <LyceesClient embedded />
+          </>
+        )
       case 'transactions':
         // Mes transactions (télépro sur la transaction)
         return (
@@ -603,7 +613,7 @@ export default function TeleproClient({
       { key: 'horaires', label: 'Mes horaires', icon: <Clock size={18} />, onClick: () => goTab('horaires'), active: activeTab === 'horaires' },
       { key: 'repop', label: 'Repop', icon: <Repeat2 size={18} />, onClick: () => goTab('repop'), active: activeTab === 'repop' },
       ...(!previewMode ? [
-        ...(myLyceesCount > 0 ? [{ key: 'lycees', label: 'Mes lycées', icon: <School size={18} />, href: '/admin/crm-v2/lycees', badge: myLyceesCount }] : []),
+        { key: 'lycees', label: 'Mes lycées', icon: <School size={18} />, onClick: () => goTab('lycees'), active: activeTab === 'lycees', badge: myLyceesCount },
         { key: 'support', label: 'Service technique', icon: <LifeBuoy size={18} />, href: '/support', badge: supportUnread },
         { key: 'logout', label: 'Déconnexion', icon: <LogOut size={18} />, onClick: () => { void logout() }, danger: true },
       ] : []),
@@ -649,6 +659,7 @@ export default function TeleproClient({
     { id: 'horaires', label: 'Mes horaires' },
     { id: 'suivi', label: 'Suivi RDV' },
     { id: 'repop', label: 'Repop' },
+    ...(!previewMode ? [{ id: 'lycees', label: 'Mes lycées', count: myLyceesCount > 0 ? myLyceesCount : undefined }] : []),
   ]
 
   return (
@@ -675,14 +686,6 @@ export default function TeleproClient({
             )}
             {isAdmin && !previewMode && (
               <CrmV2Button icon={<ArrowLeft size={14} />} onClick={() => { window.location.href = '/admin' }}>Admin</CrmV2Button>
-            )}
-            {!previewMode && myLyceesCount > 0 && (
-              <a href="/admin/crm-v2/lycees" style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6, borderRadius: 999, padding: '8px 16px',
-                fontSize: 13, fontWeight: 600, color: crmV2.goldDark, background: crmV2.goldSoft, border: `1px solid ${crmV2.goldBorder}`, textDecoration: 'none',
-              }}>
-                <School size={14} /> Mes lycées ({myLyceesCount})
-              </a>
             )}
             {!previewMode && (
               <a href="/support" style={{

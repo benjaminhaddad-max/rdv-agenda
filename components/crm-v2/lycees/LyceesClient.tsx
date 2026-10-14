@@ -21,6 +21,7 @@ import {
   CrmV2Body, CrmV2Button, CrmV2Header, CrmV2KpiCard, CrmV2KpiGrid, CrmV2Page, CrmV2Segmented, CrmV2Spinner, CrmV2Tabs,
 } from '@/components/crm-v2/primitives'
 import { AdminNotice } from '@/components/crm-v2/admin/AdminUi'
+import { useIsMobile } from '@/lib/useIsMobile'
 import { CURRENT_SEASON, seasonLabel, type LyceeListItem } from '@/lib/lycees'
 import LyceesTable, { applyLyceeFilters, EMPTY_FILTERS, LYCEE_VIEWS, matchLyceeView, type LyceeFilters } from './LyceesTable'
 import LyceeDrawer from './LyceeDrawer'
@@ -46,7 +47,12 @@ type EventsResponse = {
 
 const FILTERS_KEY = 'crm-v2-lycees-filters-v2'
 
-export default function LyceesClient() {
+/**
+ * `embedded` : rendu dans l'espace télépro (onglet « Mes lycées ») — sans
+ * en-tête de page, les sous-onglets et « Ajouter un forum » sur une barre.
+ */
+export default function LyceesClient({ embedded = false }: { embedded?: boolean } = {}) {
+  const isMobile = useIsMobile()
   const [tab, setTab] = useState<Tab>('lycees')
   const [list, setList] = useState<ListResponse | null>(null)
   const [agenda, setAgenda] = useState<EventsResponse | null>(null)
@@ -208,20 +214,38 @@ export default function LyceesClient() {
   ]
   const eventName = (e: AgendaEvent) => `${e.lycee?.name ?? e.title ?? 'Forum'}${e.date ? ` · ${e.date.split('-').reverse().join('/')}` : ''}`
 
+  const addForumButton = (
+    <CrmV2Button variant="accent" icon={<CalendarPlus size={14} />} onClick={() => setEventDraft({ kind: 'forum', scope: 'lycee', status: 'a_confirmer' })} disabled={!list}>
+      Ajouter un forum
+    </CrmV2Button>
+  )
+  const subTabs = <CrmV2Tabs bordered={false} items={tabs} value={tab} onChange={id => setTab(id as Tab)} />
+
   return (
-    <CrmV2Page>
-      <CrmV2Header
-        title="Lycées"
-        subtitle={`Forums d’orientation, interventions et flying · saison ${CURRENT_SEASON}`}
-        actions={
-          <CrmV2Button variant="accent" icon={<CalendarPlus size={14} />} onClick={() => setEventDraft({ kind: 'forum', scope: 'lycee', status: 'a_confirmer' })} disabled={!list}>
-            Ajouter un forum
-          </CrmV2Button>
-        }
-      >
-        <CrmV2Tabs bordered={false} items={tabs} value={tab} onChange={id => setTab(id as Tab)} />
-      </CrmV2Header>
+    <CrmV2Page style={embedded ? { minHeight: 0, background: 'transparent' } : undefined}>
+      {embedded ? (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', background: crmV2.bg,
+          borderBottom: `1px solid ${crmV2.border}`, padding: isMobile ? '6px 12px 0' : '6px 28px 0',
+        }}>
+          <div style={{ flex: 1, minWidth: 0, overflowX: 'auto' }}>{subTabs}</div>
+          <div style={{ paddingBottom: 6 }}>{addForumButton}</div>
+        </div>
+      ) : (
+        <CrmV2Header
+          title="Lycées"
+          subtitle={`Forums d’orientation, interventions et flying · saison ${CURRENT_SEASON}`}
+          actions={addForumButton}
+        >
+          {subTabs}
+        </CrmV2Header>
+      )}
       <CrmV2Body>
+        {embedded && list && lycees.length === 0 && !isManager && (
+          <AdminNotice tone="info">
+            Aucun lycée ne t’est attribué pour l’instant. Dès qu’un admin t’en attribue un, il apparaît ici avec sa fiche, ses forums, ses élèves ambassadeurs et les mails Diploma Santé / AFEM à envoyer.
+          </AdminNotice>
+        )}
         {missingMigration && (
           <AdminNotice tone="warning">
             La base n’est pas encore prête : il faut lancer la migration <b>supabase-migration-crm-v58-lycees.sql</b> dans l’éditeur SQL Supabase.
