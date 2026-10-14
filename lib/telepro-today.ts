@@ -78,6 +78,8 @@ export type TodayLead = {
   origine: string | null
   /** Lead transféré depuis un autre télépro (v86) : pastille + contexte de l'appel */
   transfer: TransferBadgeInfo | null
+  /** Relance prévue par le télépro (v87) */
+  relance_at: string | null
 }
 
 export type TodayRdv = {
@@ -203,6 +205,18 @@ export async function buildToday(
     transferContactRows.push(...((data ?? []) as ContactRow[]))
   }
 
+  // ── Relances prévues (v87) : à faire aujourd'hui ou en retard ──
+  const dueFollowupContactRows: ContactRow[] = []
+  {
+    const { data: due } = await db.from('crm_contact_followups').select('hubspot_contact_id')
+      .lt('relance_at', tomorrowStart.toISOString()).gte('relance_at', iso30).limit(2000)
+    const dueIds = ((due ?? []) as Array<{ hubspot_contact_id: string }>).map(r => r.hubspot_contact_id)
+    for (let i = 0; i < dueIds.length; i += 200) {
+      const { data } = await contactsQuery().in('hubspot_contact_id', dueIds.slice(i, i + 200))
+      dueFollowupContactRows.push(...((data ?? []) as ContactRow[]))
+    }
+  }
+
   // ── Relances ──
   const orphanContactIds = [...new Set(tasksOrphan.map(t => t.hubspot_contact_id).filter((x): x is string => !!x))]
   const taskContacts = new Map<string, { name: string; mine: boolean }>()
@@ -248,10 +262,17 @@ export async function buildToday(
   push(transferContactRows, 'transfert')
   push(repopRows, 'repop')
   push(relanceRows, 'relance')
+  push(dueFollowupContactRows, 'relance')
   push(nouveauRows, 'nouveau')
   push(nrpRows, 'nrp')
 
   const candidateIds = [...candidates.keys()]
+  const followups = new Map<string, number>()
+  for (let i = 0; i < candidateIds.length; i += 300) {
+    const { data } = await db.from('crm_contact_followups').select('hubspot_contact_id, relance_at')
+      .in('hubspot_contact_id', candidateIds.slice(i, i + 300)).not('relance_at', 'is', null)
+    for (const r of (data ?? []) as Array<{ hubspot_contact_id: string; relance_at: string }>) followups.set(r.hubspot_contact_id, Date.parse(r.relance_at))
+  }
   const [calls, manual] = await Promise.all([loadContactCalls(db, candidateIds), loadManualContacts(db, candidateIds)])
   const counts: Record<TodayReason, number> = { transfert: 0, repop: 0, relance: 0, nouveau: 0, nrp: 0 }
   const leads: TodayLead[] = []
@@ -276,8 +297,11 @@ export async function buildToday(
       // A refait une demande (≥ 1 jour après sa création) et pas rappelé depuis
       repop: reasons.has('repop') && formMs != null && createdMs != null && formMs - createdMs >= 86_400_000
         && (lastCallMs == null || lastCallMs < formMs),
-      // À relancer / réfléchit : pas d'appel depuis 2 jours
-      relance: reasons.has('relance') && !calledToday && (lastCallMs == null || now - lastCallMs >= 2 * 86_400_000),
+      // Relance prévue (date posée par le télépro) : due aujourd'hui ou en retard, pas rappelé depuis.
+      // Sinon (pas de date) : « À relancer / réfléchit » sans appel depuis 2 jours.
+      relance: reasons.has('relance') && (followups.has(id)
+        ? followups.get(id)! < tomorrowStart.getTime() && (lastCallMs == null || lastCallMs < followups.get(id)!)
+        : !calledToday && (lastCallMs == null || now - lastCallMs >= 2 * 86_400_000)),
       // Nouveau jamais appelé
       nouveau: reasons.has('nouveau') && list.length === 0,
       // NRP : pas encore rappelé aujourd'hui
@@ -304,6 +328,7 @@ export async function buildToday(
       form_name: row.recent_conversion_event,
       created_at: row.contact_createdate || row.createdate,
       origine: row.origine,
+      relance_at: followups.has(id) ? new Date(followups.get(id)!).toISOString() : null,
       transfer: transfer ? { id: transfer.id, created_at: transfer.created_at, seen: transfer.seen, from_name: transfer.from_name, approach: transfer.approach, call_started_at: transfer.call_started_at } : null,
     })
   }

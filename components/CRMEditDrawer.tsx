@@ -1,6 +1,7 @@
 'use client'
 
 import LeadCycleControl from './LeadCycleControl'
+import ColdCallCard from './ColdCallCard'
 import { allInscriptionLeadStatuses } from '@/lib/inscription-status'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
@@ -1187,6 +1188,9 @@ export default function CRMEditDrawer({ contact, closers, telepros, allUsers, hu
               />
             </div>
           )}
+
+          {/* Vue « À réattribuer » : débrief de l'appel froid (admin) */}
+          <ColdCallCard contactId={c.hubspot_contact_id} />
 
           {/* Section : Identité */}
           <DrawerSection title="Identité" icon={<User size={14} />}>

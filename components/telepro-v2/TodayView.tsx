@@ -272,6 +272,11 @@ function PhoneLink({ phone }: { phone: string }) {
 function reasonWhen(lead: TodayLead): string {
   if (lead.reason === 'repop' && lead.form_at) return `Retombé ${when(lead.form_at)}${lead.form_name ? ` · ${lead.form_name}` : ''}`
   if (lead.reason === 'nouveau' && lead.created_at) return `Arrivé ${when(lead.created_at)}`
+  if (lead.reason === 'relance' && lead.relance_at) {
+    const d = new Date(lead.relance_at)
+    const late = d.getTime() < Date.now()
+    return `Relance prévue ${late ? 'le ' : ''}${d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Paris' })} à ${d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' }).replace(':', 'h')}${late ? ' (en retard)' : ''}`
+  }
   if (lead.reason === 'transfert' && lead.transfer) return `Transféré ${when(lead.transfer.created_at)}${lead.transfer.from_name ? ` · avant : ${lead.transfer.from_name}` : ''}`
   return ''
 }

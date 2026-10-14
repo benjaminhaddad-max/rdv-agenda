@@ -4,7 +4,7 @@ import { CYCLE_ETAT_COLORS, CYCLE_ETAT_LABELS, RECYCLE_STATUS, currentSeason, le
 import LeadCyclesModal from './LeadCyclesModal'
 import TransferBadge from './TransferBadge'
 import TransferContextModal from './TransferContextModal'
-import { formatCallWhen, formatTalk, type TransferBadgeInfo, type TransferCandidate } from '@/lib/telepro-transfers-shared'
+import { APPROACH_COLORS, APPROACH_LABELS, APPROACH_SHORT, formatCallWhen, formatTalk, type TransferBadgeInfo, type TransferCandidate } from '@/lib/telepro-transfers-shared'
 import type { CyclePanel } from './LeadCycleControl'
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
@@ -392,28 +392,97 @@ const STAGE_MAP: Record<string, { label: string; color: string; bg: string }> = 
 }
 
 /** Pastille d'étape V2 : fond teinté, point coloré. */
-/** Ligne « appel froid » sous le nom (vue « À réattribuer ») : quand, combien de temps, approche, pourquoi pas de RDV. */
+/** datetime-local (heure de Paris du navigateur) ↔ ISO */
+function toLocalInput(iso: string): string {
+  const d = new Date(iso)
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
+/** Cellule « Relance prévue » : date + heure de rappel ; rouge une fois dépassée. */
+function RelanceCell({ value, loaded, onSave }: { value: string | null; loaded: boolean; onSave: (iso: string | null) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  if (editing) {
+    const commit = () => {
+      setEditing(false)
+      if (!draft) return
+      const d = new Date(draft)
+      if (Number.isFinite(d.getTime()) && d.toISOString() !== value) onSave(d.toISOString())
+    }
+    return (
+      <span onClick={e => e.stopPropagation()} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, maxWidth: '100%' }}>
+        <input
+          type="datetime-local"
+          autoFocus
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false) }}
+          onBlur={commit}
+          style={{ height: 26, border: `1px solid ${crmV2.borderStrong}`, borderRadius: 8, padding: '0 6px', fontSize: 12, fontFamily: 'inherit', minWidth: 0, maxWidth: 160 }}
+        />
+      </span>
+    )
+  }
+  const overdue = !!value && Date.parse(value) < Date.now()
+  const open = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    const base = value ? new Date(value) : (() => { const d = new Date(Date.now() + 86_400_000); d.setHours(10, 0, 0, 0); return d })()
+    setDraft(toLocalInput(base.toISOString()))
+    setEditing(true)
+  }
+  if (!loaded) return <span style={{ color: crmV2.textFaint, fontSize: 13 }}>…</span>
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, maxWidth: '100%' }}>
+      <button
+        type="button"
+        onClick={open}
+        title={value ? (overdue ? 'Relance dépassée sans RDV : le lead part dans « À réattribuer »' : 'Le lead reste au télépro jusqu’à cette date') : 'Prévoir la relance (date et heure)'}
+        style={{
+          all: 'unset', cursor: 'pointer', fontSize: 12, fontWeight: value ? 700 : 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          color: !value ? crmV2.textFaint : overdue ? '#b91c1c' : crmV2.text,
+          background: value ? (overdue ? 'rgba(220,38,38,0.08)' : crmV2.chipBg) : 'transparent',
+          border: `1px solid ${value ? (overdue ? 'rgba(220,38,38,0.35)' : crmV2.chipBorder) : 'transparent'}`,
+          borderRadius: 999, padding: '1px 8px',
+        }}
+      >
+        {value ? `${formatCallWhen(value)}${overdue ? ' · dépassée' : ''}` : '+ Prévoir'}
+      </button>
+      {value && (
+        <button type="button" aria-label="Effacer la relance" title="Effacer la relance" onClick={e => { e.stopPropagation(); onSave(null) }}
+          style={{ all: 'unset', cursor: 'pointer', color: crmV2.textFaint, fontSize: 13, lineHeight: 1 }}>×</button>
+      )}
+    </span>
+  )
+}
+
+/** Ligne « appel froid » sous le nom (vue « À réattribuer ») : approche, quand, durée, pourquoi pas de RDV. */
 function ColdCallLine({ c, onOpen }: { c: TransferCandidate; onOpen: () => void }) {
   const ap = c.call.approach
-  const color = ap === 'diploma' ? '#1d4ed8' : ap === 'etudiants' ? '#6d28d9' : crmV2.textFaint
   const waiting = !!c.retry_after && Date.parse(c.retry_after) > Date.now()
   const parts = [
-    `Appel froid ${formatCallWhen(c.call.started_at)} · ${formatTalk(c.call.talk_sec)}`,
-    ap === 'diploma' ? 'Diploma' : ap === 'etudiants' ? 'Étudiants' : 'approche ?',
+    `${formatCallWhen(c.call.started_at)} · ${formatTalk(c.call.talk_sec)}`,
     c.call.cause_label,
+    c.relance_at ? 'relance dépassée' : null,
     c.transferred ? `déjà transféré à ${c.transferred.to_name}` : waiting ? `à replacer dès le ${new Date(c.retry_after!).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}` : null,
   ].filter(Boolean)
   return (
     <button
       type="button"
       onClick={e => { e.stopPropagation(); onOpen() }}
-      title="Voir le contexte de l’appel (résumé, pourquoi pas de RDV, conseil, enregistrement)"
+      title={`${ap ? APPROACH_LABELS[ap] : 'Approche non détectée'} — cliquer pour le débrief de l’appel`}
       style={{
-        all: 'unset', cursor: 'pointer', fontSize: 10.5, lineHeight: '12px', fontWeight: 600, color,
-        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%',
+        all: 'unset', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, maxWidth: '100%', minWidth: 0,
+        fontSize: 10.5, lineHeight: '13px', fontWeight: 600, color: crmV2.textMuted,
       }}
     >
-      {parts.join(' · ')} ›
+      <span style={{
+        flexShrink: 0, borderRadius: 4, padding: '0 4px', fontSize: 9.5, fontWeight: 800, letterSpacing: '0.03em',
+        background: ap ? APPROACH_COLORS[ap] : crmV2.chipBg, color: ap ? '#fff' : crmV2.textMuted,
+      }}>
+        {ap ? APPROACH_SHORT[ap] : '?'}
+      </span>
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{parts.join(' · ')}</span>
     </button>
   )
 }
@@ -893,7 +962,7 @@ function ExpandedDetail({
 }
 
 // ── Définition des colonnes réorganisables ────────────────────────────────────
-type ColKey = 'contact' | 'email' | 'phone' | 'formation_souhaitee' | 'classe' | 'zone' | 'departement' | 'etape' | 'lead_status' | 'origine' | 'closer' | 'closer_du_contact' | 'telepro' | 'createdat_contact' | 'createdat_deal' | 'form_submission' | 'parcoursup_verdict' | 'last_contact' | 'lead_score'
+type ColKey = 'contact' | 'email' | 'phone' | 'formation_souhaitee' | 'classe' | 'zone' | 'departement' | 'etape' | 'lead_status' | 'relance_at' | 'origine' | 'closer' | 'closer_du_contact' | 'telepro' | 'createdat_contact' | 'createdat_deal' | 'form_submission' | 'parcoursup_verdict' | 'last_contact' | 'lead_score'
 
 const COL_LABELS: Record<ColKey, string> = {
   contact:              'Contact',
@@ -905,6 +974,7 @@ const COL_LABELS: Record<ColKey, string> = {
   departement:          'Département',
   etape:                'Étape de transaction',
   lead_status:          'Statut du lead',
+  relance_at:           'Relance prévue',
   origine:              'Origine',
   closer:               'Propriétaire du contact',
   closer_du_contact:    'Closer du contact',
@@ -927,6 +997,7 @@ const COL_WIDTHS: Record<ColKey, number> = {
   departement:          110,
   etape:                150,
   lead_status:          170,
+  relance_at:           150,
   origine:              120,
   closer:               120,
   closer_du_contact:    140,
@@ -954,7 +1025,7 @@ const SORTABLE_COLS = new Set<ColKey>([
 
 const DEFAULT_COL_ORDER: ColKey[] = [
   'contact','lead_score','email','phone','last_contact','form_submission','origine','formation_souhaitee','classe',
-  'zone','departement','etape','lead_status','parcoursup_verdict','closer','closer_du_contact','telepro','createdat_contact','createdat_deal',
+  'zone','departement','etape','lead_status','relance_at','parcoursup_verdict','closer','closer_du_contact','telepro','createdat_contact','createdat_deal',
 ]
 
 // Origine : colonne fixe, toujours visible, collée juste après
@@ -992,7 +1063,7 @@ const TELEPRO_ONLY_COLS = new Set<ColKey>(['last_contact', 'lead_score'])
 const MIXED_COL_STORAGE_KEY = 'crm-mixed-col-order'
 const DYN_COL_WIDTHS_STORAGE_KEY = 'crm-dyn-col-widths'
 const INLINE_EDIT_STOP_KEYS = new Set<ColKey>([
-  'classe', 'zone', 'etape', 'lead_status', 'origine', 'closer', 'closer_du_contact', 'telepro', 'last_contact',
+  'classe', 'zone', 'etape', 'lead_status', 'relance_at', 'origine', 'closer', 'closer_du_contact', 'telepro', 'last_contact',
 ])
 
 function toNativeToken(key: ColKey) { return `n:${key}` as const }
@@ -1313,6 +1384,48 @@ export default function CRMContactsTable({
     return () => { cancelled = true; clearTimeout(t) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [transferKey])
+
+  // ── Relance prévue (v87) : date et heure de rappel posées par le télépro ──
+  const [followupMap, setFollowupMap] = useState<Record<string, string | null>>({})
+  const [followupsAvailable, setFollowupsAvailable] = useState(true)
+  useEffect(() => {
+    if (!followupsAvailable) return
+    const ids = visibleContacts.map(c => c.hubspot_contact_id).filter(id => !(id in followupMap))
+    if (!ids.length) return
+    let cancelled = false
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/crm/followups', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contact_ids: ids }),
+        })
+        if (!res.ok || cancelled) return
+        const j = await res.json() as { available: boolean; followups: Record<string, { relance_at: string | null }> }
+        if (!j.available) { setFollowupsAvailable(false); return }
+        setFollowupMap(prev => {
+          const next = { ...prev }
+          for (const id of ids) next[id] = j.followups[id]?.relance_at ?? null
+          return next
+        })
+      } catch { /* best-effort */ }
+    }, 250)
+    return () => { cancelled = true; clearTimeout(t) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transferKey, followupsAvailable])
+
+  async function saveRelance(contactId: string, iso: string | null) {
+    const prev = followupMap[contactId] ?? null
+    setFollowupMap(m => ({ ...m, [contactId]: iso }))
+    try {
+      const res = await fetch('/api/crm/followups', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contact_id: contactId, relance_at: iso }),
+      })
+      if (!res.ok) throw new Error()
+      showSaveToast(iso ? 'Relance prévue enregistrée' : 'Relance prévue effacée')
+    } catch {
+      setFollowupMap(m => ({ ...m, [contactId]: prev }))
+      showSaveToast('La relance n’a pas pu être enregistrée.', 'error')
+    }
+  }
 
   // ── Vue « À réattribuer » : appel froid de chaque lead ──
   const [coldMap, setColdMap] = useState<Record<string, TransferCandidate | null>>({})
@@ -1666,6 +1779,7 @@ export default function CRMContactsTable({
     if (mode === 'telepro' ? TELEPRO_EXCLUDED_COLS.has(key) : TELEPRO_ONLY_COLS.has(key)) return false
     if (hiddenCols.has(key)) return false
     if (key === 'lead_status'        && !leadStatusOptions?.length) return false
+    if (key === 'relance_at'         && !followupsAvailable) return false
     return true
   }
 
@@ -2089,6 +2203,15 @@ export default function CRMContactsTable({
           </div>
         )
       }
+
+      case 'relance_at':
+        return (
+          <RelanceCell
+            value={followupMap[contact.hubspot_contact_id] ?? null}
+            loaded={contact.hubspot_contact_id in followupMap}
+            onSave={iso => saveRelance(contact.hubspot_contact_id, iso)}
+          />
+        )
 
       case 'origine':
         return (
