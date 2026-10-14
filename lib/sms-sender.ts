@@ -176,10 +176,13 @@ export async function runSmsCampaign(opts: RunOptions): Promise<RunResult> {
         classe_actuelle: null,
       }))
     } else if (manualIds.length > 0) {
-      const { data } = await db.from('crm_contacts')
-        .select(CRM_SMS_CONTACT_COLUMNS)
-        .in('hubspot_contact_id', manualIds)
-      contacts = (data || []) as ContactRow[]
+      // Par paquets : un .in() de plusieurs milliers d'ids dépasse la taille d'URL PostgREST
+      for (let i = 0; i < manualIds.length; i += 200) {
+        const { data } = await db.from('crm_contacts')
+          .select(CRM_SMS_CONTACT_COLUMNS)
+          .in('hubspot_contact_id', manualIds.slice(i, i + 200))
+        contacts.push(...((data || []) as ContactRow[]))
+      }
     } else if (campaign.filters && Object.keys(campaign.filters).length > 0) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let q: any = db.from('crm_contacts').select(CRM_SMS_CONTACT_COLUMNS)

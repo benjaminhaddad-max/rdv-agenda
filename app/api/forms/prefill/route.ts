@@ -29,6 +29,14 @@ function corsHeaders(req: Request): Record<string, string> {
   }
 }
 
+function normalizeOption(v: unknown): string {
+  return String(v ?? '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '')
+}
+
 export async function OPTIONS(req: Request) {
   return new NextResponse(null, { status: 204, headers: corsHeaders(req) })
 }
@@ -92,11 +100,12 @@ export async function GET(req: Request) {
     if (form?.id) {
       const { data: fields } = await db
         .from('form_fields')
-        .select('field_key, crm_field, field_type')
+        .select('field_key, crm_field, field_type, options')
         .eq('form_id', form.id)
         .order('order_index', { ascending: true })
 
       hidden_field_keys = identityFieldKeysFromForm(fields || [])
+      const hidden = new Set(hidden_field_keys)
       for (const f of fields || []) {
         const key = String(f.field_key || '')
         if (!key) continue
@@ -105,9 +114,29 @@ export async function GET(req: Request) {
         if (crm === 'lastname' && values.lastname) values[key] = values.lastname
         if (crm === 'email' && values.email) values[key] = values.email
         if ((crm === 'phone' || crm === 'mobilephone') && values.phone) values[key] = values.phone
-        if (crm === 'departement' && values.departement) values[key] = values.departement
-        if (crm === 'classe_actuelle' && values.classe_actuelle) values[key] = values.classe_actuelle
+        // Classe / département déjà connus : on pré-remplit ET on masque, pour
+        // que le contact n'ait plus que les questions restantes (ex. créneau).
+        if (crm === 'departement' && values.departement) {
+          values[key] = values.departement
+          hidden.add(key)
+        }
+        if (crm === 'classe_actuelle' && values.classe_actuelle) {
+          const options = Array.isArray(f.options) ? (f.options as Array<{ label?: string; value?: string }>) : []
+          if (options.length === 0) {
+            values[key] = values.classe_actuelle
+            hidden.add(key)
+          } else {
+            // CRM « Terminale » ↔ option { value: 'terminale' } : match valeur ou libellé, sans casse/accents
+            const target = normalizeOption(values.classe_actuelle)
+            const match = options.find(o => normalizeOption(o.value) === target || normalizeOption(o.label) === target)
+            if (match?.value) {
+              values[key] = match.value
+              hidden.add(key)
+            }
+          }
+        }
       }
+      hidden_field_keys = Array.from(hidden)
     }
   }
 
