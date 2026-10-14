@@ -13,11 +13,23 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 /** Catégorie du modèle (email_templates.category) pré-sélectionné pour ce mail. */
 export const POST_RDV_TEMPLATE_CATEGORY = 'apres-rdv'
-/** Élève de Terminale (pré-inscription PASS 2027-2028) : modèle dédié. */
+/** Élève de Terminale, ancien modèle PASS 2027-2028 (toujours au choix dans la liste). */
 export const POST_RDV_TERMINALE_TEMPLATE_CATEGORY = 'apres-rdv-terminale'
 
-export function postRdvTemplateCategory(classeActuelle?: string | null): string {
-  return /^\s*terminale/i.test(classeActuelle || '') ? POST_RDV_TERMINALE_TEMPLATE_CATEGORY : POST_RDV_TEMPLATE_CATEGORY
+/**
+ * Modèle selon la classe de l'élève et la formation visée :
+ *   Seconde   → Première Élite (événements exclusifs + aperçu Première Élite Lite)
+ *   Première  → Terminale Santé (Première Élite Lite)
+ *   Terminale → PAES si c'est la formation visée, sinon Licence Portail Santé
+ *               (Terminale Santé Light + coach Parcoursup + événements)
+ *   autre     → modèle général
+ */
+export function postRdvTemplateCategory(classeActuelle?: string | null, formation?: string | null): string {
+  const classe = (classeActuelle || '').trim().toLowerCase()
+  if (/^seconde/.test(classe)) return 'apres-rdv-premiere-elite'
+  if (/^premi[eè]re/.test(classe)) return 'apres-rdv-terminale-sante'
+  if (/^terminale/.test(classe)) return /paes/i.test(formation || '') ? 'apres-rdv-paes' : 'apres-rdv-lps'
+  return POST_RDV_TEMPLATE_CATEGORY
 }
 
 /** Ajoute post_rdv_email_sent_at aux RDV listés (requête à part, par paquets). */
