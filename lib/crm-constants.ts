@@ -156,9 +156,9 @@ export const LAB_CALLBACK_FILTER_OPTIONS: SelectOption[] = [
 // classés selon l'approche utilisée (détectée dans la transcription).
 export const COLD_CALL_FILTER_OPTIONS: SelectOption[] = [
   { id: 'oui',               label: 'Tous (sauf déjà transférés)' },
-  { id: 'diploma',           label: 'Approche Diploma Santé → à retenter' },
-  { id: 'etudiants_prets',   label: 'Approche étudiants / asso → 3 semaines passées' },
-  { id: 'etudiants_attente', label: 'Approche étudiants / asso → trop tôt pour replacer' },
+  { id: 'diploma',           label: 'Approche Diploma → à retenter en asso' },
+  { id: 'etudiants_prets',   label: 'Approche asso / étudiants → 3 semaines passées' },
+  { id: 'etudiants_attente', label: 'Approche asso / étudiants → trop tôt pour replacer' },
   { id: 'inconnue',          label: 'Approche non détectée (appel non analysé)' },
   { id: 'deja_transfere',    label: 'Déjà transférés' },
 ]

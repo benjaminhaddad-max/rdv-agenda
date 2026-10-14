@@ -15,6 +15,8 @@ import { ETUDIANTS_RETRY_DAYS, detectApproach, type TransferCandidate, type Tran
 
 /** Statuts pour lesquels réattribuer n'a pas de sens */
 const DEAD_STATUSES = new Set(['Doublon', 'Disqualifié', 'Mauvais numéro'])
+/** RDV en cours (pris, à replanifier) : le lead n'est pas un échec d'appel à froid */
+const RDV_STATUS_RE = /rdv|replanif/i
 
 export function isMissingTransfersTable(err: { code?: string; message?: string } | null | undefined): boolean {
   if (!err) return false
@@ -110,15 +112,18 @@ export async function computeTransferCandidates(db: SupabaseClient, opts: { days
   const rdvAfter = new Map<string, number[]>()
   const insAfter = new Map<string, number[]>()
   const transfers = new Map<string, Array<{ id: string; from_rdv_user_id: string | null; to_rdv_user_id: string; created_at: string }>>()
+  const followups = new Map<string, string>() // contact → relance prévue (ISO)
   let transfersAvailable = true
   for (let i = 0; i < contactIds.length; i += 200) {
     const ids = contactIds.slice(i, i + 200)
-    const [c, r, p, t] = await Promise.all([
+    const [c, r, p, t, f] = await Promise.all([
       db.from('crm_contacts').select('hubspot_contact_id, firstname, lastname, phone, mobilephone, classe_actuelle, hs_lead_status, telepro_user_id').in('hubspot_contact_id', ids),
       db.from('rdv_appointments').select('hubspot_contact_id, created_at, status').in('hubspot_contact_id', ids),
       db.from('crm_pre_inscriptions').select('hubspot_contact_id, detected_at, paiement_status').in('hubspot_contact_id', ids),
       db.from('crm_contact_transfers').select('id, hubspot_contact_id, from_rdv_user_id, to_rdv_user_id, created_at').in('hubspot_contact_id', ids),
+      db.from('crm_contact_followups').select('hubspot_contact_id, relance_at').in('hubspot_contact_id', ids).not('relance_at', 'is', null),
     ])
+    for (const row of (f.data ?? []) as Array<{ hubspot_contact_id: string; relance_at: string }>) followups.set(row.hubspot_contact_id, row.relance_at)
     for (const row of (c.data ?? []) as ContactRow[]) contacts.set(row.hubspot_contact_id, row)
     for (const row of (r.data ?? []) as Array<{ hubspot_contact_id: string; created_at: string; status: string | null }>) {
       if (['annule', 'annulee', 'cancelled'].includes(row.status || '')) continue
@@ -155,6 +160,10 @@ export async function computeTransferCandidates(db: SupabaseClient, opts: { days
     const hsId = String(contact.telepro_user_id ?? '').trim()
     if (!hsId) continue // pas attribué
     if (isEnrolledLeadStatus(contact.hs_lead_status) || DEAD_STATUSES.has((contact.hs_lead_status ?? '').trim())) continue
+    if (RDV_STATUS_RE.test(contact.hs_lead_status ?? '')) continue
+    // Relance prévue par le télépro pas encore passée : le lead lui reste
+    const relance = followups.get(cid) ?? null
+    if (relance && Date.parse(relance) > Date.now()) continue
     const t = Date.parse(call.started_at)
     // RDV pris pendant / après l'appel (30 min de marge), ou inscription après → pas un échec
     if ((rdvAfter.get(cid) ?? []).some(x => x >= t - 30 * 60_000)) continue
@@ -195,6 +204,7 @@ export async function computeTransferCandidates(db: SupabaseClient, opts: { days
       retry_after: analysed && detectApproach(a?.transcript) === 'etudiants'
         ? new Date(t + ETUDIANTS_RETRY_DAYS * 86_400_000).toISOString()
         : null,
+      relance_at: relance,
       later_calls: (longCallsByContact.get(cid) ?? []).filter(x => Date.parse(x.started_at) > t).length,
       previous_holders: [...previous],
       transferred: lastTransfer

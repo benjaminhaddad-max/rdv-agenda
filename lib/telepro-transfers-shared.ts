@@ -13,8 +13,19 @@
 export type CallApproach = 'diploma' | 'etudiants'
 
 export const APPROACH_LABELS: Record<CallApproach, string> = {
-  diploma: 'Approche Diploma Santé',
-  etudiants: 'Approche étudiants / asso',
+  diploma: 'Approche Diploma',
+  etudiants: 'Approche asso / groupe d’étudiants',
+}
+
+/** Libellé court (pastilles) */
+export const APPROACH_SHORT: Record<CallApproach, string> = {
+  diploma: 'DIPLOMA',
+  etudiants: 'ASSO',
+}
+
+export const APPROACH_COLORS: Record<CallApproach, string> = {
+  diploma: '#1d4ed8',
+  etudiants: '#6d28d9',
 }
 
 /** Délai avant de replacer un lead dont l'approche étudiants a échoué (jours). */
@@ -59,6 +70,8 @@ export type TransferCandidate = {
   }
   /** Approche étudiants ratée : date à partir de laquelle on peut replacer le lead */
   retry_after: string | null
+  /** Relance prévue par le télépro, déjà passée (sinon le lead n'est pas listé) */
+  relance_at: string | null
   /** Appels ≥ 2 min passés depuis cet appel (relances) */
   later_calls: number
   /** Télépros qui ont déjà eu ce lead : on ne le leur redonne pas */
