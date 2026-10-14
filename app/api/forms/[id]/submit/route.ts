@@ -18,6 +18,7 @@ import { canOverrideOrigine, collectAdAttribution, detectAdOrigine, detectChatGp
 import { loadVisitorAttribution } from '@/lib/web-visitor-attribution'
 import { origineLabDeclaree } from '@/lib/origine-normalization'
 import { normalizeClasseActuelle } from '@/lib/classe-actuelle'
+import { emailIlike } from '@/lib/email-match'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -477,7 +478,7 @@ export async function POST(req: Request, { params }: Params) {
       const { data: c } = await db
         .from('crm_contacts')
         .select('hubspot_contact_id, first_conversion_date, first_conversion_event_name, recent_conversion_date, recent_conversion_event, recent_conversion_event_name')
-        .eq('email', String(contactData.email).toLowerCase().trim())
+        .ilike('email', emailIlike(String(contactData.email)))
         .maybeSingle()
       existing = c
     }

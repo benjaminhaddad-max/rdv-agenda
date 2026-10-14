@@ -44,6 +44,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { normalizeClasseActuelle } from '@/lib/classe-actuelle'
 import { logger } from '@/lib/logger'
+import { emailIlike } from '@/lib/email-match'
 import { buildConversionFieldsForSubmission } from '@/lib/conversion-fields'
 import {
   computeZoneFromDepartement,
@@ -208,7 +209,7 @@ export async function POST(req: NextRequest) {
     recent_conversion_event_name: string | null
   } | null = null
   if (email) {
-    const { data } = await db.from('crm_contacts').select(existingSelect).eq('email', email).maybeSingle()
+    const { data } = await db.from('crm_contacts').select(existingSelect).ilike('email', emailIlike(email)).maybeSingle()
     existing = data
   }
   if (!existing && phone) {

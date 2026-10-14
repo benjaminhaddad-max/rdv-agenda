@@ -54,6 +54,7 @@ import { createServiceClient } from '@/lib/supabase'
 import { normalizeClasseActuelle } from '@/lib/classe-actuelle'
 import { logger } from '@/lib/logger'
 import { buildConversionFieldsForSubmission } from '@/lib/conversion-fields'
+import { emailIlike } from '@/lib/email-match'
 
 export const dynamic = 'force-dynamic'
 
@@ -321,7 +322,7 @@ export async function POST(req: NextRequest) {
     const { data } = await db
       .from('crm_contacts')
       .select(existingSelect)
-      .eq('email', email)
+      .ilike('email', emailIlike(email))
       .maybeSingle()
     existing = data
   }

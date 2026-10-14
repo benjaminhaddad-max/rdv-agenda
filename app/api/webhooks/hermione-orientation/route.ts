@@ -13,6 +13,7 @@ import { createServiceClient } from '@/lib/supabase'
 import { normalizeClasseActuelle } from '@/lib/classe-actuelle'
 import { buildConversionFieldsForSubmission } from '@/lib/conversion-fields'
 import { logger } from '@/lib/logger'
+import { emailIlike } from '@/lib/email-match'
 import {
   HERMIONE_ORIENTATION_FORM_EVENT,
   HERMIONE_ORIENTATION_FORM_ID,
@@ -158,7 +159,7 @@ export async function POST(req: NextRequest) {
       .select(
         'hubspot_contact_id, hubspot_raw, first_conversion_date, first_conversion_event_name, recent_conversion_date, recent_conversion_event, recent_conversion_event_name',
       )
-      .eq('email', email)
+      .ilike('email', emailIlike(email))
       .maybeSingle()
     existing = data as ExistingRow | null
   }

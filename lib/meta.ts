@@ -2,6 +2,7 @@ import { createServiceClient } from '@/lib/supabase'
 import { normalizeClasseActuelle } from '@/lib/classe-actuelle'
 import { buildConversionFieldsForSubmission, type ExistingConversionFields } from '@/lib/conversion-fields'
 import { ORIGINE_ADS_META } from '@/lib/ad-attribution'
+import { emailIlike } from '@/lib/email-match'
 
 /**
  * Helpers pour l'intégration Meta Lead Ads (Facebook + Instagram).
@@ -757,7 +758,7 @@ export async function processMetaLead(
   if (contactData.email) {
     const { data } = await db.from('crm_contacts')
       .select('hubspot_contact_id, zone_localite, departement, first_conversion_date, first_conversion_event_name, recent_conversion_date, recent_conversion_event, recent_conversion_event_name')
-      .eq('email', contactData.email)
+      .ilike('email', emailIlike(contactData.email))
       .maybeSingle()
     existingId = data?.hubspot_contact_id || null
     existingZoneLocalite = data?.zone_localite || null
