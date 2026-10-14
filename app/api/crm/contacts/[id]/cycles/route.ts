@@ -1,10 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { getApiUserContext } from '@/lib/api-auth'
-import { isMissingCyclesSchema, type CycleEvent, type SalesCycle } from '@/lib/sales-cycles'
+import { PIPELINES, getStageMeta } from '@/lib/crm-stages'
+import { isMissingCyclesSchema, seasonOf, type CycleEvent, type CycleHistoryRdv, type SalesCycle } from '@/lib/sales-cycles'
 import { cycleActorName } from '@/lib/sales-cycles-server'
 
-// GET /api/crm/contacts/:id/cycles — cycle courant + historique + catalogue produits
+const NEGATIF_LABELS: Record<string, string> = {
+  inscrit_autre_prepa: 'Inscrit dans une autre prépa',
+  pas_les_moyens: 'Pas les moyens',
+  reorientation: 'Réorientation',
+  autre: 'Autre',
+}
+
+// GET /api/crm/contacts/:id/cycles — cycle courant + tout l'historique du lead :
+// cycles, RDV (formation, issue, raison), statuts successifs, anciennes transactions.
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const ctx = await getApiUserContext()
   if (!ctx) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
@@ -13,15 +22,24 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: contact } = await db
     .from('crm_contacts')
-    .select('hubspot_contact_id, hs_lead_status, classe_actuelle, createdate')
+    .select('hubspot_contact_id, firstname, lastname, hs_lead_status, classe_actuelle, createdate')
     .eq('hubspot_contact_id', id)
     .maybeSingle()
   if (!contact) return NextResponse.json({ error: 'Contact introuvable' }, { status: 404 })
 
-  const [cyclesRes, productsRes, rdvRes] = await Promise.all([
+  const [cyclesRes, productsRes, rdvRes, historyRes, dealsRes] = await Promise.all([
     db.from('crm_sales_cycles').select('*').eq('hubspot_contact_id', id).order('opened_at', { ascending: false }).limit(50),
     db.from('crm_cycle_products').select('*').order('sort'),
-    db.from('rdv_appointments').select('id, start_at, status, commercial_id').eq('hubspot_contact_id', id).order('start_at', { ascending: false }).limit(50),
+    db.from('rdv_appointments')
+      .select('id, start_at, status, commercial_id, formation_type, negatif_reason, negatif_reason_detail, report_summary')
+      .eq('hubspot_contact_id', id).order('start_at', { ascending: false }).limit(50),
+    db.from('crm_property_history')
+      .select('value, changed_at, source_label')
+      .eq('hubspot_contact_id', id).eq('property_name', 'hs_lead_status')
+      .order('changed_at', { ascending: false }).limit(200),
+    db.from('crm_deals')
+      .select('hubspot_deal_id, dealname, formation, dealstage, pipeline, createdate, closedate')
+      .eq('hubspot_contact_id', id).limit(30),
   ])
 
   if (cyclesRes.error || productsRes.error) {
@@ -48,35 +66,63 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     }
   }
 
-  // RDV rangés dans le cycle ouvert à leur date
-  const rdvs = (rdvRes.data ?? []) as { id: string; start_at: string; status: string; commercial_id: string | null }[]
-  const closerIds = [...new Set(rdvs.map(r => r.commercial_id).filter(Boolean))] as string[]
+  // RDV
+  const rawRdvs = (rdvRes.data ?? []) as {
+    id: string; start_at: string; status: string; commercial_id: string | null; formation_type: string | null
+    negatif_reason: string | null; negatif_reason_detail: string | null; report_summary: string | null
+  }[]
+  const closerIds = [...new Set(rawRdvs.map(r => r.commercial_id).filter(Boolean))] as string[]
   const closerNames = new Map<string, string>()
   if (closerIds.length) {
     const { data: users } = await db.from('rdv_users').select('id, name').in('id', closerIds)
     for (const u of (users ?? []) as { id: string; name: string }[]) closerNames.set(u.id, u.name)
   }
-  const chrono = [...cycles].sort((a, b) => a.opened_at.localeCompare(b.opened_at))
-  const rdvsByCycle = new Map<string, NonNullable<SalesCycle['rdvs']>>()
-  for (const r of rdvs) {
-    let target: SalesCycle | undefined
-    for (const c of chrono) if (c.opened_at <= r.start_at || c === chrono[0]) target = c
-    // Un RDV posé après la clôture d'un cycle non courant appartient au suivant (déjà géré par l'ordre)
-    if (!target) continue
-    const list = rdvsByCycle.get(target.id) ?? []
-    list.push({ id: r.id, start_at: r.start_at, status: r.status, closer: r.commercial_id ? closerNames.get(r.commercial_id) ?? null : null })
-    rdvsByCycle.set(target.id, list)
-  }
+  const rdvs: CycleHistoryRdv[] = rawRdvs.map(r => {
+    let detail = r.negatif_reason_detail
+    if (r.negatif_reason === 'inscrit_autre_prepa' && detail) {
+      try { detail = (JSON.parse(detail) as string[]).join(', ') } catch { /* texte brut */ }
+    }
+    return {
+      id: r.id,
+      start_at: r.start_at,
+      status: r.status,
+      closer: r.commercial_id ? closerNames.get(r.commercial_id) ?? null : null,
+      formation: r.formation_type,
+      negatif: r.negatif_reason ? [NEGATIF_LABELS[r.negatif_reason] ?? r.negatif_reason, detail].filter(Boolean).join(' — ') : null,
+      summary: r.report_summary ? r.report_summary.slice(0, 400) : null,
+    }
+  })
 
-  const withDetails = cycles.map(c => ({ ...c, events: eventsByCycle.get(c.id) ?? [], rdvs: rdvsByCycle.get(c.id) ?? [] }))
+  // Statuts successifs (avant v80 : historique importé de HubSpot + modifs CRM)
+  const statusHistory = ((historyRes.data ?? []) as { value: string | null; changed_at: string; source_label: string | null }[])
+    .filter(h => h.value && h.value.trim())
+    .map(h => ({ value: h.value!.trim(), at: h.changed_at, source: h.source_label }))
+
+  // Anciennes transactions = ce qu'on avait essayé de vendre, saison par saison
+  const deals = ((dealsRes.data ?? []) as {
+    hubspot_deal_id: string; dealname: string | null; formation: string | null; dealstage: string | null
+    pipeline: string | null; createdate: string | null; closedate: string | null
+  }[]).map(d => {
+    const at = d.createdate ?? d.closedate
+    const pipelineSeason = d.pipeline ? PIPELINES[d.pipeline]?.label ?? (d.pipeline.match(/(\d{4})_(\d{4})/)?.slice(1, 3).join('-') ?? null) : null
+    return {
+      id: d.hubspot_deal_id,
+      saison: pipelineSeason ?? (at ? seasonOf(at) : null),
+      formation: d.formation || d.dealname || null,
+      stage: d.dealstage ? getStageMeta(d.dealstage)?.label ?? null : null,
+      at,
+    }
+  }).filter(d => d.saison)
+
   return NextResponse.json({
     available: true,
     contact,
-    current: withDetails.find(c => c.is_current) ?? null,
-    history: withDetails.filter(c => !c.is_current),
+    current: cycles.find(c => c.is_current) ? { ...cycles.find(c => c.is_current)!, events: eventsByCycle.get(cycles.find(c => c.is_current)!.id) ?? [] } : null,
+    history: cycles.filter(c => !c.is_current).map(c => ({ ...c, events: eventsByCycle.get(c.id) ?? [] })),
     products: productsRes.data ?? [],
-    // RDV d'un contact qui n'a pas encore de cycle enregistré
-    loose_rdvs: cycles.length ? [] : rdvs.map(r => ({ id: r.id, start_at: r.start_at, status: r.status, closer: r.commercial_id ? closerNames.get(r.commercial_id) ?? null : null })),
+    rdvs,
+    status_history: statusHistory,
+    deals,
   })
 }
 

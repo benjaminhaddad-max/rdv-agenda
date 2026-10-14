@@ -1,6 +1,8 @@
 'use client'
 
-import { CYCLE_ETAT_COLORS, CYCLE_ETAT_LABELS, leadStatusColor, shortSeason, type CurrentCycleLite } from '@/lib/sales-cycles'
+import { CYCLE_ETAT_COLORS, CYCLE_ETAT_LABELS, RECYCLE_STATUS, currentSeason, leadStatusColor, shortSeason, type CurrentCycleLite } from '@/lib/sales-cycles'
+import LeadCyclesModal from './LeadCyclesModal'
+import type { CyclePanel } from './LeadCycleControl'
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { Phone, Mail, MapPin, BookOpen, Calendar, Plus, MoreVertical, ExternalLink, ChevronDown, Search, GripVertical, StickyNote, User, PhoneCall, Eye, Check, AlertTriangle, ArrowUp, ArrowDown, ArrowUpDown, Columns3, SearchX, UserPlus, FileText, Pencil, X } from 'lucide-react'
@@ -393,22 +395,28 @@ function cycleSublineText(cycle: CurrentCycleLite): string {
   return cycle.etat === 'ouvert' ? base : `${base} · ${CYCLE_ETAT_LABELS[cycle.etat]}`
 }
 
-/** Ligne grise sous le statut du lead : produit + saison du cycle de vente en cours. */
-function CycleSubline({ cycle }: { cycle: CurrentCycleLite }) {
-  const closed = cycle.etat !== 'ouvert'
-  const title = [
-    `Cycle de vente en cours : ${cycle.product ?? 'produit à définir'} — saison ${cycle.saison}`,
-    `${CYCLE_ETAT_LABELS[cycle.etat]} · ouvert le ${new Date(cycle.opened_at).toLocaleDateString('fr-FR')}`,
-    'Ouvrir la fiche pour voir l’historique ou ouvrir un nouveau cycle',
-  ].join('\n')
+/** Ligne sous le statut du lead : produit + saison du cycle en cours ; clic → cycles + historique. */
+function CycleSubline({ cycle, onClick }: { cycle: CurrentCycleLite | null; onClick: () => void }) {
+  const closed = !!cycle && cycle.etat !== 'ouvert'
+  const text = cycle ? cycleSublineText(cycle) : `Cycle ${shortSeason(currentSeason())}`
+  const title = cycle
+    ? `Cycle de vente en cours : ${cycle.product ?? 'produit pas encore choisi'} — saison ${cycle.saison} (${CYCLE_ETAT_LABELS[cycle.etat]})\nCliquer : historique, changer de produit, passer à un nouveau cycle`
+    : 'Cliquer : historique, choisir le produit, passer à un nouveau cycle'
   return (
-    <span title={title} style={{
-      display: 'block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-      fontSize: 10.5, lineHeight: '12px', fontWeight: 600, paddingLeft: 4,
-      color: closed ? CYCLE_ETAT_COLORS[cycle.etat] : crmV2.textFaint,
-    }}>
-      {cycleSublineText(cycle)}
-    </span>
+    <button
+      type="button"
+      title={title}
+      onClick={e => { e.stopPropagation(); onClick() }}
+      className="crm-cycle-subline"
+      style={{
+        all: 'unset', cursor: 'pointer', display: 'block', maxWidth: '100%', boxSizing: 'border-box',
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        fontSize: 10.5, lineHeight: '12px', fontWeight: 600, padding: '0 6px',
+        color: closed ? CYCLE_ETAT_COLORS[cycle!.etat] : crmV2.link,
+      }}
+    >
+      {text} ›
+    </button>
   )
 }
 
@@ -1216,6 +1224,8 @@ export default function CRMContactsTable({
   // contact change (le trigger SQL v80 range le statut dans son cycle).
   const [cycleMap, setCycleMap] = useState<Record<string, { forStatus: string; cycle: CurrentCycleLite | null }>>({})
   const cyclesAvailable = useRef(true)
+  const [cyclesAvailableState, setCyclesAvailableState] = useState(true)
+  const [cycleModal, setCycleModal] = useState<{ contactId: string; name: string; panel: CyclePanel } | null>(null)
   const cycleKey = visibleContacts.map(c => `${c.hubspot_contact_id}:${c.hs_lead_status ?? ''}`).join('|')
   useEffect(() => {
     if (!cyclesAvailable.current) return
@@ -1232,7 +1242,7 @@ export default function CRMContactsTable({
         })
         if (!res.ok || cancelled) return
         const j = await res.json() as { available: boolean; cycles: Record<string, CurrentCycleLite> }
-        if (!j.available) { cyclesAvailable.current = false; return }
+        if (!j.available) { cyclesAvailable.current = false; setCyclesAvailableState(false); return }
         setCycleMap(prev => {
           const next = { ...prev }
           for (const id of ids) next[id] = { forStatus: statusById.get(id) ?? '', cycle: j.cycles[id] ?? null }
@@ -1250,6 +1260,24 @@ export default function CRMContactsTable({
     if (!entry?.cycle) return null
     return (entry.cycle.status ?? '').trim() === (contact.hs_lead_status ?? '').trim() ? entry.cycle : null
   }
+
+  const cycleModalNode = cycleModal && (
+    <LeadCyclesModal
+      contactId={cycleModal.contactId}
+      name={cycleModal.name}
+      initialPanel={cycleModal.panel}
+      canManageProducts={mode === 'admin'}
+      onClose={() => {
+        // Recharge le cycle affiché sous le statut (produit / nouveau cycle choisis dans la fenêtre)
+        setCycleMap(prev => { const next = { ...prev }; delete next[cycleModal.contactId]; return next })
+        setCycleModal(null)
+      }}
+      onStatusChange={v => {
+        if (onContactPatched) onContactPatched(cycleModal.contactId, { contact: { hs_lead_status: v ?? '' } })
+        else onRefresh?.()
+      }}
+    />
+  )
 
   // ── Select-all page ──────────────────────────────────────────────────────
   const selectAllRef  = useRef<HTMLInputElement>(null)
@@ -1918,12 +1946,23 @@ export default function CRMContactsTable({
           />
         ) : <span style={{ color: crmV2.textFaint, fontSize: 13 }}>—</span>
 
-      case 'lead_status':
-        return (
+      case 'lead_status': {
+        const contactName = [contact.firstname, contact.lastname].filter(Boolean).join(' ') || contact.email || 'Contact'
+        const openCycles = (panel: CyclePanel) => setCycleModal({ contactId: contact.hubspot_contact_id, name: contactName, panel })
+        const loadedCycle = cycleMap[contact.hubspot_contact_id]
+        const cycle = currentCycleOf(contact)
+        const select = (
           <InlineCellSelect
             value={contact.hs_lead_status || ''}
-            options={(leadStatusOptions || []).map(o => ({ id: o.id, label: o.label }))}
-            onSelect={v => handleContactFieldChange(contact.hubspot_contact_id, 'hs_lead_status', v)}
+            options={(leadStatusOptions || []).map(o => ({
+              id: o.id,
+              label: o.id === RECYCLE_STATUS && cyclesAvailableState ? 'Recyclé (relancer sur un nouveau cycle…)' : o.label,
+            }))}
+            onSelect={v => {
+              // « Recyclé » = nouveau cycle de vente → formulaire dédié (fin du cycle actuel + produit suivant)
+              if (v === RECYCLE_STATUS && cyclesAvailableState) { openCycles('new'); return }
+              handleContactFieldChange(contact.hubspot_contact_id, 'hs_lead_status', v)
+            }}
             saving={savingContactField === `${contact.hubspot_contact_id}:hs_lead_status`}
             renderValue={v => {
               // Statut du lead : pastille grise
@@ -1936,17 +1975,18 @@ export default function CRMContactsTable({
                   padding: '1px 10px', fontSize: 12, fontWeight: 600, color: crmV2.text,
                 }}>{label}</span>
               )
-              const cycle = currentCycleOf(contact)
-              if (!cycle) return pill
-              return (
-                <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1, minWidth: 0, maxWidth: '100%' }}>
-                  {pill}
-                  <CycleSubline cycle={cycle} />
-                </span>
-              )
+              return pill
             }}
           />
         )
+        if (!cyclesAvailableState || !loadedCycle) return select
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: 0, maxWidth: '100%' }}>
+            {select}
+            <CycleSubline cycle={cycle} onClick={() => openCycles(null)} />
+          </div>
+        )
+      }
 
       case 'origine':
         return (
@@ -2349,7 +2389,8 @@ export default function CRMContactsTable({
             onAssigned={onRefresh}
           />
         )}
-        {saveToast && (
+        {cycleModalNode}
+      {saveToast && (
           <div
             role="status"
             style={{
@@ -2841,6 +2882,7 @@ export default function CRMContactsTable({
       )}
 
       {/* Pastille de confirmation d'enregistrement (style HubSpot) */}
+      {cycleModalNode}
       {saveToast && (
         <div
           role="status"

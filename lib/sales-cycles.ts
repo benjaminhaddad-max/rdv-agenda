@@ -48,6 +48,17 @@ export type SalesCycle = {
   rdvs?: { id: string; start_at: string; status: string; closer: string | null }[]
 }
 
+/** RDV tel qu'affiché dans l'historique des cycles. */
+export type CycleHistoryRdv = {
+  id: string
+  start_at: string
+  status: string
+  closer: string | null
+  formation: string | null
+  negatif: string | null
+  summary: string | null
+}
+
 /** Cycle courant, version légère (tableau du CRM) — /api/crm/cycles/current */
 export type CurrentCycleLite = {
   saison: string
@@ -84,6 +95,11 @@ export const CYCLE_BRAND_LABELS: Record<string, string> = {
 export function currentSeason(now = new Date()): string {
   const y = now.getFullYear()
   return now.getMonth() >= 7 ? `${y}-${y + 1}` : `${y - 1}-${y}`
+}
+
+/** Saison commerciale d'une date ISO. */
+export function seasonOf(iso: string): string {
+  return currentSeason(new Date(iso))
 }
 
 export function shiftSeason(season: string, offset: number): string {
