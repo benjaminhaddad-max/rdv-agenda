@@ -12,6 +12,7 @@ import { APPOINTMENT_LIST_SELECT, enrichAppointmentsTelepro } from '@/lib/appoin
 import { CAMPUS_OPTIONS, isValidCampus } from '@/lib/campus'
 import { attachPostRdvEmailSentAt } from '@/lib/post-rdv-email'
 import { getApiUserContext } from '@/lib/api-auth'
+import { rdvEndAtIso } from '@/lib/rdv-duration'
 import { getDemoUserIds, excludeDemoTeleproFilter } from '@/lib/demo-mode'
 
 const QUEUE_ALERT_EMAIL = 'pascal@diploma-sante.fr'
@@ -195,7 +196,7 @@ async function createAppointment(req: NextRequest, forcedBrand: 'medibox' | null
     email_parent,           // optionnel — email du/des parent(s)
     phone_parent,           // optionnel — téléphone du/des parent(s)
     start_at,
-    end_at,
+    end_at: requestedEndAt, // remplacé par la durée CRM (lib/rdv-duration) si RDV pris depuis le CRM
     source = 'telepro',     // 'telepro' | 'prospect' | 'admin'
     formation_type,
     hubspot_contact_id,
@@ -216,7 +217,7 @@ async function createAppointment(req: NextRequest, forcedBrand: 'medibox' | null
   const meeting_type = isMedibox ? 'visio' : body.meeting_type
   const meeting_link = isMedibox ? null : body.meeting_link
 
-  if (!prospect_name || !prospect_email || !start_at || !end_at) {
+  if (!prospect_name || !prospect_email || !start_at || !requestedEndAt) {
     return NextResponse.json({ error: 'Champs requis manquants' }, { status: 400 })
   }
 
@@ -241,6 +242,12 @@ async function createAppointment(req: NextRequest, forcedBrand: 'medibox' | null
   } catch {
     // Best-effort: si l'auth server-side echoue, on laisse le flux historique.
   }
+
+  // RDV pris depuis le CRM : visio / présentiel = 45 min, téléphone = 30 min.
+  // Les prises de RDV publiques (widget, liens /book, Medibox) gardent la fin envoyée.
+  const end_at: string = sessionUser && !isMedibox && !web_booking
+    ? rdvEndAtIso(start_at, meeting_type)
+    : requestedEndAt
 
   // Compte démo (review Apple) : le RDV est enregistré pour l'agenda du compte
   // démo uniquement — aucun SMS, e-mail, deal HubSpot, closer ni file d'attente.

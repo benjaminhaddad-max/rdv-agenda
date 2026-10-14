@@ -1,5 +1,6 @@
 'use client'
 
+import { rdvEndAtIso } from '@/lib/rdv-duration'
 import { useState, useEffect, type ReactNode } from 'react'
 import { format, startOfToday } from 'date-fns'
 import {
@@ -232,7 +233,7 @@ export default function CloserNewRdvModal({
       const [yr, mo, dy] = selectedDate.split('-').map(Number)
       const [hh, mm]     = selectedHour.split(':').map(Number)
       const startAt = new Date(yr, mo - 1, dy, hh, mm || 0)
-      const endAt   = new Date(startAt.getTime() + 60 * 60 * 1000) // +1h
+      const endAt   = new Date(rdvEndAtIso(startAt, meetingType)) // visio/présentiel 45 min, tél 30 min
 
       const formEntry = FORMATIONS.find(f => f.value === formation)
 

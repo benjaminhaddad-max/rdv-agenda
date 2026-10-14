@@ -1,5 +1,6 @@
 'use client'
 
+import { rdvEndAtIso } from '@/lib/rdv-duration'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { format, startOfMonth, startOfToday } from 'date-fns'
 import { fetchRecentContacts, saveRecentContact, clearRecentContactsRemote } from '@/lib/recent-contacts'
@@ -372,7 +373,7 @@ export function useNewRdvForm({ teleproUser, isLinovaBrandUser }: { teleproUser:
           prospect_name: contactName || contactEmail,
           prospect_email: contactEmail, prospect_phone: phone,
           email_parent: emailParent.trim() || null,
-          start_at: selectedSlot!.start, end_at: selectedSlot!.end,
+          start_at: selectedSlot!.start, end_at: rdvEndAtIso(selectedSlot!.start, meetingType),
           source: 'telepro', formation_type: formationLabel, formation_hs_value: formation,
           hubspot_contact_id: contact!.id, departement: departement || null, classe_actuelle: classeActuelle,
           meeting_type: meetingType,

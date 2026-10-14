@@ -1,5 +1,6 @@
 'use client'
 
+import { rdvEndAtIso } from '@/lib/rdv-duration'
 import LeadCycleControl from './LeadCycleControl'
 import ColdCallCard from './ColdCallCard'
 import { allInscriptionLeadStatuses } from '@/lib/inscription-status'
@@ -574,7 +575,7 @@ function InlineBookingWidget({ contact, onSuccess }: { contact: CRMContact; onSu
           prospect_email: contactEmail,
           prospect_phone: phone,
           start_at: selectedSlot!.start,
-          end_at: selectedSlot!.end,
+          end_at: rdvEndAtIso(selectedSlot!.start, meetingType),
           source: 'admin',
           formation_type: formationLabel,
           formation_hs_value: formation,

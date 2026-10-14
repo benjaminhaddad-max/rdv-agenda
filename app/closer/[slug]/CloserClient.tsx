@@ -1,5 +1,6 @@
 'use client'
 
+import { rdvEndAtIso } from '@/lib/rdv-duration'
 import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
 import { format, addDays, startOfWeek, startOfToday, isBefore } from 'date-fns'
 import { fr } from 'date-fns/locale'
@@ -620,7 +621,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
           prospect_email: contactEmail,
           prospect_phone: phone,
           start_at: selectedSlot!.start,
-          end_at: selectedSlot!.end,
+          end_at: rdvEndAtIso(selectedSlot!.start, meetingType),
           source: 'telepro',
           formation_type: formationLabel,
           formation_hs_value: formation,

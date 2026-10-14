@@ -1,5 +1,6 @@
 'use client'
 
+import { rdvEndAtIso } from '@/lib/rdv-duration'
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { format } from 'date-fns'
@@ -128,7 +129,7 @@ export default function DiplomaAppointmentModal({ contact, onClose, onSaved }: P
           prospect_email: email,
           prospect_phone: phone || null,
           start_at: selectedSlot.start,
-          end_at: selectedSlot.end,
+          end_at: rdvEndAtIso(selectedSlot.start, meetingType),
           source: 'admin',
           hubspot_contact_id: contact.id,
           departement: department || null,
