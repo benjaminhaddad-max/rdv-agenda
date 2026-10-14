@@ -5,6 +5,8 @@ import { requireApiRole } from '@/lib/api-auth'
 import { memoryRateLimit } from '@/lib/rate-limit'
 import { wrapCrmEmail } from '@/lib/crm-email-layout'
 import { markPostRdvEmailSent } from '@/lib/post-rdv-email'
+import { ADMISSIONS_MAILBOX, closerReplyAddress, sendAdmissionsHtmlMail } from '@/lib/admissions-mail'
+import { isGmailConfigured } from '@/lib/lycee-mail'
 
 /**
  * POST /api/crm/contacts/[id]/send-email
@@ -19,6 +21,10 @@ import { markPostRdvEmailSent } from '@/lib/post-rdv-email'
  *   replyTo       : email de réponse (optionnel)
  *   ownerId       : owner du contact qui envoie (pour logguer)
  *   appointmentId : RDV dont c'est le mail post-RDV (pastille de l'agenda)
+ *
+ * Mail post-RDV (appointmentId) : envoyé depuis admissions@ via Gmail, avec
+ * pour adresses de réponse admissions@ ET le closer du RDV (Brevo n'accepte
+ * qu'une seule adresse de réponse). Repli sur Brevo si Gmail est indisponible.
  */
 export async function POST(
   req: NextRequest,
@@ -91,31 +97,69 @@ export async function POST(
   const renderedHtml    = renderTemplate(html, vars)
   const renderedText    = text ? renderTemplate(text, vars) : htmlToText(renderedHtml)
 
-  // 4. Envoyer via Brevo
+  // 4. Envoyer : Gmail (mail post-RDV, réponses à admissions@ + closer) ou Brevo
   let messageId: string | undefined
+  let gmailId: string | undefined
+  let replyToUsed: string[] = body.replyTo ? [String(body.replyTo)] : []
   let sendError: string | null = null
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const attachments = Array.isArray(body.attachments) && body.attachments.length > 0
     ? body.attachments.map((a: any) => ({ name: String(a.name), content: String(a.content) }))
     : undefined
-  try {
-    const r = await sendBrevoEmail({
-      subject: renderedSubject,
-      // Papier à en-tête Diploma Santé autour du texte (le log garde le texte seul)
-      htmlContent: wrapCrmEmail(renderedHtml),
-      textContent: renderedText,
-      to: [{
-        email: contact.email,
-        name: [contact.firstname, contact.lastname].filter(Boolean).join(' ') || undefined,
-      }],
-      replyTo: body.replyTo ? { email: body.replyTo } : undefined,
-      tags: [`contact:${contactId}`, 'unitaire'],
-      attachment: attachments,
-    })
-    messageId = r.messageId
-  } catch (e) {
-    sendError = e instanceof Error ? e.message : String(e)
-    console.error('[crm/contacts/send-email] Brevo error:', sendError)
+  const toName = [contact.firstname, contact.lastname].filter(Boolean).join(' ') || undefined
+  // Papier à en-tête Diploma Santé autour du texte (le log garde le texte seul)
+  const htmlContent = wrapCrmEmail(renderedHtml)
+
+  const appointmentId = typeof body.appointmentId === 'string' && body.appointmentId ? body.appointmentId : null
+  let postRdvReplyTo: { email: string; name: string | null }[] | null = null
+  if (appointmentId) {
+    const { data: appt } = await db.from('rdv_appointments').select('commercial_id').eq('id', appointmentId).maybeSingle()
+    const { data: closer } = appt?.commercial_id
+      ? await db.from('rdv_users').select('name, email').eq('id', appt.commercial_id).maybeSingle()
+      : { data: null }
+    postRdvReplyTo = [{ email: ADMISSIONS_MAILBOX, name: 'Diploma Santé — Admissions' }]
+    const closerAddress = closerReplyAddress(closer)
+    if (closerAddress) postRdvReplyTo.push(closerAddress)
+  }
+
+  if (postRdvReplyTo && isGmailConfigured()) {
+    try {
+      const { data: me } = await db.from('rdv_users').select('id, name').eq('id', authz.ctx.appUserId).maybeSingle()
+      const r = await sendAdmissionsHtmlMail(db, {
+        contactId,
+        to: { email: contact.email, name: toName },
+        subject: renderedSubject,
+        html: htmlContent,
+        text: renderedText,
+        replyTo: postRdvReplyTo,
+        attachments,
+        author: { id: authz.ctx.appUserId, name: (me?.name as string | null) ?? null },
+      })
+      gmailId = r.gmailId
+      replyToUsed = postRdvReplyTo.map(r2 => r2.email)
+    } catch (e) {
+      console.error('[crm/contacts/send-email] Gmail error, repli Brevo :', e)
+    }
+  }
+
+  if (!gmailId) {
+    try {
+      const r = await sendBrevoEmail({
+        subject: renderedSubject,
+        htmlContent,
+        textContent: renderedText,
+        to: [{ email: contact.email, name: toName }],
+        // Brevo : une seule adresse de réponse (admissions@ pour un mail post-RDV)
+        replyTo: postRdvReplyTo ? { email: ADMISSIONS_MAILBOX } : body.replyTo ? { email: body.replyTo } : undefined,
+        tags: [`contact:${contactId}`, 'unitaire'],
+        attachment: attachments,
+      })
+      messageId = r.messageId
+      if (postRdvReplyTo) replyToUsed = [ADMISSIONS_MAILBOX]
+    } catch (e) {
+      sendError = e instanceof Error ? e.message : String(e)
+      console.error('[crm/contacts/send-email] Brevo error:', sendError)
+    }
   }
 
   // 5. Logger l'activité (même si erreur d'envoi → trace pour debug)
@@ -129,6 +173,9 @@ export async function POST(
     owner_id:          authz.ctx.hubspotOwnerId ?? authz.ctx.appUserId,
     metadata: {
       brevo_message_id: messageId ?? null,
+      gmail_id:         gmailId ?? null,
+      sent_via:         gmailId ? 'gmail-admissions' : 'brevo',
+      reply_to:         replyToUsed,
       template_id:      body.templateId ?? null,
       appointment_id:   body.appointmentId ?? null,
       error:            sendError,
@@ -139,8 +186,6 @@ export async function POST(
   if (sendError) {
     return NextResponse.json({ error: sendError }, { status: 500 })
   }
-  const postRdvEmailSentAt = typeof body.appointmentId === 'string' && body.appointmentId
-    ? await markPostRdvEmailSent(db, body.appointmentId)
-    : null
-  return NextResponse.json({ ok: true, messageId, postRdvEmailSentAt })
+  const postRdvEmailSentAt = appointmentId ? await markPostRdvEmailSent(db, appointmentId) : null
+  return NextResponse.json({ ok: true, messageId: messageId ?? gmailId, replyTo: replyToUsed, postRdvEmailSentAt })
 }

@@ -35,6 +35,8 @@ interface Props {
   appointmentId?: string | null
   /** Pré-sélectionne le premier modèle de cette catégorie (ex. 'apres-rdv'). */
   defaultTemplateCategory?: string | null
+  /** Mail post-RDV : nom du closer, qui reçoit les réponses avec admissions@. */
+  postRdvCloserName?: string | null
   onClose: () => void
   onSaved: () => void
 }
@@ -66,7 +68,7 @@ const TASK_TYPES: Array<{ value: string; label: string }> = [
 ]
 
 export default function QuickActionModal({
-  type, contactId, dealId, owners = [], defaultOwnerId, actorOwnerId, appointmentId, defaultTemplateCategory, onClose, onSaved,
+  type, contactId, dealId, owners = [], defaultOwnerId, actorOwnerId, appointmentId, defaultTemplateCategory, postRdvCloserName, onClose, onSaved,
 }: Props) {
   // Champs communs
   const [subject, setSubject]         = useState('')
@@ -370,36 +372,47 @@ export default function QuickActionModal({
                       Variables : <code>{'{{prenom}}'}</code> <code>{'{{nom}}'}</code> <code>{'{{email}}'}</code> <code>{'{{classe}}'}</code> <code>{'{{phone}}'}</code>
                     </p>
                   </div>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Reply-to</label>
-                    <input
-                      type="email"
-                      list="reply-to-options"
-                      value={emailReplyTo}
-                      onChange={e => setEmailReplyTo(e.target.value)}
-                      placeholder="Choisir ou taper une adresse…"
-                      className="w-full px-3 py-2 border rounded-md text-sm"
-                    />
-                    <datalist id="reply-to-options">
-                      {REPLY_TO_PRESETS.map(addr => <option key={addr} value={addr} />)}
-                    </datalist>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {REPLY_TO_PRESETS.map(addr => (
-                        <button
-                          key={addr}
-                          type="button"
-                          onClick={() => setEmailReplyTo(addr)}
-                          className={`text-[10px] px-2 py-0.5 rounded-full border transition ${
-                            emailReplyTo === addr
-                              ? 'bg-[#2ea3f2] text-white border-[#2ea3f2]'
-                              : 'bg-white text-slate-600 border-slate-200 hover:border-[#2ea3f2] hover:text-[#0038f0]'
-                          }`}
-                        >
-                          {addr}
-                        </button>
-                      ))}
+                  {appointmentId ? (
+                    // Mail post-RDV : les réponses vont toujours à admissions@ et au closer du RDV
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Réponses du prospect</label>
+                      <div className="px-3 py-2 rounded-md text-sm bg-slate-50 border border-slate-200 text-slate-700">
+                        admissions@diploma-sante.fr + {postRdvCloserName ? <b>{postRdvCloserName}</b> : 'le closer du RDV'}
+                      </div>
+                      <p className="text-[10px] text-slate-500 mt-1">Le mail part de la boîte admissions@ : quand le prospect répond, sa réponse arrive aux deux.</p>
                     </div>
-                  </div>
+                  ) : (
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Reply-to</label>
+                      <input
+                        type="email"
+                        list="reply-to-options"
+                        value={emailReplyTo}
+                        onChange={e => setEmailReplyTo(e.target.value)}
+                        placeholder="Choisir ou taper une adresse…"
+                        className="w-full px-3 py-2 border rounded-md text-sm"
+                      />
+                      <datalist id="reply-to-options">
+                        {REPLY_TO_PRESETS.map(addr => <option key={addr} value={addr} />)}
+                      </datalist>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {REPLY_TO_PRESETS.map(addr => (
+                          <button
+                            key={addr}
+                            type="button"
+                            onClick={() => setEmailReplyTo(addr)}
+                            className={`text-[10px] px-2 py-0.5 rounded-full border transition ${
+                              emailReplyTo === addr
+                                ? 'bg-[#2ea3f2] text-white border-[#2ea3f2]'
+                                : 'bg-white text-slate-600 border-slate-200 hover:border-[#2ea3f2] hover:text-[#0038f0]'
+                            }`}
+                          >
+                            {addr}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Pièces jointes */}
                   <div>

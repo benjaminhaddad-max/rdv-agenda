@@ -231,6 +231,113 @@ export async function sendAdmissionsMail(db: Db, input: SendAdmissionsMailInput)
   return row
 }
 
+/**
+ * Adresse pro d'un closer pour les réponses aux mails post-RDV. Certains comptes
+ * CRM se connectent avec une adresse perso : on la remplace par l'adresse
+ * @diploma-sante.fr, et on n'utilise jamais une adresse hors domaine.
+ */
+const CLOSER_PRO_EMAILS: Record<string, { email: string; name: string }> = {
+  // Pascal Tawfik (connexion : adresse Gmail perso)
+  pascaltawfikpro: { email: 'pascal@diploma-sante.fr', name: 'Pascal Tawfik' },
+  // Paola Kai, closeuse et télépro (compte CRM « Sofia Kai », connexion Gmail perso)
+  klaisofia330: { email: 'paola.kai@diploma-sante.fr', name: 'Paola Kai' },
+}
+
+export function closerReplyAddress(user: { email?: string | null; name?: string | null } | null): { email: string; name: string | null } | null {
+  const email = String(user?.email || '').trim().toLowerCase()
+  if (!email) return null
+  const mapped = CLOSER_PRO_EMAILS[email.split('@')[0]]
+  if (mapped) return mapped
+  if (email.endsWith('@diploma-sante.fr') && email !== ADMISSIONS_MAILBOX) return { email, name: user?.name || null }
+  return null
+}
+
+/**
+ * Mail déjà mis en page (ex. mail post-RDV habillé par wrapCrmEmail) envoyé
+ * depuis admissions@ via Gmail. Contrairement à Brevo, Gmail accepte plusieurs
+ * adresses de réponse : le prospect qui répond écrit à la fois à admissions@
+ * et au closer. Le mail est rangé dans le fil du contact (« Mes mails »).
+ */
+export async function sendAdmissionsHtmlMail(db: Db, input: {
+  contactId: string
+  to: { email: string; name?: string | null }
+  subject: string
+  html: string
+  text: string
+  replyTo: { email: string; name?: string | null }[]
+  attachments?: { name: string; content: string }[]
+  author: { id: string; name: string | null }
+}): Promise<{ gmailId: string; threadId: string | null }> {
+  const mailbox = ADMISSIONS_MAILBOX
+  const mixed = `mixed_${crypto.randomUUID()}`
+  const alt = `alt_${crypto.randomUUID()}`
+  const replyTo = input.replyTo.map(r => address(r.name || null, r.email)).join(', ')
+  const lines: string[] = [
+    `From: ${address('Diploma Santé — Admissions', mailbox)}`,
+    `To: ${address(input.to.name || null, input.to.email)}`,
+    `Reply-To: ${replyTo}`,
+    `Subject: ${encodeHeader(input.subject)}`,
+    'MIME-Version: 1.0',
+    `Content-Type: multipart/mixed; boundary="${mixed}"`,
+    '',
+    `--${mixed}`,
+    `Content-Type: multipart/alternative; boundary="${alt}"`,
+    '',
+    `--${alt}`,
+    'Content-Type: text/plain; charset="UTF-8"',
+    'Content-Transfer-Encoding: base64',
+    '',
+    b64(Buffer.from(input.text, 'utf8')),
+    `--${alt}`,
+    'Content-Type: text/html; charset="UTF-8"',
+    'Content-Transfer-Encoding: base64',
+    '',
+    b64(Buffer.from(input.html, 'utf8')),
+    `--${alt}--`,
+  ]
+  for (const a of input.attachments || []) {
+    const name = a.name.replace(/["\r\n]/g, '')
+    lines.push(
+      `--${mixed}`,
+      `Content-Type: application/octet-stream; name="${encodeHeader(name)}"`,
+      `Content-Disposition: attachment; filename="${encodeHeader(name)}"`,
+      'Content-Transfer-Encoding: base64',
+      '',
+      b64(Buffer.from(a.content, 'base64')),
+    )
+  }
+  lines.push(`--${mixed}--`, '')
+  const raw = Buffer.from(lines.join('\r\n'), 'utf8').toString('base64url')
+
+  const gmail = gmailFor(mailbox)
+  let sent: gmail_v1.Schema$Message
+  try {
+    sent = (await gmail.users.messages.send({ userId: 'me', requestBody: { raw } })).data
+  } catch (e) {
+    throw new Error(explainGoogleError(e))
+  }
+  let messageIdHeader: string | null = null
+  try {
+    const meta = await gmail.users.messages.get({ userId: 'me', id: sent.id!, format: 'metadata', metadataHeaders: ['Message-ID'] })
+    messageIdHeader = header(meta.data.payload, 'Message-ID')
+  } catch { /* lecture facultative */ }
+
+  // Rangé dans le fil du contact ; sans effet bloquant si la table manque
+  const now = new Date().toISOString()
+  const { error } = await db.from('admissions_emails').insert({
+    contact_id: input.contactId, contact_email: input.to.email.toLowerCase(), mailbox, direction: 'out',
+    gmail_id: sent.id, gmail_thread_id: sent.threadId ?? null, message_id_header: messageIdHeader,
+    from_email: mailbox, from_name: input.author.name,
+    to_emails: [input.to.email.toLowerCase()], subject: input.subject,
+    body_text: input.text.slice(0, 60_000), body_html: input.html.slice(0, 200_000), snippet: input.text.slice(0, 180),
+    has_attachments: !!input.attachments?.length,
+    author_id: input.author.id, author_name: input.author.name,
+    read_at: now, sent_at: now,
+  })
+  if (error) console.error('[admissions-mail] mail envoyé mais non rangé :', error.message)
+  return { gmailId: sent.id!, threadId: sent.threadId ?? null }
+}
+
 // ── Lecture (espace télépro) ────────────────────────────────────────────────
 
 export type AdmissionsViewer = { id: string; isAdmin: boolean; ownerIds: string[] }

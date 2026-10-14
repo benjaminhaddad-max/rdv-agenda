@@ -925,6 +925,7 @@ export default function AppointmentModal({
                 contactId={appointment.hubspot_contact_id}
                 appointmentId={appointment.id}
                 defaultTemplateCategory={postRdvTemplateCategory(appointment.classe_actuelle, appointment.formation_type)}
+                postRdvCloserName={appointment.users?.name ?? null}
                 onClose={() => setShowPostRdvMail(false)}
                 onSaved={() => {
                   const now = new Date().toISOString()
