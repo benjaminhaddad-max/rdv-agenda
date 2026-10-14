@@ -48,7 +48,7 @@ export const CRM_DEFAULT_VIEWS: CRMSavedView[] = [
     name: 'À réattribuer',
     groups: [{
       id: 'grp-a-reattribuer',
-      rules: [{ id: 'r-a-reattribuer', field: 'cold_call', operator: 'is_any', value: 'diploma,etudiants_prets,inconnue' }],
+      rules: [{ id: 'r-a-reattribuer', field: 'cold_call', operator: 'is_any', value: 'diploma,etudiants_prets,inconnue,relance_sans_date' }],
     }],
     isDefault: true,
   },

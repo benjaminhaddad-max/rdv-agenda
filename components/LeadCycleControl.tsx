@@ -24,6 +24,7 @@ import {
   type CycleEtat, type CycleHistoryRdv, type CycleProduct, type SalesCycle,
 } from '@/lib/sales-cycles'
 import CycleProductsManager from './CycleProductsManager'
+import RelanceDateModal, { RELANCE_STATUS, formatRelance } from './RelanceDateModal'
 
 type StatusPoint = { value: string; at: string; source?: string | null }
 type OldDeal = { id: string; saison: string | null; formation: string | null; stage: string | null; at: string | null }
@@ -123,6 +124,18 @@ export default function LeadCycleControl({
   const [error, setError] = useState<string | null>(null)
   const [panel, setPanel] = useState<CyclePanel>(initialPanel)
   const [showHistory, setShowHistory] = useState(initialPanel === null)
+  // « A relancer » : date et heure de relance (v87) ; undefined = pas encore chargée / indisponible
+  const [relanceAt, setRelanceAt] = useState<string | null | undefined>(undefined)
+  const [askRelance, setAskRelance] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/crm/followups', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contact_ids: [contactId] }) })
+      .then(r => (r.ok ? r.json() : null))
+      .then(j => { if (!cancelled && j?.available) setRelanceAt(j.followups?.[contactId]?.relance_at ?? null) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [contactId])
 
   const load = useCallback(async () => {
     try {
@@ -147,6 +160,13 @@ export default function LeadCycleControl({
     if (!data) return
     // « Recyclé » = lead relancé sur un nouveau cycle → on passe par le formulaire dédié
     if (next === RECYCLE_STATUS && data.available) { setPanel('new'); return }
+    // « A relancer » : on demande la date et l'heure de la relance
+    if (next === RELANCE_STATUS && relanceAt !== undefined) { setAskRelance(true); return }
+    await saveStatus(next)
+  }
+
+  async function saveStatus(next: string) {
+    if (!data) return
     const prev = status
     setData({ ...data, contact: { ...data.contact, hs_lead_status: next || null } })
     setBusy(true); setError(null)
@@ -157,6 +177,7 @@ export default function LeadCycleControl({
         body: JSON.stringify({ hs_lead_status: next || null }),
       })
       if (!res.ok) throw new Error()
+      if (next !== RELANCE_STATUS) setRelanceAt(r => (r === undefined ? r : null)) // date effacée avec le statut
       onStatusChange?.(next || null)
       if (data.available) await load()
     } catch {
@@ -211,6 +232,35 @@ export default function LeadCycleControl({
         ))}
       </select>
       {busy && <span style={{ fontSize: 11 }}>Enregistrement…</span>}
+      {status === RELANCE_STATUS && relanceAt !== undefined && (
+        <button
+          type="button"
+          onClick={() => setAskRelance(true)}
+          title={relanceAt && Date.parse(relanceAt) > Date.now() ? 'Modifier la date de relance' : 'Sans date à venir, le lead part dans « À réattribuer »'}
+          style={{
+            all: 'unset', cursor: 'pointer', fontSize: 12, fontWeight: 700, borderRadius: 999, padding: '2px 9px',
+            ...(relanceAt && Date.parse(relanceAt) > Date.now()
+              ? { background: crmV2.chipBg, border: `1px solid ${crmV2.chipBorder}`, color: crmV2.text }
+              : { background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.35)', color: '#b91c1c' }),
+          }}
+        >
+          {relanceAt ? `Relance ${formatRelance(relanceAt)}${Date.parse(relanceAt) < Date.now() ? ' · dépassée' : ''}` : 'Sans date de relance · en mettre une'}
+        </button>
+      )}
+      {askRelance && (
+        <RelanceDateModal
+          contactName={[data?.contact.firstname, data?.contact.lastname].filter(Boolean).join(' ') || 'Ce lead'}
+          initial={relanceAt ?? null}
+          onCancel={() => setAskRelance(false)}
+          onConfirm={async iso => {
+            setAskRelance(false)
+            const res = await fetch('/api/crm/followups', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contact_id: contactId, relance_at: iso }) })
+            if (!res.ok) { setError('La date de relance n’a pas pu être enregistrée'); return }
+            setRelanceAt(iso)
+            if (status !== RELANCE_STATUS) await saveStatus(RELANCE_STATUS)
+          }}
+        />
+      )}
     </div>
   )
 

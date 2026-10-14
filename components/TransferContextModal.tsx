@@ -18,14 +18,15 @@ const blockTitle: React.CSSProperties = {
 
 /** Lead pas encore transféré (vue « À réattribuer ») → même présentation que le contexte d'un transfert. */
 function detailFromCandidate(c: TransferCandidate): TransferDetail {
+  const call = c.call
   return {
     id: '', hubspot_contact_id: c.hubspot_contact_id, contact_name: c.name,
-    from_name: null, to_name: c.telepro.name, caller_name: c.call.caller?.name ?? null,
+    from_name: null, to_name: c.telepro.name, caller_name: call?.caller?.name ?? null,
     created_by: null, created_at: '', seen_at: null, note: null, lead_status_at_transfer: c.lead_status,
     call: {
-      started_at: c.call.started_at, talk_sec: c.call.talk_sec, analysed: c.call.analysed, approach: c.call.approach,
-      cause_label: c.call.cause_label, summary: c.call.summary, missing: c.call.missing, advice: c.call.advice,
-      recording_url: c.call.recording_url,
+      started_at: call?.started_at ?? null, talk_sec: call?.talk_sec ?? null, analysed: !!call?.analysed, approach: call?.approach ?? null,
+      cause_label: call?.cause_label ?? null, summary: call?.summary ?? null, missing: call?.missing ?? null, advice: call?.advice ?? null,
+      recording_url: call?.recording_url ?? null,
     },
   }
 }

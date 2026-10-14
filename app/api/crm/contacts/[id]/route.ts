@@ -115,6 +115,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     )
   }
 
+  // La date de relance (v87) va avec le statut « A relancer » : effacée quand le statut change
+  if ('hs_lead_status' in supabaseUpdates && supabaseUpdates.hs_lead_status !== 'A relancer') {
+    await db.from('crm_contact_followups').update({ relance_at: null, updated_at: now }).eq('hubspot_contact_id', contactId)
+  }
+
   // Propagation contact → deals liés (closer + télépro toujours synchronisés)
   const hubspot_owner_id = contactFields.hubspot_owner_id
   const needsDealSync = teleprospecteur !== undefined || hubspot_owner_id !== undefined

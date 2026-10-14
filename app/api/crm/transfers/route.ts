@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
   // Appel froid de chaque lead s'il n'est pas fourni (réattribution depuis le tableau Contacts)
   if (items.some(i => !i.aircall_call_id)) {
     const { rows: candidates } = await getTransferCandidatesCached(db)
-    const callOf = new Map(candidates.map(r => [r.hubspot_contact_id, r.call.aircall_call_id]))
+    const callOf = new Map(candidates.map(r => [r.hubspot_contact_id, r.call?.aircall_call_id ?? null]))
     for (const i of items) if (!i.aircall_call_id) i.aircall_call_id = callOf.get(i.contact_id) ?? null
   }
 

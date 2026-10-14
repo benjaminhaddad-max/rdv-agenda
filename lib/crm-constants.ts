@@ -160,6 +160,7 @@ export const COLD_CALL_FILTER_OPTIONS: SelectOption[] = [
   { id: 'etudiants_prets',   label: 'Approche asso / étudiants → 3 semaines passées' },
   { id: 'etudiants_attente', label: 'Approche asso / étudiants → trop tôt pour replacer' },
   { id: 'inconnue',          label: 'Approche non détectée (appel non analysé)' },
+  { id: 'relance_sans_date', label: '« A relancer » sans date (ou date passée)' },
   { id: 'deja_transfere',    label: 'Déjà transférés' },
 ]
 

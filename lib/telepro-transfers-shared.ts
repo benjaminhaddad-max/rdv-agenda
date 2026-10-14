@@ -45,8 +45,13 @@ export function detectApproach(transcript: string | null | undefined): CallAppro
   return e < d ? 'etudiants' : 'diploma'
 }
 
-/** Ligne de la vue admin « Réattribution » : un lead + son appel à froid sans RDV. */
+/**
+ * Ligne de la vue « À réattribuer » :
+ *  - « appel_froid »       : premier appel (> 2 min) sans RDV ni inscription ;
+ *  - « relance_sans_date » : statut « A relancer » sans date de relance (ou date passée).
+ */
 export type TransferCandidate = {
+  kind: 'appel_froid' | 'relance_sans_date'
   hubspot_contact_id: string
   name: string
   phone: string | null
@@ -67,7 +72,7 @@ export type TransferCandidate = {
     missing: string | null
     advice: string | null
     recording_url: string | null
-  }
+  } | null
   /** Approche étudiants ratée : date à partir de laquelle on peut replacer le lead */
   retry_after: string | null
   /** Relance prévue par le télépro, déjà passée (sinon le lead n'est pas listé) */

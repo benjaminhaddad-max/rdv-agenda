@@ -77,7 +77,6 @@ export async function computeTransferCandidates(db: SupabaseClient, opts: { days
     .sort((a, b) => a.name.localeCompare(b.name, 'fr'))
   const causes = CALL_CAUSES.filter(c => c.id !== 'rdv_pris' && c.id !== 'offre_directe').map(c => ({ id: c.id, label: c.label }))
 
-  if (!calls.length) return { available: true, days: opts.days, telepros, rows: [], causes }
 
   // 2. Analyses IA
   type Analysis = { status: string; call_type: string | null; outcome: string | null; cause: string | null; summary: string | null; missing: string | null; advice: string | null; transcript?: string | null }
@@ -99,7 +98,6 @@ export async function computeTransferCandidates(db: SupabaseClient, opts: { days
     if (a?.status === 'done' && (a.cause === 'rdv_pris' || a.cause === 'offre_directe')) return false
     return kinds.get(c.aircall_call_id)?.kind === 'premier_appel'
   })
-  if (!cold.length) return { available: true, days: opts.days, telepros, rows: [], causes }
 
   // Un seul appel à froid par contact : le plus récent
   const coldByContact = new Map<string, CallRec>()
@@ -181,6 +179,7 @@ export async function computeTransferCandidates(db: SupabaseClient, opts: { days
     for (const lc of longCallsByContact.get(cid) ?? []) if (lc.rdv_user_id) previous.add(lc.rdv_user_id)
 
     rows.push({
+      kind: 'appel_froid',
       hubspot_contact_id: cid,
       name: [contact.firstname, contact.lastname].filter(Boolean).join(' ') || 'Contact',
       phone: contact.phone || contact.mobilephone || null,
@@ -212,7 +211,81 @@ export async function computeTransferCandidates(db: SupabaseClient, opts: { days
         : null,
     })
   }
-  rows.sort((x, y) => y.call.started_at.localeCompare(x.call.started_at))
+  // ── Statut « A relancer » sans date de relance (ou date passée) : à faire bouger
+  const listed = new Set(rows.map(r => r.hubspot_contact_id))
+  const relanceContacts: ContactRow[] = []
+  for (let from = 0; from < 20_000; from += 1000) {
+    const { data } = await db.from('crm_contacts')
+      .select('hubspot_contact_id, firstname, lastname, phone, mobilephone, classe_actuelle, hs_lead_status, telepro_user_id')
+      .eq('hs_lead_status', 'A relancer').not('telepro_user_id', 'is', null)
+      .range(from, from + 999)
+    relanceContacts.push(...((data ?? []) as ContactRow[]))
+    if (!data || data.length < 1000) break
+  }
+  const relanceIds = relanceContacts.map(c => c.hubspot_contact_id).filter(id => !listed.has(id))
+  const relanceDates = new Map<string, string>()
+  const relanceTransfers = new Map<string, Array<{ id: string; from_rdv_user_id: string | null; to_rdv_user_id: string; created_at: string }>>()
+  for (let i = 0; i < relanceIds.length; i += 200) {
+    const ids = relanceIds.slice(i, i + 200)
+    const [f, t] = await Promise.all([
+      db.from('crm_contact_followups').select('hubspot_contact_id, relance_at').in('hubspot_contact_id', ids).not('relance_at', 'is', null),
+      db.from('crm_contact_transfers').select('id, hubspot_contact_id, from_rdv_user_id, to_rdv_user_id, created_at').in('hubspot_contact_id', ids),
+    ])
+    for (const r of (f.data ?? []) as Array<{ hubspot_contact_id: string; relance_at: string }>) relanceDates.set(r.hubspot_contact_id, r.relance_at)
+    for (const r of (t.data ?? []) as Array<{ id: string; hubspot_contact_id: string; from_rdv_user_id: string | null; to_rdv_user_id: string; created_at: string }>) {
+      const l = relanceTransfers.get(r.hubspot_contact_id) ?? []; l.push(r); relanceTransfers.set(r.hubspot_contact_id, l)
+    }
+  }
+  for (const contact of relanceContacts) {
+    const cid = contact.hubspot_contact_id
+    if (listed.has(cid)) continue
+    const relance = relanceDates.get(cid) ?? null
+    if (relance && Date.parse(relance) > Date.now()) continue // relance prévue : le lead reste au télépro
+    const hsId = String(contact.telepro_user_id ?? '').trim()
+    const holder = byHs.get(hsId)
+    const last = (longCallsByContact.get(cid) ?? [])[0] // appels triés du plus récent au plus ancien
+    const a = last ? analyses.get(last.aircall_call_id) : undefined
+    const analysed = a?.status === 'done'
+    const contactTransfers = (relanceTransfers.get(cid) ?? []).sort((x, y) => y.created_at.localeCompare(x.created_at))
+    const previous = new Set<string>()
+    if (holder) previous.add(holder.id)
+    for (const x of contactTransfers) { if (x.from_rdv_user_id) previous.add(x.from_rdv_user_id); previous.add(x.to_rdv_user_id) }
+    for (const lc of longCallsByContact.get(cid) ?? []) if (lc.rdv_user_id) previous.add(lc.rdv_user_id)
+    // Déjà transféré depuis qu'il est « A relancer » sans date → on le signale
+    const lastTransfer = contactTransfers[0] && (!relance || Date.parse(contactTransfers[0].created_at) > Date.parse(relance)) ? contactTransfers[0] : null
+    rows.push({
+      kind: 'relance_sans_date',
+      hubspot_contact_id: cid,
+      name: [contact.firstname, contact.lastname].filter(Boolean).join(' ') || 'Contact',
+      phone: contact.phone || contact.mobilephone || null,
+      classe: contact.classe_actuelle,
+      lead_status: contact.hs_lead_status,
+      telepro: { id: holder?.id ?? null, hs_id: hsId, name: holder?.name ?? `Télépro ${hsId}` },
+      call: last ? {
+        aircall_call_id: last.aircall_call_id,
+        started_at: last.started_at,
+        talk_sec: talkSeconds(last),
+        caller: last.rdv_user_id ? { id: last.rdv_user_id, name: usersById.get(last.rdv_user_id)?.name ?? 'Télépro' } : null,
+        analysed,
+        approach: null,
+        cause: analysed ? a?.cause ?? null : null,
+        cause_label: analysed && a?.cause ? CAUSE_LABELS[a.cause] ?? a.cause : null,
+        summary: analysed ? a?.summary ?? null : null,
+        missing: analysed ? a?.missing ?? null : null,
+        advice: analysed ? a?.advice ?? null : null,
+        recording_url: last.recording_url,
+      } : null,
+      retry_after: null,
+      relance_at: relance,
+      later_calls: 0,
+      previous_holders: [...previous],
+      transferred: lastTransfer
+        ? { id: lastTransfer.id, to_name: usersById.get(lastTransfer.to_rdv_user_id)?.name ?? 'Télépro', created_at: lastTransfer.created_at }
+        : null,
+    })
+  }
+
+  rows.sort((x, y) => (y.call?.started_at ?? '').localeCompare(x.call?.started_at ?? ''))
   return { available: transfersAvailable, days: opts.days, telepros, rows, causes }
 }
 
@@ -242,8 +315,9 @@ export function invalidateTransferCandidates() {
 /** Catégorie d'un lead pour le filtre « Appel froid sans RDV » (voir COLD_CALL_FILTER_OPTIONS). */
 export function coldCallCategory(r: TransferCandidate): string {
   if (r.transferred) return 'deja_transfere'
-  if (r.call.approach === 'diploma') return 'diploma'
-  if (r.call.approach === 'etudiants') return r.retry_after && Date.parse(r.retry_after) > Date.now() ? 'etudiants_attente' : 'etudiants_prets'
+  if (r.kind === 'relance_sans_date') return 'relance_sans_date'
+  if (r.call?.approach === 'diploma') return 'diploma'
+  if (r.call?.approach === 'etudiants') return r.retry_after && Date.parse(r.retry_after) > Date.now() ? 'etudiants_attente' : 'etudiants_prets'
   return 'inconnue'
 }
 
