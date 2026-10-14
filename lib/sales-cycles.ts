@@ -48,6 +48,15 @@ export type SalesCycle = {
   rdvs?: { id: string; start_at: string; status: string; closer: string | null }[]
 }
 
+/** Cycle courant, version légère (tableau du CRM) — /api/crm/cycles/current */
+export type CurrentCycleLite = {
+  saison: string
+  product: string | null
+  status: string | null
+  etat: CycleEtat
+  opened_at: string
+}
+
 export const RECYCLE_STATUS = 'Recyclé'
 
 export const CYCLE_ETAT_LABELS: Record<CycleEtat, string> = {

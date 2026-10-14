@@ -1,6 +1,6 @@
 'use client'
 
-import { leadStatusColor } from '@/lib/sales-cycles'
+import { CYCLE_ETAT_COLORS, CYCLE_ETAT_LABELS, leadStatusColor, shortSeason, type CurrentCycleLite } from '@/lib/sales-cycles'
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { Phone, Mail, MapPin, BookOpen, Calendar, Plus, MoreVertical, ExternalLink, ChevronDown, Search, GripVertical, StickyNote, User, PhoneCall, Eye, Check, AlertTriangle, ArrowUp, ArrowDown, ArrowUpDown, Columns3, SearchX, UserPlus, FileText, Pencil, X } from 'lucide-react'
@@ -387,6 +387,31 @@ const STAGE_MAP: Record<string, { label: string; color: string; bg: string }> = 
 }
 
 /** Pastille d'étape V2 : fond teinté, point coloré. */
+/** « Prépa PASS / LAS 27-28 » (+ « · Perdu » si le cycle est clos) */
+function cycleSublineText(cycle: CurrentCycleLite): string {
+  const base = cycle.product ? `${cycle.product} ${shortSeason(cycle.saison)}` : `Cycle ${shortSeason(cycle.saison)}`
+  return cycle.etat === 'ouvert' ? base : `${base} · ${CYCLE_ETAT_LABELS[cycle.etat]}`
+}
+
+/** Ligne grise sous le statut du lead : produit + saison du cycle de vente en cours. */
+function CycleSubline({ cycle }: { cycle: CurrentCycleLite }) {
+  const closed = cycle.etat !== 'ouvert'
+  const title = [
+    `Cycle de vente en cours : ${cycle.product ?? 'produit à définir'} — saison ${cycle.saison}`,
+    `${CYCLE_ETAT_LABELS[cycle.etat]} · ouvert le ${new Date(cycle.opened_at).toLocaleDateString('fr-FR')}`,
+    'Ouvrir la fiche pour voir l’historique ou ouvrir un nouveau cycle',
+  ].join('\n')
+  return (
+    <span title={title} style={{
+      display: 'block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+      fontSize: 10.5, lineHeight: '12px', fontWeight: 600, paddingLeft: 4,
+      color: closed ? CYCLE_ETAT_COLORS[cycle.etat] : crmV2.textFaint,
+    }}>
+      {cycleSublineText(cycle)}
+    </span>
+  )
+}
+
 function StageBadge({ stageId }: { stageId?: string | null }) {
   if (!stageId) return <span style={{ color: crmV2.textFaint, fontSize: 13 }}>—</span>
   const s = STAGE_MAP[stageId] ?? { label: stageId, color: crmV2.textFaint, bg: 'rgba(85,88,112,0.10)' }
@@ -862,7 +887,7 @@ const COL_WIDTHS: Record<ColKey, number> = {
   zone:                 100,
   departement:          110,
   etape:                150,
-  lead_status:          130,
+  lead_status:          170,
   origine:              120,
   closer:               120,
   closer_du_contact:    140,
@@ -1185,6 +1210,46 @@ export default function CRMContactsTable({
     () => effectiveContacts.slice(0, renderedCount),
     [effectiveContacts, renderedCount]
   )
+
+  // ── Cycle de vente courant (affiché sous le statut du lead) ─────────────
+  // Chargé par lots pour les lignes affichées ; rechargé quand le statut d'un
+  // contact change (le trigger SQL v80 range le statut dans son cycle).
+  const [cycleMap, setCycleMap] = useState<Record<string, { forStatus: string; cycle: CurrentCycleLite | null }>>({})
+  const cyclesAvailable = useRef(true)
+  const cycleKey = visibleContacts.map(c => `${c.hubspot_contact_id}:${c.hs_lead_status ?? ''}`).join('|')
+  useEffect(() => {
+    if (!cyclesAvailable.current) return
+    const wanted = visibleContacts.filter(c => cycleMap[c.hubspot_contact_id]?.forStatus !== (c.hs_lead_status ?? ''))
+    if (!wanted.length) return
+    const statusById = new Map(wanted.map(c => [c.hubspot_contact_id, c.hs_lead_status ?? '']))
+    const ids = [...statusById.keys()]
+    let cancelled = false
+    // Petit délai : le trigger a le temps de ranger un statut tout juste modifié
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/crm/cycles/current', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contact_ids: ids }),
+        })
+        if (!res.ok || cancelled) return
+        const j = await res.json() as { available: boolean; cycles: Record<string, CurrentCycleLite> }
+        if (!j.available) { cyclesAvailable.current = false; return }
+        setCycleMap(prev => {
+          const next = { ...prev }
+          for (const id of ids) next[id] = { forStatus: statusById.get(id) ?? '', cycle: j.cycles[id] ?? null }
+          return next
+        })
+      } catch { /* best-effort */ }
+    }, 400)
+    return () => { cancelled = true; clearTimeout(t) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cycleKey])
+
+  /** Cycle courant à afficher, seulement s'il correspond bien au statut actuel. */
+  function currentCycleOf(contact: CRMContact): CurrentCycleLite | null {
+    const entry = cycleMap[contact.hubspot_contact_id]
+    if (!entry?.cycle) return null
+    return (entry.cycle.status ?? '').trim() === (contact.hs_lead_status ?? '').trim() ? entry.cycle : null
+  }
 
   // ── Select-all page ──────────────────────────────────────────────────────
   const selectAllRef  = useRef<HTMLInputElement>(null)
@@ -1864,12 +1929,20 @@ export default function CRMContactsTable({
               // Statut du lead : pastille grise
               if (!v) return <span style={{ color: crmV2.textFaint, fontSize: 13 }}>—</span>
               const label = (leadStatusOptions || []).find(o => o.id === v)?.label || v
-              return (
+              const pill = (
                 <span style={{
                   display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                   background: crmV2.chipBg, border: `1px solid ${crmV2.chipBorder}`, borderRadius: 999,
-                  padding: '2px 10px', fontSize: 12, fontWeight: 600, color: crmV2.text,
+                  padding: '1px 10px', fontSize: 12, fontWeight: 600, color: crmV2.text,
                 }}>{label}</span>
+              )
+              const cycle = currentCycleOf(contact)
+              if (!cycle) return pill
+              return (
+                <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1, minWidth: 0, maxWidth: '100%' }}>
+                  {pill}
+                  <CycleSubline cycle={cycle} />
+                </span>
               )
             }}
           />
@@ -2130,7 +2203,8 @@ export default function CRMContactsTable({
             const name = [contact.firstname, contact.lastname].filter(Boolean).join(' ') || contact.email || contact.hubspot_contact_id
             const deal = contact.deal
             const selected = selectedIds?.has(contact.hubspot_contact_id) || false
-            const stageText = [contact.hs_lead_status, contact.formation_souhaitee]
+            const mCycle = currentCycleOf(contact)
+            const stageText = [contact.hs_lead_status, mCycle ? cycleSublineText(mCycle) : contact.formation_souhaitee]
               .filter(Boolean).join(' · ')
             const created = shortDate(contact.contact_createdate)
             const formDate = shortDate(contact.recent_conversion_date)
