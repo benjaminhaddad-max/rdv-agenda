@@ -17,18 +17,26 @@ export const POST_RDV_TEMPLATE_CATEGORY = 'apres-rdv'
 export const POST_RDV_TERMINALE_TEMPLATE_CATEGORY = 'apres-rdv-terminale'
 
 /**
- * Modèle selon la classe de l'élève et la formation visée :
+ * Modèle selon la classe de l'élève et la formation visée.
+ *
+ * Formation de l'année en cours (2026-2027) → inscription immédiate, dernières places :
+ *   Terminale + Terminale Santé, Première + Première Élite, post-bac + PAES
+ * Sinon, pré-inscription pour l'an prochain (2027-2028) :
  *   Seconde   → Première Élite (événements exclusifs + aperçu Première Élite Lite)
  *   Première  → Terminale Santé (Première Élite Lite)
  *   Terminale → PAES si c'est la formation visée, sinon Licence Portail Santé
- *               (Terminale Santé Light + coach Parcoursup + événements)
  *   autre     → modèle général
  */
 export function postRdvTemplateCategory(classeActuelle?: string | null, formation?: string | null): string {
   const classe = (classeActuelle || '').trim().toLowerCase()
+  const f = formation || ''
+  const lycee = /^(seconde|premi[eè]re|terminale)/.test(classe)
+  if (/^terminale/.test(classe) && /terminale\s+sant/i.test(f)) return 'apres-rdv-2627-terminale-sante'
+  if (/^premi[eè]re/.test(classe) && /premi[eè]re\s+([ée]lite|sant)/i.test(f)) return 'apres-rdv-2627-premiere-elite'
+  if (!lycee && /paes/i.test(f)) return 'apres-rdv-2627-paes'
   if (/^seconde/.test(classe)) return 'apres-rdv-premiere-elite'
   if (/^premi[eè]re/.test(classe)) return 'apres-rdv-terminale-sante'
-  if (/^terminale/.test(classe)) return /paes/i.test(formation || '') ? 'apres-rdv-paes' : 'apres-rdv-lps'
+  if (/^terminale/.test(classe)) return /paes/i.test(f) ? 'apres-rdv-paes' : 'apres-rdv-lps'
   return POST_RDV_TEMPLATE_CATEGORY
 }
 
