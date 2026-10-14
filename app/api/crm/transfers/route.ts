@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { getApiUserContext } from '@/lib/api-auth'
-import { CAUSE_LABELS, isMissingTransfersTable, loadTelepros, teleproByHsId } from '@/lib/telepro-transfers'
+import { CAUSE_LABELS, getTransferCandidatesCached, invalidateTransferCandidates, isMissingTransfersTable, loadTelepros, teleproByHsId } from '@/lib/telepro-transfers'
 import { detectApproach } from '@/lib/telepro-transfers-shared'
 import { talkSeconds, type CallRow } from '@/lib/suivi-commercial'
 import { BENJAMIN_TELEPRO_ID, triggerBenjaminSheetSyncForContacts } from '@/lib/benjamin-sheet-sync'
@@ -41,6 +41,13 @@ export async function POST(req: NextRequest) {
     return u ? { id, name: u.name, hs: String(u.hubspot_user_id || u.hubspot_owner_id || '').trim() } : null
   }).filter((t): t is { id: string; name: string; hs: string } => !!t && !!t.hs)
   if (!targets.length) return NextResponse.json({ error: 'Télépro cible sans identifiant CRM' }, { status: 400 })
+
+  // Appel froid de chaque lead s'il n'est pas fourni (réattribution depuis le tableau Contacts)
+  if (items.some(i => !i.aircall_call_id)) {
+    const { rows: candidates } = await getTransferCandidatesCached(db)
+    const callOf = new Map(candidates.map(r => [r.hubspot_contact_id, r.call.aircall_call_id]))
+    for (const i of items) if (!i.aircall_call_id) i.aircall_call_id = callOf.get(i.contact_id) ?? null
+  }
 
   const contactIds = [...new Set(items.map(i => i.contact_id))]
   const callIds = [...new Set(items.map(i => Number(i.aircall_call_id)).filter(n => Number.isFinite(n) && n > 0))]
@@ -155,6 +162,7 @@ export async function POST(req: NextRequest) {
     }
     if (hs === BENJAMIN_TELEPRO_ID) await triggerBenjaminSheetSyncForContacts(db, ids)
   }
+  invalidateTransferCandidates()
   const { error: refreshError } = await db.rpc('crm_refresh_contacts_fast_mv')
   if (refreshError) errors.push(`fast_mv_refresh: ${refreshError.message}`)
 

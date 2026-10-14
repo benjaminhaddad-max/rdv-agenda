@@ -3,7 +3,8 @@
 import { CYCLE_ETAT_COLORS, CYCLE_ETAT_LABELS, RECYCLE_STATUS, currentSeason, leadStatusColor, shortSeason, type CurrentCycleLite } from '@/lib/sales-cycles'
 import LeadCyclesModal from './LeadCyclesModal'
 import TransferBadge from './TransferBadge'
-import type { TransferBadgeInfo } from '@/lib/telepro-transfers-shared'
+import TransferContextModal from './TransferContextModal'
+import { formatCallWhen, formatTalk, type TransferBadgeInfo, type TransferCandidate } from '@/lib/telepro-transfers-shared'
 import type { CyclePanel } from './LeadCycleControl'
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
@@ -391,6 +392,32 @@ const STAGE_MAP: Record<string, { label: string; color: string; bg: string }> = 
 }
 
 /** Pastille d'étape V2 : fond teinté, point coloré. */
+/** Ligne « appel froid » sous le nom (vue « À réattribuer ») : quand, combien de temps, approche, pourquoi pas de RDV. */
+function ColdCallLine({ c, onOpen }: { c: TransferCandidate; onOpen: () => void }) {
+  const ap = c.call.approach
+  const color = ap === 'diploma' ? '#1d4ed8' : ap === 'etudiants' ? '#6d28d9' : crmV2.textFaint
+  const waiting = !!c.retry_after && Date.parse(c.retry_after) > Date.now()
+  const parts = [
+    `Appel froid ${formatCallWhen(c.call.started_at)} · ${formatTalk(c.call.talk_sec)}`,
+    ap === 'diploma' ? 'Diploma' : ap === 'etudiants' ? 'Étudiants' : 'approche ?',
+    c.call.cause_label,
+    c.transferred ? `déjà transféré à ${c.transferred.to_name}` : waiting ? `à replacer dès le ${new Date(c.retry_after!).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}` : null,
+  ].filter(Boolean)
+  return (
+    <button
+      type="button"
+      onClick={e => { e.stopPropagation(); onOpen() }}
+      title="Voir le contexte de l’appel (résumé, pourquoi pas de RDV, conseil, enregistrement)"
+      style={{
+        all: 'unset', cursor: 'pointer', fontSize: 10.5, lineHeight: '12px', fontWeight: 600, color,
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%',
+      }}
+    >
+      {parts.join(' · ')} ›
+    </button>
+  )
+}
+
 /** « Prépa PASS / LAS 27-28 » (+ « · Perdu » si le cycle est clos) */
 function cycleSublineText(cycle: CurrentCycleLite): string {
   const base = cycle.product ? `${cycle.product} ${shortSeason(cycle.saison)}` : `Cycle ${shortSeason(cycle.saison)}`
@@ -547,6 +574,8 @@ interface Props {
   columnsMenuSlot?: HTMLElement | null
   loading?: boolean
   mode?: 'admin' | 'closer' | 'telepro'
+  /** Vue « À réattribuer » : ligne « appel froid » sous le nom (date, durée, approche, raison) */
+  coldCallContext?: boolean
   onRefresh?: () => void
   /** Mise à jour locale après édition inline (évite un reload qui fait disparaître la ligne si le filtre actif ne correspond plus). */
   onContactPatched?: (contactId: string, patch: ContactInlinePatch) => void
@@ -1029,6 +1058,7 @@ export default function CRMContactsTable({
   contacts,
   loading,
   mode = 'admin',
+  coldCallContext = false,
   onRefresh,
   onContactPatched,
   selectedIds,
@@ -1284,12 +1314,40 @@ export default function CRMContactsTable({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [transferKey])
 
+  // ── Vue « À réattribuer » : appel froid de chaque lead ──
+  const [coldMap, setColdMap] = useState<Record<string, TransferCandidate | null>>({})
+  const [coldModal, setColdModal] = useState<TransferCandidate | null>(null)
+  useEffect(() => {
+    if (!coldCallContext) return
+    const ids = visibleContacts.map(c => c.hubspot_contact_id).filter(id => !(id in coldMap))
+    if (!ids.length) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch('/api/crm/transfers/context', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contact_ids: ids }),
+        })
+        if (!res.ok || cancelled) return
+        const j = await res.json() as { context: Record<string, TransferCandidate> }
+        setColdMap(prev => {
+          const next = { ...prev }
+          for (const id of ids) next[id] = j.context[id] ?? null
+          return next
+        })
+      } catch { /* best-effort */ }
+    })()
+    return () => { cancelled = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coldCallContext, transferKey])
+
   /** Cycle courant à afficher, seulement s'il correspond bien au statut actuel. */
   function currentCycleOf(contact: CRMContact): CurrentCycleLite | null {
     const entry = cycleMap[contact.hubspot_contact_id]
     if (!entry?.cycle) return null
     return (entry.cycle.status ?? '').trim() === (contact.hs_lead_status ?? '').trim() ? entry.cycle : null
   }
+
+  const coldModalNode = coldModal && <TransferContextModal candidate={coldModal} onClose={() => setColdModal(null)} />
 
   const cycleModalNode = cycleModal && (
     <LeadCyclesModal
@@ -1843,6 +1901,7 @@ export default function CRMContactsTable({
         return (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, position: 'relative' }}>
             <ContactAvatar name={name} size={24} />
+            <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
             <a
               href={`/admin/crm/contacts/${contact.hubspot_contact_id}`}
               title={name}
@@ -1853,6 +1912,10 @@ export default function CRMContactsTable({
             >
               {name}
             </a>
+            {coldCallContext && coldMap[contact.hubspot_contact_id] && (
+              <ColdCallLine c={coldMap[contact.hubspot_contact_id]!} onOpen={() => setColdModal(coldMap[contact.hubspot_contact_id]!)} />
+            )}
+            </span>
             {transferMap[contact.hubspot_contact_id] && (
               <TransferBadge
                 info={transferMap[contact.hubspot_contact_id]!}
@@ -2429,6 +2492,7 @@ export default function CRMContactsTable({
           />
         )}
         {cycleModalNode}
+      {coldModalNode}
       {saveToast && (
           <div
             role="status"
@@ -2922,6 +2986,7 @@ export default function CRMContactsTable({
 
       {/* Pastille de confirmation d'enregistrement (style HubSpot) */}
       {cycleModalNode}
+      {coldModalNode}
       {saveToast && (
         <div
           role="status"

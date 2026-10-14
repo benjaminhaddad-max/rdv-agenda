@@ -3,7 +3,7 @@
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import {
-  Users, Mail, FileText, LayoutDashboard, Forward,
+  Users, Mail, FileText, LayoutDashboard,
   Rocket, ChevronLeft, ChevronRight, LogOut, Calendar, CalendarDays,
   ExternalLink, BarChart3, CheckSquare, Workflow, Upload, GitMerge, Settings as SettingsIcon, Facebook, AlertTriangle, MessageSquare, Menu, X, List, Palette, Repeat2, FileSignature, Phone, Sparkles, Presentation, PhoneCall, ClipboardList, Mic,
 } from 'lucide-react'
@@ -30,7 +30,6 @@ const NAV_SECTIONS: NavSection[] = [
       { key: 'crm-dashboard', label: 'Dashboard',    href: '/admin/crm/dashboard',    icon: LayoutDashboard },
       { key: 'agenda',        label: 'Agenda',       href: '/admin/crm/agenda',       icon: Calendar },
       { key: 'contacts',      label: 'Contacts',     href: '/admin/crm',              icon: Users },
-      { key: 'reattribution', label: 'Réattribution', href: '/admin/crm/reattribution', icon: Forward },
       { key: 'tasks',         label: 'Mes tâches',   href: '/admin/crm/tasks',        icon: CheckSquare },
       { key: 'import',        label: 'Import CSV',   href: '/admin/crm/import',       icon: Upload },
       { key: 'doublons',      label: 'Doublons',     href: '/admin/crm/doublons',     icon: GitMerge },

@@ -19,6 +19,7 @@ import {
   STAGE_OPTIONS, FORMATION_OPTIONS, CLASSE_OPTIONS, PERIOD_OPTIONS,
   CRM_FILTER_FIELDS, LEAD_STATUS_OPTIONS_FALLBACK, PARCOURSUP_VERDICT_FILTER_OPTIONS,
   LAB_CALLBACK_FILTER_OPTIONS,
+  COLD_CALL_FILTER_OPTIONS,
   LAB_APP_FILTER_OPTIONS,
   INSCRIPTION_PROGRAMME_FILTER_OPTIONS,
   opsForField, opsForKind, opNeedsValue, opIsMulti, opIsRange, propertyKindOf,
@@ -305,6 +306,8 @@ export default function CRMPage() {
   const [emptyFields, setEmptyFields]       = useState('')   // comma-separated field names
   const [notEmptyFields, setNotEmptyFields] = useState('')   // comma-separated field names
   const [customFilterParam, setCustomFilterParam] = useState('') // JSON string of custom HubSpot filters
+  // Vue « À réattribuer » (filtre appel froid) : ligne de contexte + attribution = transfert
+  const coldCallActive = customFilterParam.includes('"cold_call"')
 
   // Tri des colonnes — par défaut : date de création du contact desc.
   // Repose sur l'index idx_crm_contacts_contact_createdate.
@@ -1455,7 +1458,7 @@ export default function CRMPage() {
         }
         // Demande de rappel Lab : résolu côté API en liste de contact_id
         // (la source est une soumission de formulaire, pas une colonne).
-        if (ruleField === 'lab_callback' || ruleField === 'lab_app' || ruleField === 'inscription_programme') {
+        if (ruleField === 'lab_callback' || ruleField === 'lab_app' || ruleField === 'inscription_programme' || ruleField === 'cold_call') {
           customFilters.push({ field: ruleField, operator: rule.operator, value: val })
           continue
         }
@@ -1958,6 +1961,32 @@ export default function CRMPage() {
     if (!bulkTeleproId || selectedIds.size === 0) return
     const selectedTelepro = telepros.find(u => u.id === bulkTeleproId)
     if (!selectedTelepro) return
+    // Vue « À réattribuer » : transfert (contexte de l'appel gardé, pastille
+    // « Transfert » chez le télépro, jamais redonné à quelqu'un qui l'a déjà eu)
+    if (coldCallActive) {
+      const n = selectedIds.size
+      if (!confirm(`Transférer ${n} lead${n > 1 ? 's' : ''} à ${selectedTelepro.name} ?\n\nIl verra une pastille « Transfert » avec le contexte de l'appel. Les leads qu'il a déjà eus sont ignorés.`)) return
+      setBulkAssigning(true)
+      try {
+        const res = await fetch('/api/crm/transfers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items: [...selectedIds].map(id => ({ contact_id: id })), to_rdv_user_ids: [selectedTelepro.id] }),
+        })
+        const d = await res.json().catch(() => ({}))
+        if (!res.ok) throw new Error(d?.error || 'Erreur transfert')
+        const skipped = (d.skipped ?? []).length
+        alert(`${d.done} lead${d.done > 1 ? 's' : ''} transféré${d.done > 1 ? 's' : ''} à ${selectedTelepro.name}.${skipped ? `\n${skipped} ignoré${skipped > 1 ? 's' : ''} : ${selectedTelepro.name} les a déjà eus.` : ''}`)
+        clearSelection()
+        setBulkTeleproId('')
+        await fetchContacts(true)
+      } catch (e) {
+        alert(e instanceof Error ? e.message : 'Erreur transfert')
+      } finally {
+        setBulkAssigning(false)
+      }
+      return
+    }
     const teleproHsUserId = selectedTelepro.hubspot_user_id || selectedTelepro.hubspot_owner_id || null
     setBulkAssigning(true)
     try {
@@ -2275,7 +2304,7 @@ export default function CRMPage() {
         </div>
         <div style={{ flex: 1 }} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 13, color: crmV2.textMuted }}>Assigner à :</span>
+          <span style={{ fontSize: 13, color: crmV2.textMuted }}>{coldCallActive ? 'Transférer à :' : 'Assigner à :'}</span>
           <select
             value={bulkTeleproId}
             onChange={e => setBulkTeleproId(e.target.value)}
@@ -2296,7 +2325,7 @@ export default function CRMPage() {
             onClick={handleBulkAssign}
             disabled={!bulkTeleproId || bulkAssigning || selectingAllView || bulkUpdating || selectedIds.size === 0}
           >
-            {bulkAssigning ? 'Attribution…' : 'Assigner'}
+            {bulkAssigning ? (coldCallActive ? 'Transfert…' : 'Attribution…') : (coldCallActive ? 'Transférer' : 'Assigner')}
           </CrmV2Button>
         </div>
       </div>
@@ -2803,6 +2832,7 @@ export default function CRMPage() {
               contacts={displayed}
               loading={loading && displayed.length === 0}
               mode="admin"
+              coldCallContext={coldCallActive}
               onRefresh={() => fetchContacts()}
               onContactPatched={handleContactPatched}
               selectedIds={selectedIds}
@@ -2948,6 +2978,7 @@ export default function CRMPage() {
                         case 'form_event':  valueOptions = formEventOptions.filter(o => o.id); break
                         case 'parcoursup_verdict': valueOptions = PARCOURSUP_VERDICT_FILTER_OPTIONS; break
                         case 'lab_callback': valueOptions = LAB_CALLBACK_FILTER_OPTIONS; break
+                        case 'cold_call':    valueOptions = COLD_CALL_FILTER_OPTIONS; break
                         case 'lab_app':      valueOptions = LAB_APP_FILTER_OPTIONS; break
                         case 'inscription_programme': valueOptions = INSCRIPTION_PROGRAMME_FILTER_OPTIONS; break
                       }

@@ -205,3 +205,47 @@ export async function computeTransferCandidates(db: SupabaseClient, opts: { days
   rows.sort((x, y) => y.call.started_at.localeCompare(x.call.started_at))
   return { available: transfersAvailable, days: opts.days, telepros, rows, causes }
 }
+
+// ── Vue « À réattribuer » du tableau Contacts ────────────────────────────────
+
+/** Fenêtre d'appels prise en compte par la vue (jours). */
+export const COLD_CALL_VIEW_DAYS = 60
+const CACHE_TTL_MS = 120_000
+let cache: { at: number; payload: TransferCandidatesPayload } | null = null
+let inflight: Promise<TransferCandidatesPayload> | null = null
+
+/** Candidats gardés 2 min par instance (la vue, ses compteurs et la ligne de contexte lisent la même liste). */
+export async function getTransferCandidatesCached(db: SupabaseClient, opts: { fresh?: boolean } = {}): Promise<TransferCandidatesPayload> {
+  if (!opts.fresh && cache && Date.now() - cache.at < CACHE_TTL_MS) return cache.payload
+  if (!inflight) {
+    inflight = computeTransferCandidates(db, { days: COLD_CALL_VIEW_DAYS })
+      .then(payload => { cache = { at: Date.now(), payload }; return payload })
+      .finally(() => { inflight = null })
+  }
+  return inflight
+}
+
+export function invalidateTransferCandidates() {
+  cache = null
+}
+
+/** Catégorie d'un lead pour le filtre « Appel froid sans RDV » (voir COLD_CALL_FILTER_OPTIONS). */
+export function coldCallCategory(r: TransferCandidate): string {
+  if (r.transferred) return 'deja_transfere'
+  if (r.call.approach === 'diploma') return 'diploma'
+  if (r.call.approach === 'etudiants') return r.retry_after && Date.parse(r.retry_after) > Date.now() ? 'etudiants_attente' : 'etudiants_prets'
+  return 'inconnue'
+}
+
+/** value : « diploma,etudiants_prets,inconnue » → contact_id correspondants. « oui » = tous sauf déjà transférés. */
+export async function resolveColdCallContactIds(db: SupabaseClient, value: string): Promise<string[]> {
+  const wanted = new Set(value.split(',').map(v => v.trim()).filter(Boolean))
+  const all = wanted.has('oui')
+  const { rows } = await getTransferCandidatesCached(db)
+  return rows
+    .filter(r => {
+      const cat = coldCallCategory(r)
+      return all ? cat !== 'deja_transfere' : wanted.has(cat)
+    })
+    .map(r => r.hubspot_contact_id)
+}

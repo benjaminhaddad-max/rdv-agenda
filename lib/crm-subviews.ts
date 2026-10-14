@@ -49,7 +49,7 @@ export interface SubviewSection {
 const POSITIVE_OPS: CRMFilterOp[] = ['is', 'is_any']
 const NEGATIVE_OPS: CRMFilterOp[] = ['is_not', 'is_none']
 /** Champs résolus côté API par familles : jamais fusionnés entre règles. */
-const RESOLVED_FIELDS = new Set<string>(['lab_app', 'lab_callback', 'inscription_programme'])
+const RESOLVED_FIELDS = new Set<string>(['lab_app', 'lab_callback', 'inscription_programme', 'cold_call'])
 
 const splitValues = (v: string) => splitFilterValues(v)
 

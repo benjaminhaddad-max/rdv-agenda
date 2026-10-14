@@ -14,6 +14,7 @@ import { META_BACKFILL_TERM_IDF_VIEW_ID, resolveMetaBackfillTermIdfContactIds } 
 import { overlaySavedViewParams, type CRMSavedView } from '@/lib/crm-views'
 import { resolveLabCallbackContactIds, fetchLabAppLeadAggregatesCached, filterLabAppLeads } from '@/lib/crm-lab-callbacks'
 import { resolveInscriptionProgrammeContactIds } from '@/lib/inscription-programmes'
+import { resolveColdCallContactIds } from '@/lib/telepro-transfers'
 import { splitFilterValues } from '@/lib/split-filter-values'
 
 // Classes prioritaires — filtre SQL via .in()
@@ -789,11 +790,28 @@ export async function GET(req: NextRequest) {
     }
     customFilters = customFilters.filter(r => r.field !== 'inscription_programme')
   }
+  // ── Resolver dédié : « Appel froid sans RDV » (vue « À réattribuer »,
+  // lib/telepro-transfers.ts) : leads attribués dont le premier appel > 2 min
+  // n'a donné ni RDV ni inscription, par approche. Même application que lab_app.
+  const coldCallRules = customFilters.filter(r => r.field === 'cold_call')
+  for (const rule of coldCallRules) {
+    const ids = await resolveColdCallContactIds(db, rule.value)
+    if (rule.operator === 'is_not' || rule.operator === 'is_none') {
+      labCallbackExcludedIds = [...new Set([...(labCallbackExcludedIds ?? []), ...ids])]
+    } else if (labCallbackContactIds === null) {
+      labCallbackContactIds = ids
+    } else {
+      const b = new Set(ids)
+      labCallbackContactIds = labCallbackContactIds.filter(id => b.has(id))
+    }
+  }
+  customFilters = customFilters.filter(r => r.field !== 'cold_call')
   // La vue Meta ADS doit toujours inclure toutes les classes (idem inscrits :
   // un étudiant inscrit n'est plus forcément en Seconde/Première/Terminale).
   const effectiveAllClasses =
     effectiveAllClassesInput || metaAdsOnlyParam || metaLeadAdsOnly || metaLeadAdsContactIds !== null ||
-    inscriptionProgrammeRules.some(r => r.operator === 'is' || r.operator === 'is_any')
+    inscriptionProgrammeRules.some(r => r.operator === 'is' || r.operator === 'is_any') ||
+    coldCallRules.some(r => r.operator === 'is' || r.operator === 'is_any')
 
   // Tri dynamique
   // Défaut : dernière soumission de formulaire desc → les leads qui viennent

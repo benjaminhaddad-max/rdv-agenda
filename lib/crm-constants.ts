@@ -103,7 +103,7 @@ export type CRMFilterField =
   | 'stage' | 'formation' | 'classe' | 'closer_contact' | 'closer' | 'contact_owner' | 'telepro'
   | 'lead_status' | 'source' | 'period' | 'search' | 'zone' | 'departement'
   | 'pipeline' | 'prior_preinscription' | 'form_event' | 'parcoursup_verdict'
-  | 'lab_callback' | 'lab_app' | 'inscription_programme'
+  | 'lab_callback' | 'lab_app' | 'inscription_programme' | 'cold_call'
 
 export type CRMFilterOp =
   | 'is' | 'is_not' | 'is_any' | 'is_none'
@@ -151,6 +151,18 @@ export const LAB_CALLBACK_FILTER_OPTIONS: SelectOption[] = [
   { id: 'medibox',    label: 'Medibox Lab' },
 ]
 
+// Appel froid sans RDV (vue « À réattribuer », lib/telepro-transfers.ts) : leads
+// attribués dont le premier appel (> 2 min) n'a donné ni RDV ni inscription,
+// classés selon l'approche utilisée (détectée dans la transcription).
+export const COLD_CALL_FILTER_OPTIONS: SelectOption[] = [
+  { id: 'oui',               label: 'Tous (sauf déjà transférés)' },
+  { id: 'diploma',           label: 'Approche Diploma Santé → à retenter' },
+  { id: 'etudiants_prets',   label: 'Approche étudiants / asso → 3 semaines passées' },
+  { id: 'etudiants_attente', label: 'Approche étudiants / asso → trop tôt pour replacer' },
+  { id: 'inconnue',          label: 'Approche non détectée (appel non analysé)' },
+  { id: 'deja_transfere',    label: 'Déjà transférés' },
+]
+
 export const LAB_CALLBACK_OPS: { key: CRMFilterOp; label: string }[] = [
   { key: 'is',      label: 'est' },
   { key: 'is_any',  label: 'est parmi' },
@@ -195,6 +207,7 @@ export const CRM_FILTER_FIELDS: { key: CRMFilterField; label: string; type: 'sel
   { key: 'lab_callback',       label: 'Demande de rappel Lab',         type: 'select' },
   { key: 'lab_app',            label: 'Lead app Lab (Diploma / Medibox)', type: 'select' },
   { key: 'inscription_programme', label: "Programme d'inscription (inscrits)", type: 'select' },
+  { key: 'cold_call',          label: 'Appel froid sans RDV (à réattribuer)', type: 'select' },
   { key: 'search',             label: 'Recherche',                     type: 'text' },
 ]
 
@@ -307,7 +320,7 @@ export function normalizeFilterFieldKey(field: string): string {
 export const MULTI_SELECT_FILTER_FIELDS = new Set<CRMFilterField>([
   'stage', 'formation', 'classe', 'closer_contact', 'contact_owner', 'telepro',
   'lead_status', 'source', 'zone', 'departement', 'pipeline', 'form_event',
-  'parcoursup_verdict', 'lab_callback', 'lab_app', 'inscription_programme',
+  'parcoursup_verdict', 'lab_callback', 'lab_app', 'inscription_programme', 'cold_call',
 ])
 
 export const LEAD_STATUS_OPS: { key: CRMFilterOp; label: string }[] = [
@@ -408,7 +421,7 @@ export function hasActiveFilterGroups(groups: CRMFilterGroup[] | null | undefine
 export function opsForField(field: CRMFilterField | string) {
   const key = normalizeFilterFieldKey(field)
   if (key === 'parcoursup_verdict') return PARCOURSUP_VERDICT_OPS
-  if (key === 'lab_callback' || key === 'lab_app' || key === 'inscription_programme') return LAB_CALLBACK_OPS
+  if (key === 'lab_callback' || key === 'lab_app' || key === 'inscription_programme' || key === 'cold_call') return LAB_CALLBACK_OPS
   if (key === 'lead_status') return LEAD_STATUS_OPS
   const f = CRM_FILTER_FIELDS.find(ff => ff.key === key)
   return f?.type === 'select' ? SELECT_OPS : TEXT_OPS

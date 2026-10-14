@@ -28,6 +28,10 @@ export interface CRMSavedView {
  *  dans Diplomalab / Medibox Lab (même tableau que les autres vues contacts). */
 export const LAB_CALLBACK_VIEW_ID = 'v_demande_rappel_lab'
 
+/** Vue « À réattribuer » : leads attribués dont l'appel à froid (> 2 min) n'a
+ *  pas donné de RDV — à redonner à un autre télépro (pastille « Transfert »). */
+export const COLD_CALL_VIEW_ID = 'v_a_reattribuer'
+
 export const CRM_DEFAULT_VIEWS: CRMSavedView[] = [
   { id: 'all', name: 'Tous les leads', groups: [], isDefault: true },
   {
@@ -36,6 +40,15 @@ export const CRM_DEFAULT_VIEWS: CRMSavedView[] = [
     groups: [{
       id: 'grp-demande-rappel-lab',
       rules: [{ id: 'r-demande-rappel-lab', field: 'lab_callback', operator: 'is_any', value: 'oui' }],
+    }],
+    isDefault: true,
+  },
+  {
+    id: COLD_CALL_VIEW_ID,
+    name: 'À réattribuer',
+    groups: [{
+      id: 'grp-a-reattribuer',
+      rules: [{ id: 'r-a-reattribuer', field: 'cold_call', operator: 'is_any', value: 'diploma,etudiants_prets,inconnue' }],
     }],
     isDefault: true,
   },
@@ -92,7 +105,7 @@ export function viewToParams(view: CRMSavedView): URLSearchParams {
       }
 
       // Demande de rappel Lab : résolu côté API en liste de contact_id.
-      if (rule.field === 'lab_callback' || rule.field === 'lab_app' || rule.field === 'inscription_programme') {
+      if (rule.field === 'lab_callback' || rule.field === 'lab_app' || rule.field === 'inscription_programme' || rule.field === 'cold_call') {
         customFilters.push({ field: rule.field, operator: rule.operator, value: val })
         continue
       }
