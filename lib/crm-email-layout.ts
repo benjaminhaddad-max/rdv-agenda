@@ -97,7 +97,7 @@ ${innerHtml}
   <table role="presentation" class="wrap" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:600px">
     <tr><td class="px" align="center" style="padding:28px 52px 0;font-family:${MATTER};font-size:12px;line-height:20px;color:${TEXTE_2}">
       <p style="margin:0 0 4px;font-family:${CLASH};font-size:11px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:${NUIT}">Diploma Santé</p>
-      <p style="margin:0 0 4px">Prépa aux études de santé · 100 quai de la Rapée, Paris&nbsp;12<sup>e</sup> · 29 rue Lauriston, Paris&nbsp;16<sup>e</sup></p>
+      <p style="margin:0 0 4px">Prépa médecine · Terminale Santé · PAES · PASS / LAS<br>100 quai de la Rapée, Paris&nbsp;12<sup>e</sup> · 29 rue Lauriston, Paris&nbsp;16<sup>e</sup></p>
       <p style="margin:0"><a href="https://diploma-sante.fr" style="color:${TEXTE_2};text-decoration:none">diploma-sante.fr</a></p>
     </td></tr>
   </table>
