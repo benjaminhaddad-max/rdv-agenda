@@ -16,6 +16,7 @@ import { fetchFormLeads, processMetaLead, syncPageLeadFormsToDb, type MetaLead }
 import { logger } from '@/lib/logger'
 import { requireCronSecret } from '@/lib/api-auth'
 import { notifyLinkedEventsAfterMetaLead } from '@/lib/events-studio/notify-event-comms'
+import { checkMetaTokensAndAlert } from '@/lib/meta-token-alert'
 
 export const maxDuration = 300
 
@@ -35,10 +36,18 @@ export async function GET(req: NextRequest) {
 
   // Pages actives + leur token
   const { data: pages } = await db.from('meta_lead_pages')
-    .select('page_id, access_token, active')
+    .select('page_id, page_name, access_token, active')
     .eq('active', true)
   if (!pages || pages.length === 0) {
     return NextResponse.json({ ok: true, message: 'Aucune page active', processed: 0 })
+  }
+
+  // Tokens Facebook encore valides ? Sinon mail d'alerte (les leads s'arrêtent sans bruit).
+  let tokenHealth: Awaited<ReturnType<typeof checkMetaTokensAndAlert>> | null = null
+  try {
+    tokenHealth = await checkMetaTokensAndAlert(db, pages as Array<{ page_id: string; page_name: string | null; access_token: string }>)
+  } catch (e) {
+    logger.error('meta-leads-poll-token-check', e)
   }
 
   const pageIds = pages.map(p => p.page_id)
@@ -180,5 +189,6 @@ export async function GET(req: NextRequest) {
     total_skipped: totalSkipped,
     total_errors: totalErrors,
     per_form: formStats.slice(0, 30), // limit response size
+    token_health: tokenHealth,
   })
 }
