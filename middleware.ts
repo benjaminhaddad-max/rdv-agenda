@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { claimsGetter, getAuthUserIdResilient } from '@/lib/auth-resilient'
 import { RESTRICTED_ROLE, isRestrictedPathAllowed, restrictedHome } from '@/lib/restricted-access'
+import { isPublicApiRoute } from '@/lib/api-public-routes'
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -11,6 +12,14 @@ export async function middleware(request: NextRequest) {
   // Bypass placé tout en haut pour éviter toute interférence des autres gardes.
   if (pathname.includes('/api/crm/contacts/nomad-import')) {
     return NextResponse.next()
+  }
+
+  // ── API : session CRM obligatoire, sauf routes publiques listées ──
+  // Filet de sécurité commun : une route qui oublie son contrôle d'accès
+  // n'est plus joignable sans compte. Les rôles restent vérifiés dans chaque route.
+  if (pathname.startsWith('/api/')) {
+    if (isPublicApiRoute(pathname, request.method)) return NextResponse.next()
+    return guardApi(request)
   }
 
   // Skip static files & Next.js internals
@@ -81,7 +90,7 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Refresh session for page routes only (API auth is enforced in route handlers).
+  // Refresh session for page routes (les routes /api passent par guardApi ci-dessus).
   // Résilient aux pannes Supabase Auth : timeout court + fallback cookie JWT.
   const userId = await getAuthUserIdResilient(
     claimsGetter(supabase),
@@ -169,6 +178,40 @@ export async function middleware(request: NextRequest) {
 
 // ── Helpers ────────────────────────────────────────────────────────
 
+function apiUnauthorized() {
+  return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+}
+
+async function guardApi(request: NextRequest) {
+  let response = NextResponse.next({ request })
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll()
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+          response = NextResponse.next({ request })
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options)
+          )
+        },
+      },
+    }
+  )
+  // JWT vérifié localement (clé publique en cache) : pas d'aller-retour réseau
+  // vers Supabase Auth à chaque appel, sauf pour rafraîchir un token expiré.
+  const userId = await getAuthUserIdResilient(claimsGetter(supabase), request.cookies)
+  if (!userId) return apiUnauthorized()
+  // Un compte Supabase Auth ne suffit pas : il faut une fiche rdv_users (cache 60 s).
+  const dbUser = await getUserFromDb(userId)
+  if (!dbUser) return apiUnauthorized()
+  return response
+}
+
 // Rôle gardé 60 s par instance : évite une requête base à chaque navigation.
 const DB_USER_TTL_MS = 60_000
 type MiddlewareDbUser = { role: string; slug: string; id: string; allowed_pages?: string[] | null }
@@ -217,7 +260,8 @@ function redirectByRole(
 }
 
 export const config = {
-  // Pages only — /api/* auth is handled in each route (getApiUserContext, etc.).
-  // Running Supabase in middleware on every CRM API call caused MIDDLEWARE_INVOCATION_TIMEOUT.
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|api/).*)'],
+  // Pages + /api. Pour /api, le middleware vérifie seulement qu'une session CRM
+  // existe (JWT vérifié localement + rdv_users en cache) ; les rôles restent
+  // contrôlés dans chaque route. Routes publiques : lib/api-public-routes.ts.
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 }
