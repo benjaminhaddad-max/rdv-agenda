@@ -14,6 +14,7 @@ import { CrmV2Card, CrmV2SectionLabel } from '@/components/crm-v2/primitives'
 import { CAMPUS_OPTIONS, CLASSES, FORMATIONS, generateJitsiLink } from './types'
 import type { NewRdvForm } from './useNewRdvForm'
 import { TpGoldButton, TpLabel, TpMobileHeader, TpStepBar, tpInput } from './ui'
+import SlotRdvDots, { SlotRdvLegend, slotRdvTitle } from '@/components/crm-v2/SlotRdvDots'
 
 const AVATAR_COLORS = ['#C9A84C', '#0091ae', '#516f90', '#00bda5', '#a855f7', '#4cabdb']
 
@@ -365,7 +366,7 @@ function SlotsBlock({ form, isMobile }: { form: NewRdvForm; isMobile: boolean })
           {slots.map(slot => {
             const sel = selectedSlot?.start === slot.start
             return (
-              <button key={slot.start} type="button" onClick={() => setSelectedSlot(slot)}
+              <button key={slot.start} type="button" onClick={() => setSelectedSlot(slot)} title={slotRdvTitle(slot)}
                 style={{
                   height: 40, borderRadius: 10, fontFamily: 'inherit', position: 'relative', cursor: 'pointer',
                   background: sel ? 'rgba(34,197,94,0.12)' : crmV2.bgHover, border: `1px solid ${sel ? 'rgba(34,197,94,0.45)' : crmV2.border}`,
@@ -375,11 +376,13 @@ function SlotsBlock({ form, isMobile }: { form: NewRdvForm; isMobile: boolean })
                 {slot.count && slot.count > 1 && (
                   <span style={{ position: 'absolute', top: 2, right: 5, fontSize: 9, color: crmV2.textFaint }}>{slot.count}</span>
                 )}
+                <SlotRdvDots confirmed={slot.confirmed} unconfirmed={slot.unconfirmed} />
               </button>
             )
           })}
         </div>
       )}
+      {!slotsLoading && <SlotRdvLegend slots={slots} />}
     </div>
   )
 }

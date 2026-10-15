@@ -9,6 +9,7 @@ import { Calendar, Check, Clock, Loader2, MapPin, PhoneCall, Video } from 'lucid
 import { crmV2 } from '@/lib/crm-v2-theme'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { CrmV2Button } from '@/components/crm-v2/primitives'
+import SlotRdvDots, { SlotRdvLegend, slotRdvTitle } from '@/components/crm-v2/SlotRdvDots'
 import {
   ChoiceButton, CloserSheet, FieldLabel, Notice, SheetHeader, StepBar, StepCard, closerInput,
 } from '@/components/crm-v2/closer/ui'
@@ -29,7 +30,7 @@ type Props = {
   onSaved: () => void
 }
 
-type PoolSlot = { start: string; end: string; available?: boolean; count?: number }
+type PoolSlot = { start: string; end: string; available?: boolean; count?: number; confirmed?: number; unconfirmed?: number }
 
 const CURRENT_STUDIES_OPTIONS = [
   'Troisième',
@@ -217,17 +218,20 @@ export default function DiplomaAppointmentModal({ contact, onClose, onSaved }: P
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${isMobile ? 76 : 84}px, 1fr))`, gap: 6 }}>
                 {slots.map(slot => (
-                  <ChoiceButton
-                    key={slot.start}
-                    active={selectedSlot?.start === slot.start}
-                    onClick={() => setSelectedSlot(slot)}
-                    style={{ padding: '0 8px' }}
-                  >
-                    {format(new Date(slot.start), 'HH:mm', { locale: fr })}
-                  </ChoiceButton>
+                  <span key={slot.start} title={slotRdvTitle(slot)} style={{ position: 'relative', display: 'grid' }}>
+                    <ChoiceButton
+                      active={selectedSlot?.start === slot.start}
+                      onClick={() => setSelectedSlot(slot)}
+                      style={{ padding: '0 8px' }}
+                    >
+                      {format(new Date(slot.start), 'HH:mm', { locale: fr })}
+                    </ChoiceButton>
+                    <SlotRdvDots confirmed={slot.confirmed} unconfirmed={slot.unconfirmed} />
+                  </span>
                 ))}
               </div>
             )}
+            {!slotsLoading && !slotError && <SlotRdvLegend slots={slots} />}
           </div>
         </StepCard>
 

@@ -15,6 +15,7 @@ import {
 import { CrmV2ModalHeader, CrmV2ModalShell, CrmV2Notice, crmV2FieldStyle } from '@/components/crm-v2/modals/ModalShell'
 import LinovaAppointmentModal from '@/components/crm/LinovaAppointmentModal'
 import { normalizeClasseActuelle } from '@/lib/classe-actuelle'
+import SlotRdvDots, { SlotRdvLegend, slotRdvTitle } from '@/components/crm-v2/SlotRdvDots'
 
 // Constantes
 const STAGE_MAP: Record<string, { label: string; color: string }> = {
@@ -504,7 +505,7 @@ function SelectField({
 function InlineBookingWidget({ contact, onSuccess }: { contact: CRMContact; onSuccess: () => void }) {
   const [weekOffset, setWeekOffset] = useState(0)
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
-  const [slots, setSlots] = useState<{ start: string; end: string; count?: number }[]>([])
+  const [slots, setSlots] = useState<{ start: string; end: string; count?: number; confirmed?: number; unconfirmed?: number }[]>([])
   const [slotsLoading, setSlotsLoading] = useState(false)
   const [selectedSlot, setSelectedSlot] = useState<{ start: string; end: string } | null>(null)
 
@@ -707,7 +708,9 @@ function InlineBookingWidget({ contact, onSuccess }: { contact: CRMContact; onSu
                     key={slot.start}
                     type="button"
                     onClick={() => setSelectedSlot(slot)}
+                    title={slotRdvTitle(slot)}
                     style={{
+                      position: 'relative',
                       height: 36,
                       background: isSelected ? crmV2.goldGradient : crmV2.bg,
                       border: `1px solid ${isSelected ? 'transparent' : crmV2.borderStrong}`,
@@ -720,11 +723,13 @@ function InlineBookingWidget({ contact, onSuccess }: { contact: CRMContact; onSu
                     }}
                   >
                     {time}
+                    <SlotRdvDots confirmed={slot.confirmed} unconfirmed={slot.unconfirmed} />
                   </button>
                 )
               })}
             </div>
           )}
+          {!slotsLoading && <SlotRdvLegend slots={slots} />}
         </div>
       )}
 

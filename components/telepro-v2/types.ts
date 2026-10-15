@@ -1,7 +1,7 @@
 import type { AppointmentStatus } from '@/components/StatusBadge'
 
 // ─── Types partagés de l'espace télépro ──────────────────────────────────────
-export type Slot = { start: string; end: string; count?: number }
+export type Slot = { start: string; end: string; count?: number; confirmed?: number; unconfirmed?: number }
 
 /** Contact sélectionné pour la prise de RDV (forme historique conservée). */
 export interface HubSpotContact {

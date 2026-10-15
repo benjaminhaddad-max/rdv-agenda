@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { getApiUserContext } from '@/lib/api-auth'
 import { parisMidnightUtc, addParisDays } from '@/lib/date-paris'
 import { isUserUnavailable, isTeamBlocked, loadCloserPool, loadUnavailability, openSlotsForDay } from '@/lib/unavailability'
 
@@ -10,6 +11,8 @@ import { isUserUnavailable, isTeamBlocked, loadCloserPool, loadUnavailability, o
 // de règles de disponibilité hebdomadaires. Un créneau n'est fermé que si
 // toute l'équipe closers est indisponible (rdv_unavailability, cf.
 // lib/unavailability.ts). `count` = nombre de closers disponibles.
+// `confirmed` / `unconfirmed` = RDV Diploma déjà posés sur le créneau
+// (utilisateurs connectés uniquement, 0 sinon).
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const date = searchParams.get('date') // "2025-03-10"
@@ -43,7 +46,27 @@ export async function GET(req: NextRequest) {
     if (poolIds.length === 0) poolIds = null // aucune équipe connue : on reste ouvert
   }
 
-  const out: Array<{ start: string; end: string; available: boolean; count: number }> = []
+  // RDV déjà posés sur chaque créneau (pastilles côté prise de RDV) : le
+  // créneau reste ouvert, on indique seulement combien de RDV confirmés /
+  // non confirmés y démarrent. Réservé aux utilisateurs connectés (la route
+  // sert aussi la replanification publique côté prospect).
+  let booked: Array<{ start: number; confirmed: boolean }> = []
+  if (await getApiUserContext().catch(() => null)) {
+    const { data: appts } = await db
+      .from('rdv_appointments')
+      .select('start_at, status, sms_confirmed_at, brand')
+      .gte('start_at', slots[0].start.toISOString())
+      .lt('start_at', slots[slots.length - 1].end.toISOString())
+      .in('status', ['non_assigne', 'confirme', 'confirme_prospect'])
+    booked = (appts ?? [])
+      .filter(a => !a.brand || a.brand === 'diploma')
+      .map(a => ({
+        start: new Date(a.start_at).getTime(),
+        confirmed: a.status === 'confirme_prospect' || !!a.sms_confirmed_at,
+      }))
+  }
+
+  const out: Array<{ start: string; end: string; available: boolean; count: number; confirmed: number; unconfirmed: number }> = []
   for (const s of slots) {
     if (isTeamBlocked(blocks, s.start, s.end)) continue
     let count = 1
@@ -51,7 +74,12 @@ export async function GET(req: NextRequest) {
       count = poolIds.filter(id => !isUserUnavailable(blocks, id, s.start, s.end)).length
       if (count === 0) continue
     }
-    out.push({ start: s.start.toISOString(), end: s.end.toISOString(), available: true, count })
+    const inSlot = booked.filter(b => b.start >= s.start.getTime() && b.start < s.end.getTime())
+    const confirmed = inSlot.filter(b => b.confirmed).length
+    out.push({
+      start: s.start.toISOString(), end: s.end.toISOString(), available: true, count,
+      confirmed, unconfirmed: inSlot.length - confirmed,
+    })
   }
 
   return NextResponse.json(out)
