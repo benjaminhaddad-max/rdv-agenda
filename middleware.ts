@@ -50,6 +50,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/forms/') ||    // pages publiques de formulaires
     pathname.startsWith('/embed/') ||    // iframes d'embed (forms, events, etc.)
     pathname.startsWith('/visio/') ||    // salles de visio (accès par room name secret, sans compte)
+    pathname.startsWith('/fac/') ||      // lien fac Edumove (code secret, sans compte)
     pathname.startsWith('/r/') ||
     pathname.startsWith('/events-studio') || // Events Studio SPA (staff / planning / QR publics)
     pathname.startsWith('/scan/') || // Scanner QR public (accueil sur place)

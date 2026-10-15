@@ -20,7 +20,7 @@ import { edumoveStageOf, type EdumoveStage } from '@/lib/edumove-stage'
 
 const MAX_CREATES = 250
 
-type Row = Record<string, unknown>
+export type Row = Record<string, unknown>
 
 export type EdumoveSyncResult = {
   candidatures: number
@@ -59,7 +59,7 @@ const arr = (v: unknown): string[] | null => (Array.isArray(v) ? v.map(String) :
 const obj = (v: unknown): Record<string, unknown> | null =>
   v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : null
 
-type Dossier = {
+export type Dossier = {
   id: string
   userId: string | null
   stage: EdumoveStage
@@ -71,7 +71,7 @@ type Dossier = {
   row: Row
 }
 
-function mirrorRow(d: Dossier, contactId: string, now: string): Row {
+export function mirrorRow(d: Dossier, contactId: string, now: string): Row {
   const c = d.row
   const isCompte = d.stage === 'compte'
   return {
@@ -258,4 +258,32 @@ export async function runEdumoveSync(crm: SupabaseClient): Promise<EdumoveSyncRe
     rows_removed: removedCount,
     skipped_no_email: skippedNoEmail,
   }
+}
+
+/** Dossier (au sens de la copie CRM) à partir d'une ligne candidatures Edumove. */
+export function dossierFromCandidature(c: Row): Dossier {
+  return {
+    id: String(c.id),
+    userId: str(c.user_id),
+    stage: edumoveStageOf(c as { status?: string; uni_selections?: Record<string, unknown>; uni_tracking?: Record<string, unknown> }),
+    email: normEmail(c.email as string),
+    prenom: str(c.prenom),
+    nom: str(c.nom),
+    tel: str(c.tel),
+    createdAt: str(c.created_at),
+    row: c,
+  }
+}
+
+/**
+ * Après une action depuis le CRM : relit le dossier dans Edumove et met la copie
+ * CRM à jour tout de suite (sans attendre la synchro des 10 min).
+ */
+export async function refreshEdumoveMirror(crm: SupabaseClient, candidature: Row): Promise<void> {
+  const id = String(candidature.id)
+  const { data: prev } = await crm.from('crm_edumove_candidatures').select('hubspot_contact_id').eq('candidature_id', id).maybeSingle()
+  const contactId = prev?.hubspot_contact_id as string | undefined
+  if (!contactId) return
+  await crm.from('crm_edumove_candidatures')
+    .upsert([mirrorRow(dossierFromCandidature(candidature), contactId, new Date().toISOString())], { onConflict: 'candidature_id' })
 }

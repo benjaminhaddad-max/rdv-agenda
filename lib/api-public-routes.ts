@@ -37,6 +37,7 @@ const PUBLIC_API_RULES: PublicApiRule[] = [
   { re: /^\/api\/email-survey\/(oneclick|amp-submit)\/?$/ },
   { re: /^\/api\/ads-creatives(\/.*)?$/ }, // lien partagé créatifs (resolveAdsAccess)
   { re: /^\/api\/visio\/token\/?$/ }, // le nom de la salle sert de secret
+  { re: /^\/api\/fac\/[^/]+\/?$/ }, // lien fac Edumove (code secret vérifié dans la route)
 
   // Pages publiques Events Studio / salons
   { re: /^\/api\/events-studio\/(salons-public|planning-public|events-public)\/?$/ },

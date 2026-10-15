@@ -130,3 +130,25 @@ export function edumoveMissingDocs(
   }
   return missing
 }
+
+// ── Options des actions (fiche contact, lien fac) ─────────────────────
+
+export const EDUMOVE_FAC_NAMES: Record<string, string> = { LINK: 'LINK Campus', UCJC: 'UCJC Madrid', UE: 'Universidad Europea' }
+
+/** Statuts que l'équipe peut poser à la main (accepte / archive passent par leurs actions). */
+export const EDUMOVE_MANUAL_STATUSES = ['en_cours', 'reponse_edumove', 'choix_valide'] as const
+export const EDUMOVE_SITUATIONS = [
+  'nouveau', 'mail_envoye', 'reponse_etudiant', 'dossier_complet', 'pieces_manquantes', 'en_cours_traitement',
+  'test_paye', 'test_fait', 'test_valide', 'inscription_attente', 'inscription_annulee', 'inscription_validee',
+] as const
+export const EDUMOVE_TRACKING_BY_UNI: Record<string, string[]> = {
+  LINK: ['en_attente', 'dossier_envoye', 'test_paye', 'test_passe', 'accepte', 'inscrit', 'refuse', 'autre_agence'],
+  UCJC: ['en_attente', 'dossier_envoye', 'entretien_planifie', 'entretien_passe', 'accepte', 'inscrit', 'refuse', 'autre_agence'],
+  UE: ['en_attente', 'dossier_envoye', 'tests_passes', 'accepte', 'acompte_verse', 'inscrit', 'refuse', 'autre_agence'],
+}
+/** Pièces que l'équipe peut déposer (clés de candidatures.documents). */
+export const EDUMOVE_UPLOADABLE_DOCS = [
+  'LINK_formulaire', 'LINK_identite', 'LINK_releves',
+  'UCJC_lettre_motivation', 'UCJC_identite', 'UCJC_formulaire', 'UCJC_attestation_esp', 'UCJC_releve_bac',
+  'UE_bulletins', 'UE_identite', 'UE_rapport_technique',
+] as const
