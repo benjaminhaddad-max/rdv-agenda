@@ -89,7 +89,7 @@ export function applyLyceeFilters(items: LyceeListItem[], f: LyceeFilters, me: s
 }
 
 export default function LyceesTable({
-  items, viewBase, allCount, filters, setFilters, users, isManager, onOpen, onCall, onBulk,
+  items, viewBase, allCount, filters, setFilters, users, isManager, onOpen, onCall, onBulk, departments = DEPARTMENTS,
 }: {
   /** Lycées filtrés hors vue rapide (pour les compteurs des pilules) */
   viewBase: LyceeListItem[]
@@ -102,6 +102,8 @@ export default function LyceesTable({
   onOpen: (uai: string) => void
   onCall: (l: LyceeListItem) => void
   onBulk: (uais: string[], patch: Record<string, unknown>) => Promise<void>
+  /** Départements proposés dans le filtre (selon la zone affichée) */
+  departments?: { id: string; label: string }[]
 }) {
   const isMobile = useIsMobile()
   const today = parisTodayKey()
@@ -165,7 +167,7 @@ export default function LyceesTable({
       <CrmV2Search value={filters.q} onChange={e => set({ q: e.target.value })} placeholder="Lycée, ville, UAI…" style={{ flex: isMobile ? '1 1 100%' : '0 1 260px' }} />
       <AdminPillSelect value={filters.dept} onChange={e => set({ dept: e.target.value })}>
         <option value="">Départements</option>
-        {DEPARTMENTS.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
+        {departments.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
       </AdminPillSelect>
       <AdminPillSelect value={filters.status} onChange={e => set({ status: e.target.value })}>
         <option value="">Statuts</option>

@@ -20,13 +20,13 @@ import { crmV2 } from '@/lib/crm-v2-theme'
 import {
   CrmV2Body, CrmV2Button, CrmV2Header, CrmV2KpiCard, CrmV2KpiGrid, CrmV2Page, CrmV2Segmented, CrmV2Spinner, CrmV2Tabs,
 } from '@/components/crm-v2/primitives'
-import { AdminNotice } from '@/components/crm-v2/admin/AdminUi'
+import { AdminNotice, AdminPillSelect } from '@/components/crm-v2/admin/AdminUi'
 import { useIsMobile } from '@/lib/useIsMobile'
-import { CURRENT_SEASON, seasonLabel, type LyceeListItem } from '@/lib/lycees'
+import { CURRENT_SEASON, departmentsOfZone, LYCEE_ZONES, seasonLabel, zoneIncludes, type LyceeListItem, type LyceeZone } from '@/lib/lycees'
 import LyceesTable, { applyLyceeFilters, EMPTY_FILTERS, LYCEE_VIEWS, matchLyceeView, type LyceeFilters } from './LyceesTable'
 import LyceeDrawer from './LyceeDrawer'
 import ForumsAgenda from './ForumsAgenda'
-import ForumsList from './ForumsList'
+import ForumsList, { deptOfEvent } from './ForumsList'
 import OurDates from './OurDates'
 import AmbassadeursList, { type AmbassadeurItem } from './AmbassadeursList'
 import EventModal, { type EventDraft } from './EventModal'
@@ -46,6 +46,7 @@ type EventsResponse = {
 }
 
 const FILTERS_KEY = 'crm-v2-lycees-filters-v2'
+const ZONE_KEY = 'crm-v2-lycees-zone'
 
 /**
  * `embedded` : rendu dans l'espace télépro (onglet « Mes lycées ») — sans
@@ -82,6 +83,19 @@ export default function LyceesClient({ embedded = false }: { embedded?: boolean 
   const setFilters = (f: LyceeFilters) => {
     setFiltersState(f)
     try { localStorage.setItem(FILTERS_KEY, JSON.stringify(f)) } catch { /* stockage indisponible */ }
+  }
+  // Zone affichée : Île-de-France par défaut, la France entière ou une région (lycées importés de l'annuaire)
+  const [zone, setZoneState] = useState<LyceeZone>(() => {
+    if (typeof window === 'undefined') return 'idf'
+    try {
+      const z = localStorage.getItem(ZONE_KEY)
+      return z && LYCEE_ZONES.some(x => x.id === z) ? z : 'idf'
+    } catch { return 'idf' }
+  })
+  const setZone = (z: LyceeZone) => {
+    setZoneState(z)
+    if (filters.dept) setFilters({ ...filters, dept: '' })
+    try { localStorage.setItem(ZONE_KEY, z) } catch { /* stockage indisponible */ }
   }
 
   const loadList = useCallback(async () => {
@@ -131,12 +145,13 @@ export default function LyceesClient({ embedded = false }: { embedded?: boolean 
   }, [])
 
   const isManager = !!list?.is_manager
-  const lycees = useMemo(() => list?.lycees ?? [], [list])
-  const events = useMemo(() => agenda?.events ?? [], [agenda])
+  const lycees = useMemo(() => (list?.lycees ?? []).filter(l => zoneIncludes(zone, l.department)), [list, zone])
+  const events = useMemo(() => (agenda?.events ?? []).filter(e => zoneIncludes(zone, deptOfEvent(e))), [agenda, zone])
+  const zoneDeps = useMemo(() => departmentsOfZone(zone), [zone])
   const today = parisTodayKey()
   const filtered = useMemo(() => applyLyceeFilters(lycees, filters, list?.me ?? null, today), [lycees, filters, list?.me, today])
   const viewBase = useMemo(() => applyLyceeFilters(lycees, { ...filters, quick: '' }, list?.me ?? null, today), [lycees, filters, list?.me, today])
-  const lyceeOptions = useMemo(() => lycees.map(l => ({ uai: l.uai, name: l.name, city: l.city, department: l.department })), [lycees])
+  const lyceeOptions = useMemo(() => (list?.lycees ?? []).map(l => ({ uai: l.uai, name: l.name, city: l.city, department: l.department })), [list])
 
   const kpis = useMemo(() => {
     const upcoming = events.filter(e => e.kind !== 'flying' && (!e.date || e.date >= today))
@@ -220,6 +235,11 @@ export default function LyceesClient({ embedded = false }: { embedded?: boolean 
     </CrmV2Button>
   )
   const subTabs = <CrmV2Tabs bordered={false} items={tabs} value={tab} onChange={id => setTab(id as Tab)} />
+  const zoneSelect = (
+    <AdminPillSelect value={zone} onChange={e => setZone(e.target.value)} aria-label="Zone">
+      {LYCEE_ZONES.map(z => <option key={z.id} value={z.id}>{z.label}</option>)}
+    </AdminPillSelect>
+  )
 
   return (
     <CrmV2Page style={embedded ? { minHeight: 0, background: 'transparent' } : undefined}>
@@ -229,13 +249,13 @@ export default function LyceesClient({ embedded = false }: { embedded?: boolean 
           borderBottom: `1px solid ${crmV2.border}`, padding: isMobile ? '6px 12px 0' : '6px 28px 0',
         }}>
           <div style={{ flex: 1, minWidth: 0, overflowX: 'auto' }}>{subTabs}</div>
-          <div style={{ paddingBottom: 6 }}>{addForumButton}</div>
+          <div style={{ paddingBottom: 6, display: 'flex', gap: 8, alignItems: 'center' }}>{zoneSelect}{addForumButton}</div>
         </div>
       ) : (
         <CrmV2Header
           title="Lycées"
           subtitle={`Forums d’orientation, interventions et flying · saison ${CURRENT_SEASON}`}
-          actions={addForumButton}
+          actions={<div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>{zoneSelect}{addForumButton}</div>}
         >
           {subTabs}
         </CrmV2Header>
@@ -281,6 +301,7 @@ export default function LyceesClient({ embedded = false }: { embedded?: boolean 
                   onOpen={setOpenUai}
                   onCall={l => setCallTarget({ type: 'lycee', uai: l.uai, name: l.name })}
                   onBulk={bulk}
+                  departments={zoneDeps}
                 />
               </>
             )}
@@ -307,6 +328,7 @@ export default function LyceesClient({ embedded = false }: { embedded?: boolean 
                       onMail={e => setCompose({ eventId: e.id, uai: e.uai, name: eventName(e), mode: e.mode ?? e.lycee?.mode ?? null, purpose: 'forum' })}
                       onQuickPatch={quickPatchEvent}
                       onBulk={bulkEvents}
+                      departments={zoneDeps}
                     />
                   ) : (
                     <ForumsAgenda
@@ -319,6 +341,7 @@ export default function LyceesClient({ embedded = false }: { embedded?: boolean 
                       canScan={isManager}
                       scanning={scanning}
                       onScan={scan}
+                      departments={zoneDeps}
                     />
                   )}
                 </>

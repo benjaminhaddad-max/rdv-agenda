@@ -14,7 +14,7 @@ import {
   CrmV2Button, CrmV2Empty, CrmV2Pagination, CrmV2Search, CrmV2StatusPill, CrmV2Table, CrmV2TableCard, CrmV2Td, CrmV2Th, CrmV2Tr,
 } from '@/components/crm-v2/primitives'
 import { AdminMobileList, AdminMobileRow, AdminPillSelect } from '@/components/crm-v2/admin/AdminUi'
-import { DEPARTMENTS, EVENT_SCOPES, EVENT_STATUSES, lookup, normalizeName } from '@/lib/lycees'
+import { DEPARTMENTS, departmentOfLocation, EVENT_SCOPES, EVENT_STATUSES, lookup, normalizeName } from '@/lib/lycees'
 import {
   type AgendaEvent, Dept, EventStatusPill, KindPill, LastCallCell, NextCallCell, parisTodayKey, UserChip, type TeamUser,
 } from './ui'
@@ -30,11 +30,11 @@ const VIEWS: { id: ForumView; label: string; hint: string }[] = [
   { id: 'passes', label: 'Passés', hint: '' },
 ]
 
-export const deptOfEvent = (e: AgendaEvent) => e.lycee?.department ?? (/\((\d{2})\)/.exec(e.location ?? '')?.[1] ?? null)
+export const deptOfEvent = (e: AgendaEvent) => e.lycee?.department ?? departmentOfLocation(e.location)
 export const assigneeOfEvent = (e: AgendaEvent) => e.assigned_to ?? e.lycee?.assigned_to ?? null
 
 export default function ForumsList({
-  events, users, me, isManager, onOpenLycee, onEdit, onCall, onMail, onQuickPatch, onBulk,
+  events, users, me, isManager, onOpenLycee, onEdit, onCall, onMail, onQuickPatch, onBulk, departments = DEPARTMENTS,
 }: {
   events: AgendaEvent[]
   users: TeamUser[]
@@ -46,6 +46,8 @@ export default function ForumsList({
   onMail?: (e: AgendaEvent) => void
   onQuickPatch: (id: string, patch: Record<string, unknown>) => Promise<void>
   onBulk: (ids: string[], patch: Record<string, unknown>) => Promise<void>
+  /** Départements proposés dans le filtre (selon la zone affichée) */
+  departments?: { id: string; label: string }[]
 }) {
   const isMobile = useIsMobile()
   const today = parisTodayKey()
@@ -109,7 +111,7 @@ export default function ForumsList({
       <CrmV2Search value={q} onChange={e => { setQ(e.target.value); setPage(1) }} placeholder="Lycée, ville, forum…" style={{ flex: isMobile ? '1 1 100%' : '0 1 240px' }} />
       <AdminPillSelect value={dept} onChange={e => { setDept(e.target.value); setPage(1) }}>
         <option value="">Départements</option>
-        {DEPARTMENTS.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
+        {departments.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
       </AdminPillSelect>
       <AdminPillSelect value={scope} onChange={e => { setScope(e.target.value); setPage(1) }}>
         <option value="">Toutes portées</option>

@@ -98,6 +98,87 @@ export const DEPARTMENTS: { id: string; label: string }[] = [
   { id: '95', label: '95 · Val-d’Oise' },
 ]
 
+// ── France entière : départements, régions, zone d'affichage ────────────────
+// Les lycées d'Île-de-France restent la cible principale (DEPARTMENTS ci-dessus,
+// rotation du bot de veille) ; le reste de la France est importé de l'annuaire
+// de l'Éducation nationale et filtré par zone dans l'onglet Lycées.
+
+export const REGIONS: { id: string; label: string; deps: string[] }[] = [
+  { id: 'idf', label: 'Île-de-France', deps: ['75', '77', '78', '91', '92', '93', '94', '95'] },
+  { id: 'ara', label: 'Auvergne-Rhône-Alpes', deps: ['01', '03', '07', '15', '26', '38', '42', '43', '63', '69', '73', '74'] },
+  { id: 'bfc', label: 'Bourgogne-Franche-Comté', deps: ['21', '25', '39', '58', '70', '71', '89', '90'] },
+  { id: 'bre', label: 'Bretagne', deps: ['22', '29', '35', '56'] },
+  { id: 'cvl', label: 'Centre-Val de Loire', deps: ['18', '28', '36', '37', '41', '45'] },
+  { id: 'cor', label: 'Corse', deps: ['2A', '2B'] },
+  { id: 'ges', label: 'Grand Est', deps: ['08', '10', '51', '52', '54', '55', '57', '67', '68', '88'] },
+  { id: 'hdf', label: 'Hauts-de-France', deps: ['02', '59', '60', '62', '80'] },
+  { id: 'nor', label: 'Normandie', deps: ['14', '27', '50', '61', '76'] },
+  { id: 'naq', label: 'Nouvelle-Aquitaine', deps: ['16', '17', '19', '23', '24', '33', '40', '47', '64', '79', '86', '87'] },
+  { id: 'occ', label: 'Occitanie', deps: ['09', '11', '12', '30', '31', '32', '34', '46', '48', '65', '66', '81', '82'] },
+  { id: 'pdl', label: 'Pays de la Loire', deps: ['44', '49', '53', '72', '85'] },
+  { id: 'pac', label: 'Provence-Alpes-Côte d’Azur', deps: ['04', '05', '06', '13', '83', '84'] },
+  { id: 'om', label: 'Outre-mer', deps: ['971', '972', '973', '974', '976'] },
+]
+
+const DEP_NAMES: Record<string, string> = {
+  '01': 'Ain', '02': 'Aisne', '03': 'Allier', '04': 'Alpes-de-Haute-Provence', '05': 'Hautes-Alpes', '06': 'Alpes-Maritimes',
+  '07': 'Ardèche', '08': 'Ardennes', '09': 'Ariège', '10': 'Aube', '11': 'Aude', '12': 'Aveyron', '13': 'Bouches-du-Rhône',
+  '14': 'Calvados', '15': 'Cantal', '16': 'Charente', '17': 'Charente-Maritime', '18': 'Cher', '19': 'Corrèze',
+  '2A': 'Corse-du-Sud', '2B': 'Haute-Corse', '21': 'Côte-d’Or', '22': 'Côtes-d’Armor', '23': 'Creuse', '24': 'Dordogne',
+  '25': 'Doubs', '26': 'Drôme', '27': 'Eure', '28': 'Eure-et-Loir', '29': 'Finistère', '30': 'Gard', '31': 'Haute-Garonne',
+  '32': 'Gers', '33': 'Gironde', '34': 'Hérault', '35': 'Ille-et-Vilaine', '36': 'Indre', '37': 'Indre-et-Loire', '38': 'Isère',
+  '39': 'Jura', '40': 'Landes', '41': 'Loir-et-Cher', '42': 'Loire', '43': 'Haute-Loire', '44': 'Loire-Atlantique', '45': 'Loiret',
+  '46': 'Lot', '47': 'Lot-et-Garonne', '48': 'Lozère', '49': 'Maine-et-Loire', '50': 'Manche', '51': 'Marne', '52': 'Haute-Marne',
+  '53': 'Mayenne', '54': 'Meurthe-et-Moselle', '55': 'Meuse', '56': 'Morbihan', '57': 'Moselle', '58': 'Nièvre', '59': 'Nord',
+  '60': 'Oise', '61': 'Orne', '62': 'Pas-de-Calais', '63': 'Puy-de-Dôme', '64': 'Pyrénées-Atlantiques', '65': 'Hautes-Pyrénées',
+  '66': 'Pyrénées-Orientales', '67': 'Bas-Rhin', '68': 'Haut-Rhin', '69': 'Rhône', '70': 'Haute-Saône', '71': 'Saône-et-Loire',
+  '72': 'Sarthe', '73': 'Savoie', '74': 'Haute-Savoie', '75': 'Paris', '76': 'Seine-Maritime', '77': 'Seine-et-Marne',
+  '78': 'Yvelines', '79': 'Deux-Sèvres', '80': 'Somme', '81': 'Tarn', '82': 'Tarn-et-Garonne', '83': 'Var', '84': 'Vaucluse',
+  '85': 'Vendée', '86': 'Vienne', '87': 'Haute-Vienne', '88': 'Vosges', '89': 'Yonne', '90': 'Territoire de Belfort',
+  '91': 'Essonne', '92': 'Hauts-de-Seine', '93': 'Seine-Saint-Denis', '94': 'Val-de-Marne', '95': 'Val-d’Oise',
+  '971': 'Guadeloupe', '972': 'Martinique', '973': 'Guyane', '974': 'La Réunion', '976': 'Mayotte',
+}
+
+/** Tous les départements de France (métropole + DROM), triés comme sur une carte grise. */
+export const FR_DEPARTMENTS: { id: string; label: string; region: string }[] = REGIONS
+  .flatMap(r => r.deps.map(id => ({ id, label: `${id} · ${DEP_NAMES[id] ?? id}`, region: r.id })))
+  .sort((a, b) => a.id.localeCompare(b.id, 'fr', { numeric: true }))
+
+export function regionOfDepartment(dep: string | null | undefined): string | null {
+  if (!dep) return null
+  return REGIONS.find(r => r.deps.includes(dep))?.id ?? null
+}
+
+/** Zone affichée dans l'onglet Lycées : 'idf' (défaut), 'france', ou un id de région. */
+export type LyceeZone = string
+
+export const LYCEE_ZONES: { id: LyceeZone; label: string }[] = [
+  { id: 'idf', label: 'Île-de-France' },
+  { id: 'france', label: 'Toute la France' },
+  { id: 'hors_idf', label: 'France hors Île-de-France' },
+  ...REGIONS.filter(r => r.id !== 'idf').map(r => ({ id: r.id, label: r.label })),
+]
+
+export function zoneIncludes(zone: LyceeZone, dep: string | null | undefined): boolean {
+  if (zone === 'france') return true
+  const region = regionOfDepartment(dep)
+  // Sans département connu : on considère que c'est de l'Île-de-France (données historiques)
+  if (!region) return zone === 'idf'
+  if (zone === 'hors_idf') return region !== 'idf'
+  return region === zone
+}
+
+/** Départements proposés dans les filtres pour une zone. */
+export function departmentsOfZone(zone: LyceeZone): { id: string; label: string }[] {
+  return zone === 'idf' ? DEPARTMENTS : FR_DEPARTMENTS.filter(d => zoneIncludes(zone, d.id))
+}
+
+/** Département d'un forum : celui du lycée, sinon le « (77) » noté dans le lieu. */
+export function departmentOfLocation(location: string | null | undefined): string | null {
+  const m = /\((\d{2,3}|2[AB])\)/.exec(location || '')
+  return m ? m[1] : null
+}
+
 export const SECTEUR_LABELS: Record<string, string> = {
   public: 'Public',
   prive_sous_contrat: 'Privé sous contrat',

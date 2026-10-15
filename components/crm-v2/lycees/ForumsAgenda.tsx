@@ -12,13 +12,13 @@ import { crmV2 } from '@/lib/crm-v2-theme'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { CrmV2Button, CrmV2Empty, CrmV2StatusPill, hexA } from '@/components/crm-v2/primitives'
 import { AdminPillSelect } from '@/components/crm-v2/admin/AdminUi'
-import { DEPARTMENTS, EVENT_KINDS, EVENT_SCOPES, EVENT_STATUSES, lookup } from '@/lib/lycees'
+import { DEPARTMENTS, departmentOfLocation, EVENT_KINDS, EVENT_SCOPES, EVENT_STATUSES, lookup } from '@/lib/lycees'
 import {
   type AgendaEvent, DateBlock, Dept, EventStatusPill, fmtDateTime, KindPill, ModePill, parisTodayKey, relDays, UserChip, type TeamUser,
 } from './ui'
 
 export default function ForumsAgenda({
-  events, users, onOpenLycee, onEdit, onQuickPatch, lastScan, canScan, scanning, onScan,
+  events, users, onOpenLycee, onEdit, onQuickPatch, lastScan, canScan, scanning, onScan, departments = DEPARTMENTS,
 }: {
   events: AgendaEvent[]
   users: TeamUser[]
@@ -29,6 +29,8 @@ export default function ForumsAgenda({
   canScan: boolean
   scanning: boolean
   onScan: (departments: string[]) => void
+  /** Départements proposés dans les filtres (selon la zone affichée) */
+  departments?: { id: string; label: string }[]
 }) {
   const isMobile = useIsMobile()
   const today = parisTodayKey()
@@ -40,7 +42,7 @@ export default function ForumsAgenda({
   const [scanDept, setScanDept] = useState('')
   const usersById = useMemo(() => new Map(users.map(u => [u.id, u])), [users])
 
-  const deptOf = (e: AgendaEvent) => e.lycee?.department ?? (/\((\d{2})\)/.exec(e.location ?? '')?.[1] ?? null)
+  const deptOf = (e: AgendaEvent) => e.lycee?.department ?? departmentOfLocation(e.location)
 
   const filtered = useMemo(() => events.filter(e => {
     if (e.kind === 'flying' && kind !== 'flying') return false
@@ -94,7 +96,7 @@ export default function ForumsAgenda({
           <>
             <AdminPillSelect value={scanDept} onChange={e => setScanDept(e.target.value)} disabled={scanning}>
               <option value="">Départements du jour</option>
-              {DEPARTMENTS.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
+              {departments.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
             </AdminPillSelect>
             <CrmV2Button size="sm" variant="gold" icon={<Sparkles size={13} />} disabled={scanning} onClick={() => onScan(scanDept ? [scanDept] : [])}>
               {scanning ? 'Recherche en cours (2-4 min)…' : 'Lancer la veille'}
@@ -110,7 +112,7 @@ export default function ForumsAgenda({
         </AdminPillSelect>
         <AdminPillSelect value={dept} onChange={e => setDept(e.target.value)}>
           <option value="">Départements</option>
-          {DEPARTMENTS.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
+          {departments.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
         </AdminPillSelect>
         <AdminPillSelect value={scope} onChange={e => setScope(e.target.value)}>
           <option value="">Toutes portées</option>

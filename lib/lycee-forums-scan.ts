@@ -1,5 +1,7 @@
 /**
- * Bot de veille des forums d'orientation dans les lycées d'Île-de-France.
+ * Bot de veille des forums d'orientation dans les lycées d'Île-de-France
+ * (rotation quotidienne) — et, à la demande, de n'importe quel département
+ * de France (?departments=69,13 sur le cron, campagne nationale).
  *
  * Une recherche web (Claude + web_search / web_fetch) par département : forums
  * des métiers, forums post-bac, forums de bassin / inter-lycées, forums de
@@ -16,13 +18,15 @@ import Anthropic from '@anthropic-ai/sdk'
 import { createServiceClient } from '@/lib/supabase'
 import { fetchAllRows } from '@/lib/lycees-server'
 import {
-  cleanDate, cleanStr, cleanTime, CURRENT_SEASON, DEPARTMENTS, normalizeName, seasonOf,
+  cleanDate, cleanStr, cleanTime, CURRENT_SEASON, DEPARTMENTS, departmentOfLocation, FR_DEPARTMENTS, normalizeName, REGIONS, regionOfDepartment, seasonOf,
   type LyceeEventRow, type LyceeRow,
 } from '@/lib/lycees'
 
 const MODEL = 'claude-opus-5-5'
 
 export const SCAN_DEPARTMENTS = DEPARTMENTS.map(d => d.id)
+/** Départements acceptés par un scan forcé (France entière). */
+export const FR_SCAN_DEPARTMENTS = FR_DEPARTMENTS.map(d => d.id)
 
 /** Sources qui publient des forums de lycées (re-vérifiées à chaque passage). */
 const WATCH_SOURCES: Record<string, string[]> = {
@@ -42,6 +46,13 @@ const COMMON_SOURCES = [
   'https://www.cidj.com/agendas',
   'https://www.u-pec.fr/fr/formation/orientation-et-insertion-professionnelle/agenda-salons-forums',
   'https://openagenda.com/agendas/96197569/events.json?relative[]=upcoming',
+]
+
+/** Hors Île-de-France : sources nationales (le prompt ajoute académie, département, région, universités). */
+const NATIONAL_SOURCES = [
+  'https://www.onisep.fr/',
+  'https://lactudelorientation.com/',
+  'https://openagenda.com/',
 ]
 
 const REPORT_TOOL = {
@@ -105,21 +116,26 @@ type BotForum = {
 type LyceeLite = Pick<LyceeRow, 'uai' | 'name' | 'patronyme' | 'city' | 'department' | 'priority'>
 
 function buildPrompt(dep: string, today: string, known: LyceeEventRow[], focus: LyceeLite[]): string {
-  const label = DEPARTMENTS.find(d => d.id === dep)?.label ?? dep
+  const label = FR_DEPARTMENTS.find(d => d.id === dep)?.label ?? dep
+  const regionId = regionOfDepartment(dep)
+  const region = REGIONS.find(r => r.id === regionId)?.label ?? ''
+  const idf = regionId === 'idf'
+  const sources = idf ? [...(WATCH_SOURCES[dep] || []), ...COMMON_SOURCES] : NATIONAL_SOURCES
   const knownLines = known.length
     ? known.map(e => `- ${e.date ?? 'date ?'} · ${e.title ?? ''}${e.location ? ` · ${e.location}` : ''}`).join('\n')
     : '(aucun)'
   const focusLines = focus.map(l => `- ${l.name} (${l.city})`).join('\n')
-  return `Tu fais de la veille pour Diploma Santé, prépa PASS/LAS (études de santé) en Île-de-France. Nous voulons tenir un stand ou intervenir dans TOUS les forums d'orientation fréquentés par des lycéens.
+  return `Tu fais de la veille pour une équipe qui informe les lycéens sur les études de santé (Diploma Santé, prépa PASS/LAS, et l'association étudiante AFEM). Nous voulons tenir un stand ou intervenir dans TOUS les forums d'orientation fréquentés par des lycéens${idf ? ' en Île-de-France' : ', partout en France'}.
 
-Département : **${label}**. Nous sommes le ${today}. Saison visée : ${CURRENT_SEASON} (septembre 2026 → juin 2027).
+Département : **${label}**${region ? ` (${region})` : ''}. Nous sommes le ${today}. Saison visée : ${CURRENT_SEASON} (septembre 2026 → juin 2027).
 
 Trouve les forums à venir de cette saison :
 - forums de l'orientation / des métiers / post-bac organisés dans un lycée (scope "lycee") ;
 - forums de bassin ou inter-lycées accueillis par un lycée (scope "inter_lycees") — LES PLUS IMPORTANTS (ex. le forum du lycée Maurice Rondeau à Bussy-Saint-Georges où viennent les lycées du 77) ;
+- salons de l'orientation / de l'enseignement supérieur organisés par une université, une CCI, un CIO, une ville, la région ou le département (Nuits de l'orientation, salons « Info Sup », journées du supérieur…) ;
 - forums d'orientation d'une ville, d'une agglo, d'un CIO (scope "ville") ou du département (scope "departement").
 
-Cherche sur Google, les sites des lycées (pages actualités, agenda, ENT monlycee.net), les sites des mairies et des académies, les réseaux sociaux des lycées et des villes, les pages APEL / FCPE. Sources de départ : ${[...(WATCH_SOURCES[dep] || []), ...COMMON_SOURCES].join(', ')}.
+Cherche sur Google, les sites des lycées (pages actualités, agenda, ENT monlycee.net), les sites des mairies et des académies, les réseaux sociaux des lycées et des villes, les pages APEL / FCPE. Sources de départ : ${sources.join(', ')}${idf ? '' : ` — et le site de l'académie, du conseil départemental, de la région, des grandes villes et des universités du département`}.
 Astuce très productive : sur le site d'un lycée, la recherche interne « forum » (WordPress : /?s=forum ou /wp-json/wp/v2/posts?search=forum ; SPIP : spip.php?page=recherche&recherche=forum) remonte les annonces des éditions passées et à venir.
 Les forums d'anciens élèves acceptent rarement une prépa externe : garde-les mais précise-le dans notes.
 Lycées prioritaires à vérifier en particulier :
@@ -216,7 +232,7 @@ export async function runLyceeForumsScan(departments: string[]): Promise<ForumSc
   if (!process.env.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY non configurée')
   const db = createServiceClient()
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' })
-  const deps = departments.filter(d => SCAN_DEPARTMENTS.includes(d))
+  const deps = departments.filter(d => FR_SCAN_DEPARTMENTS.includes(d))
 
   const { data: scanRow } = await db.from('lycee_forum_scans').insert({}).select('id').single()
 
@@ -232,7 +248,7 @@ export async function runLyceeForumsScan(departments: string[]): Promise<ForumSc
 
   const client = new Anthropic()
   const results = await Promise.all(deps.map(dep => {
-    const known = events.filter(e => !e.hidden && (e.uai ? byUai.get(e.uai)?.department === dep : (e.location || '').includes(dep)))
+    const known = events.filter(e => !e.hidden && (e.uai ? byUai.get(e.uai)?.department === dep : departmentOfLocation(e.location) === dep))
     const focus = lycees
       .filter(l => l.department === dep && (l.priority === 'tres_important' || l.priority === 'important'))
       .slice(0, 25)
