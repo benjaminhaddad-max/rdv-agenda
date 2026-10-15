@@ -113,7 +113,7 @@ type BotForum = {
   notes: string | null
 }
 
-type LyceeLite = Pick<LyceeRow, 'uai' | 'name' | 'patronyme' | 'city' | 'department' | 'priority'>
+type LyceeLite = Pick<LyceeRow, 'uai' | 'name' | 'patronyme' | 'city' | 'department' | 'priority' | 'voie_generale' | 'secteur'>
 
 function buildPrompt(dep: string, today: string, known: LyceeEventRow[], focus: LyceeLite[]): string {
   const label = FR_DEPARTMENTS.find(d => d.id === dep)?.label ?? dep
@@ -238,7 +238,7 @@ export async function runLyceeForumsScan(departments: string[]): Promise<ForumSc
 
   const [lycRes, evRes] = await Promise.all([
     fetchAllRows<LyceeLite>((from, to) =>
-      db.from('lycees').select('uai, name, patronyme, city, department, priority').order('uai').range(from, to)),
+      db.from('lycees').select('uai, name, patronyme, city, department, priority, voie_generale, secteur').order('uai').range(from, to)),
     fetchAllRows<LyceeEventRow>((from, to) =>
       db.from('lycee_events').select('*').eq('season', CURRENT_SEASON).order('id').range(from, to)),
   ])
@@ -249,9 +249,15 @@ export async function runLyceeForumsScan(departments: string[]): Promise<ForumSc
   const client = new Anthropic()
   const results = await Promise.all(deps.map(dep => {
     const known = events.filter(e => !e.hidden && (e.uai ? byUai.get(e.uai)?.department === dep : departmentOfLocation(e.location) === dep))
-    const focus = lycees
+    let focus = lycees
       .filter(l => l.department === dep && (l.priority === 'tres_important' || l.priority === 'important'))
       .slice(0, 25)
+    // Hors Île-de-France (pas de priorités notées) : 25 lycées généraux du département, différents à chaque passage
+    if (!focus.length) {
+      const pool = lycees.filter(l => l.department === dep && l.voie_generale !== false && l.secteur !== 'prive_hors_contrat')
+      const shift = pool.length ? (Math.floor(Date.now() / 3_600_000) * 25) % pool.length : 0
+      focus = [...pool.slice(shift), ...pool.slice(0, shift)].slice(0, 25)
+    }
     return scanDepartment(client, dep, today, known, focus)
       .catch(err => ({ dep, forums: [] as BotForum[], error: err instanceof Error ? err.message : String(err) }))
   }))
