@@ -62,7 +62,7 @@ const softBox: CSSProperties = { background: crmV2.bgHover, borderRadius: 10, pa
 const label: CSSProperties = { fontSize: 12, color: crmV2.textMuted }
 const selectStyle: CSSProperties = {
   fontSize: 12, padding: '4px 6px', borderRadius: 8, border: `1px solid ${crmV2.border}`, background: crmV2.bg,
-  color: crmV2.text, maxWidth: 190, fontFamily: 'inherit',
+  color: crmV2.text, maxWidth: 150, minWidth: 0, fontFamily: 'inherit',
 }
 
 function KV({ k, v, color }: { k: ReactNode; v: ReactNode; color?: string }) {
