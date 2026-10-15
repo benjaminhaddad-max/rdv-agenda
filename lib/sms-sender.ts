@@ -60,6 +60,8 @@ export interface RunOptions {
   baseUrl: string
   /** Cookies a forwarder pour l'appel interne /api/crm/contacts (filter_groups). */
   cookies?: string
+  /** Envoi différé chez SMS Factor ('YYYY-MM-DD HH:mm:ss', heure de Paris). */
+  delay?: string
 }
 
 export interface RunResult {
@@ -117,7 +119,7 @@ function estimateSegments(text: string): number {
  *  6. Met a jour les stats agregees de la campagne
  */
 export async function runSmsCampaign(opts: RunOptions): Promise<RunResult> {
-  const { campaignId: id, baseUrl, cookies = '' } = opts
+  const { campaignId: id, baseUrl, cookies = '', delay } = opts
   const db = createServiceClient()
 
   // 1. Charge la campagne
@@ -364,6 +366,7 @@ export async function runSmsCampaign(opts: RunOptions): Promise<RunResult> {
           sender: campaign.sender,
           pushtype,
           shortenLinks: shortenLinksOpt,
+          delay,
         },
       )
 
@@ -414,6 +417,7 @@ export async function runSmsCampaign(opts: RunOptions): Promise<RunResult> {
             sender: campaign.sender,
             pushtype,
             shortenLinks: shortenLinksOpt,
+            delay,
           })
 
           if (result.ok) {

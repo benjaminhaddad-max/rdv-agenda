@@ -273,6 +273,11 @@ export interface SendSmsOptions {
    * est déjà fourni explicitement.
    */
   autoShorten?: boolean
+  /**
+   * Envoi différé géré par SMS Factor : 'YYYY-MM-DD HH:mm:ss' (heure de Paris).
+   * Le SMS est soumis tout de suite mais SMS Factor ne l'envoie qu'à cette date.
+   */
+  delay?: string
 }
 
 /**
@@ -329,6 +334,7 @@ export async function sendSms(
             pushtype,
             sender: cleanSender,
             links: opts.shortenLinks.urls,
+            ...(opts.delay ? { delay: opts.delay } : {}),
           },
           recipients: {
             gsm: [
@@ -374,6 +380,7 @@ export async function sendSms(
     sender: cleanSender,
     pushtype,
   })
+  if (opts.delay) params.set('delay', opts.delay)
 
   try {
     const res = await fetch(`https://api.smsfactor.com/send?${params.toString()}`, {
@@ -503,6 +510,7 @@ export async function sendSmsCampaignBulk(
   if (shortenLinksOpt && shortenLinksOpt.urls.length > 0) {
     message.links = shortenLinksOpt.urls
   }
+  if (opts.delay) message.delay = opts.delay
 
   try {
     const res = await fetch('https://api.smsfactor.com/send', {
