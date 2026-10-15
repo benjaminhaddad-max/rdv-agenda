@@ -6,7 +6,8 @@
  * les 5 min (même compte de service Google que les mails lycées, délégation au
  * niveau du domaine diploma-sante.fr) et on ne garde que les mails échangés avec
  * un contact du CRM, rattachés à sa fiche. Chaque télépro voit les fils de SES
- * contacts (crm_contacts.telepro_user_id) et y répond en tant qu'admissions@ :
+ * contacts (crm_contacts.telepro_user_id) et des contacts à qui il a écrit
+ * depuis le CRM (admissions_emails.author_id), et y répond en tant qu'admissions@ :
  * la réponse part de Gmail, donc Pascal la voit aussi dans la boîte.
  *
  * ENV : ADMISSIONS_MAILBOX (facultatif, défaut admissions@diploma-sante.fr).
@@ -338,9 +339,54 @@ export async function sendAdmissionsHtmlMail(db: Db, input: {
   return { gmailId: sent.id!, threadId: sent.threadId ?? null }
 }
 
+/**
+ * Mail parti d'admissions@ hors Gmail (repli Brevo) : rangé quand même dans le
+ * fil du contact pour que l'auteur le voie dans « Mes mails ». Pas de fil Gmail :
+ * la réponse du prospect arrive dans un fil à part, sur le même contact.
+ */
+export async function recordAdmissionsOutgoing(db: Db, input: {
+  contactId: string
+  to: string
+  subject: string
+  html: string
+  text: string
+  messageIdHeader: string | null
+  hasAttachments?: boolean
+  author: { id: string; name: string | null }
+  sentAt?: string
+}) {
+  const sentAt = input.sentAt || new Date().toISOString()
+  const { error } = await db.from('admissions_emails').insert({
+    contact_id: input.contactId, contact_email: input.to.toLowerCase(), mailbox: ADMISSIONS_MAILBOX, direction: 'out',
+    gmail_id: null, gmail_thread_id: null, message_id_header: input.messageIdHeader,
+    from_email: ADMISSIONS_MAILBOX, from_name: input.author.name,
+    to_emails: [input.to.toLowerCase()], subject: input.subject,
+    body_text: input.text.slice(0, 60_000), body_html: input.html.slice(0, 200_000), snippet: input.text.slice(0, 180),
+    has_attachments: !!input.hasAttachments,
+    author_id: input.author.id, author_name: input.author.name,
+    read_at: sentAt, sent_at: sentAt,
+  })
+  if (error) console.error('[admissions-mail] mail Brevo non rangé :', error.message)
+}
+
 // ── Lecture (espace télépro) ────────────────────────────────────────────────
 
-export type AdmissionsViewer = { id: string; isAdmin: boolean; ownerIds: string[] }
+/**
+ * ownerIds : ses contacts attribués ; writtenContactIds : les contacts à qui il
+ * a écrit depuis le CRM, même attribués à un autre télépro ou à personne.
+ */
+export type AdmissionsViewer = { id: string; isAdmin: boolean; ownerIds: string[]; writtenContactIds: string[] }
+
+const WINDOW_DAYS = 120
+
+/** Contacts à qui ce compte a écrit (fiche contact ou « Mes mails »), les plus récents d'abord. */
+async function writtenContacts(db: Db, userId: string): Promise<string[]> {
+  const since = new Date(Date.now() - WINDOW_DAYS * 86400_000).toISOString()
+  const { data } = await db.from('admissions_emails').select('contact_id')
+    .eq('author_id', userId).gte('sent_at', since).not('contact_id', 'is', null)
+    .order('sent_at', { ascending: false }).limit(2000)
+  return [...new Set((data || []).map(r => String(r.contact_id)))].slice(0, 400)
+}
 
 /**
  * Qui regarde : le télépro connecté, ou un télépro visé par un admin
@@ -351,7 +397,11 @@ export async function resolveViewer(db: Db, ctx: { appUserId: string; role: stri
   const userId = askedUserId && isAdmin ? askedUserId : ctx.appUserId
   const { data: user } = await db.from('rdv_users').select('id, name, hubspot_owner_id, hubspot_user_id').eq('id', userId).maybeSingle()
   if (!user) return null
-  const viewer: AdmissionsViewer = { id: user.id as string, isAdmin: isAdmin && !askedUserId, ownerIds: teleproOwnerIds(user) }
+  const seesAll = isAdmin && !askedUserId
+  const viewer: AdmissionsViewer = {
+    id: user.id as string, isAdmin: seesAll, ownerIds: teleproOwnerIds(user),
+    writtenContactIds: seesAll ? [] : await writtenContacts(db, user.id as string),
+  }
   return { viewer, user: { id: user.id as string, name: (user.name as string | null) ?? null } }
 }
 
@@ -374,22 +424,38 @@ type EmailRow = {
   crm_contacts: { hubspot_contact_id: string; firstname: string | null; lastname: string | null; email: string | null; telepro_user_id: string | null }
 }
 
-/** Un télépro ne voit que les mails de ses contacts ; un admin voit tout. */
-function scoped<Q>(q: Q, viewer: AdmissionsViewer): Q {
-  if (viewer.isAdmin) return q
-  const ids = viewer.ownerIds.length ? viewer.ownerIds : ['0']
-  return (q as unknown as { in: (col: string, v: string[]) => Q }).in('crm_contacts.telepro_user_id', ids)
+type Filterable = { in: (col: string, v: string[]) => unknown }
+type Result<R> = PromiseLike<{ data: R[] | null; error: { message: string } | null }>
+
+/**
+ * Un télépro voit les mails de ses contacts et de ceux à qui il a écrit ; un
+ * admin voit tout. `build` crée la requête (appelée une fois par périmètre).
+ */
+async function scopedSelect<R extends { id: string }>(viewer: AdmissionsViewer, build: () => unknown): Promise<R[]> {
+  const run = async (q: unknown) => {
+    const { data, error } = await (q as Result<R>)
+    if (error) throw new Error(error.message)
+    return data || []
+  }
+  if (viewer.isAdmin) return run(build())
+  const parts = [run((build() as Filterable).in('crm_contacts.telepro_user_id', viewer.ownerIds.length ? viewer.ownerIds : ['0']))]
+  if (viewer.writtenContactIds.length) parts.push(run((build() as Filterable).in('contact_id', viewer.writtenContactIds)))
+  const seen = new Set<string>()
+  const out: R[] = []
+  for (const rows of await Promise.all(parts)) {
+    for (const r of rows) if (!seen.has(r.id)) { seen.add(r.id); out.push(r) }
+  }
+  return out
 }
 
 export async function listThreads(db: Db, viewer: AdmissionsViewer): Promise<AdmissionsThread[]> {
-  const since = new Date(Date.now() - 120 * 86400_000).toISOString()
-  const q = db.from('admissions_emails')
+  const since = new Date(Date.now() - WINDOW_DAYS * 86400_000).toISOString()
+  const rows = await scopedSelect<EmailRow>(viewer, () => db.from('admissions_emails')
     .select(`id, contact_id, gmail_thread_id, direction, subject, snippet, sent_at, read_at, ${CONTACT_EMBED}`)
-    .gte('sent_at', since).order('sent_at', { ascending: false }).limit(1000)
-  const { data, error } = await scoped(q, viewer)
-  if (error) throw new Error(error.message)
+    .gte('sent_at', since).order('sent_at', { ascending: false }).limit(1000))
+  rows.sort((a, b) => b.sent_at.localeCompare(a.sent_at))
   const threads = new Map<string, AdmissionsThread>()
-  for (const r of (data || []) as unknown as EmailRow[]) {
+  for (const r of rows) {
     const key = r.gmail_thread_id || r.id
     const c = r.crm_contacts
     let t = threads.get(key)
@@ -408,33 +474,36 @@ export async function listThreads(db: Db, viewer: AdmissionsViewer): Promise<Adm
 }
 
 export async function unreadCount(db: Db, viewer: AdmissionsViewer): Promise<number> {
-  const q = db.from('admissions_emails').select(`id, ${CONTACT_EMBED}`, { count: 'exact', head: true })
-    .eq('direction', 'in').is('read_at', null)
-  const { count, error } = await scoped(q, viewer)
-  if (error) throw new Error(error.message)
-  return count || 0
+  if (viewer.isAdmin) {
+    const { count, error } = await db.from('admissions_emails').select('id', { count: 'exact', head: true })
+      .eq('direction', 'in').is('read_at', null)
+    if (error) throw new Error(error.message)
+    return count || 0
+  }
+  const rows = await scopedSelect<{ id: string }>(viewer, () => db.from('admissions_emails')
+    .select(`id, ${CONTACT_EMBED}`).eq('direction', 'in').is('read_at', null).limit(1000))
+  return rows.length
 }
 
-/** Fil complet (vérifie que le contact est bien celui du télépro) et le marque comme lu. */
+/** Fil complet (vérifie que le contact est bien visible par le télépro) et le marque comme lu. */
 export async function getThread(db: Db, viewer: AdmissionsViewer, threadId: string) {
-  const q = db.from('admissions_emails').select(`*, ${CONTACT_EMBED}`)
+  const rows = await scopedSelect<{ id: string; direction: string; read_at: string | null; sent_at: string }>(viewer, () => db.from('admissions_emails')
+    .select(`*, ${CONTACT_EMBED}`)
     .or(`gmail_thread_id.eq.${threadId},id.eq.${/^[0-9a-f-]{36}$/i.test(threadId) ? threadId : '00000000-0000-0000-0000-000000000000'}`)
-    .order('sent_at', { ascending: true })
-  const { data, error } = await scoped(q, viewer)
-  if (error) throw new Error(error.message)
-  const rows = data || []
+    .order('sent_at', { ascending: true }))
+  rows.sort((a, b) => a.sent_at.localeCompare(b.sent_at))
   if (!rows.length) return null
   const unread = rows.filter(r => r.direction === 'in' && !r.read_at).map(r => r.id as string)
   if (unread.length) await db.from('admissions_emails').update({ read_at: new Date().toISOString() }).in('id', unread)
   return rows
 }
 
-/** Contact du télépro (pour écrire un nouveau mail). */
+/** Contact du télépro, ou à qui il a déjà écrit (pour écrire / répondre). */
 export async function ownedContact(db: Db, viewer: AdmissionsViewer, contactId: string) {
   const { data } = await db.from('crm_contacts').select('hubspot_contact_id, firstname, lastname, email, telepro_user_id')
     .eq('hubspot_contact_id', contactId).maybeSingle()
   if (!data) return null
-  if (!viewer.isAdmin && !viewer.ownerIds.includes(String(data.telepro_user_id ?? ''))) return null
+  if (!viewer.isAdmin && !viewer.ownerIds.includes(String(data.telepro_user_id ?? '')) && !viewer.writtenContactIds.includes(contactId)) return null
   return data
 }
 

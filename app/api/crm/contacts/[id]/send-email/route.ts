@@ -5,26 +5,28 @@ import { requireApiRole } from '@/lib/api-auth'
 import { memoryRateLimit } from '@/lib/rate-limit'
 import { wrapCrmEmail } from '@/lib/crm-email-layout'
 import { markPostRdvEmailSent } from '@/lib/post-rdv-email'
-import { ADMISSIONS_MAILBOX, closerReplyAddress, sendAdmissionsHtmlMail } from '@/lib/admissions-mail'
+import { ADMISSIONS_MAILBOX, closerReplyAddress, recordAdmissionsOutgoing, sendAdmissionsHtmlMail } from '@/lib/admissions-mail'
 import { isGmailConfigured } from '@/lib/lycee-mail'
 
 /**
  * POST /api/crm/contacts/[id]/send-email
  *
- * Envoie un email unitaire à un contact via Brevo et log l'activité dans
- * crm_activities. Utilisé par le QuickActionModal sur la fiche contact.
+ * Envoie un email unitaire à un contact depuis la boîte Gmail admissions@
+ * (repli Brevo) et log l'activité dans crm_activities. Utilisé par le
+ * QuickActionModal sur la fiche contact. Le mail est rangé dans
+ * admissions_emails : l'auteur le retrouve, avec les réponses, dans « Mes mails ».
  *
  * Body :
  *   subject       : objet (requis si pas de templateId)
  *   html          : contenu HTML (requis si pas de templateId)
  *   templateId    : id d'email_templates (optionnel — alternative à subject+html)
- *   replyTo       : email de réponse (optionnel)
+ *   replyTo       : adresse de réponse en plus d'admissions@ (optionnel)
  *   ownerId       : owner du contact qui envoie (pour logguer)
  *   appointmentId : RDV dont c'est le mail post-RDV (pastille de l'agenda)
  *
- * Mail post-RDV (appointmentId) : envoyé depuis admissions@ via Gmail, avec
- * pour adresses de réponse admissions@ ET le closer du RDV (Brevo n'accepte
- * qu'une seule adresse de réponse). Repli sur Brevo si Gmail est indisponible.
+ * Réponses à admissions@ (+ le closer du RDV pour un mail post-RDV, ou
+ * l'adresse saisie) : Gmail accepte plusieurs adresses de réponse, Brevo une
+ * seule. Repli sur Brevo si Gmail est indisponible.
  */
 export async function POST(
   req: NextRequest,
@@ -111,32 +113,42 @@ export async function POST(
   const htmlContent = wrapCrmEmail(renderedHtml)
 
   const appointmentId = typeof body.appointmentId === 'string' && body.appointmentId ? body.appointmentId : null
+  // Réponses toujours à admissions@ (relevée → « Mes mails » de l'auteur), plus
+  // le closer du RDV pour un mail post-RDV, ou l'adresse de réponse saisie.
+  const gmailReplyTo: { email: string; name: string | null }[] = [{ email: ADMISSIONS_MAILBOX, name: 'Diploma Santé — Admissions' }]
   let postRdvReplyTo: { email: string; name: string | null }[] | null = null
   if (appointmentId) {
     const { data: appt } = await db.from('rdv_appointments').select('commercial_id').eq('id', appointmentId).maybeSingle()
     const { data: closer } = appt?.commercial_id
       ? await db.from('rdv_users').select('name, email').eq('id', appt.commercial_id).maybeSingle()
       : { data: null }
-    postRdvReplyTo = [{ email: ADMISSIONS_MAILBOX, name: 'Diploma Santé — Admissions' }]
     const closerAddress = closerReplyAddress(closer)
-    if (closerAddress) postRdvReplyTo.push(closerAddress)
+    if (closerAddress) gmailReplyTo.push(closerAddress)
+    postRdvReplyTo = gmailReplyTo
+  } else if (body.replyTo) {
+    const extra = String(body.replyTo).trim().toLowerCase()
+    if (/^[^\s@,<>]+@[^\s@,<>]+$/.test(extra) && extra !== ADMISSIONS_MAILBOX) gmailReplyTo.push({ email: extra, name: null })
   }
 
-  if (postRdvReplyTo && isGmailConfigured()) {
+  const { data: me } = await db.from('rdv_users').select('id, name').eq('id', authz.ctx.appUserId).maybeSingle()
+  const author = { id: authz.ctx.appUserId, name: (me?.name as string | null) ?? null }
+
+  // Tout mail unitaire part de la boîte Gmail admissions@ : il est rangé dans le
+  // fil du contact (« Mes mails ») et les réponses du prospect s'y ajoutent.
+  if (isGmailConfigured()) {
     try {
-      const { data: me } = await db.from('rdv_users').select('id, name').eq('id', authz.ctx.appUserId).maybeSingle()
       const r = await sendAdmissionsHtmlMail(db, {
         contactId,
         to: { email: contact.email, name: toName },
         subject: renderedSubject,
         html: htmlContent,
         text: renderedText,
-        replyTo: postRdvReplyTo,
+        replyTo: gmailReplyTo,
         attachments,
-        author: { id: authz.ctx.appUserId, name: (me?.name as string | null) ?? null },
+        author,
       })
       gmailId = r.gmailId
-      replyToUsed = postRdvReplyTo.map(r2 => r2.email)
+      replyToUsed = gmailReplyTo.map(r2 => r2.email)
     } catch (e) {
       console.error('[crm/contacts/send-email] Gmail error, repli Brevo :', e)
     }
@@ -156,6 +168,11 @@ export async function POST(
       })
       messageId = r.messageId
       if (postRdvReplyTo) replyToUsed = [ADMISSIONS_MAILBOX]
+      // Visible quand même dans « Mes mails » (hors boîte Gmail, fil à part)
+      await recordAdmissionsOutgoing(db, {
+        contactId, to: contact.email, subject: renderedSubject, html: htmlContent, text: renderedText,
+        messageIdHeader: messageId ?? null, hasAttachments: !!attachments, author,
+      })
     } catch (e) {
       sendError = e instanceof Error ? e.message : String(e)
       console.error('[crm/contacts/send-email] Brevo error:', sendError)

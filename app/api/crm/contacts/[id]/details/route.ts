@@ -129,6 +129,7 @@ export async function GET(
     smsRecipients,
     emailRecipients,
     nativeFormSubmissions,
+    admissionsEmails,
   ] = await Promise.all([
     wantCore
       ? db.from('crm_deals').select('*')
@@ -203,7 +204,50 @@ export async function GET(
           .order('submitted_at', { ascending: false })
           .limit(50))
       : emptyArr,
+
+    // Boîte admissions@ (lib/admissions-mail.ts) : réponses du prospect,
+    // mails écrits depuis « Mes mails » ou directement dans Gmail
+    wantCore
+      ? safeRows(db.from('admissions_emails')
+          .select('id, direction, subject, body_text, from_email, from_name, author_id, author_name, gmail_id, message_id_header, sent_at')
+          .eq('contact_id', contactId)
+          .order('sent_at', { ascending: false })
+          .limit(100))
+      : emptyArr,
   ])
+
+  // Mails admissions@ dans la frise « E-mails », comme les SMS Aircall ; ceux
+  // déjà loggés dans crm_activities (envoi depuis la fiche) ne sont pas doublés.
+  const loggedMailIds = new Set(activities.flatMap(a => {
+    const m = (a.metadata ?? {}) as Record<string, unknown>
+    return [m.gmail_id, m.brevo_message_id].filter(Boolean).map(String)
+  }))
+  const mailActivities = admissionsEmails
+    .filter(m => !loggedMailIds.has(String(m.gmail_id ?? '')) && !loggedMailIds.has(String(m.message_id_header ?? '')))
+    .map(m => {
+      const incoming = m.direction === 'in'
+      return {
+        id: `adm-${m.id}`,
+        hubspot_engagement_id: `admissions-${m.id}`, // pas éditable
+        activity_type: 'email',
+        subject: m.subject,
+        body: m.body_text,
+        direction: incoming ? 'INCOMING' : 'OUTGOING',
+        status: incoming ? 'RECEIVED' : 'SENT',
+        owner_id: incoming ? null : m.author_id ?? null,
+        metadata: {
+          source: 'admissions_mailbox',
+          agent_name: incoming
+            ? `Réponse de ${m.from_name || m.from_email || 'du contact'}`
+            : (m.author_name as string | null) || 'Admissions',
+        },
+        occurred_at: m.sent_at,
+        hubspot_deal_id: null,
+      }
+    })
+  const allActivities = mailActivities.length
+    ? [...activities, ...mailActivities].sort((a, b) => String(b.occurred_at).localeCompare(String(a.occurred_at)))
+    : activities
 
   const allFormSubmissions = [
     ...formSubmissions,
@@ -492,7 +536,7 @@ export async function GET(
   if (wantCore) {
     payload.deals = deals
     payload.appointments = appointments
-    payload.activities = activities
+    payload.activities = allActivities
     payload.formSubmissions = allFormSubmissions
     payload.tasks = tasks
     payload.preInscriptions = dedupedPreInsc

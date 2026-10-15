@@ -2,6 +2,7 @@
  * Espace télépro › « Mes mails » (lib/admissions-mail.ts, migration v70).
  *
  * GET  → fils de la boîte admissions@ échangés avec les contacts du télépro
+ *        et ceux à qui il a écrit depuis le CRM
  *        (un admin voit tout, ou vise un télépro avec ?user_id=) ;
  *        ?count=1 → nombre de réponses non lues ; ?search=… → ses contacts (nouveau mail).
  * POST { contact_id, text, subject?, thread_id? } → envoie depuis admissions@
@@ -67,12 +68,16 @@ export async function POST(req: NextRequest) {
     let to = String(contact.email || '').trim()
     let subject = String(body.subject || '').trim()
     let inReplyTo: string | null = null
+    let gmailThreadId: string | null = null
     if (threadId) {
+      // Fil Gmail, ou mail seul parti par Brevo (fil = id de la ligne, sans fil Gmail)
+      const byId = /^[0-9a-f-]{36}$/i.test(threadId) ? `,id.eq.${threadId}` : ''
       const { data: last } = await db.from('admissions_emails')
-        .select('contact_id, contact_email, from_email, direction, subject, message_id_header')
-        .eq('gmail_thread_id', threadId).order('sent_at', { ascending: false }).limit(10)
+        .select('contact_id, contact_email, from_email, direction, subject, message_id_header, gmail_thread_id')
+        .or(`gmail_thread_id.eq.${threadId}${byId}`).order('sent_at', { ascending: false }).limit(10)
       const rows = (last || []).filter(r => r.contact_id === contactId)
       if (!rows.length) return NextResponse.json({ error: 'Fil introuvable' }, { status: 404 })
+      gmailThreadId = (rows.find(r => r.gmail_thread_id)?.gmail_thread_id as string | undefined) ?? null
       const lastIn = rows.find(r => r.direction === 'in')
       to = String(lastIn?.from_email || rows[0].contact_email || to).trim()
       inReplyTo = (lastIn || rows[0]).message_id_header || null
@@ -83,7 +88,7 @@ export async function POST(req: NextRequest) {
     if (!subject) return NextResponse.json({ error: 'Objet requis' }, { status: 400 })
 
     const row = await sendAdmissionsMail(db, {
-      contactId, to, subject, text, threadId, inReplyTo,
+      contactId, to, subject, text, threadId: gmailThreadId, inReplyTo,
       author: { id: who.user.id, name: who.user.name || null },
     })
     return NextResponse.json({ ok: true, email: row })
