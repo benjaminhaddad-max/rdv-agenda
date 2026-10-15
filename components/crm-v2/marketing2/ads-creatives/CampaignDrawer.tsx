@@ -7,11 +7,11 @@
  */
 
 import { useState, type CSSProperties, type ReactNode } from 'react'
-import { CalendarClock, Check, ChevronDown, ChevronRight, Circle, Clapperboard, FileText, Image as ImageIcon, Megaphone, Pencil, Radio, Type, Video } from 'lucide-react'
+import { Ban, CalendarClock, Check, ChevronDown, ChevronRight, Circle, Clapperboard, FileText, Image as ImageIcon, Megaphone, Pencil, Radio, RotateCcw, Type, Video } from 'lucide-react'
 import { CrmV2Button, CrmV2Drawer } from '@/components/crm-v2/primitives'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import {
-  adsState, campaignTypeLabel, diffDays, formatEuros, frDay, parisDay,
+  CANCELLED_STATUS, adsState, campaignTypeLabel, diffDays, formatEuros, frDay, isCancelledStatus, parisDay,
   type AdTexts, type AdsCreativesSettings, type AdsState, type AdsEventRow, type CreativeItem, type CreativeRole, type FolderFile, type VideoScript,
 } from '@/lib/ads-creatives'
 import AdTextsLane from './AdTextsLane'
@@ -27,7 +27,7 @@ const typeColorStyle = (ev: AdsEventRow) => {
 }
 
 export default function CampaignDrawer({
-  ev, today, crm, settings, token, author, fileUrl, onAddFolder, onUpdateFolder, onItemAdded, onRemove, onAdsState, onEdit, onSaveTime, onSaveLocation, onScriptsSaved, onAdTextsSaved, onClose, flash,
+  ev, today, crm, settings, token, author, fileUrl, onAddFolder, onUpdateFolder, onItemAdded, onRemove, onAdsState, onEdit, onToggleCancelled, onSaveTime, onSaveLocation, onScriptsSaved, onAdTextsSaved, onClose, flash,
 }: {
   ev: AdsEventRow
   today: string
@@ -43,6 +43,8 @@ export default function CampaignDrawer({
   /** Ads Manager : à mettre en ligne / programmée / en ligne */
   onAdsState: (state: AdsState) => void
   onEdit: () => void
+  /** CRM : annuler la campagne (reste visible, barrée) ou la réactiver */
+  onToggleCancelled: () => void
   /** CRM : modifier l'horaire directement depuis la fiche */
   onSaveTime: (time: string) => void
   /** CRM : modifier le lieu (JPO / présentiel) depuis la fiche */
@@ -81,8 +83,16 @@ export default function CampaignDrawer({
             {ev.pilier && <span style={{ ...pill, color: pc.color, background: pc.bg }}>{ev.pilier}</span>}
             {ev.funnel && <span style={{ ...pill, color: fc.color, background: fc.bg }}>{ev.funnel}</span>}
             {ev.status && <span style={{ ...pill, color: sc.color, background: sc.bg }}>{ev.status}</span>}
+            {ev.event_cancelled && !isCancelledStatus(ev.status) && (
+              <span style={{ ...pill, ...statusColor(CANCELLED_STATUS) }}>Événement annulé</span>
+            )}
           </div>
-          <div style={{ fontSize: 17, fontWeight: 700, lineHeight: 1.35, color: crmV2.text }}>{ev.name}</div>
+          <div style={{ fontSize: 17, fontWeight: 700, lineHeight: 1.35, color: crmV2.text, ...(ev.cancelled ? { textDecoration: 'line-through', opacity: 0.6 } : null) }}>{ev.name}</div>
+          {ev.event_cancelled && (
+            <div style={{ fontSize: 12.5, color: crmV2.danger, marginTop: 6 }}>
+              Annulé dans l’onglet Événements : à réactiver depuis la fiche de l’événement.
+            </div>
+          )}
           <div style={{ fontSize: 13, color: crmV2.textMuted, marginTop: 4 }}>
             {isGuide
               ? `Diffusé du ${frDay(ev.campaign_start)} au ${frDay(ev.campaign_end)} · ${days} jours`
@@ -96,6 +106,11 @@ export default function CampaignDrawer({
       }
       footer={crm ? (
         <>
+          {!ev.event_cancelled && (
+            <CrmV2Button size="sm" variant="secondary" icon={ev.cancelled ? <RotateCcw size={14} /> : <Ban size={14} />} onClick={onToggleCancelled}>
+              {ev.cancelled ? 'Réactiver' : 'Annuler'}
+            </CrmV2Button>
+          )}
           <div style={{ flex: 1 }} />
           <CrmV2Button size="sm" icon={<Pencil size={14} />} onClick={onEdit}>Modifier le brief</CrmV2Button>
         </>

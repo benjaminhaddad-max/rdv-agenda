@@ -29,6 +29,8 @@ type PlanningEvent = {
 }
 
 const SALON_COLOR = '#7C3AED'
+/** Événement annulé : reste visible, nom barré. */
+const CANCELLED_TEXT = { textDecoration: 'line-through', opacity: 0.55 } as const
 
 export default function EventsPlanningPage() {
   const isMobile = useIsMobile()
@@ -124,10 +126,12 @@ export default function EventsPlanningPage() {
       style={{ fontSize: 11 }}
     />
   )
+  const statusLabel = (e: PlanningEvent) =>
+    e.status === 'published' ? 'Publié' : e.status === 'cancelled' ? 'Annulé' : 'Brouillon'
   const statusPill = (e: PlanningEvent) => (
     <CrmV2StatusPill
-      label={e.status === 'published' ? 'Publié' : 'Brouillon'}
-      color={e.status === 'published' ? crmV2.success : crmV2.textMuted}
+      label={statusLabel(e)}
+      color={e.status === 'published' ? crmV2.success : e.status === 'cancelled' ? crmV2.danger : crmV2.textMuted}
       style={{ fontSize: 11 }}
     />
   )
@@ -272,9 +276,9 @@ export default function EventsPlanningPage() {
                           </div>
                           <span style={{ width: 3, alignSelf: 'stretch', borderRadius: 99, background: e.type.id === 'salon' ? SALON_COLOR : crmV2.gold, flexShrink: 0 }} />
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.name}</div>
+                            <div style={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', ...(e.status === 'cancelled' ? CANCELLED_TEXT : null) }}>{e.name}</div>
                             <div style={{ fontSize: 11, color: crmV2.textMuted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {e.type.short} · {e.status === 'published' ? 'Publié' : 'Brouillon'} · {time}
+                              {e.type.short} · {statusLabel(e)} · {time}
                               {e.event_time_end ? ` – ${e.event_time_end}` : ''}
                               {e.location ? ` · ${e.location}` : ''}
                             </div>
@@ -325,7 +329,7 @@ export default function EventsPlanningPage() {
                                   <Link
                                     href={`/admin/crm/events/${e.id}`}
                                     onClick={(ev) => ev.stopPropagation()}
-                                    style={{ color: crmV2.link, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 320 }}
+                                    style={{ color: crmV2.link, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 320, ...(e.status === 'cancelled' ? CANCELLED_TEXT : null) }}
                                   >
                                     {e.name}
                                   </Link>

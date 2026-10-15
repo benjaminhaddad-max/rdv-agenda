@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
     const sent: Array<{ event: string; role: string; days_left: number; ok: boolean; text: string; error?: string }> = []
     for (const ev of events) {
       // Pas de relance créas si la campagne est déjà programmée / en ligne (créas faites hors de l'outil)
-      if (ev.no_campaign || ev.launched_at || ev.scheduled_at) continue
+      if (ev.cancelled || ev.no_campaign || ev.launched_at || ev.scheduled_at) continue
       for (const role of CREATIVE_ROLES) {
         if (ev.items.some((i) => i.role === role)) continue
         if (done.has(`${ev.id}:${role}`)) continue
@@ -79,7 +79,7 @@ export async function GET(req: NextRequest) {
     }
     // Colonne Ads Manager
     for (const ev of events) {
-      if (ev.no_campaign || ev.launched_at || ev.scheduled_at || done.has(`${ev.id}:ads`)) continue
+      if (ev.cancelled || ev.no_campaign || ev.launched_at || ev.scheduled_at || done.has(`${ev.id}:ads`)) continue
       const text = adsReminderText({
         ownerName: settings.ads_owner_name,
         eventName: ev.name,

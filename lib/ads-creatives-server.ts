@@ -9,6 +9,7 @@ import { htmlToText, sendBrevoEmail } from '@/lib/brevo'
 import {
   computeSchedule,
   defaultEventTime,
+  isCancelledStatus,
   parisDay,
   addDays,
   type AdsBrand,
@@ -84,7 +85,7 @@ type EventsDbRow = {
   zoom_join_url: string | null
 }
 
-type CampaignDbRow = Omit<AdsEventRow, 'name' | 'day' | 'until' | 'location' | 'campaign_start' | 'creas_deadline' | 'campaign_end' | 'items'> & {
+type CampaignDbRow = Omit<AdsEventRow, 'name' | 'day' | 'until' | 'location' | 'campaign_start' | 'creas_deadline' | 'campaign_end' | 'items' | 'cancelled' | 'event_cancelled'> & {
   title: string
   event_date: string
   location: string | null
@@ -167,12 +168,8 @@ export async function loadAdsEvents(
     if (created) campaigns.push(created as CampaignDbRow)
   }
 
-  // 4. Lignes visibles : campagnes sans événement, ou dont l'événement est actif
-  const visible = campaigns.filter((c) => {
-    if (!c.event_id) return true
-    const ev = eventById.get(c.event_id)
-    return !ev || ev.status !== 'cancelled'
-  })
+  // 4. Toutes les campagnes restent visibles ; celles dont l'événement est annulé sont barrées
+  const visible = campaigns
   if (visible.length === 0) return []
 
   const { data: itemsData, error: itemsError } = await db
@@ -196,6 +193,7 @@ export async function loadAdsEvents(
       const { title, ...rest } = c
       const kind = c.kind === 'guide' ? 'guide' : 'event'
       const schedule = computeSchedule(day, delays[brandOf(c.brand)], { ...c, kind })
+      const eventCancelled = ev?.status === 'cancelled'
       return {
         ...rest,
         kind,
@@ -209,6 +207,8 @@ export async function loadAdsEvents(
         location: (ev?.location && !isVisioLocation(ev.location) ? ev.location : null) || c.location || null,
         ...schedule,
         items: items.get(c.id) || [],
+        event_cancelled: eventCancelled,
+        cancelled: eventCancelled || isCancelledStatus(c.status),
       } as AdsEventRow
     })
     .sort((a, b) => a.day.localeCompare(b.day) || (a.num ?? 0) - (b.num ?? 0))

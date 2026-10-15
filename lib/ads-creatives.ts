@@ -156,6 +156,16 @@ export type AdsEventRow = {
   /** Texte publicitaire (généré par Claude, modifiable) */
   ad_texts: AdTexts | null
   ad_texts_at: string | null
+  /** Annulée (statut « Annulé » ou événement annulé dans Événements) : reste affichée, barrée, sans relance */
+  cancelled: boolean
+  /** Annulation venant de l'onglet Événements (se réactive là-bas) */
+  event_cancelled: boolean
+}
+
+/** Statut du brief qui marque une campagne annulée. */
+export const CANCELLED_STATUS = 'Annulé'
+export function isCancelledStatus(status: string | null | undefined): boolean {
+  return /annul/i.test(status || '')
 }
 
 /** Mise en ligne Ads : à faire, programmée ou en ligne. */

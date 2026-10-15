@@ -176,6 +176,8 @@ type CalItem = {
   sub: string
   href: string | null
   competitor: CompetitorEvent | null
+  /** Événement annulé : reste affiché, barré */
+  cancelled: boolean
 }
 
 type ViewMode = 'month' | 'week' | 'agenda'
@@ -239,6 +241,7 @@ function ourItem(ev: CalendarEventRow): CalItem {
     sub: `${BRAND_CONFIG[brandOf(ev)].name} · ${type.short}${ev.location ? ` · ${ev.location}` : ''}`,
     href: `/admin/crm/events/${ev.id}`,
     competitor: null,
+    cancelled: ev.status === 'cancelled',
   }
 }
 
@@ -260,6 +263,7 @@ function competitorItem(ev: CompetitorEvent): CalItem {
     sub: `${who} · ${typeShort}${ev.location ? ` · ${ev.location}` : ''}`,
     href: null,
     competitor: ev,
+    cancelled: false,
   }
 }
 
@@ -294,7 +298,8 @@ function ItemShell({
   children: ReactNode
   onSelect: (ev: CompetitorEvent | null) => void
 }) {
-  const tooltip = it.prefix ? `${it.prefix} — ${it.name} (${timeLabel(it)})` : it.name
+  const tooltip = (it.prefix ? `${it.prefix} — ${it.name} (${timeLabel(it)})` : it.name) + (it.cancelled ? ' — annulé' : '')
+  if (it.cancelled) style = { ...style, opacity: 0.55, textDecoration: 'line-through' }
   if (it.href) {
     return (
       <Link href={it.href} title={tooltip} style={{ textDecoration: 'none', ...style }}>
@@ -437,7 +442,7 @@ export default function EventsAgendaCalendar({ events, loading }: Props) {
 
   // ── Éléments affichés ──
   const items = useMemo(() => {
-    const ours = events.filter((e) => e.status !== 'cancelled').map(ourItem)
+    const ours = events.map(ourItem)
     const theirs = showCompetitors ? competitorEvents.filter((e) => !e.hidden).map(competitorItem) : []
     return [...ours, ...theirs]
   }, [events, competitorEvents, showCompetitors])

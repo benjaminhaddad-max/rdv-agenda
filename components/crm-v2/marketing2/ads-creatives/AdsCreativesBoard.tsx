@@ -19,7 +19,7 @@ import { crmV2 } from '@/lib/crm-v2-theme'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { BRAND_CONFIG } from '@/lib/events-studio/config'
 import {
-  ADS_BRANDS, DEFAULT_DELAYS, campaignTypeLabel, diffDays, formatEuros, parisDay,
+  ADS_BRANDS, CANCELLED_STATUS, DEFAULT_DELAYS, campaignTypeLabel, diffDays, formatEuros, parisDay,
   type AdsBrand, type AdsCreativesSettings, type AdsEventRow, type AdsState, type BrandDelays, type CampaignKind, type CreativeItem, type CreativeRole, type FolderFile,
 } from '@/lib/ads-creatives'
 import CampaignDrawer, { StatusBadge } from './CampaignDrawer'
@@ -156,7 +156,7 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
   }, [list])
 
   const kpis = useMemo(() => {
-    const active = upcoming.filter((e) => !e.no_campaign && !/annul/i.test(e.status || ''))
+    const active = upcoming.filter((e) => !e.no_campaign && !e.cancelled)
     const missing = (e: AdsEventRow) => (['static', 'video'] as const).filter((r) => !e.items.some((i) => i.role === r)).length
     const budget = active.reduce((n, e) => n + (e.budget_target || 0), 0)
     const leads = active.reduce((n, e) => n + (e.leads_expected || 0), 0)
@@ -396,12 +396,12 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
                 <div style={mobileMonth}>{monthLabel(`${month}-01`)}</div>
                 <div style={{ background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: crmV2.radiusLg, overflow: 'hidden' }}>
                   {rows.map((ev, i) => (
-                    <button key={ev.id} type="button" onClick={() => setOpenId(ev.id)} style={{ ...mobileRow, borderTop: i ? `1px solid ${crmV2.borderLight}` : 'none' }}>
+                    <button key={ev.id} type="button" onClick={() => setOpenId(ev.id)} style={{ ...mobileRow, borderTop: i ? `1px solid ${crmV2.borderLight}` : 'none', opacity: ev.cancelled ? 0.6 : 1 }}>
                       <DayCell day={ev.day} />
                       <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
                         <div style={{ display: 'flex', gap: 6, alignItems: 'center', minWidth: 0 }}>
                           {kind !== 'guide' && <TypePill ev={ev} />}
-                          <div style={rowTitle}>{ev.name}</div>
+                          <div style={{ ...rowTitle, ...(ev.cancelled ? CANCELLED_TEXT : null) }}>{ev.name}</div>
                         </div>
                         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 4 }}>
                           {ev.kind === 'guide' && <MiniStatus label="PDF" s={guidePdfStatus(ev, today)} />}
@@ -451,7 +451,7 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
                       const sub = [ev.kind === 'event' ? ev.event_time : null, ev.kind === 'event' && ev.event_type !== 'webinaire' ? ev.location || 'Lieu à confirmer' : null, ev.pilier, ev.funnel, ev.budget_target != null ? formatEuros(ev.budget_target) : null].filter(Boolean).join(' · ')
                       const days = diffDays(ev.campaign_start, ev.campaign_end) + 1
                       return (
-                        <CrmV2Tr key={ev.id} onClick={() => setOpenId(ev.id)} style={{ opacity: ev.no_campaign ? 0.5 : 1 }}>
+                        <CrmV2Tr key={ev.id} onClick={() => setOpenId(ev.id)} style={{ opacity: ev.no_campaign || ev.cancelled ? 0.5 : 1 }}>
                           <CrmV2Td style={cellPad}><DayCell day={ev.day} /></CrmV2Td>
                           <CrmV2Td style={cellPad}>
                             <div style={{ display: 'flex', gap: 10, alignItems: 'center', minWidth: 0 }}>
@@ -460,7 +460,8 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
                                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', minWidth: 0 }}>
                                   {/* Type toujours visible (sauf dans la vue Guides, où tout est guide) */}
                                   {kind !== 'guide' && <TypePill ev={ev} />}
-                                  <div style={rowTitle}>{ev.name}</div>
+                                  <div style={{ ...rowTitle, ...(ev.cancelled ? CANCELLED_TEXT : null) }}>{ev.name}</div>
+                                  {ev.cancelled && <span style={cancelledPill}>Annulé</span>}
                                 </div>
                                 {sub && <div style={rowSub}>{sub}</div>}
                               </div>
@@ -510,6 +511,19 @@ export default function AdsCreativesBoard({ token }: { token?: string }) {
           onRemove={removeItem}
           onAdsState={(st) => setAdsState(opened, st)}
           onEdit={() => setEditing(opened)}
+          onToggleCancelled={async () => {
+            const cancel = !opened.cancelled
+            if (cancel && !confirm(`Annuler la campagne « ${opened.name} » ?\n\nElle reste visible mais barrée, et les relances SMS (créas / Ads) s’arrêtent.`)) return
+            const status = cancel ? CANCELLED_STATUS : 'À valider'
+            setEvents((prev) => prev.map((e) => (e.id === opened.id ? { ...e, status, cancelled: cancel } : e)))
+            const r = await fetch(`/api/ads-creatives/campaigns/${opened.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ status }),
+            })
+            flash(!r.ok ? 'Enregistrement impossible' : cancel ? 'Campagne annulée' : 'Campagne réactivée')
+            load()
+          }}
           onScriptsSaved={(scripts, at) => setEvents((prev) => prev.map((e) => (e.id === opened.id
             ? { ...e, video_scripts: scripts, video_scripts_at: at ?? e.video_scripts_at }
             : e)))}
@@ -707,6 +721,12 @@ const cellPad: CSSProperties = { paddingTop: 10, paddingBottom: 10, height: 'aut
 const rowTitle: CSSProperties = {
   fontSize: 14, fontWeight: 600, color: crmV2.text, overflow: 'hidden', display: '-webkit-box',
   WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', lineHeight: 1.3,
+}
+/** Campagne annulée : reste visible, nom barré */
+const CANCELLED_TEXT: CSSProperties = { textDecoration: 'line-through', color: crmV2.textMuted }
+const cancelledPill: CSSProperties = {
+  fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 99, flexShrink: 0,
+  color: crmV2.danger, background: crmV2.dangerSoft,
 }
 const rowSub: CSSProperties = { fontSize: 12, color: crmV2.textFaint, marginTop: 2 }
 const mobileMonth: CSSProperties = { fontSize: 13, fontWeight: 800, color: crmV2.text, margin: '0 4px 8px' }

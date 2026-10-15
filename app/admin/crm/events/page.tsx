@@ -3,6 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useState, type MouseEvent, type ReactNode } from 'react'
 import Link from 'next/link'
 import {
+  Ban,
   CalendarDays,
   CalendarRange,
   ChevronDown,
@@ -13,6 +14,7 @@ import {
   Plus,
   QrCode,
   RefreshCw,
+  RotateCcw,
   Save,
   Users,
 } from 'lucide-react'
@@ -115,6 +117,9 @@ function eventEndsAtMs(ev: EventRow): number {
   return new Date(`${day}T23:59:59`).getTime()
 }
 
+/** Événement annulé : reste dans la liste, nom barré et ligne estompée. */
+const CANCELLED_TEXT = { textDecoration: 'line-through', opacity: 0.55 } as const
+
 function isEventPast(ev: EventRow, nowMs = Date.now()): boolean {
   return eventEndsAtMs(ev) < nowMs
 }
@@ -171,6 +176,34 @@ export default function EventsListPage() {
   }, [allEvents, brand])
 
   const types = useMemo(() => brandEventTypes(brand), [brand])
+
+  /** Annule l'événement (reste visible, barré) ou le réactive en brouillon — même règle que la fiche. */
+  async function toggleCancelled(ev: EventRow) {
+    const cancel = ev.status !== 'cancelled'
+    if (cancel && !confirm(
+      `Annuler « ${ev.name} » ?\n\nIl restera visible mais barré partout dans le CRM (liste, calendrier, planning, Créas Ads), `
+      + 'les rappels automatiques (mails / SMS) ne partiront plus.\n\n'
+      + 'Les inscrits ne sont PAS prévenus automatiquement.',
+    )) return
+    setSavingId(ev.id)
+    try {
+      const res = await fetch(`/api/events-studio/events/${ev.id}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: cancel ? 'cancelled' : 'draft' }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Erreur')
+      setToast(cancel ? 'Événement annulé' : 'Événement réactivé (en brouillon)')
+      setTimeout(() => setToast(null), 2000)
+      await load()
+    } catch (e) {
+      setToast(e instanceof Error ? e.message : 'Erreur')
+    } finally {
+      setSavingId(null)
+    }
+  }
 
   async function saveEventSettings(ev: EventRow) {
     setSavingId(ev.id)
@@ -341,6 +374,14 @@ export default function EventsListPage() {
               </CrmV2Button>
             </a>
           )}
+          <CrmV2Button
+            variant="secondary"
+            disabled={savingId === ev.id}
+            onClick={() => toggleCancelled(ev)}
+            icon={ev.status === 'cancelled' ? <RotateCcw size={14} /> : <Ban size={14} />}
+          >
+            {ev.status === 'cancelled' ? 'Réactiver' : 'Annuler l’événement'}
+          </CrmV2Button>
         </div>
       </div>
     )
@@ -378,6 +419,7 @@ export default function EventsListPage() {
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   maxWidth: 320,
+                  ...(ev.status === 'cancelled' ? CANCELLED_TEXT : null),
                 }}
               >
                 {ev.name}
@@ -507,7 +549,7 @@ export default function EventsListPage() {
           </EvIconBox>
           <span style={{ flex: 1, minWidth: 0 }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-              <span style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <span style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', ...(ev.status === 'cancelled' ? CANCELLED_TEXT : null) }}>
                 {ev.name}
               </span>
               <span title={st.label} style={{ width: 7, height: 7, borderRadius: '50%', background: st.color, flexShrink: 0 }} />

@@ -50,7 +50,8 @@ async function loadDiplomaPlanning(year: number, typeFilter: string) {
 
   let events = (data || []).filter((e) => {
     const t = eventTypeOf(e).id
-    return (t === 'jpo' || t === 'salon') && e.status !== 'cancelled'
+    // Les annulés restent dans le planning admin (affichés barrés), hors totaux
+    return t === 'jpo' || t === 'salon'
   })
 
   if (typeFilter === 'jpo' || typeFilter === 'salon') {
@@ -96,9 +97,9 @@ export async function GET(req: NextRequest) {
         jpo: '60 € / après-midi',
       },
       totals: {
-        events: events.length,
-        jpo: events.filter((e) => e.type.id === 'jpo').length,
-        salon: events.filter((e) => e.type.id === 'salon').length,
+        events: events.filter((e) => e.status !== 'cancelled').length,
+        jpo: events.filter((e) => e.type.id === 'jpo' && e.status !== 'cancelled').length,
+        salon: events.filter((e) => e.type.id === 'salon' && e.status !== 'cancelled').length,
         staff: Object.values(staffCounts).reduce((a, b) => a + b, 0),
       },
     })

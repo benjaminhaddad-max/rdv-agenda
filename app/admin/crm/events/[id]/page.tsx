@@ -742,7 +742,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   async function setStatus(status: 'published' | 'draft' | 'cancelled') {
     if (status === 'cancelled' && !confirm(
       'Annuler cet événement ?\n\nIl sera marqué « Annulé » partout dans le CRM (liste, calendrier, planning), '
-      + 'les rappels automatiques (mails / SMS) ne partiront plus et sa campagne Ads sera masquée.\n\n'
+      + 'les rappels automatiques (mails / SMS) ne partiront plus et sa campagne Créas Ads sera barrée.\n\n'
       + 'Les inscrits ne sont PAS prévenus automatiquement.',
     )) return
     if (status === 'published' && typeEdit === 'webinaire' && !(zoomEdit.trim() || data?.event?.zoom_join_url)) {
