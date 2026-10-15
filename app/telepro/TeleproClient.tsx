@@ -497,7 +497,7 @@ export default function TeleproClient({
               <UserCRMView
                 ownerParam="telepro_id" ownerId={teleproCrmFilterId} mode="telepro" onTotalChange={setCrmTotal}
                 previewUserId={previewMode ? teleproUser.id : undefined}
-                onStartDialer={previewMode || isMobile ? undefined : startDialerFromList}
+                onStartDialer={isMobile ? undefined : startDialerFromList}
                 leadingView={isMobile ? undefined : {
                   label: "À traiter aujourd'hui",
                   render: () => <TodayView userId={teleproUser.id} firstName={firstName} />,
