@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
   const event = payload?.event ?? ''
   const call = payload?.data
 
-  if (event !== 'call.created' && event !== 'call.answered' && event !== 'call.ended') {
+  if (event !== 'call.created' && event !== 'call.answered' && event !== 'call.hungup' && event !== 'call.ended') {
     return NextResponse.json({ ok: true, ignored: event || 'unknown' })
   }
 
@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
   after(async () => {
     // Session d'appels télépro : l'écran suit l'appel qu'il a lancé (lib/dialer.ts)
     await syncDialerAttemptFromAircall(db, event, call).catch(() => false)
-    if (event === 'call.answered') return
+    if (event === 'call.answered' || event === 'call.hungup') return
     if (!(await isIntegrationEnabled('aircall'))) return
     try {
       if (event === 'call.created') await handleAircallCallCreated(db, call)

@@ -259,10 +259,11 @@ export async function buildDialerQueue(
 
 export type DialResult =
   | { ok: true; attempt: DialerAttempt }
-  | { ok: false; error: string; attempt?: DialerAttempt }
+  | { ok: false; error: string; attempt?: DialerAttempt; busy?: boolean }
 
 function aircallErrorMessage(status: number, raw: string): string {
   if (status === 429) return 'Aircall est saturé (trop d\'appels à la minute) : réessaie dans quelques secondes.'
+  if (status === 405) return 'Aircall te voit encore en appel ou en fin d\'appel : nouvel essai dans quelques secondes.'
   if (status === 0) return 'Aircall injoignable : réessaie dans quelques secondes.'
   const detail = raw.replace(/\s+/g, ' ').slice(0, 160)
   return `Aircall n'a pas lancé l'appel : ouvre Aircall sur ton ordinateur et passe en « Disponible », puis relance. (${status}${detail ? ` · ${detail}` : ''})`
@@ -336,7 +337,8 @@ export async function dialLead(
     const { data: failed } = await db.from('dialer_attempts')
       .update({ status: 'failed', error: error.slice(0, 500), ended_at: new Date().toISOString() })
       .eq('id', attempt.id).select(ATTEMPT_COLS).single()
-    return { ok: false, error, attempt: (failed as DialerAttempt | null) ?? attempt }
+    // 405 : encore en appel ou en temps de post-appel Aircall → l'écran réessaie tout seul
+    return { ok: false, error, attempt: (failed as DialerAttempt | null) ?? attempt, busy: started.status === 405 }
   }
   return { ok: true, attempt }
 }
@@ -401,7 +403,7 @@ export async function syncDialerAttemptFromAircall(
   if (!phone) return false
   const since = new Date(Date.now() - 30 * 60_000).toISOString()
   let q = db.from('dialer_attempts').select('id, aircall_call_id').eq('phone', phone).gte('started_at', since)
-  if (event !== 'call.ended') q = q.is('ended_at', null)
+  if (event !== 'call.ended' && event !== 'call.hungup') q = q.is('ended_at', null)
   const { data, error } = await q.order('started_at', { ascending: false }).limit(3)
   if (error) return false
   const rows = (data ?? []) as Array<{ id: number; aircall_call_id: number | null }>
@@ -414,6 +416,12 @@ export async function syncDialerAttemptFromAircall(
   if (event === 'call.answered') {
     patch.status = 'in_call'
     patch.answered_at = call.answered_at ? new Date(call.answered_at * 1000).toISOString() : new Date().toISOString()
+  }
+  // call.hungup arrive au raccroché, call.ended ~30 s plus tard (il complète le résultat)
+  if (event === 'call.hungup') {
+    patch.status = 'ended'
+    patch.outcome = call.answered_at ? 'answered' : 'no_answer'
+    patch.ended_at = new Date().toISOString()
   }
   if (event === 'call.ended') {
     const { answered, status } = classifyAircallCall(call)

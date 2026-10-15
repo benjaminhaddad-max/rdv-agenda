@@ -77,6 +77,9 @@ type Phase =
 export type DialerState = 'off' | 'running' | 'paused'
 
 const POLL_MS = 2000
+/** Aircall « encore en appel / post-appel » (405) : essais toutes les 3 s pendant ~45 s */
+const BUSY_RETRIES = 15
+const BUSY_RETRY_MS = 3000
 const MANUAL_KEY = 'dialer_manual_dial'
 /** Webhook Aircall qui n'arrive pas : on n'attend pas la fin de l'appel plus longtemps */
 const WAIT_END_MAX_MS = 12_000
@@ -133,6 +136,9 @@ export default function DialerSession({
   const [loadError, setLoadError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [phase, setPhase] = useState<Phase>({ kind: 'off' })
+  const phaseRef = useRef<Phase>(phase)
+  useEffect(() => { phaseRef.current = phase }, [phase])
+  const [dialNote, setDialNote] = useState<string | null>(null)
   const [lead, setLead] = useState<DialerLead | null>(null)
   const [attempt, setAttempt] = useState<DialerAttempt | null>(null)
   const [qualified, setQualified] = useState<string | null>(null)
@@ -248,12 +254,26 @@ export default function DialerSession({
     setRelanceAt(null)
     setNotice(null)
     markTaken(target.hubspot_contact_id)
-    const { ok, data: r } = await api<{ ok: boolean; attempt?: DialerAttempt; error?: string }>('/api/telepro/dialer', {
-      method: 'POST',
-      body: JSON.stringify({ action: 'dial', contact_id: target.hubspot_contact_id, reason: target.reason, redial_of: redialOf ?? null, manual: manualDial }),
-    })
+    setDialNote(null)
+    type DialResponse = { ok: boolean; attempt?: DialerAttempt; error?: string; busy?: boolean }
+    let res: { ok: boolean; data: DialResponse & { error?: string } } | null = null
+    // Aircall refuse (405) tant que l'appel précédent ou son temps de post-appel n'est pas fini : on réessaie
+    for (let i = 0; i < BUSY_RETRIES; i++) {
+      res = await api<DialResponse>('/api/telepro/dialer', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'dial', contact_id: target.hubspot_contact_id, reason: target.reason, redial_of: redialOf ?? null, manual: manualDial }),
+      })
+      if (!res.data.busy || phaseRef.current.kind !== 'dialing') break
+      setDialNote(`Aircall termine l'appel précédent… nouvel essai (${i + 1})`)
+      await new Promise(r => setTimeout(r, BUSY_RETRY_MS))
+      if (phaseRef.current.kind !== 'dialing') break
+    }
+    setDialNote(null)
     setBusy(false)
+    const { ok, data: r } = res!
     if (!ok || !r.attempt || r.ok === false) {
+      // Mis en pause pendant les essais : on n'affiche pas d'erreur
+      if (phaseRef.current.kind !== 'dialing') return
       setAttempt(r.attempt ?? null)
       setPhase({ kind: 'error', message: r.error || 'Appel non lancé' })
       return
@@ -446,6 +466,7 @@ export default function DialerSession({
     <LeadPanel
       manual={manualDial}
       compact={dock}
+      dialNote={dialNote}
       lead={lead}
       attempt={attempt}
       phase={phase}
@@ -630,13 +651,15 @@ export default function DialerSession({
 }
 
 function LeadPanel({
-  lead, attempt, phase, countdownSec, qualified, busy, otherStatus, relanceAt, manual, compact,
+  lead, attempt, phase, countdownSec, qualified, busy, otherStatus, relanceAt, manual, compact, dialNote,
   setOtherStatus, setRelanceAt, onQualify, onSkip, onRetry, onNow,
 }: {
   /** iPad / téléphone : le télépro appuie sur « Appeler » */
   manual: boolean
   /** Panneau ancré au-dessus de « Mes contacts » */
   compact: boolean
+  /** Essais en cours quand Aircall est encore occupé */
+  dialNote: string | null
   lead: DialerLead
   attempt: DialerAttempt | null
   phase: Phase
@@ -654,7 +677,7 @@ function LeadPanel({
 }) {
   const level = lead.score ? SCORE_LEVELS[lead.score.level] : null
   const ended = !!attempt?.ended_at
-  const callLabel = phase.kind === 'dialing' ? 'Lancement de l\'appel dans Aircall…'
+  const callLabel = phase.kind === 'dialing' ? dialNote ?? 'Lancement de l\'appel dans Aircall…'
     : phase.kind === 'error' ? 'Appel non lancé'
     : !attempt ? ''
     : attempt.outcome === 'answered' ? `Décroché · ${attempt.duration_sec ?? 0} s`
