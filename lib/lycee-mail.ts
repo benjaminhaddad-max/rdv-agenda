@@ -209,12 +209,12 @@ export function textToHtml(text: string): string {
   }).join('\n')
 }
 
-function signature(mode: LyceeMode, mailbox: string, senderName: string | null) {
+function signature(mode: LyceeMode, mailbox: string, senderName: string | null, noLogo = false) {
   const b = MAIL_BRANDS[mode]
   const html = `
 <table cellpadding="0" cellspacing="0" style="margin-top:22px;border-top:2px solid ${b.color};padding-top:12px">
   <tr>
-    <td style="padding-right:14px;vertical-align:middle"><img src="${b.logoUrl}" alt="${escapeHtml(b.senderName)}" height="38" style="display:block;height:38px;width:auto"></td>
+    ${noLogo ? '' : `<td style="padding-right:14px;vertical-align:middle"><img src="${b.logoUrl}" alt="${escapeHtml(b.senderName)}" height="38" style="display:block;height:38px;width:auto"></td>`}
     <td style="vertical-align:middle;font-size:13px;line-height:1.5;color:#3d4a5c">
       ${senderName ? `<b style="color:#1a2438">${escapeHtml(senderName)}</b><br>` : ''}
       <span style="color:${b.color};font-weight:600">${escapeHtml(b.team)}</span><br>
@@ -246,6 +246,10 @@ export type SendLyceeMailInput = {
   /** Réponse dans un fil existant */
   threadId?: string | null
   inReplyTo?: string | null
+  /** Envoi groupé : signature sans image distante (meilleure délivrabilité) */
+  noLogo?: boolean
+  /** Petite ligne grise sous la signature (ex. « ne souhaitez plus recevoir nos messages ») */
+  footerNote?: string | null
 }
 
 export type SentLyceeMail = {
@@ -261,9 +265,11 @@ export type SentLyceeMail = {
 export async function sendLyceeMail(input: SendLyceeMailInput): Promise<SentLyceeMail> {
   const mailbox = mailboxFor(input.mode)
   const brand = MAIL_BRANDS[input.mode]
-  const sig = signature(input.mode, mailbox, input.senderName)
-  const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#1f2a37;max-width:640px">\n${textToHtml(input.text)}\n${sig.html}\n</div>`
-  const text = input.text.trim() + sig.text
+  const sig = signature(input.mode, mailbox, input.senderName, input.noLogo)
+  const note = input.footerNote?.trim()
+  const noteHtml = note ? `\n<p style="margin:18px 0 0;font-size:11px;color:#8a94a3">${escapeHtml(note)}</p>` : ''
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#1f2a37;max-width:640px">\n${textToHtml(input.text)}\n${sig.html}${noteHtml}\n</div>`
+  const text = input.text.trim() + sig.text + (note ? `\n\n${note}` : '')
   const plaquette = input.attachPlaquette ? await loadPlaquette(input.mode) : null
   if (input.attachPlaquette && !plaquette) throw new Error('Plaquette introuvable sur le serveur (public/plaquettes)')
 
@@ -276,6 +282,8 @@ export async function sendLyceeMail(input: SendLyceeMailInput): Promise<SentLyce
     `Subject: ${encodeHeader(input.subject)}`,
     input.inReplyTo ? `In-Reply-To: ${input.inReplyTo}` : null,
     input.inReplyTo ? `References: ${input.inReplyTo}` : null,
+    // Demandé par Gmail / Outlook / mail-tester pour les envois à plusieurs destinataires
+    `List-Unsubscribe: <mailto:${mailbox}?subject=D%C3%A9sinscription>`,
     'MIME-Version: 1.0',
     `Content-Type: multipart/mixed; boundary="${mixed}"`,
   ].filter(Boolean)
