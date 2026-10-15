@@ -3,6 +3,7 @@
  *
  * GET                    → réglages, ligne Aircall, file d'appels, relances plus tard, compteurs du jour.
  *                          Un admin peut viser un télépro avec ?user_id= (aperçu).
+ *                          ?mode=list : session lancée depuis une vue de « Mes contacts » (liste fournie par le client).
  * GET ?attempt_id=N      → état d'un appel (mis à jour par le webhook Aircall).
  * POST { action: 'dial', contact_id, reason?, redial_of? } → lance l'appel depuis sa ligne Aircall.
  * POST { action: 'qualify', attempt_id, qualification }    → résultat de l'appel (double appel, NRP…).
@@ -48,7 +49,8 @@ export async function GET(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Utilisateur introuvable' }, { status: 404 })
   try {
     const settings = await getDialerSettings()
-    const [line, queue] = await Promise.all([resolveDialerLine(db, user.id), buildDialerQueue(db, user, settings)])
+    const today = req.nextUrl.searchParams.get('mode') !== 'list'
+    const [line, queue] = await Promise.all([resolveDialerLine(db, user.id), buildDialerQueue(db, user, settings, { today })])
     return NextResponse.json({ settings, can_edit_settings: isAdmin, line, ...queue })
   } catch (e) {
     return fail(e)

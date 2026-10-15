@@ -8,6 +8,9 @@
  *   relance plus tard dans la journée et statut NRP.
  * - Conversation : temps pour qualifier (réglable), puis lead suivant.
  * - RDV pris : la session se met en pause et ouvre « Nouveau RDV » pré-rempli.
+ * - Power dialer lancé depuis une vue de « Mes contacts » (`source`) : appelle
+ *   les contacts de la vue (filtres + tri) dans l'ordre affiché, page par page,
+ *   après les relances plus tard arrivées à échéance. Sinon : « À traiter aujourd'hui ».
  * API : /api/telepro/dialer (lib/dialer.ts), suivi d'appel par webhook Aircall.
  */
 
@@ -19,10 +22,12 @@ import { CrmV2Button } from '@/components/crm-v2/primitives'
 import { AdminNotice, AdminSpin } from '@/components/crm-v2/admin/AdminUi'
 import { SCORE_LEVELS } from '@/lib/lead-score'
 import { LEAD_STATUS_OPTIONS_FALLBACK } from '@/lib/crm-constants'
+import { toE164French } from '@/lib/phone-e164'
 import {
   DIALER_QUALIFICATIONS, FAILED_QUALIFICATIONS,
-  type DialerAttempt, type DialerLead, type DialerSettings,
+  type DialerAttempt, type DialerLead, type DialerListSource, type DialerSettings,
 } from '@/lib/dialer-shared'
+import type { CRMContact } from '@/components/CRMContactsTable'
 import { tint } from './ui'
 
 type Line = { ok: true; aircall_user_id: number; number_id: number; number_label: string | null } | { ok: false; error: string }
@@ -35,6 +40,30 @@ type QueueData = {
   later: Array<{ lead: DialerLead; due_at: string }>
   stats: Stats
   in_window: boolean
+  worked_today: string[]
+}
+
+/** Contacts de la vue « Mes contacts », chargés page par page dans l'ordre affiché */
+type ListState = { key: number; items: DialerLead[]; page: number; done: boolean }
+const LIST_PAGE = 100
+
+function listLead(c: CRMContact, label: string): DialerLead {
+  return {
+    hubspot_contact_id: c.hubspot_contact_id,
+    name: [c.firstname, c.lastname].filter(Boolean).join(' ') || 'Contact',
+    phone: c.phone ?? null,
+    classe: c.classe_actuelle ?? null,
+    lead_status: c.hs_lead_status ?? null,
+    reason: 'liste',
+    reason_label: label,
+    score: null,
+    last_call_at: null,
+    calls_count: 0,
+    form_name: c.recent_conversion_event ?? null,
+    form_at: c.recent_conversion_date ?? null,
+    origine: c.origine ?? null,
+    round_no: 1,
+  }
 }
 
 type Phase =
@@ -85,13 +114,16 @@ async function api<T>(url: string, init?: RequestInit): Promise<{ ok: boolean; d
 }
 
 export default function DialerSession({
-  userId, readOnly = false, onBookRdv, onStateChange,
+  userId, readOnly = false, onBookRdv, onStateChange, source = null, onClearSource,
 }: {
   userId: string
   /** Aperçu admin : on voit la file, on ne lance pas d'appel */
   readOnly?: boolean
   onBookRdv: (contactId: string) => void
   onStateChange?: (state: DialerState) => void
+  /** Vue de « Mes contacts » sur laquelle le power dialer a été lancé */
+  source?: DialerListSource | null
+  onClearSource?: () => void
 }) {
   const isMobile = useIsMobile()
   const [data, setData] = useState<QueueData | null>(null)
@@ -121,18 +153,48 @@ export default function DialerSession({
   const settings = data?.settings
 
   // ── File ──
+  const listMode = !!source
   const load = useCallback(async () => {
     setLoading(true)
-    const q = readOnly ? `?user_id=${encodeURIComponent(userId)}` : ''
-    const { ok, data: d } = await api<QueueData>(`/api/telepro/dialer${q}`)
+    const params = new URLSearchParams()
+    if (readOnly) params.set('user_id', userId)
+    // Liste « Mes contacts » : le serveur ne renvoie que les relances et les leads déjà appelés
+    if (listMode) params.set('mode', 'list')
+    const qs = params.toString()
+    const { ok, data: d } = await api<QueueData>(`/api/telepro/dialer${qs ? `?${qs}` : ''}`)
     setLoading(false)
     if (!ok) { setLoadError(d.error || 'Session indisponible'); return null }
     setLoadError(null)
     setData(d)
+    dataRef.current = d
     return d
-  }, [readOnly, userId])
+  }, [readOnly, userId, listMode])
 
   useEffect(() => { load() }, [load])
+
+  // ── Liste de la vue « Mes contacts », page par page ──
+  const [list, setList] = useState<ListState | null>(null)
+  const listRef = useRef<ListState | null>(null)
+  const listLoading = useRef(false)
+  const putList = useCallback((l: ListState | null) => { listRef.current = l; setList(l) }, [])
+  const loadListPage = useCallback(async (): Promise<void> => {
+    const cur = listRef.current
+    if (!source || !cur || cur.done || cur.key !== source.started_at || listLoading.current) return
+    listLoading.current = true
+    try {
+      const res = await api<{ data?: CRMContact[] }>(`/api/crm/contacts?${source.query}&limit=${LIST_PAGE}&page=${cur.page}`)
+      if (listRef.current?.key !== cur.key) return
+      const rows = res.ok ? res.data.data ?? [] : []
+      putList({
+        key: cur.key,
+        items: [...cur.items, ...rows.map(c => listLead(c, source.label))],
+        page: cur.page + 1,
+        done: !res.ok || rows.length < LIST_PAGE,
+      })
+    } finally {
+      listLoading.current = false
+    }
+  }, [source, putList])
 
   useEffect(() => {
     onStateChange?.(phase.kind === 'off' ? 'off' : phase.kind === 'paused' || phase.kind === 'error' ? 'paused' : 'running')
@@ -145,9 +207,18 @@ export default function DialerSession({
     return () => clearInterval(t)
   }, [phase.kind])
 
-  const nextLead = useCallback((d: QueueData | null): DialerLead | null => {
-    return d?.queue.find(l => !taken.current.has(l.hubspot_contact_id)) ?? null
+  /** Relances dues d'abord, puis la liste (vue) ou « À traiter aujourd'hui » */
+  const poolOf = useCallback((d: QueueData | null, l: ListState | null, skip: ReadonlySet<string>): DialerLead[] => {
+    const worked = new Set(d?.worked_today ?? [])
+    const server = l ? (d?.queue ?? []).filter(x => x.reason === 'retry') : (d?.queue ?? [])
+    return [...server, ...(l?.items ?? [])].filter(x => !skip.has(x.hubspot_contact_id)
+      && (x.reason === 'retry' || !worked.has(x.hubspot_contact_id))
+      && !!toE164French(x.phone))
   }, [])
+
+  const nextLead = useCallback((d: QueueData | null): DialerLead | null => {
+    return poolOf(d, listRef.current, taken.current)[0] ?? null
+  }, [poolOf])
 
   // ── Lancer un appel ──
   const dial = useCallback(async (target: DialerLead, redialOf?: number) => {
@@ -175,13 +246,21 @@ export default function DialerSession({
 
   const goNext = useCallback(async () => {
     setPhase({ kind: 'dialing' })
-    let d = dataRef.current
+    let d = dataRef.current ?? await load()
     let target = nextLead(d)
     // File presque vide : on la recharge (relances plus tard arrivées à échéance)
-    if (!target || (d && d.queue.filter(l => !taken.current.has(l.hubspot_contact_id)).length <= 2)) {
+    if (!target || (!listRef.current && d && d.queue.filter(l => !taken.current.has(l.hubspot_contact_id)).length <= 2)) {
       d = await load()
       target = nextLead(d)
     }
+    // Liste : pages suivantes jusqu'à trouver un contact appelable, et une page d'avance
+    while (!target && listRef.current && !listRef.current.done) {
+      const before = listRef.current
+      await loadListPage()
+      if (listRef.current === before) break
+      target = nextLead(d)
+    }
+    if (listRef.current && !listRef.current.done && poolOf(d, listRef.current, taken.current).length < 10) void loadListPage()
     if (!d?.in_window) {
       setLead(null)
       setAttempt(null)
@@ -192,13 +271,27 @@ export default function DialerSession({
       setLead(null)
       setAttempt(null)
       const first = d.later[0]
+      const end = listRef.current ? 'Fin de la liste.' : 'Plus personne à appeler pour l\'instant.'
       setPhase({ kind: 'paused', message: first
-        ? `Plus personne à appeler pour l'instant. Prochaine relance à ${hm(first.due_at)} (${first.lead.name}).`
-        : 'Plus personne à appeler aujourd\'hui. Bravo !' })
+        ? `${end} Prochaine relance à ${hm(first.due_at)} (${first.lead.name}).`
+        : listRef.current ? end : 'Plus personne à appeler aujourd\'hui. Bravo !' })
       return
     }
     await dial(target)
-  }, [dial, load, nextLead])
+  }, [dial, load, nextLead, loadListPage, poolOf])
+
+  // Power dialer lancé depuis « Mes contacts » : nouvelle liste, la session démarre toute seule
+  const sourceKey = source?.started_at ?? null
+  useEffect(() => {
+    markTaken(null)
+    setLead(null)
+    setAttempt(null)
+    setQualified(null)
+    if (!source) { putList(null); setPhase({ kind: 'off' }); return }
+    putList({ key: source.started_at, items: [], page: 0, done: false })
+    if (readOnly) { void loadListPage(); return }
+    void goNext()
+  }, [sourceKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Suivi de l'appel (webhook Aircall) ──
   const attemptId = attempt?.id ?? null
@@ -320,8 +413,10 @@ export default function DialerSession({
     return <div style={{ fontSize: 13, color: crmV2.textMuted, display: 'flex', gap: 8, alignItems: 'center' }}><AdminSpin /> Préparation de ta session…</div>
   }
 
-  const remaining = data.queue.filter(l => !takenView.has(l.hubspot_contact_id))
+  const remaining = poolOf(data, list, takenView)
   const upcoming = remaining.filter(l => l.hubspot_contact_id !== lead?.hubspot_contact_id).slice(0, 6)
+  const remainingLabel = `${remaining.length}${list && !list.done ? '+' : ''}`
+  const queueName = source ? `la vue « ${source.label} »` : '« À traiter aujourd\'hui »'
   const countdownSec = phase.kind === 'countdown' ? Math.max(0, Math.ceil((phase.until - now) / 1000)) : 0
   const canStart = !readOnly && data.line.ok && data.in_window
 
@@ -338,6 +433,16 @@ export default function DialerSession({
               ? <>Appels lancés depuis ta ligne Aircall <strong style={{ color: crmV2.text }}>{data.line.number_label ?? ''}</strong> · double appel {settings.double_calls > 0 ? `×${settings.double_calls}` : 'désactivé'} · relance {settings.max_rounds_per_day > 1 ? `${Math.round(settings.retry_after_min / 60 * 10) / 10} h plus tard` : 'désactivée'}</>
               : 'Ligne Aircall introuvable'}
           </div>
+          <div style={{ fontSize: 13, color: crmV2.text, marginTop: 4, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span>File : <strong>{source ? `${source.label} · ${source.total.toLocaleString('fr-FR')} contacts, dans l'ordre de la vue` : "À traiter aujourd'hui"}</strong></span>
+            {source && onClearSource && !running && (
+              <button type="button" onClick={onClearSource} style={{
+                border: 'none', background: 'none', padding: 0, color: crmV2.link, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+              }}>
+                Revenir à « À traiter aujourd&apos;hui »
+              </button>
+            )}
+          </div>
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           {data.can_edit_settings && (
@@ -347,7 +452,7 @@ export default function DialerSession({
             <CrmV2Button size="sm" icon={loading ? <AdminSpin size={12} /> : <RefreshCw size={13} />} onClick={() => { void load() }}>Actualiser</CrmV2Button>
           )}
           {phase.kind === 'off' && (
-            <CrmV2Button variant="gold" size="lg" icon={<Play size={15} />} disabled={!canStart || remaining.length === 0} onClick={() => { markTaken(null); void goNext() }}>
+            <CrmV2Button variant="gold" size="lg" icon={<Play size={15} />} disabled={!canStart || (remaining.length === 0 && !(list && !list.done))} onClick={() => { markTaken(null); void goNext() }}>
               Démarrer ma session
             </CrmV2Button>
           )}
@@ -393,7 +498,8 @@ export default function DialerSession({
           {phase.kind === 'off' && (
             <div style={{ fontSize: 14, color: crmV2.textMuted, lineHeight: 1.5 }}>
               Ouvre Aircall sur ton ordinateur et passe en « Disponible », mets ton casque, puis clique <strong style={{ color: crmV2.text }}>Démarrer ma session</strong>.
-              Les appels partent tout seuls, dans l&apos;ordre de « À traiter aujourd&apos;hui ». {remaining.length} lead{remaining.length > 1 ? 's' : ''} dans ta file.
+              Les appels partent tout seuls, dans l&apos;ordre de {queueName}. {remainingLabel} lead{remaining.length > 1 ? 's' : ''} dans ta file.
+              {!source && <> Pour appeler une autre liste : onglet « Mes contacts », choisis ta vue et tes filtres, puis « Lancer le power dialer ».</>}
             </div>
           )}
           {phase.kind !== 'off' && !lead && (
@@ -429,7 +535,7 @@ export default function DialerSession({
         {/* À suivre */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={card}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: crmV2.text }}>À suivre <span style={{ color: crmV2.textMuted, fontWeight: 500 }}>· {remaining.length}</span></div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: crmV2.text }}>À suivre <span style={{ color: crmV2.textMuted, fontWeight: 500 }}>· {remainingLabel}</span></div>
             {upcoming.length === 0 && <div style={{ fontSize: 13, color: crmV2.textMuted }}>Personne d&apos;autre pour l&apos;instant.</div>}
             {upcoming.map(l => (
               <div key={l.hubspot_contact_id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, minWidth: 0 }}>

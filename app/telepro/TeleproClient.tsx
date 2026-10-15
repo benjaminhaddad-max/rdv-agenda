@@ -31,6 +31,7 @@ import TodayView from '@/components/telepro-v2/TodayView'
 import MyMails from '@/components/telepro-v2/MyMails'
 import TeleproContactsMobile from '@/components/telepro-v2/TeleproContactsMobile'
 import DialerSession, { type DialerState } from '@/components/telepro-v2/DialerSession'
+import type { DialerListSource } from '@/lib/dialer-shared'
 import LyceesClient from '@/components/crm-v2/lycees/LyceesClient'
 import {
   TpMobileHeader, TpPlusSheet, TpRoundButton, TpTabBar, useLogout, useSupportUnread,
@@ -97,7 +98,14 @@ export default function TeleproClient({
   //    survit à un passage par « Nouveau RDV » ou un autre onglet) ─────────
   const [dialerOpened, setDialerOpened] = useState(false)
   const [dialerState, setDialerState] = useState<DialerState>('off')
+  // Power dialer lancé depuis une vue de « Mes contacts » (filtres + ordre de la liste)
+  const [dialerSource, setDialerSource] = useState<DialerListSource | null>(null)
   useEffect(() => { if (activeTab === 'session') setDialerOpened(true) }, [activeTab])
+  const startDialerFromList = useCallback((source: DialerListSource) => {
+    setDialerSource(source)
+    setDialerOpened(true)
+    setActiveTab('session')
+  }, [])
   const bookFromDialer = useCallback(async (contactId: string) => {
     form.resetContact()
     await form.prefillFromContactId(contactId)
@@ -489,6 +497,7 @@ export default function TeleproClient({
               <UserCRMView
                 ownerParam="telepro_id" ownerId={teleproCrmFilterId} mode="telepro" onTotalChange={setCrmTotal}
                 previewUserId={previewMode ? teleproUser.id : undefined}
+                onStartDialer={previewMode || isMobile ? undefined : startDialerFromList}
                 leadingView={isMobile ? undefined : {
                   label: "À traiter aujourd'hui",
                   render: () => <TodayView userId={teleproUser.id} firstName={firstName} />,
@@ -542,7 +551,10 @@ export default function TeleproClient({
       display: activeTab === 'session' ? 'block' : 'none',
       ...(isMobile ? {} : { maxWidth: 1280, margin: '0 auto', padding: '20px 28px 32px', width: '100%', boxSizing: 'border-box' as const }),
     }}>
-      <DialerSession userId={teleproUser.id} readOnly={previewMode} onBookRdv={bookFromDialer} onStateChange={setDialerState} />
+      <DialerSession
+        userId={teleproUser.id} readOnly={previewMode} onBookRdv={bookFromDialer} onStateChange={setDialerState}
+        source={dialerSource} onClearSource={() => setDialerSource(null)}
+      />
     </div>
   ) : null
 

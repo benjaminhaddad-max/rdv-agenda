@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo, Children, isValidElement } from 'react'
-import { RefreshCw, X, Check, SlidersHorizontal, Plus, Save, Clock } from 'lucide-react'
+import { RefreshCw, X, Check, SlidersHorizontal, Plus, Save, Clock, PhoneCall } from 'lucide-react'
+import type { DialerListSource } from '@/lib/dialer-shared'
 import CRMContactsTable, { type CRMContact, type ContactInlinePatch } from './CRMContactsTable'
 import CRMEditDrawer from './CRMEditDrawer'
 import { PARCOURSUP_VERDICT_OPTIONS } from '@/lib/parcoursup-verdict'
@@ -128,6 +129,8 @@ interface Props {
   leadingView?: { label: string; badge?: number; render: () => React.ReactNode }
   /** Mode aperçu admin : charge les vues / onglets de cet utilisateur (lecture seule). */
   previewUserId?: string
+  /** Télépro : bouton « Lancer le power dialer » sur la vue affichée (filtres + ordre) */
+  onStartDialer?: (source: DialerListSource) => void
 }
 
 // ── Styled select helper ─────────────────────────────────────────────────────
@@ -387,7 +390,7 @@ function AdvancedFilterRow({
 }
 
 // ── Composant principal ──────────────────────────────────────────────────────
-export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOnly, onTotalChange, initialSourceFilter, leadingView, previewUserId }: Props) {
+export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOnly, onTotalChange, initialSourceFilter, leadingView, previewUserId, onStartDialer }: Props) {
   // ─ Présentation V2 (mobile, panneau de filtres, emplacement du bouton Colonnes)
   const isMobile = useIsMobile()
   // Télépro (ordinateur) : la page a déjà son en-tête + l'onglet « Mes contacts (N) »
@@ -642,6 +645,32 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
 
   useEffect(() => { fetchContacts() }, [fetchContacts])
   useEffect(() => () => contactsAbortRef.current?.abort(), [])
+
+  // Power dialer : mêmes filtres et même tri que la liste affichée (sans pagination)
+  const dialerQuery = useMemo(() => {
+    const params = new URLSearchParams({
+      [ownerParam]: ownerId,
+      sort_by: sortBy,
+      sort_dir: sortDir,
+      no_cache: '1',
+      all_classes: '1',
+      show_external: '1',
+    })
+    if (debouncedSearch)    params.set('search',      debouncedSearch)
+    if (!isContactsView && filterStage) params.set('stage', filterStage)
+    if (filterLeadStatus)   params.set('lead_status', filterLeadStatus)
+    if (filterFormation)    params.set('formation',   filterFormation)
+    if (filterSource)       params.set('source',      filterSource)
+    if (filterClasse)       params.set('classe',      filterClasse)
+    if (filterPeriod)       params.set('period',      filterPeriod)
+    if (filterZone)         params.set('zone',        filterZone)
+    if (filterFormEvent)    params.set('form_event',  filterFormEvent)
+    if (filterParcoursupVerdict) params.set('parcoursup_verdict', filterParcoursupVerdict)
+    if (cfJson)             params.set('cf',          cfJson)
+    if (assignedScopeOnly) params.set('assigned_scope', '1')
+    if (activeSharedViewId) params.set('view_id', activeSharedViewId)
+    return params.toString()
+  }, [ownerParam, ownerId, sortBy, sortDir, debouncedSearch, filterStage, filterLeadStatus, filterFormation, filterSource, filterClasse, filterPeriod, filterZone, filterFormEvent, filterParcoursupVerdict, cfJson, isContactsView, assignedScopeOnly, activeSharedViewId])
 
   // Keep the header badge in sync automatically, even when new leads arrive
   // in the background (without a manual refresh).
@@ -1294,6 +1323,25 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
   )
 
   // ── Onglets de vues (privées à l'utilisateur) ───────────────────────
+  // Power dialer sur la vue affichée (télépro) : filtres + ordre de la liste
+  const dialerButton = onStartDialer && !(leadingView && leadingOn) ? (
+    <CrmV2Button
+      size={compactLayout ? 'sm' : 'md'}
+      variant="gold"
+      disabled={total === 0}
+      title="Appeler les contacts de cette vue, dans l'ordre affiché, depuis ta ligne Aircall"
+      icon={<PhoneCall size={compactLayout ? 13 : 14} />}
+      onClick={() => onStartDialer({
+        label: `${activeView?.name ?? 'Mes contacts'}${hasActiveFilters ? ' (filtrée)' : ''}`,
+        query: dialerQuery,
+        total,
+        started_at: Date.now(),
+      })}
+    >
+      Lancer le power dialer
+    </CrmV2Button>
+  ) : null
+
   const viewTabs = (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 0,
@@ -1486,6 +1534,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
           >
             {loading ? 'Chargement…' : 'Actualiser'}
           </CrmV2Button>
+          {dialerButton}
           <CrmV2Button size="sm" variant="primary" onClick={openCreate} icon={<Plus size={13} />}>
             Créer un contact
           </CrmV2Button>
@@ -1507,6 +1556,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
             >
               {loading ? 'Chargement…' : 'Actualiser'}
             </CrmV2Button>
+            {dialerButton}
             <CrmV2Button variant="primary" onClick={openCreate} icon={<Plus size={14} />}>
               Créer un contact
             </CrmV2Button>

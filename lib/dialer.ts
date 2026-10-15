@@ -171,9 +171,18 @@ export type DialerQueue = {
   later: Array<{ lead: DialerLead; due_at: string }>
   stats: DialerStats
   in_window: boolean
+  /** Leads déjà appelés aujourd'hui par la session (exclus d'une liste lancée depuis « Mes contacts ») */
+  worked_today: string[]
 }
 
-export async function buildDialerQueue(db: SupabaseClient, user: DialerUser, settings: DialerSettings): Promise<DialerQueue> {
+/**
+ * opts.today = false : file lancée depuis une vue de « Mes contacts » — le
+ * client fournit la liste (filtres + ordre de la vue), le serveur ne renvoie
+ * que les relances plus tard et les leads déjà travaillés aujourd'hui.
+ */
+export async function buildDialerQueue(
+  db: SupabaseClient, user: DialerUser, settings: DialerSettings, opts: { today?: boolean } = {},
+): Promise<DialerQueue> {
   const dayKey = parisDateKey(new Date())
   const attempts = await todayAttempts(db, user.id, dayKey)
   const byLead = summarize(attempts)
@@ -219,6 +228,9 @@ export async function buildDialerQueue(db: SupabaseClient, user: DialerUser, set
     else later.push({ lead: retryLead(c, r.round), due_at: new Date(r.due).toISOString() })
   }
 
+  const base = { later, stats: statsOf(attempts), in_window: inCallWindow(settings), worked_today: [...byLead.keys()] }
+  if (opts.today === false) return { queue, ...base }
+
   const today = await buildToday(db, user)
   for (const l of today.leads) {
     if (byLead.has(l.hubspot_contact_id) || !toE164French(l.phone)) continue
@@ -240,7 +252,7 @@ export async function buildDialerQueue(db: SupabaseClient, user: DialerUser, set
     })
   }
 
-  return { queue, later, stats: statsOf(attempts), in_window: inCallWindow(settings) }
+  return { queue, ...base }
 }
 
 // ── Lancer un appel ─────────────────────────────────────────────────────────

@@ -77,6 +77,20 @@ export type DialerLead = {
   round_no: number
 }
 
+/**
+ * Power dialer lancé depuis une vue de « Mes contacts » : la session appelle
+ * les contacts de cette vue (filtres + tri), dans l'ordre affiché.
+ */
+export type DialerListSource = {
+  /** Nom de la vue (+ « filtrée » si des filtres sont posés) */
+  label: string
+  /** Paramètres de /api/crm/contacts (filtres + tri), sans limit / page */
+  query: string
+  total: number
+  /** Horodatage du clic : relance la session même sur la même vue */
+  started_at: number
+}
+
 export type DialerAttemptStatus = 'dialing' | 'in_call' | 'ended' | 'failed'
 export type DialerOutcome = 'answered' | 'no_answer' | 'voicemail'
 
