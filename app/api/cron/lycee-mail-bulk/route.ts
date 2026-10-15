@@ -8,7 +8,8 @@
  * de désinscription ; il est archivé et journalisé sur chaque forum concerné
  * comme un envoi fait depuis « Écrire un mail » (relance dans 7 jours).
  *
- * Body : { mode, event_id, also_event_ids?, to, cc?, subject, body, author_id? }
+ * Body : { mode, event_id, also_event_ids?, to, cc?, subject, body, author_id?, test? }
+ * test = true : envoie seulement (aperçu à soi-même), rien n'est archivé ni journalisé.
  * Sécurisé par le header `Authorization: Bearer CRON_SECRET`.
  */
 
@@ -45,7 +46,8 @@ export async function POST(req: NextRequest) {
   const events = (evs || []) as LyceeEventRow[]
   const main = events.find(e => e.id === eventId)
   if (!main) return NextResponse.json({ error: 'Forum introuvable' }, { status: 404 })
-  if (main.last_mail_mode) return NextResponse.json({ error: 'Forum déjà contacté par mail', skipped: true }, { status: 409 })
+  const test = body.test === true
+  if (main.last_mail_mode && !test) return NextResponse.json({ error: 'Forum déjà contacté par mail', skipped: true }, { status: 409 })
 
   const authorId = cleanStr(body.author_id, 60)
   const { data: author } = authorId ? await db.from('rdv_users').select('name').eq('id', authorId).maybeSingle() : { data: null }
@@ -57,6 +59,8 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     return NextResponse.json({ error: `Envoi impossible : ${e instanceof Error ? e.message : 'erreur Gmail'}` }, { status: 502 })
   }
+
+  if (test) return NextResponse.json({ ok: true, test: true, gmail_id: sent.gmailId })
 
   // Le mail est parti : les erreurs d'archivage sont remontées mais ne font pas échouer l'appel
   const warnings: string[] = []
