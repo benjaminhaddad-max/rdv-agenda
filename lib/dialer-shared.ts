@@ -89,6 +89,21 @@ export type DialerListSource = {
   total: number
   /** Horodatage du clic : relance la session même sur la même vue */
   started_at: number
+  /** Contacts cochés : la session appelle exactement ceux-là (query ignorée) */
+  contacts?: DialerListContact[]
+}
+
+/** Ligne de « Mes contacts » utile au power dialer (compatible CRMContact) */
+export type DialerListContact = {
+  hubspot_contact_id: string
+  firstname?: string | null
+  lastname?: string | null
+  phone?: string | null
+  classe_actuelle?: string | null
+  hs_lead_status?: string | null
+  recent_conversion_event?: string | null
+  recent_conversion_date?: string | null
+  origine?: string | null
 }
 
 export type DialerAttemptStatus = 'dialing' | 'in_call' | 'ended' | 'failed'

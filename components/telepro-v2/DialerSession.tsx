@@ -25,9 +25,8 @@ import { LEAD_STATUS_OPTIONS_FALLBACK } from '@/lib/crm-constants'
 import { toE164French } from '@/lib/phone-e164'
 import {
   DIALER_QUALIFICATIONS, FAILED_QUALIFICATIONS,
-  type DialerAttempt, type DialerLead, type DialerListSource, type DialerSettings,
+  type DialerAttempt, type DialerLead, type DialerListContact, type DialerListSource, type DialerSettings,
 } from '@/lib/dialer-shared'
-import type { CRMContact } from '@/components/CRMContactsTable'
 import { tint } from './ui'
 
 type Line = { ok: true; aircall_user_id: number; number_id: number; number_label: string | null } | { ok: false; error: string }
@@ -47,7 +46,7 @@ type QueueData = {
 type ListState = { key: number; items: DialerLead[]; page: number; done: boolean }
 const LIST_PAGE = 100
 
-function listLead(c: CRMContact, label: string): DialerLead {
+function listLead(c: DialerListContact, label: string): DialerLead {
   return {
     hubspot_contact_id: c.hubspot_contact_id,
     name: [c.firstname, c.lastname].filter(Boolean).join(' ') || 'Contact',
@@ -182,7 +181,7 @@ export default function DialerSession({
     if (!source || !cur || cur.done || cur.key !== source.started_at || listLoading.current) return
     listLoading.current = true
     try {
-      const res = await api<{ data?: CRMContact[] }>(`/api/crm/contacts?${source.query}&limit=${LIST_PAGE}&page=${cur.page}`)
+      const res = await api<{ data?: DialerListContact[] }>(`/api/crm/contacts?${source.query}&limit=${LIST_PAGE}&page=${cur.page}`)
       if (listRef.current?.key !== cur.key) return
       const rows = res.ok ? res.data.data ?? [] : []
       putList({
@@ -288,7 +287,10 @@ export default function DialerSession({
     setAttempt(null)
     setQualified(null)
     if (!source) { putList(null); setPhase({ kind: 'off' }); return }
-    putList({ key: source.started_at, items: [], page: 0, done: false })
+    // Contacts cochés : liste complète tout de suite ; sinon la vue, page par page
+    putList(source.contacts
+      ? { key: source.started_at, items: source.contacts.map(c => listLead(c, source.label)), page: 0, done: true }
+      : { key: source.started_at, items: [], page: 0, done: false })
     if (readOnly) { void loadListPage(); return }
     void goNext()
   }, [sourceKey]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -434,7 +436,9 @@ export default function DialerSession({
               : 'Ligne Aircall introuvable'}
           </div>
           <div style={{ fontSize: 13, color: crmV2.text, marginTop: 4, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <span>File : <strong>{source ? `${source.label} · ${source.total.toLocaleString('fr-FR')} contacts, dans l'ordre de la vue` : "À traiter aujourd'hui"}</strong></span>
+            <span>File : <strong>{source
+                ? `${source.label} · ${source.total.toLocaleString('fr-FR')} contact${source.total > 1 ? 's' : ''}, ${source.contacts ? 'dans l\'ordre où tu les as cochés' : 'dans l\'ordre de la vue'}`
+                : "À traiter aujourd'hui"}</strong></span>
             {source && onClearSource && !running && (
               <button type="button" onClick={onClearSource} style={{
                 border: 'none', background: 'none', padding: 0, color: crmV2.link, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',

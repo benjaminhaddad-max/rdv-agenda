@@ -646,6 +646,27 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
   useEffect(() => { fetchContacts() }, [fetchContacts])
   useEffect(() => () => contactsAbortRef.current?.abort(), [])
 
+  // Power dialer sur les contacts cochés (toutes pages), dans l'ordre où ils ont été cochés
+  const [picked, setPicked] = useState<Map<string, CRMContact>>(() => new Map())
+  const pickedIds = useMemo(() => new Set(picked.keys()), [picked])
+  const togglePick = useCallback((id: string) => {
+    setPicked(prev => {
+      const next = new Map(prev)
+      const c = contacts.find(x => x.hubspot_contact_id === id)
+      if (next.has(id)) next.delete(id)
+      else if (c) next.set(id, c)
+      return next
+    })
+  }, [contacts])
+  const pickPage = useCallback((ids: string[]) => {
+    setPicked(prev => {
+      const next = new Map(prev)
+      for (const c of contacts) if (ids.includes(c.hubspot_contact_id)) next.set(c.hubspot_contact_id, c)
+      return next
+    })
+  }, [contacts])
+  const unpickAll = useCallback(() => setPicked(new Map()), [])
+
   // Power dialer : mêmes filtres et même tri que la liste affichée (sans pagination)
   const dialerQuery = useMemo(() => {
     const params = new URLSearchParams({
@@ -1323,23 +1344,49 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
   )
 
   // ── Onglets de vues (privées à l'utilisateur) ───────────────────────
-  // Power dialer sur la vue affichée (télépro) : filtres + ordre de la liste
+  // Power dialer (télépro) : sur les contacts cochés s'il y en a, sinon sur la vue affichée (filtres + ordre)
   const dialerButton = onStartDialer && !(leadingView && leadingOn) ? (
-    <CrmV2Button
-      size={compactLayout ? 'sm' : 'md'}
-      variant="gold"
-      disabled={total === 0}
-      title="Appeler les contacts de cette vue, dans l'ordre affiché, depuis ta ligne Aircall"
-      icon={<PhoneCall size={compactLayout ? 13 : 14} />}
-      onClick={() => onStartDialer({
-        label: `${activeView?.name ?? 'Mes contacts'}${hasActiveFilters ? ' (filtrée)' : ''}`,
-        query: dialerQuery,
-        total,
-        started_at: Date.now(),
-      })}
-    >
-      Lancer le power dialer
-    </CrmV2Button>
+    picked.size > 0 ? (
+      <>
+        <CrmV2Button
+          size={compactLayout ? 'sm' : 'md'}
+          variant="gold"
+          title="Appeler les contacts cochés, dans l'ordre où tu les as cochés, depuis ta ligne Aircall"
+          icon={<PhoneCall size={compactLayout ? 13 : 14} />}
+          onClick={() => {
+            onStartDialer({
+              label: `Sélection de ${picked.size} contact${picked.size > 1 ? 's' : ''}`,
+              query: '',
+              total: picked.size,
+              started_at: Date.now(),
+              contacts: [...picked.values()],
+            })
+            unpickAll()
+          }}
+        >
+          Power dialer sur la sélection ({picked.size})
+        </CrmV2Button>
+        <CrmV2Button size={compactLayout ? 'sm' : 'md'} icon={<X size={compactLayout ? 13 : 14} />} onClick={unpickAll}>
+          Décocher
+        </CrmV2Button>
+      </>
+    ) : (
+      <CrmV2Button
+        size={compactLayout ? 'sm' : 'md'}
+        variant="gold"
+        disabled={total === 0}
+        title="Appeler les contacts de cette vue, dans l'ordre affiché, depuis ta ligne Aircall (ou coche des contacts pour n'appeler qu'eux)"
+        icon={<PhoneCall size={compactLayout ? 13 : 14} />}
+        onClick={() => onStartDialer({
+          label: `${activeView?.name ?? 'Mes contacts'}${hasActiveFilters ? ' (filtrée)' : ''}`,
+          query: dialerQuery,
+          total,
+          started_at: Date.now(),
+        })}
+      >
+        Lancer le power dialer
+      </CrmV2Button>
+    )
   ) : null
 
   const viewTabs = (
@@ -1683,6 +1730,10 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
               mode={mode}
               onRefresh={fetchContacts}
               onContactPatched={handleContactPatched}
+              selectedIds={onStartDialer ? pickedIds : undefined}
+              onToggleSelect={onStartDialer ? togglePick : undefined}
+              onSelectAll={onStartDialer ? pickPage : undefined}
+              onDeselectAll={onStartDialer ? unpickAll : undefined}
               onOpenDrawer={openDrawerAndRecord}
               leadStatusOptions={leadStatusOptions}
               sourceOptions={sourceOptions}
