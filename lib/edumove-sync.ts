@@ -129,7 +129,8 @@ export async function runEdumoveSync(crm: SupabaseClient): Promise<EdumoveSyncRe
 
   const src = edumoveDb()
   const candidatures = await loadAll(src, 'candidatures', '*')
-  const profiles = await loadAll(src, 'profiles', 'id, nom, prenom, email, tel, departement, profil, reorientation, created_at')
+  // select('*') : les colonnes de profiles varient selon l'historique de la base Edumove
+  const profiles = await loadAll(src, 'profiles', '*')
 
   let skippedNoEmail = 0
   const dossiers: Dossier[] = []
