@@ -171,6 +171,22 @@ export async function sendInsightCard(
   return r.ok
 }
 
+/**
+ * Lance un appel sortant depuis l'application Aircall d'un utilisateur
+ * (session d'appels télépro, lib/dialer.ts). L'appel part tout seul dans
+ * Aircall Workspace : l'utilisateur doit l'avoir ouvert et être affecté à la
+ * ligne `numberId`. Aircall répond 204 sans corps : l'id de l'appel arrive
+ * ensuite par le webhook call.created.
+ */
+export async function startAircallOutboundCall(
+  userId: number,
+  numberId: number,
+  toE164: string,
+): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  const r = await aircallFetch<unknown>('POST', `/users/${userId}/calls`, { number_id: numberId, to: toE164 })
+  return r.ok ? { ok: true } : { ok: false, status: r.status, error: r.error }
+}
+
 export type AircallWebhook = {
   id?: number
   url?: string

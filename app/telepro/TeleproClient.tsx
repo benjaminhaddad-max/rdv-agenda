@@ -30,13 +30,14 @@ import MyStats from '@/components/telepro-v2/MyStats'
 import TodayView from '@/components/telepro-v2/TodayView'
 import MyMails from '@/components/telepro-v2/MyMails'
 import TeleproContactsMobile from '@/components/telepro-v2/TeleproContactsMobile'
+import DialerSession, { type DialerState } from '@/components/telepro-v2/DialerSession'
 import LyceesClient from '@/components/crm-v2/lycees/LyceesClient'
 import {
   TpMobileHeader, TpPlusSheet, TpRoundButton, TpTabBar, useLogout, useSupportUnread,
   type TpMenuItem, type TpMobileTab,
 } from '@/components/telepro-v2/ui'
 
-type TeleproTab = 'today' | 'form' | 'mails' | 'stats' | 'horaires' | 'suivi' | 'agenda' | 'historique' | 'repop' | 'contacts' | 'transactions' | 'lycees'
+type TeleproTab = 'today' | 'session' | 'form' | 'mails' | 'stats' | 'horaires' | 'suivi' | 'agenda' | 'historique' | 'repop' | 'contacts' | 'transactions' | 'lycees'
 
 export default function TeleproClient({
   teleproUser,
@@ -91,6 +92,17 @@ export default function TeleproClient({
 
   // ── Prise de RDV (recherche contact, créneaux, envoi) ─────────────────
   const form = useNewRdvForm({ teleproUser, isLinovaBrandUser })
+
+  // ── Session d'appels : reste montée une fois ouverte (l'appel en cours
+  //    survit à un passage par « Nouveau RDV » ou un autre onglet) ─────────
+  const [dialerOpened, setDialerOpened] = useState(false)
+  const [dialerState, setDialerState] = useState<DialerState>('off')
+  useEffect(() => { if (activeTab === 'session') setDialerOpened(true) }, [activeTab])
+  const bookFromDialer = useCallback(async (contactId: string) => {
+    form.resetContact()
+    await form.prefillFromContactId(contactId)
+    setActiveTab('form')
+  }, [form])
 
 
   // ── Historique ────────────────────────────────────────────────────────
@@ -380,6 +392,7 @@ export default function TeleproClient({
     switch (!isMobile && activeTab === 'today' ? 'contacts' : activeTab) {
       case 'form': return newRdvContent
       case 'historique': return historiqueContent
+      case 'session': return null // dialerPane, toujours montée
       case 'today':
         // Page du matin : objectifs du jour, RDV, relances, qui appeler (classés par score)
         return (
@@ -524,6 +537,26 @@ export default function TeleproClient({
 
   // ─── Éléments communs ──────────────────────────────────────────────────
 
+  const dialerPane = !isAdmin && dialerOpened ? (
+    <div style={{
+      display: activeTab === 'session' ? 'block' : 'none',
+      ...(isMobile ? {} : { maxWidth: 1280, margin: '0 auto', padding: '20px 28px 32px', width: '100%', boxSizing: 'border-box' as const }),
+    }}>
+      <DialerSession userId={teleproUser.id} readOnly={previewMode} onBookRdv={bookFromDialer} onStateChange={setDialerState} />
+    </div>
+  ) : null
+
+  // Session d'appels ouverte pendant qu'il est sur un autre onglet
+  const dialerBanner = !isAdmin && dialerState !== 'off' && activeTab !== 'session' ? (
+    <button type="button" onClick={() => setActiveTab('session')} style={{
+      display: 'flex', alignItems: 'center', gap: 8, width: '100%', border: 'none', borderBottom: `1px solid ${crmV2.goldBorder}`,
+      background: crmV2.goldSoft, color: crmV2.goldDark, padding: isMobile ? '8px 12px' : '8px 28px', fontSize: 13, fontWeight: 700,
+      fontFamily: 'inherit', cursor: 'pointer', flexShrink: 0, textAlign: 'left',
+    }}>
+      <Phone size={14} /> Session d&apos;appels {dialerState === 'running' ? 'en cours' : 'en pause'} · revenir à la session
+    </button>
+  ) : null
+
   const previewBanner = previewMode && adminUser ? (
     <div style={{
       background: crmV2.goldSoft, borderBottom: `1px solid ${crmV2.goldBorder}`, padding: isMobile ? '8px 12px' : '8px 28px',
@@ -607,6 +640,7 @@ export default function TeleproClient({
       : activeTab === 'form' ? 'form'
       : 'plus'
     const plusItems: TpMenuItem[] = [
+      { key: 'session', label: "Session d'appels", icon: <Phone size={18} />, onClick: () => goTab('session'), active: activeTab === 'session' },
       { key: 'suivi', label: 'Suivi RDV', icon: <ListChecks size={18} />, onClick: () => goTab('suivi'), active: activeTab === 'suivi' },
       { key: 'mails', label: 'Mes mails', icon: <Mail size={18} />, onClick: () => goTab('mails'), active: activeTab === 'mails', badge: mailsUnread },
       { key: 'stats', label: 'Mes stats', icon: <BarChart3 size={18} />, onClick: () => goTab('stats'), active: activeTab === 'stats' },
@@ -624,6 +658,7 @@ export default function TeleproClient({
         fontFamily: crmV2.font, overflow: 'hidden',
       }}>
         {previewBanner}
+        {dialerBanner}
         <main style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column' }}>
           {isAdmin && !previewMode && (
             <div style={{ padding: '10px 12px 0' }}>
@@ -631,6 +666,7 @@ export default function TeleproClient({
             </div>
           )}
           {tabContent()}
+          {dialerPane}
         </main>
         {!isAdmin && (
           <TpTabBar
@@ -653,6 +689,7 @@ export default function TeleproClient({
   const tabs = [
     // « Nouveau RDV » : bouton de l'en-tête (pas d'onglet en doublon)
     { id: 'contacts', label: 'Mes contacts', count: crmTotal > 0 ? crmTotal : undefined },
+    { id: 'session', label: "Session d'appels" },
     { id: 'agenda', label: 'Agenda RDV' },
     { id: 'mails', label: 'Mes mails', count: mailsUnread > 0 ? mailsUnread : undefined },
     { id: 'stats', label: 'Mes stats' },
@@ -720,8 +757,10 @@ export default function TeleproClient({
         )}
       </CrmV2Header>
 
+      {dialerBanner}
       <main style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
         {tabContent()}
+        {dialerPane}
       </main>
 
       {overlays}

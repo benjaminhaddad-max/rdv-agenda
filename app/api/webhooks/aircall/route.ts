@@ -6,6 +6,8 @@
  *     et pousse le contact dans le carnet partagé
  *   - call.ended   → enregistre l'appel dans aircall_calls (tous les appels)
  *     et dans crm_activities si un contact CRM matche (timeline fiche)
+ *   - call.created / call.answered / call.ended → suivi de l'appel lancé par
+ *     la session d'appels télépro (lib/dialer.ts)
  *
  * Sécurité : si AIRCALL_WEBHOOK_TOKEN est défini, on accepte si le token Aircall
  * (payload.token), le query ?token=, ou le header x-aircall-token correspond.
@@ -15,6 +17,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { handleAircallCallCreated, handleAircallCallEnded } from '@/lib/aircall-crm'
 import { isIntegrationEnabled } from '@/lib/settings'
+import { syncDialerAttemptFromAircall } from '@/lib/dialer'
 
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
@@ -60,7 +63,7 @@ export async function POST(req: NextRequest) {
   const event = payload?.event ?? ''
   const call = payload?.data
 
-  if (event !== 'call.created' && event !== 'call.ended') {
+  if (event !== 'call.created' && event !== 'call.answered' && event !== 'call.ended') {
     return NextResponse.json({ ok: true, ignored: event || 'unknown' })
   }
 
@@ -68,11 +71,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, ignored: 'no call data' })
   }
 
+  const db = createServiceClient()
+
+  // Session d'appels télépro : l'écran suit l'appel qu'il a lancé (lib/dialer.ts)
+  const dialer = await syncDialerAttemptFromAircall(db, event, call).catch(() => false)
+  if (event === 'call.answered') {
+    return NextResponse.json({ ok: true, event, dialer })
+  }
+
   if (!(await isIntegrationEnabled('aircall'))) {
     return NextResponse.json({ ok: true, ignored: 'Intégration en pause (Paramètres)' })
   }
-
-  const db = createServiceClient()
 
   try {
     if (event === 'call.created') {
