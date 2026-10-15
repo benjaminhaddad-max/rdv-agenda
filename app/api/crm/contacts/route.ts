@@ -1839,7 +1839,10 @@ export async function GET(req: NextRequest) {
       nullsFirst: false,
       ...(sortInfo.foreignTable ? { foreignTable: sortInfo.foreignTable } : {}),
     })
-    if (sortInfo.col !== 'synced_at') {
+    // Départage par synced_at, sauf via crm_contacts_by_ids : sur le résultat de
+    // la fonction, PostgREST répond « column crm_contacts.synced_at does not
+    // exist » (vue Edumove · Candidatures, 1 100 IDs, 15/10/2026).
+    if (sortInfo.col !== 'synced_at' && !scopeViaRpc) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       query = (query as any).order('synced_at', { ascending: false })
     }
