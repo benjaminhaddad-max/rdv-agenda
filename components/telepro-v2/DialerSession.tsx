@@ -22,7 +22,7 @@ import { CrmV2Button } from '@/components/crm-v2/primitives'
 import { AdminNotice, AdminSpin } from '@/components/crm-v2/admin/AdminUi'
 import { SCORE_LEVELS } from '@/lib/lead-score'
 import { LEAD_STATUS_OPTIONS_FALLBACK } from '@/lib/crm-constants'
-import { toE164French } from '@/lib/phone-e164'
+import { telHref, toE164French } from '@/lib/phone-e164'
 import {
   DIALER_QUALIFICATIONS, FAILED_QUALIFICATIONS,
   type DialerAttempt, type DialerLead, type DialerListContact, type DialerListSource, type DialerSettings,
@@ -77,6 +77,7 @@ type Phase =
 export type DialerState = 'off' | 'running' | 'paused'
 
 const POLL_MS = 2000
+const MANUAL_KEY = 'dialer_manual_dial'
 /** Webhook Aircall qui n'arrive pas : on n'attend pas la fin de l'appel plus longtemps */
 const WAIT_END_MAX_MS = 12_000
 
@@ -113,8 +114,11 @@ async function api<T>(url: string, init?: RequestInit): Promise<{ ok: boolean; d
 }
 
 export default function DialerSession({
-  userId, readOnly = false, onBookRdv, onStateChange, source = null, onClearSource,
+  userId, readOnly = false, onBookRdv, onStateChange, source = null, onClearSource, dock = false, onExpand,
 }: {
+  /** Panneau compact ancré au-dessus de « Mes contacts » */
+  dock?: boolean
+  onExpand?: () => void
   userId: string
   /** Aperçu admin : on voit la file, on ne lance pas d'appel */
   readOnly?: boolean
@@ -148,6 +152,21 @@ export default function DialerSession({
   }, [])
   const dataRef = useRef<QueueData | null>(null)
   useEffect(() => { dataRef.current = data }, [data])
+
+  // iPad / téléphone : l'API Aircall ne lance pas l'appel sur l'appli mobile →
+  // le télépro appuie sur « Appeler » (tout le reste s'enchaîne pareil).
+  // Détecté automatiquement, modifiable (mémorisé sur l'appareil).
+  const [manualDial, setManualDial] = useState(false)
+  useEffect(() => {
+    let saved: string | null = null
+    try { saved = localStorage.getItem(MANUAL_KEY) } catch { /* stockage indisponible */ }
+    const touch = navigator.maxTouchPoints > 1 && (/iPad|iPhone|Android/i.test(navigator.userAgent) || navigator.platform === 'MacIntel')
+    setManualDial(saved === null ? touch : saved === '1')
+  }, [])
+  const toggleManual = (v: boolean) => {
+    setManualDial(v)
+    try { localStorage.setItem(MANUAL_KEY, v ? '1' : '0') } catch { /* stockage indisponible */ }
+  }
 
   const settings = data?.settings
 
@@ -231,7 +250,7 @@ export default function DialerSession({
     markTaken(target.hubspot_contact_id)
     const { ok, data: r } = await api<{ ok: boolean; attempt?: DialerAttempt; error?: string }>('/api/telepro/dialer', {
       method: 'POST',
-      body: JSON.stringify({ action: 'dial', contact_id: target.hubspot_contact_id, reason: target.reason, redial_of: redialOf ?? null }),
+      body: JSON.stringify({ action: 'dial', contact_id: target.hubspot_contact_id, reason: target.reason, redial_of: redialOf ?? null, manual: manualDial }),
     })
     setBusy(false)
     if (!ok || !r.attempt || r.ok === false) {
@@ -241,7 +260,7 @@ export default function DialerSession({
     }
     setAttempt(r.attempt)
     setPhase({ kind: 'call' })
-  }, [markTaken])
+  }, [markTaken, manualDial])
 
   const goNext = useCallback(async () => {
     setPhase({ kind: 'dialing' })
@@ -350,7 +369,8 @@ export default function DialerSession({
       return
     }
     const then = r.can_redial ? 'redial' : 'next'
-    if (r.attempt.ended_at) startCountdown(then)
+    // Aircall n'a jamais confirmé l'appel (bouton « Appeler », webhook absent) : inutile d'attendre sa fin
+    if (r.attempt.ended_at || r.attempt.status === 'dialing') startCountdown(then)
     else setPhase({ kind: 'waiting_end', then, since: Date.now() })
   }, [attempt, lead, busy, onBookRdv, load, startCountdown])
 
@@ -420,7 +440,72 @@ export default function DialerSession({
   const remainingLabel = `${remaining.length}${list && !list.done ? '+' : ''}`
   const queueName = source ? `la vue « ${source.label} »` : '« À traiter aujourd\'hui »'
   const countdownSec = phase.kind === 'countdown' ? Math.max(0, Math.ceil((phase.until - now) / 1000)) : 0
-  const canStart = !readOnly && data.line.ok && data.in_window
+  const canStart = !readOnly && (data.line.ok || manualDial) && data.in_window
+
+  const leadPanel = lead ? (
+    <LeadPanel
+      manual={manualDial}
+      compact={dock}
+      lead={lead}
+      attempt={attempt}
+      phase={phase}
+      countdownSec={countdownSec}
+      qualified={qualified}
+      busy={busy}
+      otherStatus={otherStatus}
+      relanceAt={relanceAt}
+      setOtherStatus={setOtherStatus}
+      setRelanceAt={setRelanceAt}
+      onQualify={(q, extra) => { void qualify(q, extra) }}
+      onSkip={skip}
+      onRetry={() => { if (lead) void dial(lead) }}
+      onNow={() => {
+        if (phase.kind !== 'countdown') return
+        setPhase({ ...phase, until: Date.now() })
+      }}
+    />
+  ) : null
+
+  const pauseMessage = (
+    <div style={{ fontSize: 14, color: crmV2.textMuted, display: 'flex', gap: 8, alignItems: 'center' }}>
+      {phase.kind === 'dialing' ? <><AdminSpin /> Recherche du prochain lead…</>
+        : phase.kind === 'paused' && phase.message ? phase.message
+        : 'Session en pause.'}
+    </div>
+  )
+
+  // ── Panneau ancré au-dessus de « Mes contacts » (power dialer lancé depuis la liste) ──
+  if (dock) {
+    return (
+      <div style={{ ...card, padding: 14, gap: 10, border: `1px solid ${crmV2.goldBorder}`, boxShadow: crmV2.shadowRecord }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <PhoneCall size={16} color={crmV2.gold} />
+          <span style={{ fontSize: 14, fontWeight: 800, color: crmV2.text }}>Power dialer</span>
+          {source && <span style={{ fontSize: 13, color: crmV2.textMuted }}>{source.label}</span>}
+          <span style={{ fontSize: 12, color: crmV2.textMuted }}>
+            · {data.stats.calls} appel{data.stats.calls > 1 ? 's' : ''} · {data.stats.answered} décroché{data.stats.answered > 1 ? 's' : ''} · {data.stats.rdv} RDV · {remainingLabel} à suivre
+          </span>
+          <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: crmV2.textMuted, cursor: 'pointer' }} title="iPad, téléphone : Aircall ne peut pas lancer l'appel tout seul">
+              <input type="checkbox" checked={manualDial} onChange={e => toggleManual(e.target.checked)} /> Bouton « Appeler »
+            </label>
+            {(phase.kind === 'paused' || phase.kind === 'error') && (
+              <CrmV2Button size="sm" variant="gold" icon={<Play size={13} />} disabled={!canStart} onClick={resume}>Reprendre</CrmV2Button>
+            )}
+            {running && <CrmV2Button size="sm" icon={<Pause size={13} />} onClick={pause}>Pause</CrmV2Button>}
+            <CrmV2Button size="sm" icon={<Square size={12} />} onClick={stop}>Terminer</CrmV2Button>
+            {onExpand && <CrmV2Button size="sm" onClick={onExpand}>Plein écran</CrmV2Button>}
+          </span>
+        </div>
+        {!data.line.ok && !manualDial && <AdminNotice tone="warning">{data.line.error}</AdminNotice>}
+        {notice && <AdminNotice tone="error" onClose={() => setNotice(null)}>{notice}</AdminNotice>}
+        {leadPanel ?? pauseMessage}
+        {upcoming[0] && (
+          <div style={{ fontSize: 12, color: crmV2.textMuted }}>Ensuite : <strong style={{ color: crmV2.text }}>{upcoming[0].name}</strong>{upcoming[1] ? `, ${upcoming[1].name}` : ''}…</div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: isMobile ? 12 : 0 }}>
@@ -470,7 +555,11 @@ export default function DialerSession({
         </div>
       </div>
 
-      {!data.line.ok && <AdminNotice tone="warning">{data.line.error}</AdminNotice>}
+      {!data.line.ok && !manualDial && <AdminNotice tone="warning">{data.line.error}</AdminNotice>}
+      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, color: crmV2.textMuted, cursor: 'pointer' }}>
+        <input type="checkbox" checked={manualDial} onChange={e => toggleManual(e.target.checked)} />
+        Je lance chaque appel moi-même avec le bouton « Appeler » (iPad, téléphone : Aircall ne peut pas lancer l&apos;appel tout seul)
+      </label>
       {data.line.ok && !data.in_window && phase.kind === 'off' && (
         <AdminNotice tone="info">Hors plage d&apos;appel : la session se lance entre {settings.day_start} et {settings.day_end}.</AdminNotice>
       )}
@@ -506,34 +595,8 @@ export default function DialerSession({
               {!source && <> Pour appeler une autre liste : onglet « Mes contacts », choisis ta vue et tes filtres, puis « Lancer le power dialer ».</>}
             </div>
           )}
-          {phase.kind !== 'off' && !lead && (
-            <div style={{ fontSize: 14, color: crmV2.textMuted, display: 'flex', gap: 8, alignItems: 'center' }}>
-              {phase.kind === 'dialing' ? <><AdminSpin /> Recherche du prochain lead…</>
-                : phase.kind === 'paused' && phase.message ? phase.message
-                : 'Session en pause.'}
-            </div>
-          )}
-          {lead && (
-            <LeadPanel
-              lead={lead}
-              attempt={attempt}
-              phase={phase}
-              countdownSec={countdownSec}
-              qualified={qualified}
-              busy={busy}
-              otherStatus={otherStatus}
-              relanceAt={relanceAt}
-              setOtherStatus={setOtherStatus}
-              setRelanceAt={setRelanceAt}
-              onQualify={(q, extra) => { void qualify(q, extra) }}
-              onSkip={skip}
-              onRetry={() => { if (lead) void dial(lead) }}
-              onNow={() => {
-                if (phase.kind !== 'countdown') return
-                setPhase({ ...phase, until: Date.now() })
-              }}
-            />
-          )}
+          {phase.kind !== 'off' && !lead && pauseMessage}
+          {leadPanel}
         </div>
 
         {/* À suivre */}
@@ -567,9 +630,13 @@ export default function DialerSession({
 }
 
 function LeadPanel({
-  lead, attempt, phase, countdownSec, qualified, busy, otherStatus, relanceAt,
+  lead, attempt, phase, countdownSec, qualified, busy, otherStatus, relanceAt, manual, compact,
   setOtherStatus, setRelanceAt, onQualify, onSkip, onRetry, onNow,
 }: {
+  /** iPad / téléphone : le télépro appuie sur « Appeler » */
+  manual: boolean
+  /** Panneau ancré au-dessus de « Mes contacts » */
+  compact: boolean
   lead: DialerLead
   attempt: DialerAttempt | null
   phase: Phase
@@ -596,7 +663,9 @@ function LeadPanel({
     : ended ? 'Appel terminé'
     : attempt.answered_at ? 'En conversation'
     : attempt.status === 'in_call' ? 'Ça sonne…'
+    : manual ? 'Appuie sur « Appeler »'
     : 'Appel lancé, en attente d\'Aircall…'
+  const showCallButton = manual && !!attempt && attempt.status === 'dialing' && !qualified && phase.kind === 'call'
   const callColor = attempt?.outcome === 'answered' || attempt?.answered_at ? crmV2.successStrong
     : phase.kind === 'error' ? crmV2.danger : crmV2.textMuted
 
@@ -605,13 +674,21 @@ function LeadPanel({
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
         <div style={{ minWidth: 0, flex: 1 }}>
           <a href={`/admin/crm-v2/contacts/${lead.hubspot_contact_id}`} target="_blank" rel="noreferrer"
-            style={{ fontSize: 22, fontWeight: 800, color: crmV2.text, textDecoration: 'none' }}>
+            style={{ fontSize: compact ? 18 : 22, fontWeight: 800, color: crmV2.text, textDecoration: 'none' }}>
             {lead.name}
           </a>
           <div style={{ fontSize: 15, color: crmV2.textMuted, marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
             <Phone size={14} /> {lead.phone}
           </div>
         </div>
+        {showCallButton && lead.phone && (
+          <a href={telHref(lead.phone)} style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8, borderRadius: 999, padding: '12px 22px', fontSize: 16, fontWeight: 800,
+            background: crmV2.successStrong, color: '#fff', textDecoration: 'none', boxShadow: crmV2.shadow,
+          }}>
+            <Phone size={17} /> Appeler
+          </a>
+        )}
         {attempt && attempt.try_no > 1 && (
           <span style={{ ...chip, background: tint(crmV2.gold, 0.15), color: crmV2.goldDark, border: `1px solid ${crmV2.goldBorder}`, fontWeight: 700 }}>
             {attempt.try_no}e appel

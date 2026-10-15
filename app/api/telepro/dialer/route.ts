@@ -5,7 +5,8 @@
  *                          Un admin peut viser un télépro avec ?user_id= (aperçu).
  *                          ?mode=list : session lancée depuis une vue de « Mes contacts » (liste fournie par le client).
  * GET ?attempt_id=N      → état d'un appel (mis à jour par le webhook Aircall).
- * POST { action: 'dial', contact_id, reason?, redial_of? } → lance l'appel depuis sa ligne Aircall.
+ * POST { action: 'dial', contact_id, reason?, redial_of?, manual? } → lance l'appel depuis sa ligne Aircall
+ *                          (manual : iPad / téléphone, le télépro appuie lui-même sur « Appeler »).
  * POST { action: 'qualify', attempt_id, qualification }    → résultat de l'appel (double appel, NRP…).
  * PUT  { settings }      → réglages de la session (admin).
  */
@@ -76,6 +77,7 @@ export async function POST(req: NextRequest) {
         contactId,
         reason: typeof body.reason === 'string' ? body.reason : null,
         redialOf: Number(body.redial_of) > 0 ? Number(body.redial_of) : null,
+        manual: body.manual === true,
       }, settings)
       return NextResponse.json(result, { status: result.ok ? 200 : 422 })
     }

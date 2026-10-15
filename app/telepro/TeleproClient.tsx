@@ -101,10 +101,10 @@ export default function TeleproClient({
   // Power dialer lancé depuis une vue de « Mes contacts » (filtres + ordre de la liste)
   const [dialerSource, setDialerSource] = useState<DialerListSource | null>(null)
   useEffect(() => { if (activeTab === 'session') setDialerOpened(true) }, [activeTab])
+  // Le télépro reste sur sa liste : le power dialer s'ancre au-dessus de « Mes contacts »
   const startDialerFromList = useCallback((source: DialerListSource) => {
     setDialerSource(source)
     setDialerOpened(true)
-    setActiveTab('session')
   }, [])
   const bookFromDialer = useCallback(async (contactId: string) => {
     form.resetContact()
@@ -546,20 +546,28 @@ export default function TeleproClient({
 
   // ─── Éléments communs ──────────────────────────────────────────────────
 
+  // Une seule session, montée une fois : plein écran dans « Session d'appels »,
+  // panneau ancré au-dessus de « Mes contacts » quand elle a été lancée depuis la liste
+  const onContactsList = activeTab === 'contacts' || (!isMobile && activeTab === 'today')
+  const dialerDocked = activeTab !== 'session' && onContactsList && !!dialerSource && dialerState !== 'off'
   const dialerPane = !isAdmin && dialerOpened ? (
     <div style={{
-      display: activeTab === 'session' ? 'block' : 'none',
-      ...(isMobile ? {} : { maxWidth: 1280, margin: '0 auto', padding: '20px 28px 32px', width: '100%', boxSizing: 'border-box' as const }),
+      display: activeTab === 'session' || dialerDocked ? 'block' : 'none',
+      flexShrink: 0,
+      ...(dialerDocked
+        ? { padding: isMobile ? '10px 12px 0' : '12px 16px 0', maxHeight: '55vh', overflowY: 'auto' as const }
+        : isMobile ? {} : { maxWidth: 1280, margin: '0 auto', padding: '20px 28px 32px', width: '100%', boxSizing: 'border-box' as const }),
     }}>
       <DialerSession
         userId={teleproUser.id} readOnly={previewMode} onBookRdv={bookFromDialer} onStateChange={setDialerState}
         source={dialerSource} onClearSource={() => setDialerSource(null)}
+        dock={activeTab !== 'session'} onExpand={() => setActiveTab('session')}
       />
     </div>
   ) : null
 
   // Session d'appels ouverte pendant qu'il est sur un autre onglet
-  const dialerBanner = !isAdmin && dialerState !== 'off' && activeTab !== 'session' ? (
+  const dialerBanner = !isAdmin && dialerState !== 'off' && activeTab !== 'session' && !dialerDocked ? (
     <button type="button" onClick={() => setActiveTab('session')} style={{
       display: 'flex', alignItems: 'center', gap: 8, width: '100%', border: 'none', borderBottom: `1px solid ${crmV2.goldBorder}`,
       background: crmV2.goldSoft, color: crmV2.goldDark, padding: isMobile ? '8px 12px' : '8px 28px', fontSize: 13, fontWeight: 700,
@@ -677,8 +685,8 @@ export default function TeleproClient({
               <CrmV2Button size="sm" icon={<ArrowLeft size={12} />} onClick={() => { window.location.href = '/admin' }}>Admin</CrmV2Button>
             </div>
           )}
-          {tabContent()}
           {dialerPane}
+          {tabContent()}
         </main>
         {!isAdmin && (
           <TpTabBar
@@ -771,8 +779,8 @@ export default function TeleproClient({
 
       {dialerBanner}
       <main style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-        {tabContent()}
         {dialerPane}
+        {tabContent()}
       </main>
 
       {overlays}

@@ -13,8 +13,9 @@
  * (payload.token), le query ?token=, ou le header x-aircall-token correspond.
  */
 
-import { NextRequest, NextResponse } from 'next/server'
+import { after, NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { logger } from '@/lib/logger'
 import { handleAircallCallCreated, handleAircallCallEnded } from '@/lib/aircall-crm'
 import { isIntegrationEnabled } from '@/lib/settings'
 import { syncDialerAttemptFromAircall } from '@/lib/dialer'
@@ -73,30 +74,23 @@ export async function POST(req: NextRequest) {
 
   const db = createServiceClient()
 
-  // Session d'appels télépro : l'écran suit l'appel qu'il a lancé (lib/dialer.ts)
-  const dialer = await syncDialerAttemptFromAircall(db, event, call).catch(() => false)
-  if (event === 'call.answered') {
-    return NextResponse.json({ ok: true, event, dialer })
-  }
-
-  if (!(await isIntegrationEnabled('aircall'))) {
-    return NextResponse.json({ ok: true, ignored: 'Intégration en pause (Paramètres)' })
-  }
-
-  try {
-    if (event === 'call.created') {
-      const result = await handleAircallCallCreated(db, call)
-      return NextResponse.json({ ok: true, event, ...result })
+  // Aircall désactive le webhook quand il répond trop lentement ou en erreur
+  // (recherche du contact, carte de contexte…) : on répond tout de suite et on
+  // traite juste après la réponse.
+  after(async () => {
+    // Session d'appels télépro : l'écran suit l'appel qu'il a lancé (lib/dialer.ts)
+    await syncDialerAttemptFromAircall(db, event, call).catch(() => false)
+    if (event === 'call.answered') return
+    if (!(await isIntegrationEnabled('aircall'))) return
+    try {
+      if (event === 'call.created') await handleAircallCallCreated(db, call)
+      else await handleAircallCallEnded(db, call)
+    } catch (err) {
+      logger.error('aircall-webhook', err, { call_id: call.id ?? null, event })
     }
+  })
 
-    const result = await handleAircallCallEnded(db, call)
-    return NextResponse.json({ ok: true, event, ...result })
-  } catch (err) {
-    return NextResponse.json(
-      { ok: false, error: err instanceof Error ? err.message : String(err) },
-      { status: 500 },
-    )
-  }
+  return NextResponse.json({ ok: true, event })
 }
 
 export function GET() {
@@ -104,6 +98,6 @@ export function GET() {
     ok: true,
     endpoint: 'aircall-webhook',
     usage:
-      'Configure cette URL dans Aircall (Integrations → Webhooks) sur call.created et call.ended.',
+      'Configure cette URL dans Aircall (Integrations → Webhooks) sur call.created, call.answered et call.ended.',
   })
 }

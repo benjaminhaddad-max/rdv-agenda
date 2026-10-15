@@ -271,9 +271,12 @@ function aircallErrorMessage(status: number, raw: string): string {
 export async function dialLead(
   db: SupabaseClient,
   user: DialerUser & { isAdmin?: boolean },
-  input: { contactId: string; reason?: string | null; redialOf?: number | null },
+  input: { contactId: string; reason?: string | null; redialOf?: number | null; manual?: boolean },
   settings: DialerSettings,
 ): Promise<DialResult> {
+  // manual : iPad / téléphone — l'API Aircall ne lance pas d'appel sur les applis
+  // mobiles (elle répond 204 sans rien faire). Le télépro appuie sur « Appeler »,
+  // la tentative est suivie par le webhook comme un appel lancé par l'API.
   const { data: c } = await db.from('crm_contacts').select(CONTACT_COLS).eq('hubspot_contact_id', input.contactId).maybeSingle()
   const contact = c as ContactRow | null
   if (!contact) return { ok: false, error: 'Contact introuvable' }
@@ -283,8 +286,8 @@ export async function dialLead(
   const phone = toE164French(contact.phone || contact.mobilephone)
   if (!phone) return { ok: false, error: 'Numéro de téléphone invalide sur la fiche' }
 
-  const line = await resolveDialerLine(db, user.id)
-  if (!line.ok) return { ok: false, error: line.error }
+  const line = input.manual ? null : await resolveDialerLine(db, user.id)
+  if (line && !line.ok) return { ok: false, error: line.error }
 
   const dayKey = parisDateKey(new Date())
   const attempts = await todayAttempts(db, user.id, dayKey)
@@ -316,11 +319,12 @@ export async function dialLead(
     try_no: tryNo,
     reason: input.reason ?? (input.redialOf ? mine.find(a => a.id === input.redialOf)?.reason ?? null : null),
     status: 'dialing',
-    aircall_user_id: line.aircall_user_id,
-    aircall_number_id: line.number_id,
+    aircall_user_id: line?.aircall_user_id ?? null,
+    aircall_number_id: line?.number_id ?? null,
   }).select(ATTEMPT_COLS).single()
   check(insErr)
   const attempt = inserted as DialerAttempt
+  if (!line) return { ok: true, attempt }
 
   let started = await startAircallOutboundCall(line.aircall_user_id, line.number_id, phone)
   if (!started.ok && started.status === 429) {
