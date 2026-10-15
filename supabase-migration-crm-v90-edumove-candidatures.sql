@@ -9,6 +9,12 @@
 -- Une ligne par dossier ; un compte créé sans candidature déposée a aussi sa
 -- ligne (candidature_id = 'compte_<user_id>', étape « compte »).
 
+-- Prérequis : colonnes de sous-vues de la v48, jamais appliquée en prod
+-- (constaté le 15/10/2026 : « column parent_id does not exist »).
+ALTER TABLE crm_saved_views ADD COLUMN IF NOT EXISTS parent_id TEXT;
+ALTER TABLE crm_saved_views ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'view';
+CREATE INDEX IF NOT EXISTS idx_crm_saved_views_parent ON crm_saved_views (parent_id);
+
 CREATE TABLE IF NOT EXISTS crm_edumove_candidatures (
   candidature_id        TEXT PRIMARY KEY,
   hubspot_contact_id    TEXT,
