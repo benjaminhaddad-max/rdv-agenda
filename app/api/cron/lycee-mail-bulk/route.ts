@@ -8,7 +8,8 @@
  * de désinscription ; il est archivé et journalisé sur chaque forum concerné
  * comme un envoi fait depuis « Écrire un mail » (relance dans 7 jours).
  *
- * Body : { mode, event_id, also_event_ids?, to, cc?, subject, body, author_id?, test? }
+ * Body : { mode, event_id | uai, also_event_ids?, to, cc?, subject, body, author_id?, test? }
+ * Avec uai (sans event_id) : mail à un lycée sans forum connu, journalisé sur la fiche du lycée.
  * test = true : envoie seulement (aperçu à soi-même), rien n'est archivé ni journalisé.
  * Sécurisé par le header `Authorization: Bearer CRON_SECRET`.
  */
@@ -16,7 +17,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireCronSecret } from '@/lib/api-auth'
 import { createServiceClient } from '@/lib/supabase'
-import { cleanStr, LYCEE_MODES, oneOf, type LyceeEventRow } from '@/lib/lycees'
+import { cleanStr, LYCEE_MODES, oneOf, type LyceeEventRow, type LyceeRow } from '@/lib/lycees'
 import { parseEmails } from '@/lib/lycee-mail-shared'
 import { isGmailConfigured, sendLyceeMail } from '@/lib/lycee-mail'
 
@@ -37,17 +38,29 @@ export async function POST(req: NextRequest) {
   const text = cleanStr(body.body, 20_000)
   const eventId = cleanStr(body.event_id, 60)
   const also = (Array.isArray(body.also_event_ids) ? body.also_event_ids : []).map(x => cleanStr(x, 60)).filter(Boolean) as string[]
-  if (!mode || !to.length || !subject || !text || !eventId) return NextResponse.json({ error: 'mode, event_id, to, subject et body obligatoires' }, { status: 400 })
+  const uaiIn = cleanStr(body.uai, 20)
+  if (!mode || !to.length || !subject || !text || (!eventId && !uaiIn)) return NextResponse.json({ error: 'mode, event_id ou uai, to, subject et body obligatoires' }, { status: 400 })
   if (to.length + cc.length > 10) return NextResponse.json({ error: '10 destinataires maximum' }, { status: 400 })
 
   const db = createServiceClient()
-  const { data: evs, error: evErr } = await db.from('lycee_events').select('*').in('id', [eventId, ...also])
-  if (evErr) return NextResponse.json({ error: evErr.message }, { status: 500 })
-  const events = (evs || []) as LyceeEventRow[]
-  const main = events.find(e => e.id === eventId)
-  if (!main) return NextResponse.json({ error: 'Forum introuvable' }, { status: 404 })
   const test = body.test === true
-  if (main.last_mail_mode && !test) return NextResponse.json({ error: 'Forum déjà contacté par mail', skipped: true }, { status: 409 })
+  let events: LyceeEventRow[] = []
+  let main: LyceeEventRow | null = null
+  let lycee: LyceeRow | null = null
+  if (eventId) {
+    const { data: evs, error: evErr } = await db.from('lycee_events').select('*').in('id', [eventId, ...also])
+    if (evErr) return NextResponse.json({ error: evErr.message }, { status: 500 })
+    events = (evs || []) as LyceeEventRow[]
+    main = events.find(e => e.id === eventId) ?? null
+    if (!main) return NextResponse.json({ error: 'Forum introuvable' }, { status: 404 })
+    if (main.last_mail_mode && !test) return NextResponse.json({ error: 'Forum déjà contacté par mail', skipped: true }, { status: 409 })
+  } else {
+    const { data: l, error: lErr } = await db.from('lycees').select('*').eq('uai', uaiIn).maybeSingle()
+    if (lErr) return NextResponse.json({ error: lErr.message }, { status: 500 })
+    lycee = (l as LyceeRow | null) ?? null
+    if (!lycee) return NextResponse.json({ error: 'Lycée introuvable' }, { status: 404 })
+    if (lycee.last_mail_mode && !test) return NextResponse.json({ error: 'Lycée déjà contacté par mail', skipped: true }, { status: 409 })
+  }
 
   const authorId = cleanStr(body.author_id, 60)
   const { data: author } = authorId ? await db.from('rdv_users').select('name').eq('id', authorId).maybeSingle() : { data: null }
@@ -66,7 +79,7 @@ export async function POST(req: NextRequest) {
   const warnings: string[] = []
   const now = new Date().toISOString()
   const { data: row, error: insErr } = await db.from('lycee_emails').insert({
-    uai: main.uai, event_id: main.id, mode, mailbox: sent.mailbox, direction: 'out',
+    uai: main?.uai ?? lycee?.uai ?? null, event_id: main?.id ?? null, mode, mailbox: sent.mailbox, direction: 'out',
     gmail_id: sent.gmailId, gmail_thread_id: sent.threadId, message_id_header: sent.messageIdHeader,
     from_email: sent.mailbox, from_name: authorName, to_emails: to, cc_emails: cc,
     subject, body_text: sent.text, body_html: sent.html, snippet: text.slice(0, 200),
@@ -88,6 +101,21 @@ export async function POST(req: NextRequest) {
       next_action_at: next, status: ev.status === 'detecte' ? 'a_confirmer' : ev.status, last_mail_mode: mode, updated_at: now,
     }).eq('id', ev.id)
     if (upErr) warnings.push(`forum ${ev.id} : ${upErr.message}`)
+  }
+
+  if (lycee) {
+    const { error: actErr } = await db.from('lycee_activities').insert({
+      uai: lycee.uai, kind: 'email', outcome: 'mail_sent', email_id: row?.id ?? null,
+      content: `Mail envoyé (demandé) — ${summary}`, author_id: authorId, author_name: authorName,
+    })
+    if (actErr) warnings.push(`journal : ${actErr.message}`)
+    const keep = ['obtenu', 'refus', 'non_cible'].includes(lycee.status)
+    const { error: upErr } = await db.from('lycees').update({
+      last_contact_at: now, last_outcome: 'mail_sent', last_note: summary, calls_count: (lycee.calls_count || 0) + 1,
+      next_action_at: next, next_action: 'Relancer suite au mail', status: keep ? lycee.status : 'a_relancer',
+      last_mail_mode: mode, updated_at: now,
+    }).eq('uai', lycee.uai)
+    if (upErr) warnings.push(`lycée : ${upErr.message}`)
   }
 
   return NextResponse.json({ ok: true, id: row?.id ?? null, gmail_id: sent.gmailId, warnings })
