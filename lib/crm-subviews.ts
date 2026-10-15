@@ -22,6 +22,7 @@ import {
   UNTREATED_LEAD_STATUSES,
 } from './crm-attribution-buckets'
 import { INSCRIPTION_PROGRAMMES } from './inscription-programmes'
+import { EDUMOVE_STAGES, EDUMOVE_STAGE_LABELS } from './edumove-stage'
 import { splitFilterValues } from '@/lib/split-filter-values'
 
 export const SUBVIEW_RULE_PREFIX = 'sv_'
@@ -49,7 +50,7 @@ export interface SubviewSection {
 const POSITIVE_OPS: CRMFilterOp[] = ['is', 'is_any']
 const NEGATIVE_OPS: CRMFilterOp[] = ['is_not', 'is_none']
 /** Champs résolus côté API par familles : jamais fusionnés entre règles. */
-const RESOLVED_FIELDS = new Set<string>(['lab_app', 'lab_callback', 'inscription_programme', 'cold_call'])
+const RESOLVED_FIELDS = new Set<string>(['lab_app', 'lab_callback', 'inscription_programme', 'cold_call', 'edumove_stage'])
 
 const splitValues = (v: string) => splitFilterValues(v)
 
@@ -128,6 +129,17 @@ export function subviewSectionsFor(parent: CRMSavedView): SubviewSection[] {
         { key: 'finalisation', label: 'En finalisation', field: 'inscription_programme', operator: 'is_any', values: ['etape_finalisation'] },
         { key: 'finalise', label: 'Finalisé', field: 'inscription_programme', operator: 'is_any', values: ['etape_finalise'] },
       ],
+    })
+  }
+
+  // Vue « Edumove · Candidatures » : sous-vues par étape de la plateforme.
+  if (parentRules(parent).some(r => r.field === 'edumove_stage')) {
+    sections.push({
+      key: 'edumove_stage',
+      label: 'Étape Edumove',
+      choices: EDUMOVE_STAGES.map(s => ({
+        key: s, label: EDUMOVE_STAGE_LABELS[s], field: 'edumove_stage' as RuleField, operator: 'is_any' as CRMFilterOp, values: [s],
+      })),
     })
   }
 

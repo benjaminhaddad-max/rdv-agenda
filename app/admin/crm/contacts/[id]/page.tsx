@@ -17,6 +17,7 @@ import { telHref } from '@/lib/phone-e164'
 import { usePageTitle } from '@/components/DocumentTitle'
 import { mergeCrmOrigineOptions } from '@/lib/origine-normalization'
 import { appEventLabel, type AppActivitySession } from '@/lib/app-activity'
+import { EdumoveSection } from '@/components/crm-v2/contact/EdumoveSection'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import { leadStatusColor } from '@/lib/sales-cycles'
 import LeadCycleControl from '@/components/LeadCycleControl'
@@ -833,6 +834,8 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       onEditParcoursup={clone => setParcoursupEditor({ preInscriptionId: pi.id, data: clone })}
     />
   ))
+  // Plateforme candidature.edumove.fr (rien si le contact n'y a pas de compte)
+  const edumoveSection = <EdumoveSection contactId={id} />
   const platformsSection = <PlatformsSection sessions={appSessions} />
   // Tracking publicitaire (gclid, fbclid, UTM…) — visible si au moins une donnée d'attribution
   const adsSection = <AdTrackingSection raw={contact.hubspot_raw as Record<string, unknown> | null | undefined} />
@@ -1039,6 +1042,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
               {rdvSection}
               {tasksSection}
               {inscriptionSections}
+              {edumoveSection}
               {archiveSection}
             </>
           )}
@@ -1130,6 +1134,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
           {rdvSection}
           {formsSection}
           {inscriptionSections}
+          {edumoveSection}
           {archiveSection}
           {platformsSection}
           {adsSection}

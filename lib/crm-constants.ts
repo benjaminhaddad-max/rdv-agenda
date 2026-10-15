@@ -103,7 +103,7 @@ export type CRMFilterField =
   | 'stage' | 'formation' | 'classe' | 'closer_contact' | 'closer' | 'contact_owner' | 'telepro'
   | 'lead_status' | 'source' | 'period' | 'search' | 'zone' | 'departement'
   | 'pipeline' | 'prior_preinscription' | 'form_event' | 'parcoursup_verdict'
-  | 'lab_callback' | 'lab_app' | 'inscription_programme' | 'cold_call'
+  | 'lab_callback' | 'lab_app' | 'inscription_programme' | 'cold_call' | 'edumove_stage'
 
 export type CRMFilterOp =
   | 'is' | 'is_not' | 'is_any' | 'is_none'
@@ -188,6 +188,7 @@ export const LAB_APP_FILTER_OPTIONS: SelectOption[] = [
 ]
 
 export { INSCRIPTION_PROGRAMME_FILTER_OPTIONS } from './inscription-programmes'
+export { EDUMOVE_STAGE_FILTER_OPTIONS } from './edumove-stage'
 
 export const CRM_FILTER_FIELDS: { key: CRMFilterField; label: string; type: 'select' | 'text' }[] = [
   { key: 'stage',              label: 'Étape de transaction',          type: 'select' },
@@ -209,6 +210,7 @@ export const CRM_FILTER_FIELDS: { key: CRMFilterField; label: string; type: 'sel
   { key: 'lab_app',            label: 'Lead app Lab (Diploma / Medibox)', type: 'select' },
   { key: 'inscription_programme', label: "Programme d'inscription (inscrits)", type: 'select' },
   { key: 'cold_call',          label: 'Appel froid sans RDV (à réattribuer)', type: 'select' },
+  { key: 'edumove_stage',      label: 'Étape Edumove (plateforme candidature)', type: 'select' },
   { key: 'search',             label: 'Recherche',                     type: 'text' },
 ]
 
@@ -321,7 +323,7 @@ export function normalizeFilterFieldKey(field: string): string {
 export const MULTI_SELECT_FILTER_FIELDS = new Set<CRMFilterField>([
   'stage', 'formation', 'classe', 'closer_contact', 'contact_owner', 'telepro',
   'lead_status', 'source', 'zone', 'departement', 'pipeline', 'form_event',
-  'parcoursup_verdict', 'lab_callback', 'lab_app', 'inscription_programme', 'cold_call',
+  'parcoursup_verdict', 'lab_callback', 'lab_app', 'inscription_programme', 'cold_call', 'edumove_stage',
 ])
 
 export const LEAD_STATUS_OPS: { key: CRMFilterOp; label: string }[] = [
@@ -422,7 +424,7 @@ export function hasActiveFilterGroups(groups: CRMFilterGroup[] | null | undefine
 export function opsForField(field: CRMFilterField | string) {
   const key = normalizeFilterFieldKey(field)
   if (key === 'parcoursup_verdict') return PARCOURSUP_VERDICT_OPS
-  if (key === 'lab_callback' || key === 'lab_app' || key === 'inscription_programme' || key === 'cold_call') return LAB_CALLBACK_OPS
+  if (key === 'lab_callback' || key === 'lab_app' || key === 'inscription_programme' || key === 'cold_call' || key === 'edumove_stage') return LAB_CALLBACK_OPS
   if (key === 'lead_status') return LEAD_STATUS_OPS
   const f = CRM_FILTER_FIELDS.find(ff => ff.key === key)
   return f?.type === 'select' ? SELECT_OPS : TEXT_OPS

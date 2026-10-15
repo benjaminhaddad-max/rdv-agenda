@@ -14,6 +14,7 @@ import { META_BACKFILL_TERM_IDF_VIEW_ID, resolveMetaBackfillTermIdfContactIds } 
 import { overlaySavedViewParams, type CRMSavedView } from '@/lib/crm-views'
 import { resolveLabCallbackContactIds, fetchLabAppLeadAggregatesCached, filterLabAppLeads } from '@/lib/crm-lab-callbacks'
 import { resolveInscriptionProgrammeContactIds } from '@/lib/inscription-programmes'
+import { resolveEdumoveStageContactIds } from '@/lib/edumove-stage-filter'
 import { resolveColdCallContactIds } from '@/lib/telepro-transfers'
 import { splitFilterValues } from '@/lib/split-filter-values'
 
@@ -446,7 +447,7 @@ export async function GET(req: NextRequest) {
         customFilters.push({ field: 'form_event', operator: op, value: val })
         continue
       }
-      if (fieldRaw === 'inscription_programme') {
+      if (fieldRaw === 'inscription_programme' || fieldRaw === 'edumove_stage') {
         if (!customFilters.some(c => c.field === fieldRaw && c.operator === op && c.value === val)) {
           customFilters.push({ field: fieldRaw, operator: op, value: val })
         }
@@ -818,12 +819,28 @@ export async function GET(req: NextRequest) {
     }
   }
   customFilters = customFilters.filter(r => r.field !== 'cold_call')
+  // ── Resolver dédié : « Étape Edumove » (plateforme candidature.edumove.fr,
+  // crm_edumove_candidatures — lib/edumove-sync.ts). Même application que lab_app.
+  const edumoveStageRules = customFilters.filter(r => r.field === 'edumove_stage')
+  for (const rule of edumoveStageRules) {
+    const ids = await resolveEdumoveStageContactIds(db, rule.value)
+    if (rule.operator === 'is_not' || rule.operator === 'is_none') {
+      labCallbackExcludedIds = [...new Set([...(labCallbackExcludedIds ?? []), ...ids])]
+    } else if (labCallbackContactIds === null) {
+      labCallbackContactIds = ids
+    } else {
+      const b = new Set(ids)
+      labCallbackContactIds = labCallbackContactIds.filter(id => b.has(id))
+    }
+  }
+  customFilters = customFilters.filter(r => r.field !== 'edumove_stage')
   // La vue Meta ADS doit toujours inclure toutes les classes (idem inscrits :
   // un étudiant inscrit n'est plus forcément en Seconde/Première/Terminale).
   const effectiveAllClasses =
     effectiveAllClassesInput || metaAdsOnlyParam || metaLeadAdsOnly || metaLeadAdsContactIds !== null ||
     inscriptionProgrammeRules.some(r => r.operator === 'is' || r.operator === 'is_any') ||
-    coldCallRules.some(r => r.operator === 'is' || r.operator === 'is_any')
+    coldCallRules.some(r => r.operator === 'is' || r.operator === 'is_any') ||
+    edumoveStageRules.some(r => r.operator === 'is' || r.operator === 'is_any')
 
   // Tri dynamique
   // Défaut : dernière soumission de formulaire desc → les leads qui viennent

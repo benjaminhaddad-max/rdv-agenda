@@ -25,6 +25,7 @@ import {
   CRM_FILTER_FIELDS, STAGE_OPTIONS, FORMATION_OPTIONS, CLASSE_OPTIONS, PERIOD_OPTIONS,
   CURRENT_PIPELINE_ID, LEAD_STATUS_OPTIONS_FALLBACK, PARCOURSUP_VERDICT_FILTER_OPTIONS,
   INSCRIPTION_PROGRAMME_FILTER_OPTIONS,
+  EDUMOVE_STAGE_FILTER_OPTIONS,
   opsForField, opsForKind, opNeedsValue, opIsMulti, opIsRange, propertyKindOf,
   defaultOpForField, shouldRenderMultiSelect, coerceMultiSelectOperator, normalizeFilterFieldKey,
   type CRMFilterField, type CRMFilterOp, type CRMFilterGroup,
@@ -317,6 +318,7 @@ export default function CRMFilterBuilder({
                   case 'pipeline':    valueOptions = pipelineOptions; break
                   case 'parcoursup_verdict': valueOptions = PARCOURSUP_VERDICT_FILTER_OPTIONS; break
                   case 'inscription_programme': valueOptions = INSCRIPTION_PROGRAMME_FILTER_OPTIONS; break
+                  case 'edumove_stage': valueOptions = EDUMOVE_STAGE_FILTER_OPTIONS; break
                   case 'prior_preinscription': valueOptions = [{ id: '1', label: 'Oui' }]; break
                   case 'form_event':  valueOptions = formEventOptions; break
                 }

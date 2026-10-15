@@ -73,12 +73,12 @@ function inscriptionDb(): SupabaseClient {
   })
 }
 
-function normEmail(e: string | null | undefined): string {
+export function normEmail(e: string | null | undefined): string {
   return String(e || '').trim().toLowerCase()
 }
 
 /** Gmail ignore les points : « jean.dupont@gmail.com » = « jeandupont@gmail.com ». */
-function gmailKey(e: string): string {
+export function gmailKey(e: string): string {
   const at = e.lastIndexOf('@')
   if (at < 0) return e
   const dom = e.slice(at + 1)
@@ -87,7 +87,7 @@ function gmailKey(e: string): string {
 }
 
 /** Variantes d'un numéro français tel qu'il peut être stocké dans le CRM. */
-function phoneVariants(p: string | null | undefined): string[] {
+export function phoneVariants(p: string | null | undefined): string[] {
   const d = String(p || '').replace(/\D/g, '')
   let national = ''
   if (d.startsWith('33') && d.length === 11) national = d.slice(2)
@@ -98,11 +98,11 @@ function phoneVariants(p: string | null | undefined): string[] {
   return [...new Set([`+33${national}`, zero, spaced, `+33 ${national[0]} ${national.slice(1).replace(/(\d{2})(?=\d)/g, '$1 ')}`])]
 }
 
-function normName(v: string | null | undefined): string {
+export function normName(v: string | null | undefined): string {
   return String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z]/g, '')
 }
 
-function isTestEmail(e: string): boolean {
+export function isTestEmail(e: string): boolean {
   return /\+test|@example\.|@test\./.test(e)
 }
 

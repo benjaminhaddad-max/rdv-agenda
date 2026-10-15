@@ -22,6 +22,7 @@ import {
   COLD_CALL_FILTER_OPTIONS,
   LAB_APP_FILTER_OPTIONS,
   INSCRIPTION_PROGRAMME_FILTER_OPTIONS,
+  EDUMOVE_STAGE_FILTER_OPTIONS,
   opsForField, opsForKind, opNeedsValue, opIsMulti, opIsRange, propertyKindOf,
   defaultOpForField, shouldRenderMultiSelect, coerceMultiSelectOperator,
   type SelectOption,
@@ -579,7 +580,10 @@ export default function CRMPage() {
           const rawGroups = (r.filter_groups as CRMFilterGroup[]) ?? []
           const nameLower = (r.name || '').toLowerCase()
           const shouldForceLinova = nameLower.includes('linova')
-          const shouldForceEdumove = nameLower.includes('edumove')
+          // Vue « formulaires Edumove » (Marianne) ; pas les vues bâties sur
+          // l'étape de la plateforme candidature (Edumove · Candidatures).
+          const shouldForceEdumove = nameLower.includes('edumove') &&
+            !rawGroups.some(g => g?.rules?.some(rule => rule.field === 'edumove_stage'))
           const shouldForceDiploma = isDiplomaSanteView(r.id, r.name)
           const groups = shouldForceLinova
             ? buildLinovaGroups()
@@ -1458,7 +1462,7 @@ export default function CRMPage() {
         }
         // Demande de rappel Lab : résolu côté API en liste de contact_id
         // (la source est une soumission de formulaire, pas une colonne).
-        if (ruleField === 'lab_callback' || ruleField === 'lab_app' || ruleField === 'inscription_programme' || ruleField === 'cold_call') {
+        if (ruleField === 'lab_callback' || ruleField === 'lab_app' || ruleField === 'inscription_programme' || ruleField === 'cold_call' || ruleField === 'edumove_stage') {
           customFilters.push({ field: ruleField, operator: rule.operator, value: val })
           continue
         }
@@ -2981,6 +2985,7 @@ export default function CRMPage() {
                         case 'cold_call':    valueOptions = COLD_CALL_FILTER_OPTIONS; break
                         case 'lab_app':      valueOptions = LAB_APP_FILTER_OPTIONS; break
                         case 'inscription_programme': valueOptions = INSCRIPTION_PROGRAMME_FILTER_OPTIONS; break
+                        case 'edumove_stage': valueOptions = EDUMOVE_STAGE_FILTER_OPTIONS; break
                       }
                     }
 
