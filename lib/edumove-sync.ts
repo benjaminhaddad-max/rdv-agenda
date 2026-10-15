@@ -46,7 +46,7 @@ export function edumoveDb(): SupabaseClient {
 async function loadAll(src: SupabaseClient, table: string, select: string): Promise<Row[]> {
   const out: Row[] = []
   for (let from = 0; from < 100_000; from += 1000) {
-    const { data, error } = await src.from(table).select(select).order('created_at', { ascending: true }).range(from, from + 999)
+    const { data, error } = await src.from(table).select(select).order('id', { ascending: true }).range(from, from + 999)
     if (error) throw new Error(`edumove ${table}: ${error.message}`)
     out.push(...((data ?? []) as unknown as Row[]))
     if (!data || data.length < 1000) break
