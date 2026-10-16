@@ -33,7 +33,7 @@ import {
 import { AdminIconButton, AdminNotice, AdminSpin } from '@/components/crm-v2/admin/AdminUi'
 import { PanelCard } from '@/components/crm-v2/panels/PanelUi'
 import { CredentialBox, type TeamMember } from '@/components/crm-v2/panels/TeamMemberManager'
-import { CallDebrief, CallList, CallTeamSummary, ConversionByKindStrip, averageScore, useCallAnalysis, worstFirst, type CallAnalysisData, type TypeBucket } from '@/components/crm-v2/equipe/CallAnalysis'
+import { CallDebrief, CallList, CallTeamSummary, ConversionByKindStrip, averageScore, useCallAnalysis, worstFirst, type CallAnalysisData, type OccasionBucket, type TypeBucket } from '@/components/crm-v2/equipe/CallAnalysis'
 import { PlanningDayCell, PlanningDayHeader, PlanningLegend, PlanningWeekSummary, usePlanningWeek, type PlanningData, type PlanningDayCount } from '@/components/crm-v2/equipe/PlanningWeek'
 import { DayScheduleEditor, SlotChip, VERDICTS, VerdictPill, WEEKDAYS, fmtMinutes as fmtPlannedMinutes, type DayReport } from '@/components/planning/PlanningUi'
 import { addParisDays, parisDateKey, parisMonthEndKey, parisWeekStartKey } from '@/lib/date-paris'
@@ -197,6 +197,18 @@ type Row = {
   stats: AgentMetrics | null
   /** Appels froids ≥ 2 min (analyse des appels) : remplace les « ≥ 2 min » tous types */
   froid?: TypeBucket | null
+  /** Vraies occasions de vente (IA, v91) : remplacent les « ≥ 2 min » dès qu'elles existent */
+  occ?: OccasionBucket | null
+}
+
+/** Occasions lues par l'IA pour ce télépro (sinon : repli sur les appels froids ≥ 2 min). */
+function hasOcc(o: OccasionBucket | null | undefined): o is OccasionBucket {
+  return !!o?.lues
+}
+
+/** Part des vraies occasions conclues (RDV pris + ventes directes), en %. */
+function occRate(o: OccasionBucket | null | undefined): number | null {
+  return o?.vraies ? Math.round((o.conclues / o.vraies) * 1000) / 10 : null
 }
 
 /** Part des appels froids ≥ 2 min conclus (RDV pris + ventes directes), en %. */
@@ -233,7 +245,8 @@ function sortValue(r: Row, key: SortKey, presence: Record<string, DayReport[]> |
   switch (key) {
     case 'calls': return s.calls_outbound
     case 'answered': return s.calls_outbound_talk_2min + s.calls_outbound_talk_short
-    case 'talk2': return r.froid ? r.froid.talk2 : s.calls_outbound_talk_2min
+    case 'talk2': return hasOcc(r.occ) ? r.occ.vraies : r.froid ? r.froid.talk2 : s.calls_outbound_talk_2min
+    case 'ratees': return r.occ?.ratees ?? -1
     case 'talk': return s.talk_time_sec
     case 'rdv': return s.rdv_total
     case 'minPerRdv': return minPerRdv(s.talk_time_sec, s.rdv_total) ?? 1e9
@@ -243,7 +256,7 @@ function sortValue(r: Row, key: SortKey, presence: Record<string, DayReport[]> |
     case 'cancelled': return s.rdv_annules
     case 'showRate': return s.show_rate ?? -1
     case 'closingRate': return s.closing_rate ?? -1
-    case 'talk2Rdv': return (r.froid ? coldRate(r.froid) : s.conversion_talk_2min) ?? -1
+    case 'talk2Rdv': return (hasOcc(r.occ) ? occRate(r.occ) : r.froid ? coldRate(r.froid) : s.conversion_talk_2min) ?? -1
     case 'venus': return s.rdv_venus
     case 'preinscrits': return s.rdv_preinscrits
     case 'avgTalk2': return s.avg_talk_2min_sec ?? -1
@@ -447,11 +460,12 @@ export default function EquipeClient() {
     const out: Row[] = list.map(m => ({
       id: m.id, name: m.name, color: m.avatar_color, member: m, stats: byId.get(m.id) ?? null,
       froid: calls.data?.team[m.id]?.by_type?.froid ?? null,
+      occ: calls.data?.team[m.id]?.occ ?? null,
     }))
     const known = new Set(list.map(m => m.id))
     for (const a of byId.values()) {
       if (known.has(a.user_id)) continue
-      out.push({ id: a.user_id, name: a.name, color: a.avatar_color, member: null, stats: a, froid: calls.data?.team[a.user_id]?.by_type?.froid ?? null })
+      out.push({ id: a.user_id, name: a.name, color: a.avatar_color, member: null, stats: a, froid: calls.data?.team[a.user_id]?.by_type?.froid ?? null, occ: calls.data?.team[a.user_id]?.occ ?? null })
     }
     return out
   }, [members, tab, stats, statsReady, calls.data])
@@ -741,11 +755,12 @@ const TELEPRO_COLS: Col[] = [
   { key: 'presence', label: 'Présence', title: "Jours présents (au moins un appel), heures prévues et journées bien faites / partielles / sans appel" },
   { key: 'calls', label: 'Appels', title: 'Appels sortants Aircall' },
   { key: 'answered', label: 'Décrochés', title: 'Décrochés humains ≥ 10 s (et part des appels)' },
-  { key: 'talk2', label: '≥ 2 min froid', title: 'Conversations de 2 minutes ou plus en appel froid (premier vrai échange avec le lead) / toutes les conversations ≥ 2 min' },
+  { key: 'talk2', label: 'Vraies occasions', title: "Appels où il fallait placer un RDV : élève ou parent intéressé et disponible (lu par l'IA). Hors mauvais numéros, pas intéressés, rappels demandés. / appels ≥ 2 min classés. En attendant l'analyse : appels froids ≥ 2 min" },
+  { key: 'ratees', label: 'Occ. ratées', title: "Vraies occasions laissées filer : pas de RDV ni d'offre proposé, « peut-être » accepté, objection pas travaillée — les appels à retravailler" },
   { key: 'avgTalk2', label: 'Durée moy. ≥ 2 min', title: 'Durée moyenne des conversations de 2 minutes ou plus', defaultHidden: true },
   { key: 'talk', label: "Temps d'appel", title: 'Temps de conversation réel' },
   { key: 'rdv', label: 'RDV placés', title: 'Tous les RDV placés, même sans appel (SMS, etc.)' },
-  { key: 'talk2Rdv', label: 'Froid conclus', title: "Part des appels froids de 2 min ou plus conclus : RDV pris, ou vente directe (petite offre 490-690 € par lien d'inscription, sans RDV). Lu par l'IA dans chaque appel, CRM en attendant l'analyse" },
+  { key: 'talk2Rdv', label: 'Occasions conclues', title: "Part des vraies occasions conclues : RDV pris, ou vente directe (petite offre 490-690 € par lien d'inscription, sans RDV). En attendant l'analyse : appels froids ≥ 2 min conclus" },
   { key: 'minPerRdv', label: 'Min / RDV', title: "Temps d'appel ÷ RDV placés : combien de minutes de conversation il faut pour placer un RDV" },
   { key: 'venus', label: 'RDV venus', title: 'Le closer a saisi une issue (ni no-show ni annulé) — et part des RDV de la période dont la date est passée' },
   { key: 'noShow', label: 'No-show', defaultHidden: true },
@@ -944,7 +959,7 @@ function MembersTable({
   )
 }
 
-function cellValue(tab: Tab, key: SortKey, s: AgentMetrics, froid?: TypeBucket | null): ReactNode {
+function cellValue(tab: Tab, key: SortKey, s: AgentMetrics, froid?: TypeBucket | null, occ?: OccasionBucket | null): ReactNode {
   if (key.startsWith('brand:')) {
     const b = s.by_brand[key.slice(6) as RdvBrand]
     if (!b?.rdv_total) return '—'
@@ -959,12 +974,15 @@ function cellValue(tab: Tab, key: SortKey, s: AgentMetrics, froid?: TypeBucket |
       return n ? <>{fmtInt(n)} <Faint>{fmtPct(s.answer_rate)}</Faint></> : '—'
     }
     case 'talk2':
+      if (hasOcc(occ)) return <span title={`${occ.lues} appels ≥ 2 min classés par l'IA, dont ${occ.lues - occ.vraies} sans rien à vendre`}>{fmtInt(occ.vraies)} <Faint>/ {fmtInt(occ.lues)}</Faint></span>
       if (froid) return froid.talk2 ? <span title={`${s.calls_outbound_talk_2min} appels ≥ 2 min en tout (relances comprises)`}>{fmtInt(froid.talk2)} <Faint>/ {fmtInt(s.calls_outbound_talk_2min)}</Faint></span> : '—'
       return s.calls_outbound_talk_2min
         ? <>{fmtInt(s.calls_outbound_talk_2min)} <Faint>{fmtPct(s.talk_2min_rate)}</Faint></>
         : '—'
+    case 'ratees':
+      return occ?.ratees ? <strong style={{ color: '#dc2626' }}>{fmtInt(occ.ratees)}</strong> : hasOcc(occ) ? '0' : '—'
     case 'talk2Rdv': {
-      const v = froid ? coldRate(froid) : s.conversion_talk_2min
+      const v = hasOcc(occ) ? occRate(occ) : froid ? coldRate(froid) : s.conversion_talk_2min
       return <strong style={{ color: rateColor(v, 60, 35) }}>{fmtPct(v)}</strong>
     }
     case 'venus': return s.rdv_venus
@@ -1252,7 +1270,7 @@ function MemberRow({
           </CrmV2Td>
         ) : (
           <CrmV2Td key={c.key} style={{ textAlign: 'right', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
-            {s ? cellValue(tab, c.key, s, row.froid) : statsLoading ? <span style={{ color: crmV2.textFaint }}>…</span> : '—'}
+            {s ? cellValue(tab, c.key, s, row.froid, row.occ) : statsLoading ? <span style={{ color: crmV2.textFaint }}>…</span> : '—'}
           </CrmV2Td>
         ))}
 
@@ -1338,7 +1356,7 @@ function MemberDetail({ row, actions, ...common }: TableCommon & { row: Row; act
         </span>
         {actions && <div onClick={e => e.stopPropagation()}>{actions}</div>}
       </div>
-      {tab === 'telepros' && row.stats && <MemberStatsStrip s={row.stats} froid={row.froid} passed={common.passed?.[row.id] ?? null} passedLoading={common.passed == null} />}
+      {tab === 'telepros' && row.stats && <MemberStatsStrip s={row.stats} froid={row.froid} occ={row.occ} passed={common.passed?.[row.id] ?? null} passedLoading={common.passed == null} />}
       {tab === 'telepros' && <ConversionByKindStrip data={common.calls} userId={row.id} from={common.callRange.from} to={common.callRange.to} onDone={common.onCallsChanged} />}
       {tab === 'telepros' && days.length > 0 && (
         <MemberDaysTable days={days} onEdit={d => common.onEditDay(row, d)} calls={common.calls} userId={row.id} />
@@ -1386,9 +1404,10 @@ function PeriodNav({ label, onPrev, onNext, onToday, todayLabel }: {
 }
 
 /** Stats du télépro sur la période (semaine en mode Planning), puis son bilan sur tous ses RDV passés. */
-function MemberStatsStrip({ s, froid, passed, passedLoading }: {
+function MemberStatsStrip({ s, froid, occ, passed, passedLoading }: {
   s: AgentMetrics
   froid?: TypeBucket | null
+  occ?: OccasionBucket | null
   passed: PassedRdvStats | null
   passedLoading: boolean
 }) {
@@ -1397,14 +1416,25 @@ function MemberStatsStrip({ s, froid, passed, passedLoading }: {
   const week: StatCell[] = [
     ['Appels', fmtInt(s.calls_outbound)],
     ['Décrochés', fmtInt(answered), fmtPct(s.answer_rate)],
-    froid
+    hasOcc(occ)
+      ? ['Vraies occasions', fmtInt(occ.vraies), `/ ${fmtInt(occ.lues)} appels ≥ 2 min`,
+          "Appels où il fallait placer un RDV : élève ou parent intéressé et disponible (lu par l'IA). Les mauvais numéros, pas intéressés, « rappelez ma fille »… ne comptent pas"]
+    : froid
       ? ['≥ 2 min froid', fmtInt(froid.talk2), `/ ${fmtInt(s.calls_outbound_talk_2min)}`]
       : ['≥ 2 min', fmtInt(s.calls_outbound_talk_2min), fmtPct(s.talk_2min_rate)],
     ["Temps d'appel", fmtMinutes(s.talk_time_sec)],
     ['RDV placés', fmtInt(s.rdv_total)],
-    froid
-      ? ['Froid conclus', froid.talk2 ? <span key="c" style={{ color: rateColor(coldRate(froid), 60, 35) }}>{fmtPct(coldRate(froid))}</span> : '—', froid.talk2 ? `${froid.rdv + froid.offre} / ${froid.talk2}` : undefined]
-      : ['≥ 2 min → RDV', <span key="c" style={{ color: rateColor(s.conversion_talk_2min, 60, 35) }}>{fmtPct(s.conversion_talk_2min)}</span>],
+    ...(hasOcc(occ) ? [
+      ['Occasions ratées', <span key="r" style={{ color: occ.ratees ? '#dc2626' : crmV2.successStrong }}>{fmtInt(occ.ratees)}</span>, occ.vraies ? `sur ${fmtInt(occ.vraies)}` : undefined,
+        "Vraies occasions où un RDV aurait dû être placé et ne l'a pas été : pas proposé, « peut-être » accepté, objection pas travaillée"] as StatCell,
+      ['Occasions conclues', <span key="c" style={{ color: rateColor(occRate(occ), 60, 35) }}>{fmtPct(occRate(occ))}</span>, `${occ.conclues} / ${occ.vraies}`,
+        "RDV pris ou vente directe, sur les vraies occasions"] as StatCell,
+    ] : [
+      // Repli tant que l'IA n'a pas classé les occasions : appels froids ≥ 2 min
+      froid
+        ? ['Froid conclus', froid.talk2 ? <span key="c" style={{ color: rateColor(coldRate(froid), 60, 35) }}>{fmtPct(coldRate(froid))}</span> : '—', froid.talk2 ? `${froid.rdv + froid.offre} / ${froid.talk2}` : undefined] as StatCell
+        : ['≥ 2 min → RDV', <span key="c" style={{ color: rateColor(s.conversion_talk_2min, 60, 35) }}>{fmtPct(s.conversion_talk_2min)}</span>] as StatCell,
+    ]),
     ['Min / RDV', mpr != null ? `${mpr} min` : '—', mpr != null ? `${fmtMinutes(s.talk_time_sec)} ÷ ${s.rdv_total}` : undefined,
       "Temps d'appel ÷ RDV placés : combien de minutes de conversation il lui faut pour placer un RDV"],
   ]

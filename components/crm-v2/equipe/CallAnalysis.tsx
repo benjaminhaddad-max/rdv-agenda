@@ -26,7 +26,11 @@ export type TeamCallStats = {
   talk2_recorded?: number; talk2_unrecorded?: number
   /** Issue lue par l'IA : appels froids (premier appel) / relances & suivis */
   by_type?: { froid: TypeBucket; relance: TypeBucket }
+  /** Vraies occasions de vente lues par l'IA (v91) */
+  occ?: OccasionBucket
 }
+/** `lues` = appels classés par l'IA ; `vraies` = il fallait placer un RDV ; `conclues` = RDV / offre ; `ratees` = laissées filer */
+export type OccasionBucket = { lues: number; vraies: number; conclues: number; ratees: number }
 /** Appels ≥ 2 min d'un type : `analyzed` = lus par l'IA, les autres d'après le CRM */
 export type TypeBucket = { talk2: number; rdv: number; offre: number; analyzed: number }
 export type CriterionDef = { id: string; label: string; hint: string }

@@ -733,7 +733,14 @@ type TeamStats = {
   talk2_recorded: number; talk2_unrecorded: number
   /** Issue lue par l'IA, appels froids (premier appel) / relances & suivis */
   by_type: { froid: TypeBucket; relance: TypeBucket }
+  /**
+   * Vraies occasions de vente (v91) : `lues` = appels dont l'IA a dit s'il y
+   * avait quelque chose à vendre ; `vraies` = ceux où il fallait placer un RDV ;
+   * `conclues` = RDV / offre obtenu ; `ratees` = laissées filer par le télépro.
+   */
+  occ: OccasionBucket
 }
+export type OccasionBucket = { lues: number; vraies: number; conclues: number; ratees: number }
 
 export function isCallAiReady(): boolean {
   return !!process.env.ANTHROPIC_API_KEY && !!process.env.DEEPGRAM_API_KEY
@@ -802,6 +809,7 @@ export async function buildCallReport(
     talk2: 0, no_rdv: 0, recorded: 0, analyzed: 0, pending: 0, direct_sales: 0, causes: {}, score_sum: 0, proposed: 0,
     score_n: 0, ratees: 0, sans_occasion: 0, criteria_sum: {}, criteria_n: 0,
     talk2_recorded: 0, talk2_unrecorded: 0, by_type: { froid: bucket(), relance: bucket() },
+    occ: { lues: 0, vraies: 0, conclues: 0, ratees: 0 },
   })
   // Lignes Aircall sans enregistrement (appels non analysables)
   const unrecordedLines: Record<string, number> = {}
@@ -845,6 +853,14 @@ export async function buildCallReport(
     t.analyzed++
     if (r.cause) t.causes[r.cause] = (t.causes[r.cause] ?? 0) + 1
     if (r.occasion === 'ratee') t.ratees++
+    if (r.occasion) {
+      t.occ.lues++
+      if (r.occasion !== 'sans_occasion') {
+        t.occ.vraies++
+        if (r.occasion === 'ratee') t.occ.ratees++
+        if (r.outcome === 'rdv_pris' || r.outcome === 'offre_vendue') t.occ.conclues++
+      }
+    }
     // Sans occasion de vente : pas noté, hors moyennes et hors « RDV proposé »
     if (r.score == null) { t.sans_occasion++; continue }
     t.score_sum += r.score
