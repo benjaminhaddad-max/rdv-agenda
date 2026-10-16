@@ -7,7 +7,7 @@
  * GET ?attempt_id=N      → état d'un appel (mis à jour par le webhook Aircall).
  * POST { action: 'dial', contact_id, reason?, redial_of?, manual? } → lance l'appel depuis sa ligne Aircall
  *                          (manual : iPad / téléphone, le télépro appuie lui-même sur « Appeler »).
- * POST { action: 'qualify', attempt_id, qualification }    → résultat de l'appel (double appel, NRP…).
+ * POST { action: 'qualify', attempt_id, qualification, no_redial? } → résultat de l'appel (double appel, NRP…).
  * PUT  { settings }      → réglages de la session (admin).
  */
 
@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
       const id = Number(body.attempt_id)
       const qualification = typeof body.qualification === 'string' ? body.qualification.trim() : ''
       if (!(id > 0) || !qualification) return NextResponse.json({ error: 'attempt_id et qualification requis' }, { status: 400 })
-      const result = await qualifyAttempt(db, isAdmin ? null : authz.ctx.appUserId, id, qualification, settings)
+      const result = await qualifyAttempt(db, isAdmin ? null : authz.ctx.appUserId, id, qualification, settings, body.no_redial === true)
       if (!result) return NextResponse.json({ error: 'Appel introuvable' }, { status: 404 })
       return NextResponse.json({ ok: true, ...result })
     }

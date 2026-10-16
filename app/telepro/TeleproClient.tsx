@@ -31,6 +31,7 @@ import TodayView from '@/components/telepro-v2/TodayView'
 import MyMails from '@/components/telepro-v2/MyMails'
 import TeleproContactsMobile from '@/components/telepro-v2/TeleproContactsMobile'
 import DialerSession, { type DialerState } from '@/components/telepro-v2/DialerSession'
+import DialerContactFiche from '@/components/telepro-v2/DialerContactFiche'
 import type { DialerListSource } from '@/lib/dialer-shared'
 import LyceesClient from '@/components/crm-v2/lycees/LyceesClient'
 import {
@@ -106,7 +107,12 @@ export default function TeleproClient({
     setDialerSource(source)
     setDialerOpened(true)
   }, [])
+  // Fiche du lead en cours, ouverte à droite : elle suit le dialer d'un lead à l'autre
+  const [dialerLeadId, setDialerLeadId] = useState<string | null>(null)
+  const [dialerFiche, setDialerFiche] = useState(false)
+  const openDialerFiche = useCallback((contactId: string) => { setDialerLeadId(contactId); setDialerFiche(true) }, [])
   const bookFromDialer = useCallback(async (contactId: string) => {
+    setDialerFiche(false)
     form.resetContact()
     await form.prefillFromContactId(contactId)
     setActiveTab('form')
@@ -562,9 +568,11 @@ export default function TeleproClient({
         userId={teleproUser.id} readOnly={previewMode} onBookRdv={bookFromDialer} onStateChange={setDialerState}
         source={dialerSource} onClearSource={() => setDialerSource(null)}
         dock={activeTab !== 'session'} onExpand={() => setActiveTab('session')}
+        onOpenContact={openDialerFiche} onLeadChange={setDialerLeadId}
       />
     </div>
   ) : null
+  const dialerFicheShown = dialerFiche && !!dialerLeadId && (activeTab === 'session' || dialerDocked)
 
   // Session d'appels ouverte pendant qu'il est sur un autre onglet
   const dialerBanner = !isAdmin && dialerState !== 'off' && activeTab !== 'session' && !dialerDocked ? (
@@ -597,6 +605,9 @@ export default function TeleproClient({
 
   const overlays = (
     <>
+      {dialerFicheShown && dialerLeadId && (
+        <DialerContactFiche key={dialerLeadId} contactId={dialerLeadId} onClose={() => setDialerFiche(false)} />
+      )}
       {showGuide && <PlatformGuide role="telepro" onClose={() => setShowGuide(false)} />}
       {showResources && <ResourcesPanel role="telepro" onClose={() => setShowResources(false)} />}
 
@@ -778,7 +789,8 @@ export default function TeleproClient({
       </CrmV2Header>
 
       {dialerBanner}
-      <main style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+      {/* Fiche du dialer ouverte à droite : la page se décale pour laisser le dialer cliquable */}
+      <main style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', paddingRight: dialerFicheShown ? 484 : 0 }}>
         {dialerPane}
         {tabContent()}
       </main>

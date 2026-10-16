@@ -369,6 +369,8 @@ export async function qualifyAttempt(
   id: number,
   qualification: string,
   settings: DialerSettings,
+  /** Bouton « Suivant » du télépro : pas de double appel sur ce passage */
+  noRedial = false,
 ): Promise<QualifyResult | null> {
   const current = await getAttempt(db, userId, id)
   if (!current) return null
@@ -379,7 +381,7 @@ export async function qualifyAttempt(
   const attempt = data as DialerAttempt
 
   const failed = FAILED_QUALIFICATIONS.has(qualification)
-  const canRedial = failed && attempt.try_no < 1 + settings.double_calls
+  const canRedial = failed && !noRedial && attempt.try_no < 1 + settings.double_calls
   const roundFailed = failed && !canRedial
   let nrp: string | null = null
   if (roundFailed && settings.auto_nrp) {

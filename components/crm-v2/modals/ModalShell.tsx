@@ -24,6 +24,7 @@ export function CrmV2ModalShell({
   closeOnEscape = false,
   bodyStyle,
   maxHeight = '88vh',
+  modeless = false,
 }: {
   variant?: 'modal' | 'drawer'
   onClose: () => void
@@ -36,6 +37,8 @@ export function CrmV2ModalShell({
   closeOnEscape?: boolean
   bodyStyle?: CSSProperties
   maxHeight?: string
+  /** Sans fond grisé : la page reste cliquable à côté (fiche ouverte depuis le power dialer) */
+  modeless?: boolean
 }) {
   const isMobile = useIsMobile()
   const downOnBackdrop = useRef(false)
@@ -63,7 +66,8 @@ export function CrmV2ModalShell({
     <div
       style={{
         position: 'fixed', inset: 0, zIndex,
-        background: isMobile ? 'rgba(15,31,61,0.40)' : 'rgba(15,31,61,0.28)',
+        background: modeless ? 'transparent' : isMobile ? 'rgba(15,31,61,0.40)' : 'rgba(15,31,61,0.28)',
+        pointerEvents: modeless ? 'none' : undefined,
         display: !isMobile && variant === 'modal' ? 'flex' : 'block',
         alignItems: 'center', justifyContent: 'center',
         padding: !isMobile && variant === 'modal' ? 24 : 0,
@@ -81,6 +85,7 @@ export function CrmV2ModalShell({
         onClick={e => e.stopPropagation()}
         style={{
           ...panel,
+          pointerEvents: 'auto',
           background: crmV2.bg, border: `1px solid ${crmV2.border}`, boxShadow: crmV2.shadowPanel,
           display: 'flex', flexDirection: 'column', overflow: 'hidden',
           fontFamily: crmV2.font, color: crmV2.text, boxSizing: 'border-box',

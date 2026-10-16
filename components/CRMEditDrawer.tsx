@@ -194,6 +194,8 @@ interface Props {
   preloadedSources?: string[]
   preloadedFormations?: string[]
   preloadedZones?: string[]
+  /** Sans fond grisé : la page reste cliquable (fiche ouverte depuis le power dialer) */
+  modeless?: boolean
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -831,7 +833,7 @@ function InlineBookingWidget({ contact, onSuccess }: { contact: CRMContact; onSu
 }
 
 // ── Main Drawer Component ──────────────────────────────────────────────────
-export default function CRMEditDrawer({ contact, closers, telepros, allUsers, hubspotOwners: hubspotOwnersProp = [], onClose, onRefresh, preloadedLeadStatuses, preloadedSources, preloadedFormations, preloadedZones }: Props) {
+export default function CRMEditDrawer({ contact, closers, telepros, allUsers, hubspotOwners: hubspotOwnersProp = [], onClose, onRefresh, preloadedLeadStatuses, preloadedSources, preloadedFormations, preloadedZones, modeless = false }: Props) {
   // Liste effective des utilisateurs pour les dropdowns Closer/Télépro.
   // Si `allUsers` est fourni (page CRM admin), on l'utilise pour exposer TOUS
   // les utilisateurs du CRM (toute roles confondus). Sinon, fallback historique :
@@ -1063,6 +1065,7 @@ export default function CRMEditDrawer({ contact, closers, telepros, allUsers, hu
         variant="drawer"
         onClose={onClose}
         zIndex={200}
+        modeless={modeless}
         header={
           <CrmV2ModalHeader
             title={fullName}

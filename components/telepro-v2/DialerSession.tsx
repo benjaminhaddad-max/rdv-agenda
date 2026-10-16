@@ -15,7 +15,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
-import { Pause, Phone, PhoneCall, PhoneOff, Play, RefreshCw, Settings2, SkipForward, Square } from 'lucide-react'
+import { FileText, Pause, Phone, PhoneCall, PhoneOff, Play, RefreshCw, Settings2, SkipForward, Square } from 'lucide-react'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { CrmV2Button } from '@/components/crm-v2/primitives'
@@ -118,7 +118,12 @@ async function api<T>(url: string, init?: RequestInit): Promise<{ ok: boolean; d
 
 export default function DialerSession({
   userId, readOnly = false, onBookRdv, onStateChange, source = null, onClearSource, dock = false, onExpand,
+  onOpenContact, onLeadChange,
 }: {
+  /** Ouvre la fiche du lead à côté du dialer */
+  onOpenContact?: (contactId: string) => void
+  /** Lead en cours (la fiche ouverte le suit) */
+  onLeadChange?: (contactId: string | null) => void
   /** Panneau compact ancré au-dessus de « Mes contacts » */
   dock?: boolean
   onExpand?: () => void
@@ -135,9 +140,12 @@ export default function DialerSession({
   const [data, setData] = useState<QueueData | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const [phase, setPhase] = useState<Phase>({ kind: 'off' })
+  const [phase, setPhaseState] = useState<Phase>({ kind: 'off' })
+  // Ref à jour tout de suite (pas au rendu suivant) : un « Terminer » est vu par les appels réseau en cours
   const phaseRef = useRef<Phase>(phase)
-  useEffect(() => { phaseRef.current = phase }, [phase])
+  const setPhase = useCallback((p: Phase) => { phaseRef.current = p; setPhaseState(p) }, [])
+  /** Incrémenté à chaque Pause / Terminer / Suivant : les enchaînements lancés avant s'arrêtent */
+  const run = useRef(0)
   const [dialNote, setDialNote] = useState<string | null>(null)
   const [lead, setLead] = useState<DialerLead | null>(null)
   const [attempt, setAttempt] = useState<DialerAttempt | null>(null)
@@ -158,6 +166,8 @@ export default function DialerSession({
   }, [])
   const dataRef = useRef<QueueData | null>(null)
   useEffect(() => { dataRef.current = data }, [data])
+  const leadId = lead?.hubspot_contact_id ?? null
+  useEffect(() => { onLeadChange?.(leadId) }, [leadId, onLeadChange])
 
   // iPad / téléphone : l'API Aircall ne lance pas l'appel sur l'appli mobile →
   // le télépro appuie sur « Appeler » (tout le reste s'enchaîne pareil).
@@ -246,6 +256,7 @@ export default function DialerSession({
 
   // ── Lancer un appel ──
   const dial = useCallback(async (target: DialerLead, redialOf?: number) => {
+    const token = run.current
     setBusy(true)
     setPhase({ kind: 'dialing' })
     setLead(target)
@@ -263,38 +274,49 @@ export default function DialerSession({
         method: 'POST',
         body: JSON.stringify({ action: 'dial', contact_id: target.hubspot_contact_id, reason: target.reason, redial_of: redialOf ?? null, manual: manualDial }),
       })
-      if (!res.data.busy || phaseRef.current.kind !== 'dialing') break
-      setDialNote(`Aircall termine l'appel précédent… nouvel essai (${i + 1})`)
+      if (!res.data.busy || phaseRef.current.kind !== 'dialing' || run.current !== token) break
+      setDialNote(`Appel précédent encore ouvert : raccroche-le dans Aircall (⌥E)… nouvel essai (${i + 1})`)
       await new Promise(r => setTimeout(r, BUSY_RETRY_MS))
-      if (phaseRef.current.kind !== 'dialing') break
+      if (phaseRef.current.kind !== 'dialing' || run.current !== token) break
     }
     setDialNote(null)
     setBusy(false)
     const { ok, data: r } = res!
-    if (!ok || !r.attempt || r.ok === false) {
-      // Mis en pause pendant les essais : on n'affiche pas d'erreur
-      if (phaseRef.current.kind !== 'dialing') return
+    const launched = ok && !!r.attempt && r.ok !== false
+    // Pause / Terminer / Suivant pendant le lancement : la session ne repart pas toute seule
+    if (phaseRef.current.kind !== 'dialing' || run.current !== token) {
+      if (launched && phaseRef.current.kind === 'paused' && run.current === token) setAttempt(r.attempt!)
+      else if (launched) setNotice(`L'appel vers ${target.name} est quand même parti : raccroche-le dans Aircall (⌥E).`)
+      return
+    }
+    if (!launched) {
       setAttempt(r.attempt ?? null)
       setPhase({ kind: 'error', message: r.error || 'Appel non lancé' })
       return
     }
-    setAttempt(r.attempt)
+    setAttempt(r.attempt!)
     setPhase({ kind: 'call' })
-  }, [markTaken, manualDial])
+  }, [markTaken, manualDial, setPhase])
 
   const goNext = useCallback(async () => {
+    const token = run.current
+    // Pause / Terminer pendant la recherche du lead suivant : on n'appelle personne
+    const stopped = () => run.current !== token || phaseRef.current.kind !== 'dialing'
     setPhase({ kind: 'dialing' })
     let d = dataRef.current ?? await load()
+    if (stopped()) return
     let target = nextLead(d)
     // File presque vide : on la recharge (relances plus tard arrivées à échéance)
     if (!target || (!listRef.current && d && d.queue.filter(l => !taken.current.has(l.hubspot_contact_id)).length <= 2)) {
       d = await load()
+      if (stopped()) return
       target = nextLead(d)
     }
     // Liste : pages suivantes jusqu'à trouver un contact appelable, et une page d'avance
     while (!target && listRef.current && !listRef.current.done) {
       const before = listRef.current
       await loadListPage()
+      if (stopped()) return
       if (listRef.current === before) break
       target = nextLead(d)
     }
@@ -316,11 +338,12 @@ export default function DialerSession({
       return
     }
     await dial(target)
-  }, [dial, load, nextLead, loadListPage, poolOf])
+  }, [dial, load, nextLead, loadListPage, poolOf, setPhase])
 
   // Power dialer lancé depuis « Mes contacts » : nouvelle liste, la session démarre toute seule
   const sourceKey = source?.started_at ?? null
   useEffect(() => {
+    run.current++
     markTaken(null)
     setLead(null)
     setAttempt(null)
@@ -351,17 +374,26 @@ export default function DialerSession({
     const sec = action === 'redial' ? s?.double_call_delay_sec ?? 8 : s?.next_delay_sec ?? 3
     setNow(Date.now())
     setPhase({ kind: 'countdown', action, until: Date.now() + sec * 1000, label: action === 'redial' ? 'Double appel' : 'Lead suivant' })
-  }, [])
+  }, [setPhase])
 
   // ── Qualifier ──
-  const qualify = useCallback(async (q: string, extra?: { status?: string; relance_at?: string | null }) => {
+  /** `next` : bouton « Suivant » → pas de double appel, on passe tout de suite au lead suivant */
+  const qualify = useCallback(async (q: string, extra?: { status?: string; relance_at?: string | null }, opts?: { next?: boolean }) => {
     if (!attempt || !lead || busy) return
+    const token = run.current
+    // Qualifié pendant une pause : on enregistre, la session reste en pause
+    const halted = () => run.current !== token || phaseRef.current.kind === 'paused' || phaseRef.current.kind === 'off'
     setBusy(true)
     const { ok, data: r } = await api<{ can_redial: boolean; round_failed: boolean; nrp_status: string | null; attempt: DialerAttempt }>('/api/telepro/dialer', {
       method: 'POST',
-      body: JSON.stringify({ action: 'qualify', attempt_id: attempt.id, qualification: q }),
+      body: JSON.stringify({ action: 'qualify', attempt_id: attempt.id, qualification: q, no_redial: !!opts?.next }),
     })
-    if (!ok) { setBusy(false); setNotice(r.error || 'Qualification non enregistrée'); return }
+    if (!ok) {
+      setBusy(false)
+      setNotice(r.error || 'Qualification non enregistrée')
+      if (opts?.next && run.current === token) await goNext()
+      return
+    }
     setQualified(q)
     setAttempt(r.attempt)
 
@@ -388,11 +420,13 @@ export default function DialerSession({
       onBookRdv(contactId)
       return
     }
+    if (opts?.next) { if (run.current === token) await goNext(); return }
+    if (halted()) return
     const then = r.can_redial ? 'redial' : 'next'
     // Aircall n'a jamais confirmé l'appel (bouton « Appeler », webhook absent) : inutile d'attendre sa fin
     if (r.attempt.ended_at || r.attempt.status === 'dialing') startCountdown(then)
     else setPhase({ kind: 'waiting_end', then, since: Date.now() })
-  }, [attempt, lead, busy, onBookRdv, load, startCountdown])
+  }, [attempt, lead, busy, onBookRdv, load, startCountdown, goNext, setPhase])
 
   // Fin d'appel remontée par Aircall : échec → qualifié tout seul ; conversation → temps pour qualifier
   useEffect(() => {
@@ -403,7 +437,7 @@ export default function DialerSession({
       setNow(Date.now())
       setPhase({ kind: 'countdown', action: 'next', until: Date.now() + settings.wrap_up_sec * 1000, label: 'Qualifie, lead suivant' })
     }
-  }, [attempt?.ended_at, attempt?.outcome, phase.kind, qualified, settings, qualify])
+  }, [attempt?.ended_at, attempt?.outcome, phase.kind, qualified, settings, qualify, setPhase])
 
   // Attente de la fin de l'appel après qualification
   useEffect(() => {
@@ -416,11 +450,11 @@ export default function DialerSession({
   useEffect(() => {
     if (phase.kind !== 'countdown' || now < phase.until || busy || acting.current) return
     acting.current = true
-    const run = phase.action === 'redial' && lead && attempt ? dial(lead, attempt.id)
+    const task = phase.action === 'redial' && lead && attempt ? dial(lead, attempt.id)
       // Temps de qualification écoulé sans clic : conversation sans changement
       : !qualified && attempt ? qualify('conversation')
       : goNext()
-    void run.finally(() => { acting.current = false })
+    void task.finally(() => { acting.current = false })
   }, [phase, now, busy]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const running = phase.kind !== 'off' && phase.kind !== 'paused' && phase.kind !== 'error'
@@ -430,6 +464,11 @@ export default function DialerSession({
   }
 
   function stop() {
+    run.current++
+    // Appel encore ouvert dans Aircall : l'API ne sait pas raccrocher à notre place
+    if (attempt && !attempt.ended_at && !attempt.error && (phase.kind === 'call' || phase.kind === 'waiting_end')) {
+      setNotice('Session terminée. Pense à raccrocher l\'appel en cours dans Aircall (⌥E).')
+    }
     setPhase({ kind: 'off' })
     setLead(null)
     setAttempt(null)
@@ -437,13 +476,35 @@ export default function DialerSession({
   }
 
   function resume() {
+    run.current++
     // Appel en cours pas encore qualifié : on reprend dessus
     if (attempt && lead && !qualified && !attempt.error) setPhase({ kind: 'call' })
     else void goNext()
   }
 
   function skip() {
+    run.current++
     if (lead) markTaken(lead.hubspot_contact_id)
+    void goNext()
+  }
+
+  /**
+   * « Suivant » : à tout moment (ça sonne, messagerie, pause…). Note l'appel s'il ne
+   * l'est pas (décroché → conversation, sinon répondeur / pas de réponse, sans double
+   * appel) et appelle le lead suivant. Si l'appel est encore ouvert dans Aircall,
+   * le suivant part dès qu'il est raccroché.
+   */
+  function nextNow() {
+    if (busy) return
+    run.current++
+    if (lead) markTaken(lead.hubspot_contact_id)
+    if (attempt && lead && !qualified && !attempt.error && phase.kind !== 'error') {
+      const q = attempt.outcome === 'answered' || attempt.answered_at ? 'conversation'
+        : attempt.outcome === 'voicemail' ? 'repondeur' : 'pas_de_reponse'
+      setPhase({ kind: 'dialing' })
+      void qualify(q, undefined, { next: true })
+      return
+    }
     void goNext()
   }
 
@@ -479,7 +540,9 @@ export default function DialerSession({
       setRelanceAt={setRelanceAt}
       onQualify={(q, extra) => { void qualify(q, extra) }}
       onSkip={skip}
-      onRetry={() => { if (lead) void dial(lead) }}
+      onNext={readOnly ? undefined : nextNow}
+      onOpenContact={onOpenContact}
+      onRetry={() => { run.current++; if (lead) void dial(lead) }}
       onNow={() => {
         if (phase.kind !== 'countdown') return
         setPhase({ ...phase, until: Date.now() })
@@ -652,8 +715,12 @@ export default function DialerSession({
 
 function LeadPanel({
   lead, attempt, phase, countdownSec, qualified, busy, otherStatus, relanceAt, manual, compact, dialNote,
-  setOtherStatus, setRelanceAt, onQualify, onSkip, onRetry, onNow,
+  setOtherStatus, setRelanceAt, onQualify, onSkip, onRetry, onNow, onNext, onOpenContact,
 }: {
+  /** « Suivant » : passe au lead suivant à tout moment */
+  onNext?: () => void
+  /** Ouvre la fiche à côté du dialer */
+  onOpenContact?: (contactId: string) => void
   /** iPad / téléphone : le télépro appuie sur « Appeler » */
   manual: boolean
   /** Panneau ancré au-dessus de « Mes contacts » */
@@ -688,6 +755,7 @@ function LeadPanel({
     : attempt.status === 'in_call' ? 'Ça sonne…'
     : manual ? 'Appuie sur « Appeler »'
     : 'Appel lancé, en attente d\'Aircall…'
+  const showNext = !!onNext && (phase.kind === 'call' || phase.kind === 'countdown' || phase.kind === 'waiting_end' || phase.kind === 'paused')
   const showCallButton = manual && !!attempt && attempt.status === 'dialing' && !qualified && phase.kind === 'call'
   const callColor = attempt?.outcome === 'answered' || attempt?.answered_at ? crmV2.successStrong
     : phase.kind === 'error' ? crmV2.danger : crmV2.textMuted
@@ -696,10 +764,20 @@ function LeadPanel({
     <>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <a href={`/admin/crm-v2/contacts/${lead.hubspot_contact_id}`} target="_blank" rel="noreferrer"
-            style={{ fontSize: compact ? 18 : 22, fontWeight: 800, color: crmV2.text, textDecoration: 'none' }}>
-            {lead.name}
-          </a>
+          {onOpenContact ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <button type="button" onClick={() => onOpenContact(lead.hubspot_contact_id)} title="Ouvrir la fiche à côté"
+                style={{ border: 'none', background: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: compact ? 18 : 22, fontWeight: 800, color: crmV2.text, textAlign: 'left' }}>
+                {lead.name}
+              </button>
+              <CrmV2Button size="sm" icon={<FileText size={13} />} onClick={() => onOpenContact(lead.hubspot_contact_id)}>Fiche</CrmV2Button>
+            </div>
+          ) : (
+            <a href={`/admin/crm-v2/contacts/${lead.hubspot_contact_id}`} target="_blank" rel="noreferrer"
+              style={{ fontSize: compact ? 18 : 22, fontWeight: 800, color: crmV2.text, textDecoration: 'none' }}>
+              {lead.name}
+            </a>
+          )}
           <div style={{ fontSize: 15, color: crmV2.textMuted, marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
             <Phone size={14} /> {lead.phone}
           </div>
@@ -747,9 +825,23 @@ function LeadPanel({
           </span>
         )}
         {phase.kind === 'waiting_end' && (
-          <span style={{ marginLeft: 'auto', fontSize: 13, color: crmV2.textMuted }}>Raccroche dans Aircall…</span>
+          <span style={{ marginLeft: 'auto', fontSize: 13, color: crmV2.textMuted }}>Raccroche dans Aircall (⌥E)…</span>
+        )}
+        {showNext && (
+          <span style={{ marginLeft: phase.kind === 'countdown' || phase.kind === 'waiting_end' ? 0 : 'auto' }}>
+            <CrmV2Button size="sm" variant="gold" icon={<SkipForward size={12} />} onClick={onNext}
+              title="Note l'appel (sans double appel) et appelle le lead suivant. Si l'appel est encore ouvert, raccroche dans Aircall : le suivant part tout seul.">
+              Suivant
+            </CrmV2Button>
+          </span>
         )}
       </div>
+      {/* Messagerie : Aircall la voit comme un décroché, il faut raccrocher soi-même */}
+      {attempt && !ended && attempt.answered_at && phase.kind === 'call' && !qualified && (
+        <div style={{ fontSize: 12, color: crmV2.textMuted }}>
+          Tu tombes sur la messagerie ? Clique « Répondeur » ou « Suivant », puis raccroche dans Aircall (⌥E) : le lead suivant part tout seul.
+        </div>
+      )}
 
       {phase.kind === 'error' && (
         <>
