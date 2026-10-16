@@ -8,7 +8,7 @@ import {
   ChevronLeft, ChevronRight, ChevronDown, LogOut, Calendar, CalendarDays,
   BarChart3, CheckSquare, Workflow, Upload, GitMerge, Settings as SettingsIcon,
   Facebook, AlertTriangle, MessageSquare, Menu, X, List,
-  Palette, Repeat2, FileSignature, Phone, ExternalLink, Presentation, PhoneCall, LifeBuoy, Star, ChevronsDownUp, ChevronsUpDown, School,
+  Palette, Repeat2, FileSignature, Phone, ExternalLink, Presentation, PhoneCall, LifeBuoy, Star, ChevronsDownUp, ChevronsUpDown, School, Sparkles,
 } from 'lucide-react'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { crmV2 } from '@/lib/crm-v2-theme'
@@ -46,6 +46,7 @@ const NAV_SECTIONS: NavSection[] = [
       { key: 'crm-dashboard', label: 'Dashboard', href: '/admin/crm-v2/dashboard', icon: LayoutDashboard, ready: true },
       { key: 'agenda', label: 'Agenda', href: '/admin/crm-v2/agenda', icon: Calendar, ready: true },
       { key: 'contacts', label: 'Contacts', href: '/admin/crm-v2', icon: Users, ready: true },
+      { key: 'assistant', label: 'Assistant leads', href: '/admin/crm-v2/assistant', icon: Sparkles, ready: true },
       { key: 'tasks', label: 'Mes tâches', href: '/admin/crm-v2/tasks', icon: CheckSquare, ready: true },
       { key: 'lycees', label: 'Lycées', href: '/admin/crm-v2/lycees', icon: School, ready: true },
       { key: 'service-technique', label: 'Service technique', href: '/admin/crm-v2/service-technique', icon: LifeBuoy, badgeKey: 'support', ready: true },
