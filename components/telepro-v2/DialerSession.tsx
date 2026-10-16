@@ -15,7 +15,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
-import { FileText, Pause, Phone, PhoneCall, PhoneOff, Play, RefreshCw, Settings2, SkipForward, Square } from 'lucide-react'
+import { FileText, List, Pause, Phone, PhoneCall, PhoneOff, Play, RefreshCw, Settings2, SkipForward, Square, Table2 } from 'lucide-react'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { CrmV2Button } from '@/components/crm-v2/primitives'
@@ -30,7 +30,8 @@ import {
 import { tint } from './ui'
 import StatusPill from './DialerStatusPill'
 import { onAircallCallEnded, setAircallEmbedEnabled, useAircallEmbed } from '@/lib/aircall-embed'
-import { publishDialerLive, recordDialerResult, resetDialerLive, type DialerLiveState } from '@/lib/dialer-live'
+import { publishDialerLive, recordDialerResult, resetDialerLive, useDialerLive, type DialerLiveState } from '@/lib/dialer-live'
+import DialerQueue from './DialerQueue'
 
 type Line = { ok: true; aircall_user_id: number; number_id: number; number_label: string | null } | { ok: false; error: string }
 type Stats = { calls: number; answered: number; talks: number; rdv: number }
@@ -146,8 +147,12 @@ async function api<T>(url: string, init?: RequestInit): Promise<{ ok: boolean; d
 
 export default function DialerSession({
   userId, readOnly = false, onBookRdv, onStateChange, source = null, onClearSource, dock = false, onExpand,
-  onOpenContact, onLeadChange,
+  onOpenContact, onLeadChange, focus = false, onToggleFocus,
 }: {
+  /** Panneau ancré, vue « Appels » : barre d'appel + liste d'appels sur toute la hauteur */
+  focus?: boolean
+  /** Bascule vue « Appels » / tableau des contacts */
+  onToggleFocus?: () => void
   /** Ouvre la fiche du lead à côté du dialer */
   onOpenContact?: (contactId: string) => void
   /** Lead en cours (la fiche ouverte le suit) */
@@ -216,6 +221,7 @@ export default function DialerSession({
 
   // Téléphone Aircall intégré au CRM (ordinateur) : le dialer compose dedans
   const embed = useAircallEmbed()
+  const live = useDialerLive()
   const embedOn = embed.enabled && !isMobile && !readOnly
   /** Bouton « Appeler » (iPad) : sans objet avec le téléphone intégré, l'API lance l'appel */
   const manualMode = manualDial && !embedOn
@@ -644,8 +650,8 @@ export default function DialerSession({
 
   // ── Panneau ancré au-dessus de « Mes contacts » (power dialer lancé depuis la liste) ──
   if (dock) {
-    return (
-      <div style={{ ...card, padding: '10px 14px', gap: 8, border: `1px solid ${crmV2.goldBorder}`, boxShadow: crmV2.shadowRecord }}>
+    const callCard = (
+      <div style={{ ...card, padding: '10px 14px', gap: 8, flexShrink: 0, border: `1px solid ${crmV2.goldBorder}`, boxShadow: crmV2.shadowRecord }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <PhoneCall size={15} color={crmV2.gold} />
           <span style={{ fontSize: 13, fontWeight: 800, color: crmV2.text }}>Power dialer</span>
@@ -675,12 +681,40 @@ export default function DialerSession({
             )}
             {running && <CrmV2Button size="sm" icon={<Pause size={13} />} onClick={pause}>Pause</CrmV2Button>}
             <CrmV2Button size="sm" icon={<Square size={12} />} onClick={stop}>Terminer</CrmV2Button>
-            {onExpand && <CrmV2Button size="sm" onClick={onExpand}>Plein écran</CrmV2Button>}
+            {onToggleFocus && (
+              <CrmV2Button size="sm" icon={focus ? <Table2 size={13} /> : <List size={13} />} onClick={onToggleFocus}
+                title={focus ? 'Revenir au tableau complet des contacts' : 'Liste d\'appels claire, avec l\'appel en cours'}>
+                {focus ? 'Vue tableau' : 'Vue appels'}
+              </CrmV2Button>
+            )}
+            {onExpand && !focus && <CrmV2Button size="sm" onClick={onExpand}>Plein écran</CrmV2Button>}
           </span>
         </div>
         {!data.line.ok && !manualMode && <AdminNotice tone="warning">{data.line.error}</AdminNotice>}
         {notice && <AdminNotice tone="error" onClose={() => setNotice(null)}>{notice}</AdminNotice>}
         {leadPanel ?? pauseMessage}
+      </div>
+    )
+    if (!focus) return callCard
+    // Vue « Appels » : la liste lancée, dans l'ordre, avec l'état de chacun
+    const takenIds = takenView
+    const seen = new Set<string>()
+    const queueItems: DialerLead[] = []
+    const pushLead = (l: DialerLead) => { if (!seen.has(l.hubspot_contact_id)) { seen.add(l.hubspot_contact_id); queueItems.push(l) } }
+    if (lead && !(list?.items ?? []).some(x => x.hubspot_contact_id === lead.hubspot_contact_id)) pushLead(lead)
+    ;(list ? (data.queue ?? []).filter(x => x.reason === 'retry') : data.queue ?? []).forEach(pushLead)
+    ;(list?.items ?? []).forEach(pushLead)
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1, minHeight: 0 }}>
+        {callCard}
+        <DialerQueue
+          items={queueItems}
+          live={live}
+          nextIds={remaining.filter(l => l.hubspot_contact_id !== lead?.hubspot_contact_id).map(l => l.hubspot_contact_id)}
+          takenIds={takenIds}
+          more={!!list && !list.done}
+          onOpenContact={onOpenContact}
+        />
       </div>
     )
   }

@@ -112,6 +112,8 @@ export default function TeleproClient({
   // Fiche du lead en cours, ouverte à droite : elle suit le dialer d'un lead à l'autre
   const [dialerLeadId, setDialerLeadId] = useState<string | null>(null)
   const [dialerFiche, setDialerFiche] = useState(false)
+  // Power dialer lancé depuis la liste : vue « Appels » (liste d'appels claire) par défaut, ou tableau complet
+  const [dialerFocus, setDialerFocus] = useState(true)
   const openDialerFiche = useCallback((contactId: string) => { setDialerLeadId(contactId); setDialerFiche(true) }, [])
   const bookFromDialer = useCallback(async (contactId: string) => {
     setDialerFiche(false)
@@ -558,11 +560,15 @@ export default function TeleproClient({
   // panneau ancré au-dessus de « Mes contacts » quand elle a été lancée depuis la liste
   const onContactsList = activeTab === 'contacts' || (!isMobile && activeTab === 'today')
   const dialerDocked = activeTab !== 'session' && onContactsList && !!dialerSource && dialerState !== 'off'
+  // Vue « Appels » : le dialer prend toute la hauteur, le tableau est masqué (gardé monté)
+  const dialerFocusShown = dialerDocked && dialerFocus && !isMobile
   const dialerPane = !isAdmin && dialerOpened ? (
     <div style={{
-      display: activeTab === 'session' || dialerDocked ? 'block' : 'none',
+      display: dialerFocusShown ? 'flex' : activeTab === 'session' || dialerDocked ? 'block' : 'none',
       flexShrink: 0,
-      ...(dialerDocked
+      ...(dialerFocusShown
+        ? { flex: 1, minHeight: 0, flexDirection: 'column' as const, padding: '12px 16px 16px' }
+        : dialerDocked
         ? { padding: isMobile ? '10px 12px 0' : '12px 16px 0', maxHeight: '55vh', overflowY: 'auto' as const }
         : isMobile ? {} : { maxWidth: 1280, margin: '0 auto', padding: '20px 28px 32px', width: '100%', boxSizing: 'border-box' as const }),
     }}>
@@ -571,6 +577,7 @@ export default function TeleproClient({
         source={dialerSource} onClearSource={() => setDialerSource(null)}
         dock={activeTab !== 'session'} onExpand={() => setActiveTab('session')}
         onOpenContact={openDialerFiche} onLeadChange={setDialerLeadId}
+        focus={dialerFocusShown} onToggleFocus={isMobile ? undefined : () => setDialerFocus(f => !f)}
       />
     </div>
   ) : null
@@ -802,7 +809,7 @@ export default function TeleproClient({
           paddingRight: dialerFicheShown ? 484 : 0,
         }}>
           {dialerPane}
-          {tabContent()}
+          <div style={{ display: dialerFocusShown ? 'none' : 'contents' }}>{tabContent()}</div>
         </main>
       </div>
 
