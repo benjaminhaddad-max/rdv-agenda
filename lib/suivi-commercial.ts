@@ -95,6 +95,8 @@ export type AgentMetrics = {
   rdv_no_show: number
   rdv_autres: number
   rdv_honored: number
+  /** RDV dont la date est passée (base des taux venus / no-show / préinscrits). */
+  rdv_passes?: number
   /** RDV venus : le closer a saisi une issue (ni no-show ni annulé). */
   rdv_venus: number
   /** RDV dont le contact est pré-inscrit / inscrit (plateforme d'inscription ou statut du lead). */
@@ -238,6 +240,7 @@ export function emptyAgent(
     rdv_no_show: 0,
     rdv_autres: 0,
     rdv_honored: 0,
+    rdv_passes: 0,
     rdv_venus: 0,
     rdv_preinscrits: 0,
     conversion_outbound: null,
@@ -423,6 +426,8 @@ export function applyRdv(
   const b = agent.by_brand[normalizeRdvBrand(brand)]
   agent.rdv_total += 1
   b.rdv_total += 1
+  const startMs = startAt ? new Date(startAt).getTime() : 0
+  if (startMs > 0 && startMs <= nowMs) agent.rdv_passes = (agent.rdv_passes ?? 0) + 1
   if (VENU_STATUSES.has((status || '').toLowerCase())) { agent.rdv_venus += 1; b.rdv_venus += 1 }
   if (preinscrit) { agent.rdv_preinscrits += 1; b.rdv_preinscrits += 1 }
   const bucket = rdvBucket(status)
@@ -443,6 +448,29 @@ export function applyRdv(
   const day = parisDateKey(new Date(role === 'closer' && startAt ? startAt : createdAt))
   const idx = dayIndex.get(day)
   if (idx != null && agent.by_day[idx]) agent.by_day[idx].rdv += 1
+}
+
+/**
+ * Bilan d'un télépro sur TOUS ses RDV dont la date est passée (pas une stat de
+ * la semaine : un RDV placé cette semaine pour dans 15 jours ne peut pas encore
+ * être « venu »).
+ */
+export type PassedRdvStats = {
+  user_id: string
+  /** RDV placés dont la date est passée */
+  passes: number
+  venus: number
+  no_show: number
+  annules: number
+  /** Date passée, ni venu, ni no-show, ni annulé : le closer n'a rien saisi */
+  a_saisir: number
+  preinscrits: number
+}
+
+export type PassedRdvResponse = {
+  generated_at: string
+  role: SuiviRole
+  agents: PassedRdvStats[]
 }
 
 export function unmappedKey(call: CallRow): string {

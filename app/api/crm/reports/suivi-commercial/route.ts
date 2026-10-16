@@ -19,6 +19,7 @@ import {
 import {
   applyCall,
   applyRdv,
+  VENU_STATUSES,
   emptyAgent,
   emptyBrandBreakdown,
   finalizeAgent,
@@ -27,6 +28,7 @@ import {
   unmappedLabel,
   type AgentMetrics,
   type CallRow,
+  type PassedRdvStats,
   type SuiviRole,
 } from '@/lib/suivi-commercial'
 import { fetchArchivedTeleproByContact } from '@/lib/assignment-archive'
@@ -77,6 +79,8 @@ async function buildReport(req: NextRequest, startedAt: number) {
 
   const roleParam = (req.nextUrl.searchParams.get('role') || 'telepro').trim()
   const role: SuiviRole = roleParam === 'closer' ? 'closer' : 'telepro'
+
+  if (req.nextUrl.searchParams.get('scope') === 'rdv_passes') return buildPassedReport(role, startedAt)
 
   const defaultFrom = parisWeekStartKey(new Date())
   const defaultTo = addParisDays(defaultFrom, 6)
@@ -253,6 +257,7 @@ async function buildReport(req: NextRequest, startedAt: number) {
     rdv_no_show: 0,
     rdv_positifs: 0,
     rdv_preinscriptions: 0,
+    rdv_passes: 0,
     rdv_venus: 0,
     rdv_preinscrits: 0,
     calls_answered_outbound: 0,
@@ -283,6 +288,60 @@ async function buildReport(req: NextRequest, startedAt: number) {
   }, {
     headers: {
       'Cache-Control': 'private, max-age=30, stale-while-revalidate=60',
+      'X-Response-Time-Ms': String(Date.now() - startedAt),
+    },
+  })
+}
+
+/**
+ * ?scope=rdv_passes : bilan de chaque agent sur tous ses RDV dont la date est
+ * passée, toutes périodes confondues (taux de venus / no-show / préinscrits).
+ */
+async function buildPassedReport(role: SuiviRole, startedAt: number) {
+  const db = createServiceClient()
+  const nowIso = new Date().toISOString()
+  const [{ data: users, error: usersErr }, appts] = await Promise.all([
+    db.from('rdv_users').select('*').order('name'),
+    fetchAppointments(db, '2020-01-01T00:00:00Z', nowIso, 'closer'),
+  ])
+  if (usersErr) return NextResponse.json({ error: usersErr.message }, { status: 500 })
+
+  const userList = ((users ?? []) as Array<UserRow & { extra_roles?: unknown }>).filter(u => hasTeamRole(u, role))
+  const validIds = new Set(userList.map(u => u.id))
+  const hsUserToTelepro = new Map<string, string>()
+  if (role === 'telepro') for (const u of userList) if (u.hubspot_user_id) hsUserToTelepro.set(u.hubspot_user_id, u.id)
+  const contactTeleproMap = role === 'telepro'
+    ? await resolveContactTelepros(db, appts, hsUserToTelepro)
+    : new Map<string, string>()
+
+  const byAgent = new Map<string, ApptRow[]>()
+  for (const row of appts) {
+    let id: string | null
+    if (role === 'closer') id = row.commercial_id
+    else id = row.telepro_id || (row.hubspot_contact_id ? contactTeleproMap.get(row.hubspot_contact_id) ?? null : null)
+    if (!id || !validIds.has(id)) continue
+    const list = byAgent.get(id) ?? []
+    list.push(row)
+    byAgent.set(id, list)
+  }
+  const preinscrits = await resolvePreinscritContacts(db, [...byAgent.values()].flat())
+
+  const agents: PassedRdvStats[] = [...byAgent.entries()].map(([user_id, rows]) => {
+    const out: PassedRdvStats = { user_id, passes: rows.length, venus: 0, no_show: 0, annules: 0, a_saisir: 0, preinscrits: 0 }
+    for (const r of rows) {
+      const s = (r.status || '').toLowerCase()
+      if (VENU_STATUSES.has(s)) out.venus += 1
+      else if (s === 'no_show') out.no_show += 1
+      else if (s === 'annule') out.annules += 1
+      else out.a_saisir += 1
+      if (r.hubspot_contact_id && preinscrits.has(r.hubspot_contact_id)) out.preinscrits += 1
+    }
+    return out
+  })
+
+  return NextResponse.json({ generated_at: new Date().toISOString(), role, agents }, {
+    headers: {
+      'Cache-Control': 'private, max-age=60, stale-while-revalidate=300',
       'X-Response-Time-Ms': String(Date.now() - startedAt),
     },
   })

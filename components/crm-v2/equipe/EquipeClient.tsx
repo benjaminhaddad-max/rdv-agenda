@@ -39,7 +39,7 @@ import { DayScheduleEditor, SlotChip, VERDICTS, VerdictPill, WEEKDAYS, fmtMinute
 import { addParisDays, parisDateKey, parisMonthEndKey, parisWeekStartKey } from '@/lib/date-paris'
 import { RDV_BRANDS, RDV_BRAND_IDS, type RdvBrand } from '@/lib/rdv-brand'
 import { TEAM_ROLE_LABELS, TEAM_ROLES, teamRolesOf, type TeamRole } from '@/lib/team-roles'
-import type { AgentMetrics, BrandBreakdown, SuiviCommercialResponse } from '@/lib/suivi-commercial'
+import type { AgentMetrics, BrandBreakdown, PassedRdvResponse, PassedRdvStats, SuiviCommercialResponse } from '@/lib/suivi-commercial'
 
 type Tab = 'telepros' | 'closers' | 'admins'
 type Period = 'day' | 'week' | 'month'
@@ -377,6 +377,21 @@ export default function EquipeClient() {
 
   const statsReady = !!team.role && statsKey === wantedKey && stats?.role === team.role
 
+  // Bilan sur tous les RDV passés (venus / no-show / préinscrits) : pas une
+  // stat de la semaine, chargé une fois par onglet Télépros
+  const [passed, setPassed] = useState<Record<string, PassedRdvStats> | null>(null)
+  useEffect(() => {
+    if (tab !== 'telepros') return
+    let cancelled = false
+    fetch('/api/crm/reports/suivi-commercial?role=telepro&scope=rdv_passes', { cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : null))
+      .then((j: PassedRdvResponse | null) => {
+        if (!cancelled && j?.agents) setPassed(Object.fromEntries(j.agents.map(a => [a.user_id, a])))
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [tab, refreshTick])
+
   // Mode Planning : semaine (lundi → dimanche) contenant la période affichée
   const planningWeekStart = parisWeekStartKey(new Date(`${from}T12:00:00Z`))
   const planning = usePlanningWeek(planningWeekStart, refreshTick + presenceTick, tab === 'telepros' && mode === 'planning')
@@ -520,7 +535,7 @@ export default function EquipeClient() {
     presence, cols: visibleCols, allCols, hiddenCols: hidden, onToggleCol: toggleCol,
     onPresenceChanged: () => setPresenceTick(t => t + 1),
     mode, planning: planning.data, planningCounts: planning.dayCounts, ranks, calls: calls.data,
-    callRange: { from: callFrom, to: callTo }, onCallsChanged: calls.reload,
+    callRange: { from: callFrom, to: callTo }, onCallsChanged: calls.reload, passed,
     periodNav: mode === 'acces' ? null : (
       <PeriodNav
         label={mode === 'planning'
@@ -731,8 +746,8 @@ const TELEPRO_COLS: Col[] = [
   { key: 'talk', label: "Temps d'appel", title: 'Temps de conversation réel' },
   { key: 'rdv', label: 'RDV placés', title: 'Tous les RDV placés, même sans appel (SMS, etc.)' },
   { key: 'talk2Rdv', label: 'Froid conclus', title: "Part des appels froids de 2 min ou plus conclus : RDV pris, ou vente directe (petite offre 490-690 € par lien d'inscription, sans RDV). Lu par l'IA dans chaque appel, CRM en attendant l'analyse" },
-  { key: 'minPerRdv', label: 'Min / RDV', title: "Minutes d'appel par RDV placé" },
-  { key: 'venus', label: 'RDV venus', title: 'Le closer a saisi une issue (ni no-show ni annulé) — et part des RDV placés' },
+  { key: 'minPerRdv', label: 'Min / RDV', title: "Temps d'appel ÷ RDV placés : combien de minutes de conversation il faut pour placer un RDV" },
+  { key: 'venus', label: 'RDV venus', title: 'Le closer a saisi une issue (ni no-show ni annulé) — et part des RDV de la période dont la date est passée' },
   { key: 'noShow', label: 'No-show', defaultHidden: true },
   { key: 'preinscrits', label: 'Préinscrits', title: 'Contact pré-inscrit / inscrit (plateforme d’inscription) — et part des RDV venus' },
   { key: 'delta', label: 'Évol. RDV', title: 'RDV placés vs période précédente', defaultHidden: true },
@@ -788,6 +803,8 @@ type TableCommon = {
   calls: CallAnalysisData | null
   callRange: { from: string; to: string }
   onCallsChanged: () => void
+  /** Bilan de chaque télépro sur tous ses RDV passés */
+  passed: Record<string, PassedRdvStats> | null
 }
 
 function MembersTable({
@@ -951,7 +968,7 @@ function cellValue(tab: Tab, key: SortKey, s: AgentMetrics, froid?: TypeBucket |
       return <strong style={{ color: rateColor(v, 60, 35) }}>{fmtPct(v)}</strong>
     }
     case 'venus': return s.rdv_venus
-      ? <>{fmtInt(s.rdv_venus)} <Faint>{fmtPct(pct(s.rdv_venus, s.rdv_total))}</Faint></>
+      ? <>{fmtInt(s.rdv_venus)} <Faint>{fmtPct(pct(s.rdv_venus, s.rdv_passes ?? s.rdv_total))}</Faint></>
       : '—'
     case 'preinscrits': return s.rdv_preinscrits
       ? <><strong style={{ color: crmV2.successStrong }}>{fmtInt(s.rdv_preinscrits)}</strong> <Faint>{fmtPct(pct(s.rdv_preinscrits, s.rdv_venus))}</Faint></>
@@ -1321,7 +1338,7 @@ function MemberDetail({ row, actions, ...common }: TableCommon & { row: Row; act
         </span>
         {actions && <div onClick={e => e.stopPropagation()}>{actions}</div>}
       </div>
-      {tab === 'telepros' && row.stats && <MemberStatsStrip s={row.stats} froid={row.froid} />}
+      {tab === 'telepros' && row.stats && <MemberStatsStrip s={row.stats} froid={row.froid} passed={common.passed?.[row.id] ?? null} passedLoading={common.passed == null} />}
       {tab === 'telepros' && <ConversionByKindStrip data={common.calls} userId={row.id} from={common.callRange.from} to={common.callRange.to} onDone={common.onCallsChanged} />}
       {tab === 'telepros' && days.length > 0 && (
         <MemberDaysTable days={days} onEdit={d => common.onEditDay(row, d)} calls={common.calls} userId={row.id} />
@@ -1368,11 +1385,16 @@ function PeriodNav({ label, onPrev, onNext, onToday, todayLabel }: {
   )
 }
 
-/** Stats du télépro sur la période (semaine en mode Planning). */
-function MemberStatsStrip({ s, froid }: { s: AgentMetrics; froid?: TypeBucket | null }) {
+/** Stats du télépro sur la période (semaine en mode Planning), puis son bilan sur tous ses RDV passés. */
+function MemberStatsStrip({ s, froid, passed, passedLoading }: {
+  s: AgentMetrics
+  froid?: TypeBucket | null
+  passed: PassedRdvStats | null
+  passedLoading: boolean
+}) {
   const answered = s.calls_outbound_talk_2min + s.calls_outbound_talk_short
   const mpr = minPerRdv(s.talk_time_sec, s.rdv_total)
-  const items: Array<[string, ReactNode, ReactNode?]> = [
+  const week: StatCell[] = [
     ['Appels', fmtInt(s.calls_outbound)],
     ['Décrochés', fmtInt(answered), fmtPct(s.answer_rate)],
     froid
@@ -1383,17 +1405,40 @@ function MemberStatsStrip({ s, froid }: { s: AgentMetrics; froid?: TypeBucket | 
     froid
       ? ['Froid conclus', froid.talk2 ? <span key="c" style={{ color: rateColor(coldRate(froid), 60, 35) }}>{fmtPct(coldRate(froid))}</span> : '—', froid.talk2 ? `${froid.rdv + froid.offre} / ${froid.talk2}` : undefined]
       : ['≥ 2 min → RDV', <span key="c" style={{ color: rateColor(s.conversion_talk_2min, 60, 35) }}>{fmtPct(s.conversion_talk_2min)}</span>],
-    ['Min / RDV', mpr != null ? `${mpr} min` : '—'],
-    ['RDV venus', fmtInt(s.rdv_venus), fmtPct(pct(s.rdv_venus, s.rdv_total))],
-    ['No-show', fmtInt(s.rdv_no_show)],
-    ['Préinscrits', fmtInt(s.rdv_preinscrits), fmtPct(pct(s.rdv_preinscrits, s.rdv_venus))],
+    ['Min / RDV', mpr != null ? `${mpr} min` : '—', mpr != null ? `${fmtMinutes(s.talk_time_sec)} ÷ ${s.rdv_total}` : undefined,
+      "Temps d'appel ÷ RDV placés : combien de minutes de conversation il lui faut pour placer un RDV"],
   ]
+  const p = passed
+  const all: StatCell[] = p ? [
+    ['RDV passés', fmtInt(p.passes), undefined, 'Tous ses RDV placés dont la date est passée, toutes semaines confondues'],
+    ['Venus', <span key="v" style={{ color: rateColor(pct(p.venus, p.passes), 70, 50) }}>{fmtPct(pct(p.venus, p.passes))}</span>, `${p.venus} sur ${p.passes}`,
+      'Le closer a saisi une issue (ni no-show ni annulé)'],
+    ['No-show', fmtPct(pct(p.no_show, p.passes)), `${p.no_show} sur ${p.passes}`],
+    ['Annulés', fmtPct(pct(p.annules, p.passes)), `${p.annules} sur ${p.passes}`],
+    ['Préinscrits', <span key="p" style={{ color: crmV2.successStrong }}>{fmtPct(pct(p.preinscrits, p.passes))}</span>, `${p.preinscrits} sur ${p.passes}`,
+      `Contact pré-inscrit / inscrit — ${fmtPct(pct(p.preinscrits, p.venus))} des venus`],
+    ...(p.a_saisir ? [['À saisir', fmtInt(p.a_saisir), undefined, "RDV passés dont le closer n'a pas encore saisi l'issue"] as StatCell] : []),
+  ] : []
   return (
-    <div style={{
-      display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(112px, 1fr))', gap: 8,
-    }}>
-      {items.map(([label, value, sub]) => (
-        <div key={label} style={{ background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: 10, padding: '8px 10px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <StatGrid items={week} />
+      <div style={{ fontSize: 11.5, fontWeight: 700, color: crmV2.textMuted, marginTop: 4 }}>
+        Sur tous ses RDV déjà passés <span style={{ fontWeight: 500, color: crmV2.textFaint }}>— toutes semaines confondues</span>
+      </div>
+      {p ? <StatGrid items={all} />
+        : <div style={{ fontSize: 12, color: crmV2.textFaint }}>{passedLoading ? 'Chargement…' : 'Aucun RDV passé.'}</div>}
+    </div>
+  )
+}
+
+/** [libellé, valeur, précision en petit, info-bulle] */
+type StatCell = [string, ReactNode, ReactNode?, string?]
+
+function StatGrid({ items }: { items: StatCell[] }) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(112px, 1fr))', gap: 8 }}>
+      {items.map(([label, value, sub, title]) => (
+        <div key={label} title={title} style={{ background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: 10, padding: '8px 10px', cursor: title ? 'help' : undefined }}>
           <div style={{ fontSize: 10.5, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>{label}</div>
           <div style={{ fontSize: 17, fontWeight: 700, color: crmV2.text, fontVariantNumeric: 'tabular-nums' }}>
             {value}{sub && sub !== '—' ? <span style={{ fontSize: 11.5, fontWeight: 500, color: crmV2.textFaint }}> {sub}</span> : null}
