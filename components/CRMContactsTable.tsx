@@ -1246,17 +1246,22 @@ export default function CRMContactsTable({
   }, [renderedCount, contacts.length, RENDER_CHUNK, isMobile])
 
   // Liste avec les overrides optimistes appliqués (instantanés à l'écran).
+  const dialerStatuses = dialerLive.statuses
   const effectiveContacts = useMemo(() => {
-    if (!Object.keys(optimistic).length) return contacts
+    if (!Object.keys(optimistic).length && !Object.keys(dialerStatuses).length) return contacts
     return contacts.map(c => {
       const ov = optimistic[c.hubspot_contact_id]
-      if (!ov) return c
+      const dialed = dialerStatuses[c.hubspot_contact_id]
+      if (!ov && !dialed) return c
       let r = c
+      // Statut posé par le power dialer (la liste ne se recharge pas pendant la session)
+      if (dialed) r = applyContactOverride(r, { hs_lead_status: dialed })
+      if (!ov) return r
       if (ov.contactFields && Object.keys(ov.contactFields).length) r = applyContactOverride(r, ov.contactFields)
       if (ov.dealFields    && Object.keys(ov.dealFields).length)    r = applyDealOverride(r, ov.dealFields)
       return r
     })
-  }, [contacts, optimistic])
+  }, [contacts, optimistic, dialerStatuses])
 
   // Réconciliation : dès que les données fraîches du serveur reflètent la valeur
   // optimiste, on retire l'override (auto-cicatrisant même si le fetch est mis en
@@ -2302,9 +2307,13 @@ export default function CRMContactsTable({
           )
         }
         const dead = isDeadStatus(contact.hs_lead_status)
+        const dialed = dialerLive.results[id]
         let label = '…'
         let title = ''
         if (dead) { label = '—'; title = 'Lead disqualifié : pas de suivi de contact' }
+        // Appelé pendant la session du power dialer (la liste ne se recharge pas entre-temps)
+        else if (dialed?.reached) { label = "Aujourd'hui"; title = `Joint aujourd'hui par le power dialer : ${dialed.label}` }
+        else if (dialed && !e?.last_contact_at) { label = 'Jamais joint'; title = `Appelé aujourd'hui sans réponse : ${dialed.label}` }
         else if (e?.last_contact_at) {
           const d = new Date(e.last_contact_at)
           const days = Math.floor((Date.now() - d.getTime()) / 86400000)

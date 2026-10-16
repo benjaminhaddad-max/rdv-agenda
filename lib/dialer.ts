@@ -334,11 +334,16 @@ export async function dialLead(
   }
   if (!started.ok) {
     const error = aircallErrorMessage(started.status, started.error)
+    // 405 : encore en appel ou en temps de post-appel Aircall → l'écran réessaie tout seul.
+    // La tentative n'a jamais existé : on l'efface (sinon les webhooks de l'appel précédent s'y rattachent)
+    if (started.status === 405) {
+      await db.from('dialer_attempts').delete().eq('id', attempt.id)
+      return { ok: false, error, attempt: { ...attempt, status: 'failed', error }, busy: true }
+    }
     const { data: failed } = await db.from('dialer_attempts')
       .update({ status: 'failed', error: error.slice(0, 500), ended_at: new Date().toISOString() })
       .eq('id', attempt.id).select(ATTEMPT_COLS).single()
-    // 405 : encore en appel ou en temps de post-appel Aircall → l'écran réessaie tout seul
-    return { ok: false, error, attempt: (failed as DialerAttempt | null) ?? attempt, busy: started.status === 405 }
+    return { ok: false, error, attempt: (failed as DialerAttempt | null) ?? attempt }
   }
   return { ok: true, attempt }
 }
@@ -404,13 +409,25 @@ export async function syncDialerAttemptFromAircall(
   const phone = toE164French(call.raw_digits)
   if (!phone) return false
   const since = new Date(Date.now() - 30 * 60_000).toISOString()
-  let q = db.from('dialer_attempts').select('id, aircall_call_id').eq('phone', phone).gte('started_at', since)
-  if (event !== 'call.ended' && event !== 'call.hungup') q = q.is('ended_at', null)
-  const { data, error } = await q.order('started_at', { ascending: false }).limit(3)
-  if (error) return false
-  const rows = (data ?? []) as Array<{ id: number; aircall_call_id: number | null }>
-  // Même appel Aircall déjà rattaché, sinon la tentative la plus récente sans appel
-  const target = rows.find(r => r.aircall_call_id === call.id) ?? rows.find(r => r.aircall_call_id == null)
+  // 1. Appel Aircall déjà rattaché à une tentative
+  let target: { id: number } | null = null
+  if (call.id) {
+    const { data, error } = await db.from('dialer_attempts').select('id').eq('aircall_call_id', call.id).gte('started_at', since).limit(1)
+    if (error) return false
+    target = (data?.[0] as { id: number } | undefined) ?? null
+  }
+  // 2. Sinon la tentative lancée juste avant cet appel, encore ouverte et sans appel. Garde-fou :
+  //    le webhook tardif d'un appel précédent (call.ended ~30 s après) ne doit jamais se
+  //    rattacher au double appel qui vient de partir sur le même numéro.
+  if (!target) {
+    const callStart = call.started_at ? call.started_at * 1000 : Date.now()
+    const { data, error } = await db.from('dialer_attempts').select('id')
+      .eq('phone', phone).is('aircall_call_id', null).is('ended_at', null).eq('status', 'dialing')
+      .gte('started_at', since).lte('started_at', new Date(callStart + 5_000).toISOString())
+      .order('started_at', { ascending: false }).limit(1)
+    if (error) return false
+    target = (data?.[0] as { id: number } | undefined) ?? null
+  }
   if (!target) return false
 
   const patch: Record<string, unknown> = { aircall_call_id: call.id ?? null }

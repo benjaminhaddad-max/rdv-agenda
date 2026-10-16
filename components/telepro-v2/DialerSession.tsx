@@ -451,13 +451,16 @@ export default function DialerSession({
     }
     setQualified(q)
     setAttempt(r.attempt)
-    const qDef = DIALER_QUALIFICATIONS.find(x => x.id === q)
-    recordDialerResult(lead.hubspot_contact_id, extra?.status || qDef?.label || q, qDef?.color ?? crmV2.textMuted)
 
     // Statut du lead : qualification, statut choisi, ou NRP après un passage sans réponse
     const def = DIALER_QUALIFICATIONS.find(x => x.id === q)
     const status = extra?.status || def?.lead_status || (r.round_failed ? r.nrp_status : null)
     const contactId = lead.hubspot_contact_id
+    // Liste « Mes contacts » : résultat et statut affichés tout de suite sur la ligne
+    recordDialerResult(contactId, {
+      label: extra?.status || def?.label || q, color: def?.color ?? crmV2.textMuted,
+      reached: !FAILED_QUALIFICATIONS.has(q), status: status && status !== lead.lead_status ? status : null,
+    })
     if (status && status !== lead.lead_status) {
       await fetch(`/api/crm/contacts/${encodeURIComponent(contactId)}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hs_lead_status: status }),

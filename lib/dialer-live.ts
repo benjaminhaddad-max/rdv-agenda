@@ -13,13 +13,15 @@ export type DialerLiveState = 'dialing' | 'ringing' | 'live' | 'voicemail' | 'en
 
 export type DialerLive = {
   current: { id: string; state: DialerLiveState; label: string } | null
-  /** Résultat noté pendant la session, par contact */
-  results: Record<string, { label: string; color: string }>
+  /** Résultat noté pendant la session, par contact (reached : vraie conversation) */
+  results: Record<string, { label: string; color: string; reached: boolean }>
+  /** Statut du lead posé par le dialer : la liste l'affiche sans attendre de se recharger */
+  statuses: Record<string, string>
   /** Prochains contacts, dans l'ordre */
   upcoming: string[]
 }
 
-const EMPTY: DialerLive = { current: null, results: {}, upcoming: [] }
+const EMPTY: DialerLive = { current: null, results: {}, statuses: {}, upcoming: [] }
 let state: DialerLive = EMPTY
 const listeners = new Set<() => void>()
 
@@ -42,11 +44,15 @@ export function publishDialerLive(current: DialerLive['current'], upcoming: stri
   if (!same) set({ ...state, current, upcoming })
 }
 
-export function recordDialerResult(id: string, label: string, color: string) {
-  set({ ...state, results: { ...state.results, [id]: { label, color } } })
+export function recordDialerResult(id: string, r: { label: string; color: string; reached: boolean; status: string | null }) {
+  set({
+    ...state,
+    results: { ...state.results, [id]: { label: r.label, color: r.color, reached: r.reached } },
+    statuses: r.status ? { ...state.statuses, [id]: r.status } : state.statuses,
+  })
 }
 
-/** Nouvelle session (ou fin) : on repart de zéro */
+/** Nouvelle session : on repart de zéro (les statuts posés restent vrais, on les garde) */
 export function resetDialerLive() {
-  set(EMPTY)
+  set({ ...EMPTY, statuses: state.statuses })
 }
