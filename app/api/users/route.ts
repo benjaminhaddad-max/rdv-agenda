@@ -124,6 +124,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Un utilisateur avec cet email existe deja' }, { status: 409 })
   }
 
+  // Un nouveau télépro commence sans aucun contact : on refuse un ID HubSpot
+  // qui porte déjà des leads (il hériterait du portefeuille de quelqu'un).
+  const ownerIdForTelepro = role === 'telepro' ? (hubspot_owner_id?.trim() || '') : ''
+  if (/^\d+$/.test(ownerIdForTelepro)) {
+    const { count } = await db
+      .from('crm_contacts')
+      .select('hubspot_contact_id', { count: 'exact', head: true })
+      .eq('telepro_user_id', ownerIdForTelepro)
+    const n = count ?? 0
+    if (n > 0) {
+      return NextResponse.json(
+        { error: `Cet ID HubSpot a déjà ${n} contact${n > 1 ? 's' : ''} attribué${n > 1 ? 's' : ''} : un nouveau télépro doit commencer sans contact. Laisse le champ vide.` },
+        { status: 409 },
+      )
+    }
+  }
+
   // 2. Creer le compte Supabase Auth avec un mot de passe genere.
   // (On n'utilise plus inviteUserByEmail : le SMTP integre de Supabase est
   // limite a quelques emails/heure → "email rate limit exceeded".)

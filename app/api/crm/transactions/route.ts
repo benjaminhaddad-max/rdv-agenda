@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
   const formation    = searchParams.get('formation') ?? ''
   const classe       = searchParams.get('classe') ?? ''
   const closerHsId   = searchParams.get('closer_hs_id') ?? ''
-  const teleproHsId  = searchParams.get('telepro_hs_id') ?? ''
+  let teleproHsId    = searchParams.get('telepro_hs_id') ?? ''
   const contactOwnerHsId = searchParams.get('contact_owner_hs_id') ?? ''
   const page         = parseInt(searchParams.get('page') ?? '0', 10)
   const limit        = Math.min(parseInt(searchParams.get('limit') ?? '50', 10), 200)
@@ -46,12 +46,31 @@ export async function GET(req: NextRequest) {
   const staleCutoff = Date.now() - STALE_THRESHOLD_MS
 
   // Compte démo (review Apple) : aucune transaction réelle.
-  if ((await getApiUserContext())?.isDemo) {
+  const apiCtx = await getApiUserContext()
+  if (apiCtx?.isDemo) {
     return NextResponse.json({ data: [], total: 0, page, limit, stats: { stages: {}, formations: {} } })
   }
 
   // ── Fast path recherche (barre globale) ───────────────────────────────────
   const quick = searchParams.get('quick') === '1'
+
+  // Télépro : uniquement ses transactions, imposé côté serveur (l'URL ne
+  // décide pas). Un télépro sans identifiant (compte tout juste créé) n'a
+  // rien. La recherche globale (quick) reste transversale, comme les contacts.
+  if (apiCtx?.role === 'telepro' && !quick) {
+    const { data: me } = await db
+      .from('rdv_users')
+      .select('hubspot_user_id, hubspot_owner_id')
+      .eq('id', apiCtx.appUserId)
+      .maybeSingle()
+    const myId = [me?.hubspot_user_id, me?.hubspot_owner_id]
+      .map(v => String(v ?? '').trim())
+      .find(v => /^\d+$/.test(v))
+    if (!myId) {
+      return NextResponse.json({ data: [], total: 0, page, limit, stats: { stages: {}, formations: {} } })
+    }
+    teleproHsId = myId
+  }
   const searchTrimmed = search.trim()
   if (quick && searchTrimmed.length >= 2) {
     const term = searchTrimmed.replace(/[%,()*]/g, ' ').trim()
