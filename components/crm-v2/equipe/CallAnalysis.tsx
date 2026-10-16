@@ -19,6 +19,8 @@ export type CauseDef = { id: string; label: string; hint: string }
 export type TeamCallStats = {
   talk2: number; no_rdv: number; recorded: number; analyzed: number; pending: number; direct_sales?: number
   causes: Record<string, number>; score_sum: number; proposed: number
+  /** Appels notés (vraie occasion de vente) ; occasions ratées ; sans occasion (pas notés) */
+  score_n?: number; ratees?: number; sans_occasion?: number
   criteria_sum?: Record<string, number>; criteria_n?: number
   /** Appels ≥ 2 min (avec ou sans RDV) enregistrés / sur une ligne sans enregistrement */
   talk2_recorded?: number; talk2_unrecorded?: number
@@ -54,6 +56,8 @@ export type AnalyzedCall = {
   kind_detail?: string | null
   /** rdv_pris | offre_vendue | aucun (lu par l'IA) */
   outcome?: string | null
+  /** ratee | bien_geree | sans_occasion (lu par l'IA, v91) — sans occasion : score null */
+  occasion?: string | null
 }
 export type KindDef = { id: string; label: string; hint: string }
 export type CallAnalysisData = {
@@ -63,6 +67,7 @@ export type CallAnalysisData = {
   criteria?: CriterionDef[]
   kinds?: KindDef[]
   outcomes?: KindDef[]
+  occasions?: KindDef[]
   coaching?: Record<string, CoachingEntry>
   team: Record<string, TeamCallStats>
   /** Appels ≥ 2 min sur des lignes Aircall qui n'enregistrent pas */
@@ -151,6 +156,38 @@ export function KindChip({ data, id, count, detail }: { data: CallAnalysisData |
       {def?.label ?? id}{count != null && <span style={{ fontWeight: 800 }}>{count}</span>}
     </span>
   )
+}
+
+const OCCASION_COLORS: Record<string, string> = {
+  ratee: '#dc2626',
+  bien_geree: '#15803d',
+  sans_occasion: '#64748b',
+}
+
+/** Pastille « Occasion ratée » / « Pas d'occasion » (lue par l'IA). */
+export function OccasionChip({ data, id, count }: { data: CallAnalysisData | null; id: string; count?: number }) {
+  const c = OCCASION_COLORS[id] ?? '#64748b'
+  const def = data?.occasions?.find(x => x.id === id)
+  return (
+    <span title={def?.hint} style={{
+      display: 'inline-flex', alignItems: 'center', gap: 4, padding: '0 7px', borderRadius: 6, whiteSpace: 'nowrap',
+      fontSize: 11, fontWeight: 700, color: c, background: `${c}12`, border: `1px solid ${c}35`,
+    }}>
+      {def?.label ?? id}{count != null && <span style={{ fontWeight: 800 }}>{count}</span>}
+    </span>
+  )
+}
+
+/** Moyenne /10 des appels notés — un appel sans occasion de vente n'est pas noté (score null). */
+export function averageScore(calls: AnalyzedCall[]): number | null {
+  const scored = calls.filter(c => c.score != null)
+  return scored.length ? Math.round((scored.reduce((t, c) => t + (c.score ?? 0), 0) / scored.length) * 10) / 10 : null
+}
+
+/** « Moins bien notés d'abord » : occasions ratées, puis les autres appels notés, puis ceux sans occasion. */
+export function worstFirst(a: AnalyzedCall, b: AnalyzedCall): number {
+  const rank = (c: AnalyzedCall) => (c.occasion === 'ratee' ? 0 : c.score == null ? 2 : 1)
+  return rank(a) - rank(b) || (a.score ?? 0) - (b.score ?? 0) || b.started_at.localeCompare(a.started_at)
 }
 
 /**
@@ -320,9 +357,10 @@ export function CallTeamSummary({ data, loading, from, to, onDone }: {
 
   const totals = Object.values(data.team).reduce((t, s) => {
     t.talk2 += s.talk2; t.noRdv += s.no_rdv; t.recorded += s.recorded ?? 0; t.analyzed += s.analyzed; t.pending += s.pending; t.sales += s.direct_sales ?? 0
+    t.ratees += s.ratees ?? 0; t.sans += s.sans_occasion ?? 0
     for (const [k, v] of Object.entries(s.causes)) t.causes[k] = (t.causes[k] ?? 0) + v
     return t
-  }, { talk2: 0, noRdv: 0, recorded: 0, analyzed: 0, pending: 0, sales: 0, causes: {} as Record<string, number> })
+  }, { talk2: 0, noRdv: 0, recorded: 0, analyzed: 0, pending: 0, sales: 0, ratees: 0, sans: 0, causes: {} as Record<string, number> })
   const unrecorded = Object.entries(data.unrecorded_lines ?? {}).sort((a, b) => b[1] - a[1])
   const unrecordedTotal = unrecorded.reduce((t, [, n]) => t + n, 0)
   const ranked = topCauses(totals.causes, 10)
@@ -340,6 +378,14 @@ export function CallTeamSummary({ data, loading, from, to, onDone }: {
           {totals.sales > 0 && (
             <span title="Petites offres (≈ 490-690 €) achetées dans les 7 jours suivant l'appel, sans RDV : comptées comme réussies"
               style={{ color: crmV2.successStrong }}> · {totals.sales} vente{totals.sales > 1 ? 's' : ''} directe{totals.sales > 1 ? 's' : ''} (petites offres)</span>
+          )}
+          {totals.ratees > 0 && (
+            <span title="Vrai interlocuteur (élève ou parent intéressé) et pas de RDV ni d'offre par la faute du télépro : les appels à retravailler"
+              style={{ color: '#dc2626', fontWeight: 700 }}> · {totals.ratees} occasion{totals.ratees > 1 ? 's' : ''} ratée{totals.ratees > 1 ? 's' : ''}</span>
+          )}
+          {totals.sans > 0 && (
+            <span title="Rien à vendre dans l'appel (mauvais numéro, parent qui donne le numéro de l'enfant, rappel demandé…) : pas noté, hors moyennes"
+              style={{ color: crmV2.textMuted }}> · {totals.sans} sans occasion (pas notés)</span>
           )}
           {totals.pending > 0 && <span style={{ color: crmV2.goldDark }}> · {totals.pending} à analyser</span>}
         </div>
@@ -394,8 +440,10 @@ export function CallCells({ data, userId }: { data: CallAnalysisData | null; use
   const s = data?.team[userId]
   const num = { textAlign: 'right' as const, whiteSpace: 'nowrap' as const, fontVariantNumeric: 'tabular-nums' as const }
   if (!s) return <>{CALL_COLS.map(c => <CrmV2Td key={c.key} style={num}>—</CrmV2Td>)}</>
-  const avg = s.analyzed ? Math.round((s.score_sum / s.analyzed) * 10) / 10 : null
-  const propRate = s.analyzed ? Math.round((s.proposed / s.analyzed) * 100) : null
+  // Seulement les appels notés (vraie occasion de vente) ; avant la v91 : tous
+  const scoredN = s.score_n ?? s.analyzed
+  const avg = scoredN ? Math.round((s.score_sum / scoredN) * 10) / 10 : null
+  const propRate = scoredN ? Math.round((s.proposed / scoredN) * 100) : null
   return (
     <>
       <CrmV2Td style={num}>{s.talk2 || '—'}</CrmV2Td>
@@ -423,7 +471,8 @@ export function CallCells({ data, userId }: { data: CallAnalysisData | null; use
 
 /**
  * Liste compacte d'appels analysés — chaque appel s'ouvre au clic (critères,
- * ce qui a manqué, conseil, écoute, transcription).
+ * ce qui a manqué, conseil, écoute, transcription). Un appel sans occasion de
+ * vente n'a pas de note (« — »).
  */
 export function CallList({ data, calls, endpoint = ADMIN_ENDPOINT }: { data: CallAnalysisData; calls: AnalyzedCall[]; endpoint?: string }) {
   const [open, setOpen] = useState<number | null>(null)
@@ -451,7 +500,7 @@ export function CallList({ data, calls, endpoint = ADMIN_ENDPOINT }: { data: Cal
       {calls.map((c, idx) => {
         const when = new Date(c.started_at)
         const isOpen = open === c.aircall_call_id
-        const sc = c.score ?? 0
+        const sc = c.score
         return (
           <div key={c.aircall_call_id} style={{ borderTop: idx ? `1px solid ${crmV2.borderLight}` : 'none' }}>
             <button type="button" onClick={() => toggle(c.aircall_call_id)} style={{
@@ -471,6 +520,7 @@ export function CallList({ data, calls, endpoint = ADMIN_ENDPOINT }: { data: Cal
                       {c.outcome === 'rdv_pris' ? '✓ RDV pris' : '✓ Offre vendue'}
                     </span>
                   )}
+                  {(c.occasion === 'ratee' || c.occasion === 'sans_occasion') && <OccasionChip data={data} id={c.occasion} />}
                 </span>
                 {c.summary && (
                   <span style={{
@@ -481,7 +531,11 @@ export function CallList({ data, calls, endpoint = ADMIN_ENDPOINT }: { data: Cal
               </span>
               <span style={{ fontSize: 12, color: crmV2.textMuted, textAlign: 'right' }}>{c.talk_sec ? `${Math.floor(c.talk_sec / 60)}:${String(c.talk_sec % 60).padStart(2, '0')}` : ''}</span>
               {c.cause ? <CauseChip data={data} id={c.cause} /> : <span />}
-              <span style={{ fontSize: 13, fontWeight: 800, textAlign: 'right', color: sc >= 7 ? crmV2.successStrong : sc >= 4 ? '#d97706' : '#dc2626' }}>{sc}/10</span>
+              {sc == null ? (
+                <span title="Pas d'occasion de vente dans cet appel : pas noté" style={{ fontSize: 13, fontWeight: 700, textAlign: 'right', color: crmV2.textFaint }}>—</span>
+              ) : (
+                <span style={{ fontSize: 13, fontWeight: 800, textAlign: 'right', color: sc >= 7 ? crmV2.successStrong : sc >= 4 ? '#d97706' : '#dc2626' }}>{sc}/10</span>
+              )}
               <span style={{ fontSize: 12, color: crmV2.textFaint }}>{isOpen ? '▴' : '▾'}</span>
             </button>
             {isOpen && (
@@ -548,6 +602,7 @@ export function CallDebrief({ data, userId, from, to, onChanged, showList = true
 }) {
   const [cause, setCause] = useState<string>('all')
   const [kind, setKind] = useState<string>('all')
+  const [occ, setOcc] = useState<string>('all')
   const [sortBy, setSortBy] = useState<'score' | 'date'>('score')
   const [listOpen, setListOpen] = useState(showList)
   const [showAll, setShowAll] = useState(false)
@@ -581,12 +636,18 @@ export function CallDebrief({ data, userId, from, to, onChanged, showList = true
   const sectionTitle = (t: string) => (
     <div style={{ fontSize: 11, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>{t}</div>
   )
-  // Note, critères et causes recalculés sur le type d'appel choisi
+  // Note, critères et causes recalculés sur le type d'appel et l'occasion choisis
   const kindCounts = new Map<string, number>()
   for (const c of done) if (c.kind) kindCounts.set(c.kind, (kindCounts.get(c.kind) ?? 0) + 1)
   const kindsHere = (data.kinds ?? []).filter(k => kindCounts.has(k.id))
-  const scoped = done.filter(c => kind === 'all' || c.kind === kind)
-  const avg = scoped.length ? Math.round((scoped.reduce((t, c) => t + (c.score ?? 0), 0) / scoped.length) * 10) / 10 : null
+  const byKind = done.filter(c => kind === 'all' || c.kind === kind)
+  const occCounts = new Map<string, number>()
+  for (const c of byKind) if (c.occasion) occCounts.set(c.occasion, (occCounts.get(c.occasion) ?? 0) + 1)
+  const occasionsHere = (data.occasions ?? []).filter(o => occCounts.has(o.id))
+  const scoped = byKind.filter(c => occ === 'all' || c.occasion === occ)
+  const ratees = done.filter(c => c.occasion === 'ratee').length
+  // Moyenne sur les appels notés : un appel sans occasion de vente ne compte pas
+  const avg = averageScore(scoped)
   const withCrit = scoped.filter(c => c.criteria)
   const crit = (data.criteria ?? []).map(c => ({
     ...c, value: withCrit.length ? withCrit.reduce((t, x) => t + (Number(x.criteria?.[c.id]) || 0), 0) / withCrit.length : null,
@@ -598,9 +659,7 @@ export function CallDebrief({ data, userId, from, to, onChanged, showList = true
   const causesHere = Object.entries(causeCounts).sort((a, b) => b[1] - a[1])
   const filtered = scoped
     .filter(c => cause === 'all' || c.cause === cause)
-    .sort(sortBy === 'date'
-      ? (a, b) => b.started_at.localeCompare(a.started_at)
-      : (a, b) => (a.score ?? 0) - (b.score ?? 0) || b.started_at.localeCompare(a.started_at))
+    .sort(sortBy === 'date' ? (a, b) => b.started_at.localeCompare(a.started_at) : worstFirst)
   const shown = showAll ? filtered : filtered.slice(0, 8)
 
   return (
@@ -612,9 +671,10 @@ export function CallDebrief({ data, userId, from, to, onChanged, showList = true
           {done.some(c => c.outcome === 'rdv_pris') ? ` · ${done.filter(c => c.outcome === 'rdv_pris').length} avec RDV pris` : ''}
           {s?.direct_sales ? ` · ${s.direct_sales} vente${s.direct_sales > 1 ? 's' : ''} directe${s.direct_sales > 1 ? 's' : ''}` : ''}
           {s && s.no_rdv - (s.recorded ?? 0) > 0 ? ` · ${s.no_rdv - (s.recorded ?? 0)} non enregistré${s.no_rdv - (s.recorded ?? 0) > 1 ? 's' : ''}` : ''}
+          {ratees > 0 && <strong style={{ color: '#dc2626' }}> · {ratees} occasion{ratees > 1 ? 's' : ''} ratée{ratees > 1 ? 's' : ''}</strong>}
         </span>
         {avg != null && (
-          <span title="Moyenne des notes /10 (somme des 5 critères notés de 0 à 2)" style={{ marginLeft: 'auto', fontSize: 18, fontWeight: 800, color: avg >= 7 ? crmV2.successStrong : avg >= 4 ? '#d97706' : '#dc2626' }}>
+          <span title="Moyenne des notes /10 (somme des 5 critères notés de 0 à 2), sur les appels où il y avait quelque chose à vendre" style={{ marginLeft: 'auto', fontSize: 18, fontWeight: 800, color: avg >= 7 ? crmV2.successStrong : avg >= 4 ? '#d97706' : '#dc2626' }}>
             {avg}/10
           </span>
         )}
@@ -671,9 +731,9 @@ export function CallDebrief({ data, userId, from, to, onChanged, showList = true
             <div>
               {sectionTitle("Type d'appel")}
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                <button type="button" onClick={() => { setKind('all'); setCause('all') }} style={chipBtn(kind === 'all')}>Tous ({done.length})</button>
+                <button type="button" onClick={() => { setKind('all'); setOcc('all'); setCause('all') }} style={chipBtn(kind === 'all')}>Tous ({done.length})</button>
                 {kindsHere.map(k => (
-                  <button key={k.id} type="button" onClick={() => { setKind(kind === k.id ? 'all' : k.id); setCause('all') }}
+                  <button key={k.id} type="button" onClick={() => { setKind(kind === k.id ? 'all' : k.id); setOcc('all'); setCause('all') }}
                     style={{ padding: 0, border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
                     <span style={{ outline: kind === k.id ? `2px solid ${crmV2.text}` : 'none', borderRadius: 6, display: 'inline-flex' }}>
                       <KindChip data={data} id={k.id} count={kindCounts.get(k.id)} />
@@ -685,6 +745,27 @@ export function CallDebrief({ data, userId, from, to, onChanged, showList = true
                     Note moyenne sur ces appels : <strong style={{ color: avg >= 7 ? crmV2.successStrong : avg >= 4 ? '#d97706' : '#dc2626' }}>{avg}/10</strong>
                   </span>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* Occasion de vente : les occasions ratées sont les appels à retravailler */}
+          {occasionsHere.length > 0 && (
+            <div>
+              {sectionTitle('Occasion de vente')}
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                <button type="button" onClick={() => { setOcc('all'); setCause('all') }} style={chipBtn(occ === 'all')}>Toutes ({byKind.length})</button>
+                {occasionsHere.map(o => (
+                  <button key={o.id} type="button" onClick={() => { setOcc(occ === o.id ? 'all' : o.id); setCause('all'); setListOpen(true) }}
+                    style={{ padding: 0, border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+                    <span style={{ outline: occ === o.id ? `2px solid ${crmV2.text}` : 'none', borderRadius: 6, display: 'inline-flex' }}>
+                      <OccasionChip data={data} id={o.id} count={occCounts.get(o.id)} />
+                    </span>
+                  </button>
+                ))}
+                <span style={{ fontSize: 12, color: crmV2.textMuted, marginLeft: 4 }}>
+                  Sans occasion = rien à vendre dans l&apos;appel : pas noté, hors moyennes.
+                </span>
               </div>
             </div>
           )}

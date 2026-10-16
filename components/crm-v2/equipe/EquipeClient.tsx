@@ -33,7 +33,7 @@ import {
 import { AdminIconButton, AdminNotice, AdminSpin } from '@/components/crm-v2/admin/AdminUi'
 import { PanelCard } from '@/components/crm-v2/panels/PanelUi'
 import { CredentialBox, type TeamMember } from '@/components/crm-v2/panels/TeamMemberManager'
-import { CallDebrief, CallList, CallTeamSummary, ConversionByKindStrip, useCallAnalysis, type CallAnalysisData, type TypeBucket } from '@/components/crm-v2/equipe/CallAnalysis'
+import { CallDebrief, CallList, CallTeamSummary, ConversionByKindStrip, averageScore, useCallAnalysis, worstFirst, type CallAnalysisData, type TypeBucket } from '@/components/crm-v2/equipe/CallAnalysis'
 import { PlanningDayCell, PlanningDayHeader, PlanningLegend, PlanningWeekSummary, usePlanningWeek, type PlanningData, type PlanningDayCount } from '@/components/crm-v2/equipe/PlanningWeek'
 import { DayScheduleEditor, SlotChip, VERDICTS, VerdictPill, WEEKDAYS, fmtMinutes as fmtPlannedMinutes, type DayReport } from '@/components/planning/PlanningUi'
 import { addParisDays, parisDateKey, parisMonthEndKey, parisWeekStartKey } from '@/lib/date-paris'
@@ -1425,7 +1425,7 @@ function MemberDaysTable({ days, onEdit, calls, userId }: {
       list.push(c)
       map.set(k, list)
     }
-    for (const list of map.values()) list.sort((a, b) => (a.score ?? 0) - (b.score ?? 0) || a.started_at.localeCompare(b.started_at))
+    for (const list of map.values()) list.sort(worstFirst)
     return map
   }, [calls, userId])
   const th: CSSProperties = {
@@ -1458,7 +1458,7 @@ function MemberDaysTable({ days, onEdit, calls, userId }: {
             const empty = !d.calls && !d.slots.length
             const dayCalls = callsByDay.get(d.date) ?? []
             const isOpen = openDay === d.date && dayCalls.length > 0
-            const avg = dayCalls.length ? Math.round((dayCalls.reduce((t, c) => t + (c.score ?? 0), 0) / dayCalls.length) * 10) / 10 : null
+            const avg = averageScore(dayCalls)
             return (
               <Fragment key={d.date}>
               <tr
@@ -1494,7 +1494,7 @@ function MemberDaysTable({ days, onEdit, calls, userId }: {
                 <tr>
                   <td colSpan={11} style={{ padding: '8px 10px 12px', background: crmV2.bgHover, borderBottom: `1px solid ${crmV2.border}` }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
-                      Appels de 2 min et plus · les moins bien notés d&apos;abord
+                      Appels de 2 min et plus · occasions ratées d&apos;abord
                     </div>
                     <CallList data={calls} calls={dayCalls} />
                   </td>

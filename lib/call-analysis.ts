@@ -1,6 +1,6 @@
 /**
  * Analyse IA de tous les appels ≥ 2 min, avec ou sans RDV (table
- * call_analyses, migrations v63, v64, v81).
+ * call_analyses, migrations v63, v64, v81, v91).
  *
  * 1. Candidats : appels sortants d'un télépro avec au moins 2 min de
  *    conversation réelle. Le CRM (RDV créé entre 30 min avant et 3 jours
@@ -8,8 +8,9 @@
  * 2. Enregistrement Aircall (URL fraîche via l'API) → transcription Deepgram
  *    (français, locuteurs séparés).
  * 3. Claude lit l'appel : type (premier appel / relance / suivi), issue (RDV
- *    pris, petite offre vendue, rien), cause, ce qui s'est passé, ce qui a
- *    manqué, conseil, note /10 sur 5 critères.
+ *    pris, petite offre vendue, rien), occasion (y avait-il vraiment quelque
+ *    chose à vendre ? v91), cause, ce qui s'est passé, ce qui a manqué,
+ *    conseil, note /10 sur 5 critères — seulement s'il y avait une occasion.
  */
 
 import Anthropic from '@anthropic-ai/sdk'
@@ -54,6 +55,19 @@ export const CALL_OUTCOMES = [
 ] as const
 
 export type CallOutcome = typeof CALL_OUTCOMES[number]['id']
+
+/**
+ * Occasion de vente, lue par l'IA (v91) : 2 min de conversation ne veulent
+ * pas dire qu'il y avait quelque chose à vendre (mauvais numéro, parent qui
+ * donne le numéro de l'enfant…). Un appel sans occasion n'est pas noté /10.
+ */
+export const CALL_OCCASIONS = [
+  { id: 'ratee', label: 'Occasion ratée', hint: "Vrai interlocuteur (élève ou parent intéressé, disponible) et le télépro l'a laissé filer : pas de RDV ni d'offre proposé, abandon sur un « peut-être », objection pas travaillée" },
+  { id: 'bien_geree', label: 'Occasion bien gérée', hint: 'Vrai interlocuteur : RDV ou offre obtenu, ou tout tenté face à un refus ferme' },
+  { id: 'sans_occasion', label: "Pas d'occasion", hint: "Rien à vendre dans cet appel (mauvais numéro, personne qui n'a rien demandé, parent qui donne le numéro de l'enfant, rappel demandé…) : pas noté" },
+] as const
+
+export type CallOccasion = typeof CALL_OCCASIONS[number]['id']
 
 /**
  * Type d'appel, lu par l'IA dans la conversation (v81), l'historique CRM du
@@ -271,9 +285,15 @@ export async function findCandidates(
   return { all, candidates, talk2Total, directSales }
 }
 
+/** Analyse faite avant la v81 (sans issue) ou la v91 (sans occasion) : à reclasser. */
+function needsRedo(r: { status: string; outcome?: unknown; occasion?: unknown }): boolean {
+  // Colonne absente (migration pas encore lancée) : pas de reclassement
+  return r.status === 'done' && (('outcome' in r && !r.outcome) || ('occasion' in r && !r.occasion))
+}
+
 /**
  * File d'analyse : appels ≥ 2 min pas encore analysés, + ceux analysés avant
- * la v81 (sans type ni issue) à reclasser depuis leur transcription.
+ * la v81 / v91 (sans issue ou sans occasion) à reclasser depuis leur transcription.
  */
 async function findQueue(
   db: SupabaseClient,
@@ -286,12 +306,11 @@ async function findQueue(
   const ids = all.map(c => c.aircall_call_id)
   for (let i = 0; i < ids.length; i += 300) {
     const slice = ids.slice(i, i + 300)
-    // Avant la v81 (colonne outcome absente) : pas de reclassement
     const { data, error } = await selectAnalyses(db, 'aircall_call_id, status', q => q.in('aircall_call_id', slice))
     if (error) throw new Error(error.message)
     for (const r of data) {
       seen.add(Number(r.aircall_call_id))
-      if (r.status === 'done' && 'outcome' in r && !r.outcome) redo.add(Number(r.aircall_call_id))
+      if (needsRedo(r)) redo.add(Number(r.aircall_call_id))
     }
   }
   return all
@@ -326,17 +345,23 @@ async function transcribe(audioUrl: string): Promise<string> {
 
 // ── Analyse Claude ──────────────────────────────────────────────────────────
 
-const SYSTEM_PROMPT_HEAD = `Tu analyses des appels de téléprospection de Diploma Santé, une prépa aux études de santé (PASS, LAS, PAES, Terminale Santé, Première…).
+const SYSTEM_PROMPT_HEAD = `Tu analyses des appels de téléprospection de Diploma Santé, une prépa aux études de santé (PASS, LAS, PAES, Terminale Santé, Première Élite…).
 Le télépro appelle un lead (lycéen, étudiant ou parent). Deux issues sont des réussites :
-1. un rendez-vous d'orientation avec un conseiller pour les préparations complètes (Terminale Santé, PAES, Première…) ;
+1. un rendez-vous d'orientation avec un conseiller pour les préparations complètes (Terminale Santé, PAES, Première Élite…) ;
 2. pour les petites offres, PAS besoin de RDV : le télépro peut les vendre directement au téléphone en envoyant le lien d'inscription (Préparation LAS 1, LAS 2 ou LAS 3 année complète à 490 €, Préparation PASS semestre à 490 € ou année complète à 690 €). Elles conviennent surtout aux étudiants déjà en PASS ou en LAS.
 Un bon appel : découverte du projet (classe, filière, objectif médecine/santé, situation), mise en valeur de l'accompagnement, puis proposition claire d'un RDV avec un créneau concret, ou de la petite offre adaptée avec envoi du lien.
-Cet appel a duré plus de 2 minutes ; il a pu déboucher ou non sur un RDV. Les locuteurs sont numérotés par la transcription automatique : déduis qui est le télépro (celui qui se présente au nom de Diploma Santé).
+Le parent compte autant que l'élève : c'est souvent lui qui paie et qui décide. Un parent qui prend le temps d'échanger est un vrai interlocuteur : l'objectif est qu'il prenne lui-même un RDV, même si l'enfant n'est pas là.
+Un bon télépro ne laisse jamais repartir un prospect intéressé sur un « peut-être la prochaine fois », « envoyez-moi un mail » ou « je vais réfléchir » : il trouve une solution (RDV avec un conseiller, remise, replay du stage déjà passé, formule plus adaptée, petite offre). Un profil atypique (voie professionnelle, spécialités non scientifiques, élève qui hésite) n'est pas hors cible : il propose la formule la plus proche (ex. Première Élite pour un élève de 1re) et un RDV pour construire le projet, sans discours défaitiste.
+L'appel a duré 2 minutes ou plus, mais la durée ne dit pas s'il y avait quelque chose à vendre : juge sur la conversation. Les locuteurs sont numérotés par la transcription automatique : déduis qui est le télépro (celui qui se présente au nom de Diploma Santé).
 1. Type d'appel, d'après la conversation : premier_appel si c'est le premier vrai échange (le télépro se présente, rappelle la demande ou la candidature du lead, le prospect découvre l'offre) ; relance si on s'est déjà parlé (« comme convenu », « je vous rappelle suite à… », le prospect connaît déjà le télépro ou l'offre) ; suivi_rdv si un RDV existe déjà (rappel, report, point après le RDV) ; suivi_inscription si l'inscription est en cours (paiement, dossier, lien). L'historique CRM éventuellement indiqué est un indice, la conversation prime.
 2. Issue : rdv_pris si un RDV avec un conseiller est fixé pendant l'appel (jour / heure convenus) ; offre_vendue si le prospect accepte une petite offre / le lien d'inscription ; aucun sinon (rappel, réflexion, refus…). Un indice CRM « RDV créé juste après l'appel » va dans le sens de rdv_pris.
-3. Cause principale : rdv_pris si RDV fixé, offre_directe si petite offre vendue ou proposée / lien envoyé, sinon la cause de l'échec. Si le prospect est en PASS / LAS (ou s'y destine) et que le télépro n'a proposé ni RDV ni petite offre, signale-le dans ce qui a manqué.
+3. Occasion de vente — c'est la question centrale, celle qui dit si le télépro a raté quelque chose :
+- sans_occasion : il n'y avait rien à vendre et le télépro ne pouvait pas faire beaucoup mieux — mauvais numéro ; personne qui n'a fait aucune demande ; interlocuteur qui renvoie tout de suite vers quelqu'un d'autre (« ma fille n'est pas là, voici son numéro ») ; personne qui ne peut pas parler et demande qu'on la rappelle ; absence totale de projet santé, vérifiée. L'objectif se limite alors à obtenir la suite utile (bon numéro, créneau de rappel, bonne personne) : s'il l'a obtenue, l'appel est réussi.
+- ratee : il y avait un vrai interlocuteur (élève ou parent concerné, disponible, qui échange sur le projet) et le télépro l'a laissé filer — pas de RDV ni d'offre proposé, proposition vague sans créneau, objection pas travaillée, abandon sur un « peut-être », discours défaitiste, parent qui décide pas amené au RDV.
+- bien_geree : vrai interlocuteur et le télépro a fait le travail — RDV ou offre obtenu, ou tout tenté (RDV proposé avec un créneau, objections travaillées, solution alternative) face à un refus ferme.
+4. Cause principale : rdv_pris si RDV fixé, offre_directe si petite offre vendue ou proposée / lien envoyé, sinon la cause de l'échec. Si le prospect est en PASS / LAS (ou s'y destine) et que le télépro n'a proposé ni RDV ni petite offre, signale-le dans ce qui a manqué.
 Tiens compte du type d'appel : un premier appel à froid doit aller jusqu'à la proposition d'un RDV ; une relance doit faire avancer vers un RDV ; un suivi de RDV ou d'inscription vise surtout à lever les freins et fixer la prochaine étape (RDV suivant, finalisation de l'inscription, paiement) — ne le pénalise pas pour ne pas avoir refait une découverte complète.
-Décris ce qui s'est passé, ce qui a manqué côté télépro (même quand le RDV est pris : ce qui aurait pu être mieux) et un conseil concret et actionnable pour la prochaine fois. Sois factuel, appuie-toi sur la transcription, en français, phrases courtes.`
+Décris ce qui s'est passé, ce qui a manqué côté télépro (même quand le RDV est pris : ce qui aurait pu être mieux) et un conseil concret et actionnable pour la prochaine fois. Pour un appel sans occasion, ne cherche pas la petite bête : laisse « ce qui a manqué » et le conseil vides si le télépro a obtenu ce qui était possible. Sois factuel, appuie-toi sur la transcription, en français, phrases courtes.`
 
 
 const CAUSE_IDS = CALL_CAUSES.map(c => c.id)
@@ -358,11 +383,12 @@ export type CallCriteria = Record<typeof CALL_CRITERIA[number]['id'], number>
 const CRITERION_SCHEMA = { type: 'integer', enum: [0, 1, 2] }
 
 const SYSTEM_PROMPT = `${SYSTEM_PROMPT_HEAD}
-Note aussi le télépro sur 5 critères, de 0 (absent) à 2 (bien fait) : ${CALL_CRITERIA.map(c => `${c.label} (${c.hint})`).join(' ; ')}. Sois exigeant mais juste : 2 seulement si c'est vraiment bien fait.`
+Note aussi le télépro sur 5 critères, de 0 (absent) à 2 (bien fait) : ${CALL_CRITERIA.map(c => `${c.label} (${c.hint})`).join(' ; ')}. Sois exigeant mais juste : 2 seulement si c'est vraiment bien fait. Ces notes ne comptent que s'il y avait une vraie occasion (ratee ou bien_geree) ; pour un appel sans_occasion, mets 0 partout : elles sont ignorées et l'appel n'est pas noté.`
 
 const OUTPUT_SCHEMA = {
   type: 'object',
   properties: {
+    occasion: { type: 'string', enum: CALL_OCCASIONS.map(o => o.id), description: CALL_OCCASIONS.map(o => `${o.id} = ${o.hint}`).join(' ; ') },
     criteria: {
       type: 'object',
       description: 'Note de 0 à 2 par critère (0 = absent, 1 = partiel, 2 = bien fait). '
@@ -374,21 +400,23 @@ const OUTPUT_SCHEMA = {
     cause: { type: 'string', enum: CAUSE_IDS, description: CALL_CAUSES.map(c => `${c.id} = ${c.hint}`).join(' ; ') },
     summary: { type: 'string', description: "Ce qui s'est passé pendant l'appel (2-3 phrases)" },
     missing: { type: 'string', description: "Ce qui a manqué côté télépro (1-2 phrases) ; vide si rien" },
-    advice: { type: 'string', description: 'Un conseil concret pour la prochaine fois (1-2 phrases)' },
+    advice: { type: 'string', description: 'Un conseil concret pour la prochaine fois (1-2 phrases) ; vide si rien à reprocher' },
     rdv_proposed: { type: 'boolean', description: 'Le télépro a-t-il proposé explicitement un RDV ou une petite offre ?' },
     call_type: { type: 'string', enum: CALL_KINDS.map(k => k.id), description: CALL_KINDS.map(k => `${k.id} = ${k.hint}`).join(' ; ') },
     outcome: { type: 'string', enum: CALL_OUTCOMES.map(o => o.id), description: CALL_OUTCOMES.map(o => `${o.id} = ${o.hint}`).join(' ; ') },
   },
-  required: ['call_type', 'outcome', 'criteria', 'cause', 'summary', 'missing', 'advice', 'rdv_proposed'],
+  required: ['call_type', 'outcome', 'occasion', 'criteria', 'cause', 'summary', 'missing', 'advice', 'rdv_proposed'],
   additionalProperties: false,
 }
 
 type Verdict = {
   cause: CallCause; summary: string; missing: string; advice: string; rdv_proposed: boolean
-  criteria: CallCriteria; score: number; call_type: CallKind; outcome: CallOutcome
+  /** null si l'appel n'est pas noté (pas d'occasion de vente) */
+  criteria: CallCriteria | null; score: number | null
+  call_type: CallKind; outcome: CallOutcome; occasion: CallOccasion
 }
 
-async function classify(client: Anthropic, transcript: string, talkSec: number, context: string): Promise<Verdict> {
+export async function classify(client: Anthropic, transcript: string, talkSec: number, context: string): Promise<Verdict> {
   // SDK 0.39 : output_config / fallbacks pas encore typés → params non typés
   // (même convention que lib/competitor-events.ts).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -410,14 +438,18 @@ async function classify(client: Anthropic, transcript: string, talkSec: number, 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const text = (res.content as any[]).filter(b => b.type === 'text').map(b => b.text).join('')
   const v = JSON.parse(text) as Verdict
-  const criteria = Object.fromEntries(CALL_CRITERIA.map(c => {
+  const occasion: CallOccasion = CALL_OCCASIONS.some(o => o.id === v.occasion) ? v.occasion
+    : v.outcome === 'rdv_pris' || v.outcome === 'offre_vendue' ? 'bien_geree' : 'ratee'
+  // Pas d'occasion de vente : rien à noter (le télépro ne pouvait pas faire mieux)
+  const criteria = occasion === 'sans_occasion' ? null : Object.fromEntries(CALL_CRITERIA.map(c => {
     const n = Math.round(Number(v.criteria?.[c.id]))
     return [c.id, Number.isFinite(n) ? Math.max(0, Math.min(2, n)) : 0]
   })) as CallCriteria
   return {
     criteria,
+    occasion,
     // Note /10 = somme des 5 critères (0-2 chacun)
-    score: Object.values(criteria).reduce((t, n) => t + n, 0),
+    score: criteria ? Object.values(criteria).reduce((t, n) => t + n, 0) : null,
     cause: (CAUSE_IDS as readonly string[]).includes(v.cause) ? v.cause : 'autre',
     summary: String(v.summary || '').slice(0, 2000),
     missing: String(v.missing || '').slice(0, 2000),
@@ -439,13 +471,13 @@ export async function analyzeCandidate(db: SupabaseClient, client: Anthropic, c:
     updated_at: new Date().toISOString(),
   }
   const save = async (row: Record<string, unknown>) => {
-    // Colonnes pas encore créées (criteria v64, call_type / outcome v81) : on
-    // retire celle que Postgres refuse et on réessaie
+    // Colonnes pas encore créées (criteria v64, call_type / outcome v81,
+    // occasion v91) : on retire celle que Postgres refuse et on réessaie
     const rest = { ...row }
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 5; i++) {
       const { error } = await db.from('call_analyses').upsert({ ...base, ...rest }, { onConflict: 'aircall_call_id' })
       if (!error) return
-      const col = ['criteria', 'call_type', 'outcome'].find(k => k in rest && error.message.includes(k))
+      const col = ['criteria', 'call_type', 'outcome', 'occasion'].find(k => k in rest && error.message.includes(k))
       if (!col) throw new Error(error.message)
       delete rest[col]
     }
@@ -453,7 +485,7 @@ export async function analyzeCandidate(db: SupabaseClient, client: Anthropic, c:
   try {
     let transcript: string | null = null
     if (c.redo) {
-      // Déjà transcrit avant la v81 : on reclasse sans repasser par Deepgram
+      // Déjà transcrit avant la v81 / v91 : on reclasse sans repasser par Deepgram
       const { data } = await db.from('call_analyses').select('transcript').eq('aircall_call_id', c.aircall_call_id).maybeSingle()
       transcript = (data?.transcript as string | null) ?? null
     }
@@ -560,8 +592,9 @@ export async function buildCoaching(
   const kinds = await classifyCallKinds(db, rows).catch(() => new Map<number, { kind: CallKind; detail: string }>())
   const kindLabel = (r: AnalysisRow) => CALL_KINDS.find(k => k.id === (r.call_type ?? kinds.get(Number(r.aircall_call_id))?.kind))?.label ?? '—'
   const outcomeLabel = (r: AnalysisRow) => CALL_OUTCOMES.find(o => o.id === r.outcome)?.label ?? 'Pas de RDV'
+  const occasionLabel = (r: AnalysisRow) => CALL_OCCASIONS.find(o => o.id === r.occasion)?.label
   const digest = rows.map((r, i) =>
-    `#${i + 1} · ${kindLabel(r)} · ${outcomeLabel(r)} · ${causeLabel(r.cause)} · ${r.score}/10 · RDV/offre proposé : ${r.rdv_proposed ? 'oui' : 'non'}\n`
+    `#${i + 1} · ${kindLabel(r)} · ${outcomeLabel(r)} · ${[occasionLabel(r), causeLabel(r.cause)].filter(Boolean).join(' · ')} · ${r.score == null ? 'non noté' : `${r.score}/10`} · RDV/offre proposé : ${r.rdv_proposed ? 'oui' : 'non'}\n`
     + `Passé : ${r.summary}\nManqué : ${r.missing || '—'}\nConseil : ${r.advice}`).join('\n\n')
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -569,7 +602,7 @@ export async function buildCoaching(
     model: MODEL,
     max_tokens: 4000,
     system: `${SYSTEM_PROMPT_HEAD}
-Tu reçois maintenant les débriefs de plusieurs appels d'un même télépro sur une période (avec et sans RDV). Fais-en une synthèse de coaching pour son manager : ce qui revient, pas un appel isolé ; appuie-toi sur les appels qui ont abouti pour montrer ce qui marche. Distingue les premiers appels à froid des relances et suivis (RDV, inscription) quand leurs enjeux diffèrent. Concret, bienveillant, actionnable, en français.`,
+Tu reçois maintenant les débriefs de plusieurs appels d'un même télépro sur une période (avec et sans RDV). Fais-en une synthèse de coaching pour son manager : ce qui revient, pas un appel isolé ; construis les axes de travail sur les occasions ratées, pas sur les appels sans occasion (rien à vendre) ; appuie-toi sur les appels qui ont abouti pour montrer ce qui marche. Distingue les premiers appels à froid des relances et suivis (RDV, inscription) quand leurs enjeux diffèrent. Concret, bienveillant, actionnable, en français.`,
     output_config: { effort: 'medium', format: { type: 'json_schema', schema: COACHING_SCHEMA } },
     fallbacks: 'default',
     messages: [{ role: 'user', content: `${rows.length} appels de plus de 2 min :\n\n${digest}` }],
@@ -660,11 +693,12 @@ type AnalysisRow = {
   criteria?: Record<string, number> | null
   call_type?: CallKind | null
   outcome?: CallOutcome | null
+  occasion?: CallOccasion | null
 }
 
 /**
  * Lecture de call_analyses avec les colonnes facultatives (criteria v64,
- * call_type / outcome v81) : on retire celles qui n'existent pas encore.
+ * call_type / outcome v81, occasion v91) : on retire celles qui n'existent pas encore.
  */
 async function selectAnalyses(
   db: SupabaseClient,
@@ -672,7 +706,7 @@ async function selectAnalyses(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   build: (q: any) => any,
 ): Promise<{ data: AnalysisRow[]; error: { message: string; code?: string } | null }> {
-  const optional = ['criteria', 'call_type', 'outcome']
+  const optional = ['criteria', 'call_type', 'outcome', 'occasion']
   for (let i = 0; i <= optional.length; i++) {
     const { data, error } = await build(db.from('call_analyses').select([cols, ...optional].join(', ')))
     if (!error) return { data: (data ?? []) as AnalysisRow[], error: null }
@@ -692,6 +726,8 @@ type TypeBucket = { talk2: number; rdv: number; offre: number; analyzed: number 
 type TeamStats = {
   talk2: number; no_rdv: number; recorded: number; analyzed: number; pending: number; direct_sales: number
   causes: Record<string, number>; score_sum: number; proposed: number
+  /** Appels notés /10 (= vraie occasion de vente) ; occasions ratées ; sans occasion (pas notés) */
+  score_n: number; ratees: number; sans_occasion: number
   criteria_sum: Record<string, number>; criteria_n: number
   /** Appels ≥ 2 min enregistrés (avec ou sans RDV) et non enregistrés */
   talk2_recorded: number; talk2_unrecorded: number
@@ -763,7 +799,8 @@ export async function buildCallReport(
   const team: Record<string, TeamStats> = {}
   const bucket = (): TypeBucket => ({ talk2: 0, rdv: 0, offre: 0, analyzed: 0 })
   const get = (id: string) => (team[id] ??= {
-    talk2: 0, no_rdv: 0, recorded: 0, analyzed: 0, pending: 0, direct_sales: 0, causes: {}, score_sum: 0, proposed: 0, criteria_sum: {}, criteria_n: 0,
+    talk2: 0, no_rdv: 0, recorded: 0, analyzed: 0, pending: 0, direct_sales: 0, causes: {}, score_sum: 0, proposed: 0,
+    score_n: 0, ratees: 0, sans_occasion: 0, criteria_sum: {}, criteria_n: 0,
     talk2_recorded: 0, talk2_unrecorded: 0, by_type: { froid: bucket(), relance: bucket() },
   })
   // Lignes Aircall sans enregistrement (appels non analysables)
@@ -787,7 +824,7 @@ export async function buildCallReport(
     }
     t.talk2_recorded++
     const r = rowById.get(c.aircall_call_id)
-    if (!r || (r.status === 'done' && 'outcome' in r && !r.outcome)) t.pending++
+    if (!r || needsRedo(r)) t.pending++
   }
   // Froid / relance sur TOUS les appels ≥ 2 min de la période : lecture de
   // l'IA quand elle existe, CRM sinon (pas de taux faussé pendant l'analyse)
@@ -807,7 +844,11 @@ export async function buildCallReport(
     const t = get(r.rdv_user_id)
     t.analyzed++
     if (r.cause) t.causes[r.cause] = (t.causes[r.cause] ?? 0) + 1
-    t.score_sum += r.score ?? 0
+    if (r.occasion === 'ratee') t.ratees++
+    // Sans occasion de vente : pas noté, hors moyennes et hors « RDV proposé »
+    if (r.score == null) { t.sans_occasion++; continue }
+    t.score_sum += r.score
+    t.score_n++
     if (r.rdv_proposed) t.proposed++
     if (r.criteria) {
       t.criteria_n++
@@ -822,6 +863,7 @@ export async function buildCallReport(
     criteria: CALL_CRITERIA,
     kinds: CALL_KINDS,
     outcomes: CALL_OUTCOMES,
+    occasions: CALL_OCCASIONS,
     coaching: await loadCoaching(db, from, to, userId),
     team,
     unrecorded_lines: unrecordedLines,
