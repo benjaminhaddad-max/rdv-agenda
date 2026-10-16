@@ -567,6 +567,12 @@ export async function GET(req: NextRequest) {
     return `telepro_user_id.in.(${numericOnly.map(pgQuoteForScoped).join(',')})`
   }
   const forcedScopedOrFilter = buildTeleproOrFilter(forcedScopedTeleproIds)
+  // Télépro sans ID HubSpot (compte tout juste créé) : aucun contact ne peut
+  // lui être attribué. Sans ce garde-fou le filtre vide laissait passer
+  // TOUTE la base.
+  if (shouldForceScopedTelepro && !forcedScopedOrFilter) {
+    return withPerfHeader(NextResponse.json({ data: [], total: 0, total_estimated: false, page, limit }))
+  }
   const expandedOwnerScopeValues = contactOwnerHsId
     ? await expandTeleproFilterValues(contactOwnerHsId)
     : []
