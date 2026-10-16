@@ -75,6 +75,12 @@ export function setAircallLoggedIn(v: boolean) {
   set(v ? { loggedIn: true } : { loggedIn: false, inCall: false })
 }
 
+/** Aircall Workspace ne fonctionne que dans Google Chrome (Safari bloque sa connexion dans le CRM) */
+export function isSafariBrowser(): boolean {
+  if (typeof navigator === 'undefined') return false
+  return /safari/i.test(navigator.userAgent) && !/chrome|chromium|crios|edg|fxios|android/i.test(navigator.userAgent)
+}
+
 export type EmbedDialResult = { ok: true } | { ok: false; code: string; message: string }
 
 const DIAL_ERRORS: Record<string, string> = {

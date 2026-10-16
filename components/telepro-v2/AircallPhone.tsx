@@ -7,11 +7,11 @@
  * (l'appel en cours continue).
  */
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, ChevronUp, PhoneCall, X } from 'lucide-react'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import {
-  attachAircallWorkspace, setAircallEmbedEnabled, setAircallEmbedExpanded, setAircallLoggedIn, useAircallEmbed,
+  attachAircallWorkspace, isSafariBrowser, setAircallEmbedEnabled, setAircallEmbedExpanded, setAircallLoggedIn, useAircallEmbed,
 } from '@/lib/aircall-embed'
 
 export const AIRCALL_PHONE_WIDTH = 376
@@ -21,6 +21,8 @@ const CONTAINER_ID = 'aircall-workspace'
 export default function AircallPhone() {
   const { loggedIn, inCall, expanded } = useAircallEmbed()
   const box = useRef<HTMLDivElement>(null)
+  const [safari, setSafari] = useState(false)
+  useEffect(() => { setSafari(isSafariBrowser()) }, [])
 
   useEffect(() => {
     const el = box.current
@@ -74,6 +76,11 @@ export default function AircallPhone() {
           )}
         </span>
       </div>
+      {safari && expanded && !loggedIn && (
+        <div style={{ padding: '10px 14px', fontSize: 12, lineHeight: 1.45, color: '#b45309', background: 'rgba(245,158,11,0.08)', borderBottom: `1px solid ${crmV2.border}` }}>
+          Aircall ne marche que dans <strong>Google Chrome</strong> : Safari bloque la connexion ici. Ouvre le CRM dans Chrome pour appeler et raccrocher depuis cette page.
+        </div>
+      )}
       {/* Replié : hauteur 0 mais iframe gardée, pour ne pas couper l'appel */}
       <div style={{ height: expanded ? PHONE_HEIGHT : 0, overflow: 'hidden', transition: 'height .15s' }}>
         <div id={CONTAINER_ID} ref={box} style={{ width: '100%', height: PHONE_HEIGHT }} />

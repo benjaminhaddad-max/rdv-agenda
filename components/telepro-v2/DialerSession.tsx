@@ -84,6 +84,16 @@ const BUSY_RETRY_MS = 3000
 const MANUAL_KEY = 'dialer_manual_dial'
 /** Webhook Aircall qui n'arrive pas : on n'attend pas la fin de l'appel plus longtemps */
 const WAIT_END_MAX_MS = 12_000
+/** Décroché de moins de 30 s : en pratique la messagerie (Aircall la compte comme un décroché) */
+const SHORT_ANSWER_MS = 30_000
+/** Messagerie probable, raccrochée sans clic : délai avant le double appel */
+const SHORT_ANSWER_WAIT_SEC = 4
+
+function shortAnswer(a: DialerAttempt): boolean {
+  if (!a.answered_at) return false
+  const end = a.ended_at ? Date.parse(a.ended_at) : Date.now()
+  return end - Date.parse(a.answered_at) < SHORT_ANSWER_MS
+}
 
 function hm(iso: string): string {
   return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' })
@@ -409,8 +419,11 @@ export default function DialerSession({
   }, [setPhase])
 
   // ── Qualifier ──
-  /** `next` : bouton « Suivant » → pas de double appel, on passe tout de suite au lead suivant */
-  const qualify = useCallback(async (q: string, extra?: { status?: string; relance_at?: string | null }, opts?: { next?: boolean }) => {
+  /**
+   * `redialNow` : clic du télépro (Répondeur, Pas de réponse…) → double appel tout de suite, sans compte à rebours.
+   * `next` : bouton « Suivant » → double appel tout de suite s'il en reste un, sinon lead suivant tout de suite.
+   */
+  const qualify = useCallback(async (q: string, extra?: { status?: string; relance_at?: string | null }, opts?: { next?: boolean; redialNow?: boolean }) => {
     if (!attempt || !lead || busy) return
     const token = run.current
     // Qualifié pendant une pause : on enregistre, la session reste en pause
@@ -418,7 +431,7 @@ export default function DialerSession({
     setBusy(true)
     const { ok, data: r } = await api<{ can_redial: boolean; round_failed: boolean; nrp_status: string | null; attempt: DialerAttempt }>('/api/telepro/dialer', {
       method: 'POST',
-      body: JSON.stringify({ action: 'qualify', attempt_id: attempt.id, qualification: q, no_redial: !!opts?.next }),
+      body: JSON.stringify({ action: 'qualify', attempt_id: attempt.id, qualification: q }),
     })
     if (!ok) {
       setBusy(false)
@@ -452,24 +465,30 @@ export default function DialerSession({
       onBookRdv(contactId)
       return
     }
-    if (opts?.next) { if (run.current === token) await goNext(); return }
     if (halted()) return
+    // Double appel tout de suite : s'il est encore en ligne, l'appel part dès qu'il raccroche
+    if (r.can_redial && (opts?.next || opts?.redialNow)) { await dial(lead, r.attempt.id); return }
+    if (opts?.next) { await goNext(); return }
     const then = r.can_redial ? 'redial' : 'next'
     // Aircall n'a jamais confirmé l'appel (bouton « Appeler », webhook absent) : inutile d'attendre sa fin
     if (r.attempt.ended_at || r.attempt.status === 'dialing') startCountdown(then)
     else setPhase({ kind: 'waiting_end', then, since: Date.now() })
-  }, [attempt, lead, busy, onBookRdv, load, startCountdown, goNext, setPhase])
+  }, [attempt, lead, busy, onBookRdv, load, startCountdown, goNext, dial, setPhase])
 
   // Fin d'appel remontée par Aircall : échec → qualifié tout seul ; conversation → temps pour qualifier
   useEffect(() => {
     if (!attempt?.ended_at || phase.kind !== 'call' || qualified) return
     if (attempt.outcome && attempt.outcome !== 'answered') {
       void qualify(attempt.outcome === 'voicemail' ? 'repondeur' : 'pas_de_reponse')
+    } else if (shortAnswer(attempt)) {
+      // Messagerie probable : quelques secondes pour corriger, puis double appel
+      setNow(Date.now())
+      setPhase({ kind: 'countdown', action: 'next', until: Date.now() + SHORT_ANSWER_WAIT_SEC * 1000, label: 'Messagerie ? Double appel' })
     } else if (settings && settings.wrap_up_sec > 0) {
       setNow(Date.now())
       setPhase({ kind: 'countdown', action: 'next', until: Date.now() + settings.wrap_up_sec * 1000, label: 'Qualifie, lead suivant' })
     }
-  }, [attempt?.ended_at, attempt?.outcome, phase.kind, qualified, settings, qualify, setPhase])
+  }, [attempt, phase.kind, qualified, settings, qualify, setPhase])
 
   // Attente de la fin de l'appel après qualification
   useEffect(() => {
@@ -483,8 +502,8 @@ export default function DialerSession({
     if (phase.kind !== 'countdown' || now < phase.until || busy || acting.current) return
     acting.current = true
     const task = phase.action === 'redial' && lead && attempt ? dial(lead, attempt.id)
-      // Temps de qualification écoulé sans clic : conversation sans changement
-      : !qualified && attempt ? qualify('conversation')
+      // Temps de qualification écoulé sans clic : conversation sans changement (moins de 30 s : messagerie)
+      : !qualified && attempt ? (shortAnswer(attempt) ? qualify('repondeur', undefined, { redialNow: true }) : qualify('conversation'))
       : goNext()
     void task.finally(() => { acting.current = false })
   }, [phase, now, busy]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -522,21 +541,26 @@ export default function DialerSession({
 
   /**
    * « Suivant » : à tout moment (ça sonne, messagerie, pause…). Note l'appel s'il ne
-   * l'est pas (décroché → conversation, sinon répondeur / pas de réponse, sans double
-   * appel) et appelle le lead suivant. Si l'appel est encore ouvert dans Aircall,
-   * le suivant part dès qu'il est raccroché.
+   * l'est pas (vraie conversation → conversation ; messagerie ou décroché de moins
+   * de 30 s → répondeur ; sinon pas de réponse), puis appel suivant tout de suite :
+   * le double appel du même lead s'il en reste un, sinon le lead suivant. Si l'appel
+   * est encore ouvert, il part dès qu'il est raccroché.
    */
   function nextNow() {
     if (busy) return
     run.current++
     if (lead) markTaken(lead.hubspot_contact_id)
     if (attempt && lead && !qualified && !attempt.error && phase.kind !== 'error') {
-      const q = attempt.outcome === 'answered' || attempt.answered_at ? 'conversation'
-        : attempt.outcome === 'voicemail' ? 'repondeur' : 'pas_de_reponse'
+      const q = attempt.outcome === 'voicemail' || shortAnswer(attempt) ? 'repondeur'
+        : attempt.outcome === 'answered' || attempt.answered_at ? 'conversation'
+        : 'pas_de_reponse'
       setPhase({ kind: 'dialing' })
       void qualify(q, undefined, { next: true })
       return
     }
+    // Déjà noté, double appel en attente : il part tout de suite
+    const pendingRedial = (phase.kind === 'countdown' && phase.action === 'redial') || (phase.kind === 'waiting_end' && phase.then === 'redial')
+    if (pendingRedial && lead && attempt) { void dial(lead, attempt.id); return }
     void goNext()
   }
 
@@ -571,7 +595,7 @@ export default function DialerSession({
       relanceAt={relanceAt}
       setOtherStatus={setOtherStatus}
       setRelanceAt={setRelanceAt}
-      onQualify={(q, extra) => { void qualify(q, extra) }}
+      onQualify={(q, extra) => { void qualify(q, extra, { redialNow: true }) }}
       onSkip={skip}
       onNext={readOnly ? undefined : nextNow}
       onOpenContact={onOpenContact}
@@ -606,10 +630,11 @@ export default function DialerSession({
             <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: crmV2.textMuted, cursor: 'pointer' }} title="iPad, téléphone : Aircall ne peut pas lancer l'appel tout seul">
               <input type="checkbox" checked={manualDial} onChange={e => toggleManual(e.target.checked)} /> Bouton « Appeler »
             </label>
-            {!isMobile && !readOnly && (
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: crmV2.textMuted, cursor: 'pointer' }} title="Le téléphone Aircall s'affiche dans le CRM : tu raccroches sans changer d'appli">
-                <input type="checkbox" checked={embed.enabled} onChange={e => setAircallEmbedEnabled(e.target.checked)} /> Téléphone dans le CRM
-              </label>
+            {!isMobile && !readOnly && !embed.enabled && (
+              <CrmV2Button size="sm" variant="gold" icon={<PhoneCall size={13} />} onClick={() => setAircallEmbedEnabled(true)}
+                title="Le téléphone Aircall s'affiche en bas à gauche du CRM : tu appelles et tu raccroches sans changer d'appli">
+                Téléphone Aircall ici
+              </CrmV2Button>
             )}
             {(phase.kind === 'paused' || phase.kind === 'error') && (
               <CrmV2Button size="sm" variant="gold" icon={<Play size={13} />} disabled={!canStart} onClick={resume}>Reprendre</CrmV2Button>
