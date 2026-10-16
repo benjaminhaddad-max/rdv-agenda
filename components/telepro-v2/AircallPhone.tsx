@@ -1,21 +1,20 @@
 'use client'
 
 /**
- * Téléphone Aircall intégré à l'espace télépro (SDK Aircall Everywhere), en bas
- * à gauche. Le power dialer compose dedans ; le télépro raccroche avec le bouton
- * rouge du téléphone, sans quitter le CRM. Replié, l'iframe reste chargée
- * (l'appel en cours continue).
+ * Téléphone Aircall intégré à l'espace télépro (SDK Aircall Everywhere), en
+ * colonne à gauche sous l'en-tête. Les appels du power dialer y sonnent ; le
+ * télépro raccroche avec son bouton rouge, sans quitter le CRM. Replié en rail,
+ * l'iframe reste chargée (l'appel en cours continue).
  */
 
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, PhoneCall, X } from 'lucide-react'
+import { ChevronLeft, PhoneCall, X } from 'lucide-react'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import {
   attachAircallWorkspace, isSafariBrowser, setAircallEmbedEnabled, setAircallEmbedExpanded, setAircallLoggedIn, useAircallEmbed,
 } from '@/lib/aircall-embed'
 
 export const AIRCALL_PHONE_WIDTH = 376
-const PHONE_HEIGHT = 600
 const CONTAINER_ID = 'aircall-workspace'
 
 export default function AircallPhone() {
@@ -53,39 +52,47 @@ export default function AircallPhone() {
   const status = !loggedIn ? 'Connecte-toi pour appeler' : inCall ? 'En appel' : 'Prêt'
   const dot = !loggedIn ? crmV2.textFaint : inCall ? crmV2.successStrong : crmV2.gold
 
+  // Un seul arbre : replier ne doit jamais démonter l'iframe (l'appel en cours continue)
   return (
-    <div style={{
-      position: 'fixed', left: 12, bottom: 12, width: AIRCALL_PHONE_WIDTH, zIndex: 150,
-      background: crmV2.bg, border: `1px solid ${crmV2.goldBorder}`, borderRadius: 16, boxShadow: crmV2.shadowPanel,
-      overflow: 'hidden', display: 'flex', flexDirection: 'column', fontFamily: crmV2.font,
+    <aside style={{
+      width: expanded ? AIRCALL_PHONE_WIDTH : 44, flexShrink: 0, borderRight: `1px solid ${crmV2.border}`, background: crmV2.bg,
+      display: 'flex', flexDirection: 'column', minHeight: 0, fontFamily: crmV2.font,
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px 8px 14px', borderBottom: expanded ? `1px solid ${crmV2.border}` : 'none' }}>
-        <PhoneCall size={14} color={crmV2.gold} />
-        <span style={{ fontSize: 13, fontWeight: 700, color: crmV2.text }}>Téléphone Aircall</span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: crmV2.textMuted }}>
-          <span style={{ width: 7, height: 7, borderRadius: 999, background: dot }} /> {status}
-        </span>
-        <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 2 }}>
-          <IconBtn title={expanded ? 'Replier (l\'appel continue)' : 'Déplier'} onClick={() => setAircallEmbedExpanded(!expanded)}>
-            {expanded ? <ChevronDown size={15} /> : <ChevronUp size={15} />}
-          </IconBtn>
-          {!inCall && (
-            <IconBtn title="Revenir à l'appli Aircall de l'ordinateur" onClick={() => setAircallEmbedEnabled(false)}>
-              <X size={15} />
+      {expanded ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px 8px 14px', borderBottom: `1px solid ${crmV2.border}`, flexShrink: 0 }}>
+          <PhoneCall size={14} color={crmV2.gold} />
+          <span style={{ fontSize: 13, fontWeight: 700, color: crmV2.text }}>Téléphone Aircall</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: crmV2.textMuted }}>
+            <span style={{ width: 7, height: 7, borderRadius: 999, background: dot }} /> {status}
+          </span>
+          <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 2 }}>
+            <IconBtn title="Replier (l'appel continue)" onClick={() => setAircallEmbedExpanded(false)}>
+              <ChevronLeft size={15} />
             </IconBtn>
-          )}
-        </span>
-      </div>
+            {!inCall && (
+              <IconBtn title="Revenir à l'appli Aircall de l'ordinateur" onClick={() => setAircallEmbedEnabled(false)}>
+                <X size={15} />
+              </IconBtn>
+            )}
+          </span>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, paddingTop: 10, flexShrink: 0 }}>
+          <IconBtn title="Afficher le téléphone Aircall" onClick={() => setAircallEmbedExpanded(true)}>
+            <PhoneCall size={16} color={crmV2.gold} />
+          </IconBtn>
+          <span title={status} style={{ width: 8, height: 8, borderRadius: 999, background: dot }} />
+        </div>
+      )}
       {safari && expanded && !loggedIn && (
-        <div style={{ padding: '10px 14px', fontSize: 12, lineHeight: 1.45, color: '#b45309', background: 'rgba(245,158,11,0.08)', borderBottom: `1px solid ${crmV2.border}` }}>
+        <div style={{ padding: '10px 14px', fontSize: 12, lineHeight: 1.45, color: '#b45309', background: 'rgba(245,158,11,0.08)', borderBottom: `1px solid ${crmV2.border}`, flexShrink: 0 }}>
           Aircall ne marche que dans <strong>Google Chrome</strong> : Safari bloque la connexion ici. Ouvre le CRM dans Chrome pour appeler et raccrocher depuis cette page.
         </div>
       )}
-      {/* Replié : hauteur 0 mais iframe gardée, pour ne pas couper l'appel */}
-      <div style={{ height: expanded ? PHONE_HEIGHT : 0, overflow: 'hidden', transition: 'height .15s' }}>
-        <div id={CONTAINER_ID} ref={box} style={{ width: '100%', height: PHONE_HEIGHT }} />
+      <div style={expanded ? { flex: 1, minHeight: 0 } : { width: 0, height: 0, overflow: 'hidden' }}>
+        <div id={CONTAINER_ID} ref={box} style={expanded ? { width: '100%', height: '100%' } : { width: AIRCALL_PHONE_WIDTH, height: 600 }} />
       </div>
-    </div>
+    </aside>
   )
 }
 

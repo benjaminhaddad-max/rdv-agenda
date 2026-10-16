@@ -32,7 +32,7 @@ import MyMails from '@/components/telepro-v2/MyMails'
 import TeleproContactsMobile from '@/components/telepro-v2/TeleproContactsMobile'
 import DialerSession, { type DialerState } from '@/components/telepro-v2/DialerSession'
 import DialerContactFiche from '@/components/telepro-v2/DialerContactFiche'
-import AircallPhone, { AIRCALL_PHONE_WIDTH } from '@/components/telepro-v2/AircallPhone'
+import AircallPhone from '@/components/telepro-v2/AircallPhone'
 import { useAircallEmbed } from '@/lib/aircall-embed'
 import type { DialerListSource } from '@/lib/dialer-shared'
 import LyceesClient from '@/components/crm-v2/lycees/LyceesClient'
@@ -610,7 +610,6 @@ export default function TeleproClient({
 
   const overlays = (
     <>
-      {aircallPhoneShown && <AircallPhone />}
       {dialerFicheShown && dialerLeadId && (
         <DialerContactFiche key={dialerLeadId} contactId={dialerLeadId} onClose={() => setDialerFiche(false)} />
       )}
@@ -795,15 +794,17 @@ export default function TeleproClient({
       </CrmV2Header>
 
       {dialerBanner}
-      {/* Fiche du dialer ouverte à droite : la page se décale pour laisser le dialer cliquable */}
-      <main style={{
-        flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column',
-        paddingRight: dialerFicheShown ? 484 : 0,
-        paddingLeft: aircallPhoneShown && aircallEmbed.expanded ? AIRCALL_PHONE_WIDTH + 24 : 0,
-      }}>
-        {dialerPane}
-        {tabContent()}
-      </main>
+      {/* Téléphone Aircall intégré en colonne à gauche ; fiche du dialer à droite (la page se décale) */}
+      <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+        {aircallPhoneShown && <AircallPhone />}
+        <main style={{
+          flex: 1, minWidth: 0, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column',
+          paddingRight: dialerFicheShown ? 484 : 0,
+        }}>
+          {dialerPane}
+          {tabContent()}
+        </main>
+      </div>
 
       {overlays}
     </div>

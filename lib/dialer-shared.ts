@@ -25,7 +25,7 @@ export type DialerSettings = {
 
 export const DEFAULT_DIALER_SETTINGS: DialerSettings = {
   double_calls: 1,
-  double_call_delay_sec: 8,
+  double_call_delay_sec: 3,
   retry_after_min: 180,
   max_rounds_per_day: 2,
   wrap_up_sec: 15,

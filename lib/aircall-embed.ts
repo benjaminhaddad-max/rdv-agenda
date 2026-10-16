@@ -5,7 +5,8 @@
  * tourne dans une iframe de la page télépro. Le télépro raccroche avec le bouton
  * rouge du téléphone, sans changer d'appli (l'API Aircall ne sait pas raccrocher).
  * - Activé par appareil (localStorage), ordinateur uniquement.
- * - Le power dialer appelle via `dialNumber` au lieu de l'API Aircall.
+ * - Le power dialer lance les appels par l'API Aircall : ils sonnent dans ce
+ *   téléphone (le SDK ne sait que pré-remplir un numéro, pas appeler).
  * État partagé entre le téléphone (AircallPhone) et le dialer (DialerSession).
  */
 
@@ -32,7 +33,6 @@ function readEnabled(): boolean {
 
 let state: AircallEmbedState = typeof window === 'undefined' ? SERVER_STATE : { ...SERVER_STATE, enabled: readEnabled() }
 const listeners = new Set<() => void>()
-let workspace: AircallWorkspace | null = null
 
 function set(patch: Partial<AircallEmbedState>) {
   state = { ...state, ...patch }
@@ -62,13 +62,12 @@ export function setAircallEmbedExpanded(v: boolean) {
 
 /** Branche le Workspace chargé dans la page (une seule instance) */
 export function attachAircallWorkspace(ws: AircallWorkspace | null) {
-  workspace = ws
   if (!ws) { set({ loggedIn: false, inCall: false }); return }
   // Appel qui démarre : le téléphone se déplie pour que le bouton raccrocher soit visible
   ws.on('outgoing_call', () => set({ inCall: true, expanded: true }))
   ws.on('incoming_call', () => set({ inCall: true, expanded: true }))
   ws.on('call_end_ringtone', d => { if (d.answer_status !== 'answered') set({ inCall: false }) })
-  ws.on('call_ended', () => set({ inCall: false }))
+  ws.on('call_ended', () => { set({ inCall: false }); endedListeners.forEach(l => l()) })
 }
 
 export function setAircallLoggedIn(v: boolean) {
@@ -81,28 +80,11 @@ export function isSafariBrowser(): boolean {
   return /safari/i.test(navigator.userAgent) && !/chrome|chromium|crios|edg|fxios|android/i.test(navigator.userAgent)
 }
 
-export type EmbedDialResult = { ok: true } | { ok: false; code: string; message: string }
+type Listener = () => void
+const endedListeners = new Set<Listener>()
 
-const DIAL_ERRORS: Record<string, string> = {
-  in_call: 'Le téléphone Aircall est encore en appel : raccroche avec le bouton rouge.',
-  not_ready: 'Connecte-toi dans le téléphone Aircall (à gauche), puis relance l\'appel.',
-  no_answer: 'Le téléphone Aircall ne répond pas : vérifie que tu es connecté (à gauche), puis relance l\'appel.',
-}
-
-/** Compose le numéro dans le téléphone intégré (format E.164) */
-export function dialNumber(phoneE164: string): Promise<EmbedDialResult> {
-  const ws = workspace
-  if (!ws) return Promise.resolve({ ok: false, code: 'not_ready', message: DIAL_ERRORS.not_ready })
-  return new Promise(resolve => {
-    let done = false
-    const finish = (r: EmbedDialResult) => { if (!done) { done = true; resolve(r) } }
-    // Le SDK peut ne jamais rappeler si l'iframe est bloquée
-    const timer = setTimeout(() => finish({ ok: false, code: 'no_answer', message: DIAL_ERRORS.no_answer }), 10_000)
-    ws.send('dial_number', { phone_number: phoneE164 }, (success, data) => {
-      clearTimeout(timer)
-      if (success) { set({ inCall: true, expanded: true }); finish({ ok: true }); return }
-      const code = (data as { code?: string } | null)?.code ?? 'unknown_error'
-      finish({ ok: false, code, message: DIAL_ERRORS[code] ?? `Le téléphone Aircall n'a pas lancé l'appel (${code}).` })
-    })
-  })
+/** Raccroché dans le téléphone intégré : le dialer relit l'appel tout de suite (sans attendre son tour de suivi) */
+export function onAircallCallEnded(cb: Listener): () => void {
+  endedListeners.add(cb)
+  return () => { endedListeners.delete(cb) }
 }

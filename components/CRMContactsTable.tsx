@@ -22,6 +22,8 @@ import {
 import { isUserTypeProperty } from '@/lib/crm-user-resolver'
 import { telHref } from '@/lib/phone-e164'
 import { useIsMobile } from '@/lib/useIsMobile'
+import { useDialerLive } from '@/lib/dialer-live'
+import DialerStatusPill from '@/components/telepro-v2/DialerStatusPill'
 import { SCORE_LEVELS, isDeadStatus } from '@/lib/lead-score'
 import type { Engagement } from '@/lib/lead-engagement'
 import { neutralPropLabel, mentionsHubspot } from '@/components/crm-v2/filters/labels'
@@ -1092,6 +1094,36 @@ export default function CRMContactsTable({
 }: Props) {
   const RENDER_CHUNK = 120
   const [expanded,          setExpanded]          = useState<Set<string>>(new Set())
+  // Power dialer en cours (espace télépro) : ligne appelée allumée, résultats, prochains
+  const dialerLive = useDialerLive()
+  const liveId = dialerLive.current?.id ?? null
+  useEffect(() => {
+    if (!liveId) return
+    const row = document.querySelector(`tr[data-contact-row="${CSS.escape(liveId)}"]`)
+    row?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  }, [liveId])
+  function dialerTag(id: string) {
+    if (dialerLive.current?.id === id) return <DialerStatusPill size="sm" state={dialerLive.current.state} label={dialerLive.current.label || 'Appel…'} />
+    const res = dialerLive.results[id]
+    if (res) {
+      return (
+        <span style={{
+          display: 'inline-flex', alignItems: 'center', gap: 4, borderRadius: 999, padding: '1px 8px', fontSize: 11, fontWeight: 700,
+          color: res.color, border: `1px solid ${res.color}55`, background: `${res.color}12`, whiteSpace: 'nowrap', flexShrink: 0,
+        }}><Check size={10} /> {res.label}</span>
+      )
+    }
+    const rank = dialerLive.upcoming.indexOf(id)
+    if (rank >= 0) {
+      return (
+        <span style={{
+          display: 'inline-flex', alignItems: 'center', borderRadius: 999, padding: '1px 8px', fontSize: 11, fontWeight: 600,
+          color: crmV2.textMuted, border: `1px dashed ${crmV2.borderStrong}`, whiteSpace: 'nowrap', flexShrink: 0,
+        }}>{rank === 0 ? 'Ensuite' : `${rank + 1}e à suivre`}</span>
+      )
+    }
+    return null
+  }
   const [noteModal,         setNoteModal]          = useState<{ dealId: string; name: string } | null>(null)
   const [assignPanel,       setAssignPanel]        = useState<{
     dealId: string; name: string; mode: 'closer' | 'telepro'
@@ -1985,6 +2017,7 @@ export default function CRMContactsTable({
               <ColdCallLine c={coldMap[contact.hubspot_contact_id]!} onOpen={() => setColdModal(coldMap[contact.hubspot_contact_id]!)} />
             )}
             </span>
+            {dialerTag(contact.hubspot_contact_id)}
             {transferMap[contact.hubspot_contact_id] && (
               <TransferBadge
                 info={transferMap[contact.hubspot_contact_id]!}
@@ -2919,22 +2952,25 @@ export default function CRMContactsTable({
               const isExpanded = expanded.has(contact.hubspot_contact_id)
               const deal       = contact.deal
 
-              const rowBg = isExpanded ? crmV2.bgHover : crmV2.bg
+              const isLive = liveId === contact.hubspot_contact_id
+              const rowBg = isExpanded ? crmV2.bgHover : isLive ? crmV2.goldSoft : crmV2.bg
 
               return (
                 <React.Fragment key={contact.hubspot_contact_id}>
                   <tr
                     className="crm-contact-row"
+                    data-contact-row={contact.hubspot_contact_id}
                     onMouseEnter={(e) => {
                       handleRowEnter(contact.hubspot_contact_id)
-                      if (!isExpanded) e.currentTarget.style.background = crmV2.rowHover
+                      if (!isExpanded && !isLive) e.currentTarget.style.background = crmV2.rowHover
                     }}
                     onMouseLeave={(e) => {
                       handleRowLeave()
-                      if (!isExpanded) e.currentTarget.style.background = crmV2.bg
+                      if (!isExpanded) e.currentTarget.style.background = rowBg
                     }}
                     style={{
                       background: rowBg,
+                      boxShadow: isLive ? `inset 3px 0 0 ${crmV2.gold}` : undefined,
                       height: 40,
                       transition: 'background 0.1s',
                       // Skip-rendering des rangs hors viewport : le navigateur

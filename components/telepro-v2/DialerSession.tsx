@@ -28,7 +28,9 @@ import {
   type DialerAttempt, type DialerLead, type DialerListContact, type DialerListSource, type DialerSettings,
 } from '@/lib/dialer-shared'
 import { tint } from './ui'
-import { aircallEmbedState, dialNumber, setAircallEmbedEnabled, useAircallEmbed } from '@/lib/aircall-embed'
+import StatusPill from './DialerStatusPill'
+import { onAircallCallEnded, setAircallEmbedEnabled, useAircallEmbed } from '@/lib/aircall-embed'
+import { publishDialerLive, recordDialerResult, resetDialerLive, type DialerLiveState } from '@/lib/dialer-live'
 
 type Line = { ok: true; aircall_user_id: number; number_id: number; number_label: string | null } | { ok: false; error: string }
 type Stats = { calls: number; answered: number; talks: number; rdv: number }
@@ -87,12 +89,27 @@ const WAIT_END_MAX_MS = 12_000
 /** Décroché de moins de 30 s : en pratique la messagerie (Aircall la compte comme un décroché) */
 const SHORT_ANSWER_MS = 30_000
 /** Messagerie probable, raccrochée sans clic : délai avant le double appel */
-const SHORT_ANSWER_WAIT_SEC = 4
+const SHORT_ANSWER_WAIT_SEC = 2
 
 function shortAnswer(a: DialerAttempt): boolean {
   if (!a.answered_at) return false
   const end = a.ended_at ? Date.parse(a.ended_at) : Date.now()
   return end - Date.parse(a.answered_at) < SHORT_ANSWER_MS
+}
+
+/** État de l'appel, en mots : affiché dans le dialer et sur la ligne du contact */
+function callStatus(attempt: DialerAttempt | null, phase: Phase, manual: boolean, dialNote: string | null): { state: DialerLiveState; label: string } {
+  if (phase.kind === 'dialing') return { state: 'dialing', label: dialNote ?? 'Lancement de l\'appel…' }
+  if (phase.kind === 'error') return { state: 'error', label: 'Appel non lancé' }
+  if (!attempt) return { state: 'dialing', label: '' }
+  if (attempt.outcome === 'voicemail') return { state: 'voicemail', label: 'Messagerie' }
+  if (attempt.outcome === 'answered') return { state: 'ended', label: `Décroché · ${attempt.duration_sec ?? 0} s` }
+  if (attempt.outcome === 'no_answer') return { state: 'ended', label: 'Pas de réponse' }
+  if (attempt.ended_at) return { state: 'ended', label: 'Appel terminé' }
+  if (attempt.answered_at) return { state: 'live', label: 'En ligne' }
+  if (attempt.status === 'in_call') return { state: 'ringing', label: 'Ça sonne…' }
+  if (manual) return { state: 'dialing', label: 'Appuie sur « Appeler »' }
+  return { state: 'dialing', label: 'Appel lancé, en attente d\'Aircall…' }
 }
 
 function hm(iso: string): string {
@@ -175,11 +192,6 @@ export default function DialerSession({
     else taken.current.clear()
     setTakenView(new Set(taken.current))
   }, [])
-  /** Lead remis dans la file (appel pas parti) */
-  const untake = useCallback((id: string) => {
-    taken.current.delete(id)
-    setTakenView(new Set(taken.current))
-  }, [])
   const dataRef = useRef<QueueData | null>(null)
   useEffect(() => { dataRef.current = data }, [data])
   const leadId = lead?.hubspot_contact_id ?? null
@@ -205,6 +217,8 @@ export default function DialerSession({
   // Téléphone Aircall intégré au CRM (ordinateur) : le dialer compose dedans
   const embed = useAircallEmbed()
   const embedOn = embed.enabled && !isMobile && !readOnly
+  /** Bouton « Appeler » (iPad) : sans objet avec le téléphone intégré, l'API lance l'appel */
+  const manualMode = manualDial && !embedOn
   const hangHint = embedOn ? 'raccroche avec le bouton rouge du téléphone Aircall (à gauche)' : 'raccroche-le dans Aircall (⌥E)'
 
   // ── File ──
@@ -289,20 +303,14 @@ export default function DialerSession({
     setNotice(null)
     markTaken(target.hubspot_contact_id)
     setDialNote(null)
-    // Téléphone intégré : on attend que l'appel précédent soit raccroché avant de noter le suivant
-    for (let i = 0; embedOn && aircallEmbedState().inCall && i < BUSY_RETRIES; i++) {
-      setDialNote(`Appel précédent encore ouvert : raccroche avec le bouton rouge du téléphone Aircall… (${i + 1})`)
-      await wait()
-      if (stopped()) { setDialNote(null); setBusy(false); untake(target.hubspot_contact_id); return }
-    }
     type DialResponse = { ok: boolean; attempt?: DialerAttempt; error?: string; busy?: boolean }
     let res: { ok: boolean; data: DialResponse & { error?: string } } | null = null
     // Aircall refuse (405) tant que l'appel précédent ou son temps de post-appel n'est pas fini : on réessaie
     for (let i = 0; i < BUSY_RETRIES; i++) {
       res = await api<DialResponse>('/api/telepro/dialer', {
         method: 'POST',
-        // Téléphone intégré : le serveur note la tentative, l'appel part du téléphone de la page
-        body: JSON.stringify({ action: 'dial', contact_id: target.hubspot_contact_id, reason: target.reason, redial_of: redialOf ?? null, manual: manualDial || embedOn }),
+        // Téléphone intégré compris : l'API Aircall lance l'appel, il sonne dans le téléphone de la page
+        body: JSON.stringify({ action: 'dial', contact_id: target.hubspot_contact_id, reason: target.reason, redial_of: redialOf ?? null, manual: manualMode }),
       })
       if (!res.data.busy || stopped()) break
       setDialNote(`Appel précédent encore ouvert : ${hangHint}… nouvel essai (${i + 1})`)
@@ -310,19 +318,8 @@ export default function DialerSession({
       if (stopped()) break
     }
     const { ok, data: r } = res!
-    let launched = ok && !!r.attempt && r.ok !== false
-    let error = r.error || 'Appel non lancé'
-    if (launched && embedOn) {
-      // Pause / Terminer avant de composer : rien n'est parti, le lead reste dans la file
-      if (stopped()) { setDialNote(null); setBusy(false); untake(target.hubspot_contact_id); return }
-      let d = await dialNumber(r.attempt!.phone)
-      for (let i = 0; !d.ok && d.code === 'in_call' && i < BUSY_RETRIES && !stopped(); i++) {
-        setDialNote(`Appel précédent encore ouvert : raccroche avec le bouton rouge du téléphone Aircall… (${i + 1})`)
-        await wait()
-        if (!stopped()) d = await dialNumber(r.attempt!.phone)
-      }
-      if (!d.ok) { launched = false; error = d.message }
-    }
+    const launched = ok && !!r.attempt && r.ok !== false
+    const error = r.error || 'Appel non lancé'
     setDialNote(null)
     setBusy(false)
     // Pause / Terminer / Suivant pendant le lancement : la session ne repart pas toute seule
@@ -338,7 +335,7 @@ export default function DialerSession({
     }
     setAttempt(r.attempt!)
     setPhase({ kind: 'call' })
-  }, [markTaken, untake, manualDial, embedOn, hangHint, setPhase])
+  }, [markTaken, manualMode, hangHint, setPhase])
 
   const goNext = useCallback(async () => {
     const token = run.current
@@ -386,6 +383,7 @@ export default function DialerSession({
   const sourceKey = source?.started_at ?? null
   useEffect(() => {
     run.current++
+    resetDialerLive()
     markTaken(null)
     setLead(null)
     setAttempt(null)
@@ -410,6 +408,18 @@ export default function DialerSession({
     }, POLL_MS)
     return () => clearInterval(t)
   }, [attemptId, following])
+
+  // Raccroché dans le téléphone intégré : on relit l'appel tout de suite (le webhook suit de près)
+  useEffect(() => {
+    if (!attemptId) return
+    const timers: ReturnType<typeof setTimeout>[] = []
+    const refresh = async () => {
+      const { ok, data: r } = await api<{ attempt?: DialerAttempt }>(`/api/telepro/dialer?attempt_id=${attemptId}`)
+      if (ok && r.attempt) setAttempt(r.attempt)
+    }
+    const off = onAircallCallEnded(() => { [300, 1200, 2500].forEach(ms => timers.push(setTimeout(() => { void refresh() }, ms))) })
+    return () => { off(); timers.forEach(clearTimeout) }
+  }, [attemptId])
 
   const startCountdown = useCallback((action: 'redial' | 'next') => {
     const s = dataRef.current?.settings
@@ -441,6 +451,8 @@ export default function DialerSession({
     }
     setQualified(q)
     setAttempt(r.attempt)
+    const qDef = DIALER_QUALIFICATIONS.find(x => x.id === q)
+    recordDialerResult(lead.hubspot_contact_id, extra?.status || qDef?.label || q, qDef?.color ?? crmV2.textMuted)
 
     // Statut du lead : qualification, statut choisi, ou NRP après un passage sans réponse
     const def = DIALER_QUALIFICATIONS.find(x => x.id === q)
@@ -564,6 +576,18 @@ export default function DialerSession({
     void goNext()
   }
 
+  // Liste « Mes contacts » : ligne du lead en cours allumée, résultats, prochains
+  useEffect(() => {
+    if (readOnly) return
+    const on = phase.kind !== 'off'
+    const cur = on && lead ? { id: lead.hubspot_contact_id, ...callStatus(attempt, phase, manualMode, dialNote) } : null
+    const next = on && data
+      ? poolOf(data, list, takenView).filter(l => l.hubspot_contact_id !== lead?.hubspot_contact_id).slice(0, 3).map(l => l.hubspot_contact_id)
+      : []
+    publishDialerLive(cur, next)
+  }, [readOnly, lead, attempt, phase, manualMode, dialNote, data, list, takenView, poolOf])
+  useEffect(() => () => resetDialerLive(), [])
+
   // ── Rendu ──
   if (loadError && !data) {
     return <AdminNotice tone={loadError.includes('v89') ? 'warning' : 'error'}>{loadError}</AdminNotice>
@@ -577,11 +601,11 @@ export default function DialerSession({
   const remainingLabel = `${remaining.length}${list && !list.done ? '+' : ''}`
   const queueName = source ? `la vue « ${source.label} »` : '« À traiter aujourd\'hui »'
   const countdownSec = phase.kind === 'countdown' ? Math.max(0, Math.ceil((phase.until - now) / 1000)) : 0
-  const canStart = !readOnly && (data.line.ok || manualDial || embedOn) && data.in_window
+  const canStart = !readOnly && (data.line.ok || manualMode) && data.in_window
 
   const leadPanel = lead ? (
     <LeadPanel
-      manual={manualDial && !embedOn}
+      manual={manualMode}
       embed={embedOn}
       compact={dock}
       dialNote={dialNote}
@@ -618,21 +642,28 @@ export default function DialerSession({
   // ── Panneau ancré au-dessus de « Mes contacts » (power dialer lancé depuis la liste) ──
   if (dock) {
     return (
-      <div style={{ ...card, padding: 14, gap: 10, border: `1px solid ${crmV2.goldBorder}`, boxShadow: crmV2.shadowRecord }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <PhoneCall size={16} color={crmV2.gold} />
-          <span style={{ fontSize: 14, fontWeight: 800, color: crmV2.text }}>Power dialer</span>
-          {source && <span style={{ fontSize: 13, color: crmV2.textMuted }}>{source.label}</span>}
+      <div style={{ ...card, padding: '10px 14px', gap: 8, border: `1px solid ${crmV2.goldBorder}`, boxShadow: crmV2.shadowRecord }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <PhoneCall size={15} color={crmV2.gold} />
+          <span style={{ fontSize: 13, fontWeight: 800, color: crmV2.text }}>Power dialer</span>
+          {source && <span style={{ fontSize: 12, color: crmV2.textMuted }}>{source.label}</span>}
           <span style={{ fontSize: 12, color: crmV2.textMuted }}>
             · {data.stats.calls} appel{data.stats.calls > 1 ? 's' : ''} · {data.stats.answered} décroché{data.stats.answered > 1 ? 's' : ''} · {data.stats.rdv} RDV · {remainingLabel} à suivre
           </span>
-          <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 8, alignItems: 'center' }}>
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: crmV2.textMuted, cursor: 'pointer' }} title="iPad, téléphone : Aircall ne peut pas lancer l'appel tout seul">
-              <input type="checkbox" checked={manualDial} onChange={e => toggleManual(e.target.checked)} /> Bouton « Appeler »
-            </label>
+          {upcoming[0] && (
+            <span style={{ fontSize: 12, color: crmV2.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 260 }}>
+              · Ensuite : <strong style={{ color: crmV2.text }}>{upcoming[0].name}</strong>
+            </span>
+          )}
+          <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+            {!embedOn && (
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: crmV2.textMuted, cursor: 'pointer' }} title="iPad, téléphone : Aircall ne peut pas lancer l'appel tout seul">
+                <input type="checkbox" checked={manualDial} onChange={e => toggleManual(e.target.checked)} /> Bouton « Appeler »
+              </label>
+            )}
             {!isMobile && !readOnly && !embed.enabled && (
               <CrmV2Button size="sm" variant="gold" icon={<PhoneCall size={13} />} onClick={() => setAircallEmbedEnabled(true)}
-                title="Le téléphone Aircall s'affiche en bas à gauche du CRM : tu appelles et tu raccroches sans changer d'appli">
+                title="Le téléphone Aircall s'affiche à gauche du CRM : les appels y sonnent et tu raccroches sans changer d'appli">
                 Téléphone Aircall ici
               </CrmV2Button>
             )}
@@ -644,12 +675,9 @@ export default function DialerSession({
             {onExpand && <CrmV2Button size="sm" onClick={onExpand}>Plein écran</CrmV2Button>}
           </span>
         </div>
-        {!data.line.ok && !manualDial && !embedOn && <AdminNotice tone="warning">{data.line.error}</AdminNotice>}
+        {!data.line.ok && !manualMode && <AdminNotice tone="warning">{data.line.error}</AdminNotice>}
         {notice && <AdminNotice tone="error" onClose={() => setNotice(null)}>{notice}</AdminNotice>}
         {leadPanel ?? pauseMessage}
-        {upcoming[0] && (
-          <div style={{ fontSize: 12, color: crmV2.textMuted }}>Ensuite : <strong style={{ color: crmV2.text }}>{upcoming[0].name}</strong>{upcoming[1] ? `, ${upcoming[1].name}` : ''}…</div>
-        )}
       </div>
     )
   }
@@ -688,7 +716,7 @@ export default function DialerSession({
             <CrmV2Button size="sm" icon={loading ? <AdminSpin size={12} /> : <RefreshCw size={13} />} onClick={() => { void load() }}>Actualiser</CrmV2Button>
           )}
           {phase.kind === 'off' && (
-            <CrmV2Button variant="gold" size="lg" icon={<Play size={15} />} disabled={!canStart || (remaining.length === 0 && !(list && !list.done))} onClick={() => { markTaken(null); void goNext() }}>
+            <CrmV2Button variant="gold" size="lg" icon={<Play size={15} />} disabled={!canStart || (remaining.length === 0 && !(list && !list.done))} onClick={() => { run.current++; resetDialerLive(); markTaken(null); void goNext() }}>
               Démarrer ma session
             </CrmV2Button>
           )}
@@ -702,7 +730,7 @@ export default function DialerSession({
         </div>
       </div>
 
-      {!data.line.ok && !manualDial && !embedOn && <AdminNotice tone="warning">{data.line.error}</AdminNotice>}
+      {!data.line.ok && !manualMode && <AdminNotice tone="warning">{data.line.error}</AdminNotice>}
       <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, color: crmV2.textMuted, cursor: 'pointer' }}>
         <input type="checkbox" checked={manualDial} onChange={e => toggleManual(e.target.checked)} />
         Je lance chaque appel moi-même avec le bouton « Appeler » (iPad, téléphone : Aircall ne peut pas lancer l&apos;appel tout seul)
@@ -710,11 +738,11 @@ export default function DialerSession({
       {!isMobile && !readOnly && (
         <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, color: crmV2.textMuted, cursor: 'pointer' }}>
           <input type="checkbox" checked={embed.enabled} onChange={e => setAircallEmbedEnabled(e.target.checked)} />
-          Téléphone Aircall dans le CRM (en bas à gauche) : tu appelles et tu raccroches sans quitter la page. Ferme alors l&apos;appli Aircall de l&apos;ordinateur.
+          Téléphone Aircall dans le CRM (à gauche) : les appels y sonnent et tu raccroches sans quitter la page. Ferme alors l&apos;appli Aircall de l&apos;ordinateur.
         </label>
       )}
       {embedOn && !embed.loggedIn && (
-        <AdminNotice tone="info">Connecte-toi une fois dans le téléphone Aircall en bas à gauche (même compte que l&apos;appli).</AdminNotice>
+        <AdminNotice tone="info">Connecte-toi une fois dans le téléphone Aircall à gauche (même compte que l&apos;appli), dans Google Chrome.</AdminNotice>
       )}
       {data.line.ok && !data.in_window && phase.kind === 'off' && (
         <AdminNotice tone="info">Hors plage d&apos;appel : la session se lance entre {settings.day_start} et {settings.day_end}.</AdminNotice>
@@ -818,21 +846,116 @@ function LeadPanel({
 }) {
   const level = lead.score ? SCORE_LEVELS[lead.score.level] : null
   const ended = !!attempt?.ended_at
-  const callLabel = phase.kind === 'dialing' ? dialNote ?? 'Lancement de l\'appel dans Aircall…'
-    : phase.kind === 'error' ? 'Appel non lancé'
-    : !attempt ? ''
-    : attempt.outcome === 'answered' ? `Décroché · ${attempt.duration_sec ?? 0} s`
-    : attempt.outcome === 'voicemail' ? 'Messagerie'
-    : attempt.outcome === 'no_answer' ? 'Pas de réponse'
-    : ended ? 'Appel terminé'
-    : attempt.answered_at ? 'En conversation'
-    : attempt.status === 'in_call' ? 'Ça sonne…'
-    : manual ? 'Appuie sur « Appeler »'
-    : 'Appel lancé, en attente d\'Aircall…'
+  const status = callStatus(attempt, phase, manual, dialNote)
+  const callLabel = status.label
   const showNext = !!onNext && (phase.kind === 'call' || phase.kind === 'countdown' || phase.kind === 'waiting_end' || phase.kind === 'paused')
   const showCallButton = manual && !!attempt && attempt.status === 'dialing' && !qualified && phase.kind === 'call'
   const callColor = attempt?.outcome === 'answered' || attempt?.answered_at ? crmV2.successStrong
     : phase.kind === 'error' ? crmV2.danger : crmV2.textMuted
+
+  const qualifyBlock = attempt && phase.kind !== 'error' && phase.kind !== 'dialing' ? (
+    <>
+      {!qualified && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: compact ? 5 : 6, alignItems: 'center' }}>
+          {compact && <span style={{ fontSize: 11, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase', letterSpacing: '0.4px', marginRight: 2 }}>Résultat</span>}
+          {DIALER_QUALIFICATIONS.map(q => (
+            <button key={q.id} type="button" disabled={busy}
+              onClick={() => {
+                if (q.id === 'autre') { setOtherStatus(!otherStatus); setRelanceAt(null); return }
+                if (q.id === 'a_rappeler') { setRelanceAt(relanceAt === null ? '' : null); setOtherStatus(false); return }
+                onQualify(q.id)
+              }}
+              style={{
+                borderRadius: 999, padding: compact ? '5px 11px' : '8px 14px', fontSize: compact ? 12 : 13, fontWeight: 700, fontFamily: 'inherit', cursor: busy ? 'wait' : 'pointer',
+                background: FAILED_QUALIFICATIONS.has(q.id) ? crmV2.bg : tint(q.color, 0.1),
+                color: q.color, border: `1px solid ${tint(q.color, 0.35)}`,
+              }}>
+              {q.label}
+            </button>
+          ))}
+        </div>
+      )}
+      {!qualified && relanceAt !== null && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 13, color: crmV2.textMuted }}>Rappeler le</span>
+          <input type="datetime-local" value={relanceAt} onChange={e => setRelanceAt(e.target.value)}
+            style={{ height: 34, borderRadius: 8, border: `1px solid ${crmV2.borderStrong}`, padding: '0 10px', fontFamily: 'inherit', fontSize: 13 }} />
+          <CrmV2Button size="sm" variant="gold" disabled={!relanceAt || busy}
+            onClick={() => onQualify('a_rappeler', { relance_at: relanceAt ? new Date(relanceAt).toISOString() : null })}>
+            Valider
+          </CrmV2Button>
+        </div>
+      )}
+      {!qualified && otherStatus && (
+        <select defaultValue="" disabled={busy}
+          onChange={e => { if (e.target.value) onQualify('autre', { status: e.target.value }) }}
+          style={{ height: 36, borderRadius: 8, border: `1px solid ${crmV2.borderStrong}`, padding: '0 10px', fontFamily: 'inherit', fontSize: 13, maxWidth: 320 }}>
+          <option value="">Choisir le statut du lead…</option>
+          {LEAD_STATUS_OPTIONS_FALLBACK.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+        </select>
+      )}
+    </>
+  ) : null
+
+  // ── Panneau compact (au-dessus de « Mes contacts ») : 3 lignes, la liste garde la place ──
+  if (compact) {
+    const small: CSSProperties = { ...chip, fontSize: 11, padding: '2px 8px' }
+    return (
+      <>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', minWidth: 0 }}>
+          {onOpenContact ? (
+            <button type="button" onClick={() => onOpenContact(lead.hubspot_contact_id)} title="Ouvrir la fiche à côté"
+              style={{ border: 'none', background: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: 16, fontWeight: 800, color: crmV2.text, textAlign: 'left' }}>
+              {lead.name}
+            </button>
+          ) : (
+            <span style={{ fontSize: 16, fontWeight: 800, color: crmV2.text }}>{lead.name}</span>
+          )}
+          <span style={{ fontSize: 13, color: crmV2.textMuted, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Phone size={12} /> {lead.phone}</span>
+          {attempt && attempt.try_no > 1 && (
+            <span style={{ ...small, background: tint(crmV2.gold, 0.15), color: crmV2.goldDark, border: `1px solid ${crmV2.goldBorder}`, fontWeight: 700 }}>{attempt.try_no}e appel</span>
+          )}
+          {lead.classe && <span style={small}>{lead.classe}</span>}
+          {lead.lead_status && <span style={small}>{lead.lead_status}</span>}
+          {lead.form_name && <span style={{ ...small, maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block' }} title={lead.form_name}>{lead.form_name}{lead.form_at ? ` · ${ago(lead.form_at)}` : ''}</span>}
+          <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <StatusPill state={status.state} label={callLabel} />
+            {phase.kind === 'countdown' && (
+              <button type="button" onClick={onNow} title="Tout de suite" style={{
+                border: 'none', background: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, color: crmV2.text,
+              }}>
+                {phase.label} dans <strong>{countdownSec} s</strong>
+              </button>
+            )}
+            {phase.kind === 'waiting_end' && <span style={{ fontSize: 12, color: crmV2.textMuted }}>{embed ? 'Raccroche (bouton rouge)…' : 'Raccroche dans Aircall (⌥E)…'}</span>}
+            {onOpenContact && <CrmV2Button size="sm" icon={<FileText size={12} />} onClick={() => onOpenContact(lead.hubspot_contact_id)}>Fiche</CrmV2Button>}
+            {showCallButton && lead.phone && (
+              <a href={telHref(lead.phone)} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6, borderRadius: 999, padding: '6px 14px', fontSize: 13, fontWeight: 800,
+                background: crmV2.successStrong, color: '#fff', textDecoration: 'none',
+              }}><Phone size={13} /> Appeler</a>
+            )}
+            {showNext && (
+              <CrmV2Button size="sm" variant="gold" icon={<SkipForward size={12} />} onClick={onNext}
+                title="Messagerie ou pas de réponse : rappelle une 2e fois, puis passe au lead suivant. Si l'appel est encore ouvert, raccroche-le : ça part tout seul.">
+                Suivant
+              </CrmV2Button>
+            )}
+          </span>
+        </div>
+        {phase.kind === 'error' && (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ fontSize: 13, color: crmV2.danger, flex: 1, minWidth: 200 }}>{phase.message}</span>
+            <CrmV2Button size="sm" variant="gold" icon={<RefreshCw size={12} />} onClick={onRetry}>Relancer l&apos;appel</CrmV2Button>
+            <CrmV2Button size="sm" icon={<SkipForward size={12} />} onClick={onSkip}>Passer ce lead</CrmV2Button>
+          </div>
+        )}
+        {qualified
+          ? <div style={{ fontSize: 12, color: crmV2.textMuted }}>Noté : <strong style={{ color: crmV2.text }}>{DIALER_QUALIFICATIONS.find(q => q.id === qualified)?.label ?? qualified}</strong></div>
+          : qualifyBlock}
+      </>
+    )
+  }
 
   return (
     <>
@@ -928,49 +1051,12 @@ function LeadPanel({
       )}
 
       {/* Qualification */}
-      {attempt && phase.kind !== 'error' && phase.kind !== 'dialing' && (
+      {qualifyBlock && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
             {qualified ? `Qualifié : ${DIALER_QUALIFICATIONS.find(q => q.id === qualified)?.label ?? qualified}` : 'Résultat de l\'appel'}
           </div>
-          {!qualified && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {DIALER_QUALIFICATIONS.map(q => (
-                <button key={q.id} type="button" disabled={busy}
-                  onClick={() => {
-                    if (q.id === 'autre') { setOtherStatus(!otherStatus); setRelanceAt(null); return }
-                    if (q.id === 'a_rappeler') { setRelanceAt(relanceAt === null ? '' : null); setOtherStatus(false); return }
-                    onQualify(q.id)
-                  }}
-                  style={{
-                    borderRadius: 999, padding: '8px 14px', fontSize: 13, fontWeight: 700, fontFamily: 'inherit', cursor: busy ? 'wait' : 'pointer',
-                    background: FAILED_QUALIFICATIONS.has(q.id) ? crmV2.bg : tint(q.color, 0.1),
-                    color: q.color, border: `1px solid ${tint(q.color, 0.35)}`,
-                  }}>
-                  {q.label}
-                </button>
-              ))}
-            </div>
-          )}
-          {!qualified && relanceAt !== null && (
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-              <span style={{ fontSize: 13, color: crmV2.textMuted }}>Rappeler le</span>
-              <input type="datetime-local" value={relanceAt} onChange={e => setRelanceAt(e.target.value)}
-                style={{ height: 34, borderRadius: 8, border: `1px solid ${crmV2.borderStrong}`, padding: '0 10px', fontFamily: 'inherit', fontSize: 13 }} />
-              <CrmV2Button size="sm" variant="gold" disabled={!relanceAt || busy}
-                onClick={() => onQualify('a_rappeler', { relance_at: relanceAt ? new Date(relanceAt).toISOString() : null })}>
-                Valider
-              </CrmV2Button>
-            </div>
-          )}
-          {!qualified && otherStatus && (
-            <select defaultValue="" disabled={busy}
-              onChange={e => { if (e.target.value) onQualify('autre', { status: e.target.value }) }}
-              style={{ height: 36, borderRadius: 8, border: `1px solid ${crmV2.borderStrong}`, padding: '0 10px', fontFamily: 'inherit', fontSize: 13, maxWidth: 320 }}>
-              <option value="">Choisir le statut du lead…</option>
-              {LEAD_STATUS_OPTIONS_FALLBACK.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
-            </select>
-          )}
+          {qualifyBlock}
         </div>
       )}
     </>
