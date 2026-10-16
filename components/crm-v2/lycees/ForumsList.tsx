@@ -19,10 +19,11 @@ import {
   type AgendaEvent, Dept, EventStatusPill, KindPill, LastCallCell, NextCallCell, parisTodayKey, UserChip, type TeamUser,
 } from './ui'
 
-type ForumView = 'a_appeler' | 'rappels' | 'mes' | 'confirmes' | 'avenir' | 'passes'
+type ForumView = 'a_appeler' | 'chauds' | 'rappels' | 'mes' | 'confirmes' | 'avenir' | 'passes'
 
 const VIEWS: { id: ForumView; label: string; hint: string }[] = [
   { id: 'a_appeler', label: 'À appeler', hint: 'Forums à venir pas encore confirmés (détectés ou à confirmer)' },
+  { id: 'chauds', label: 'Chauds 🔥', hint: 'L’organisateur a répondu favorablement : date ou inscription à finaliser' },
   { id: 'rappels', label: 'À rappeler', hint: 'Rappel prévu aujourd’hui ou en retard' },
   { id: 'mes', label: 'Mes forums', hint: 'Forums qui me sont attribués (ou dont le lycée m’est attribué)' },
   { id: 'confirmes', label: 'Confirmés', hint: 'On y va' },
@@ -80,6 +81,7 @@ export default function ForumsList({
     const upcoming = !e.date || e.date >= today
     switch (v) {
       case 'a_appeler': return upcoming && (e.status === 'detecte' || e.status === 'a_confirmer')
+      case 'chauds': return upcoming && e.last_outcome === 'interested' && e.status !== 'confirme' && e.status !== 'refuse' && e.status !== 'annule'
       case 'rappels': return !!e.next_action_at && e.next_action_at <= today
       case 'mes': return assigneeOfEvent(e) === me && upcoming
       case 'confirmes': return upcoming && e.status === 'confirme'

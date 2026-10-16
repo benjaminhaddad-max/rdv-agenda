@@ -12,7 +12,7 @@ import { crmV2 } from '@/lib/crm-v2-theme'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { CrmV2Button, CrmV2Empty, CrmV2KpiCard, CrmV2KpiGrid, CrmV2StatusPill } from '@/components/crm-v2/primitives'
 import { EVENT_SCOPES, lookup } from '@/lib/lycees'
-import { type AgendaEvent, DateBlock, Dept, KindPill, ModePill, parisTodayKey, relDays } from './ui'
+import { type AgendaEvent, DateBlock, Dept, KindPill, ModePill, parisTodayKey, relDays, type TeamUser } from './ui'
 import { deptOfEvent } from './ForumsList'
 
 function weekStart(k: string): string {
@@ -22,14 +22,24 @@ function weekStart(k: string): string {
   return d.toISOString().slice(0, 10)
 }
 
-export default function OurDates({ events, onOpenLycee, onEdit }: {
+export default function OurDates({ events, onOpenLycee, onEdit, users = [], onQuickPatch }: {
   events: AgendaEvent[]
   onOpenLycee: (uai: string) => void
   onEdit: (e: AgendaEvent) => void
+  /** Équipe proposée dans « Qui y va ? » */
+  users?: TeamUser[]
+  onQuickPatch?: (id: string, patch: Record<string, unknown>) => Promise<void>
 }) {
   const isMobile = useIsMobile()
   const today = parisTodayKey()
   const [showPast, setShowPast] = useState(false)
+  const [editingWho, setEditingWho] = useState<string | null>(null)
+  const [who, setWho] = useState('')
+  const saveWho = async (e: AgendaEvent) => {
+    const v = who.trim()
+    setEditingWho(null)
+    if (onQuickPatch && v !== (e.intervenants ?? '')) await onQuickPatch(e.id, { intervenants: v || null })
+  }
 
   const upcoming = useMemo(() => events
     .filter(e => e.status === 'confirme' && e.kind !== 'flying' && (!e.date || e.date >= today))
@@ -83,9 +93,24 @@ export default function OurDates({ events, onOpenLycee, onEdit }: {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginTop: 6, fontSize: 12.5, color: crmV2.textMuted }}>
           {(e.time_start || e.time_end) && <span>{e.time_start ?? '?'} – {e.time_end ?? '?'}</span>}
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><MapPin size={12} />{e.lycee?.city ?? e.location ?? '—'}</span>
-          {e.intervenants
-            ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, color: crmV2.text, fontWeight: 700 }}><Users size={12} />{e.intervenants}</span>
-            : !isPast && <span style={{ color: '#d13a41', fontWeight: 700 }}>Personne d’envoyé</span>}
+          {editingWho === e.id ? (
+            <span onClick={ev => ev.stopPropagation()} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <Users size={12} />
+              <input autoFocus list="our-dates-team" value={who} placeholder="Qui y va ? (ex. Lirone, Raphaël)"
+                onChange={ev => setWho(ev.target.value)} onBlur={() => saveWho(e)}
+                onKeyDown={ev => { if (ev.key === 'Enter') saveWho(e); if (ev.key === 'Escape') setEditingWho(null) }}
+                style={{ fontFamily: 'inherit', fontSize: 12.5, padding: '3px 8px', borderRadius: 8, border: `1px solid ${crmV2.borderStrong}`, minWidth: 200 }} />
+            </span>
+          ) : (
+            <button type="button" title="Noter qui de l’équipe y va"
+              onClick={ev => { ev.stopPropagation(); if (!onQuickPatch) return onEdit(e); setWho(e.intervenants ?? ''); setEditingWho(e.id) }}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 3, background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5,
+                color: e.intervenants ? crmV2.text : isPast ? crmV2.textFaint : '#d13a41', fontWeight: 700,
+              }}>
+              <Users size={12} />{e.intervenants || (isPast ? '—' : 'Personne d’envoyé · noter qui y va')}
+            </button>
+          )}
           {e.organizer_contact && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Phone size={12} />{e.organizer_contact}</span>}
           {isPast && <span style={{ color: e.leads_count ? '#16a34a' : crmV2.textFaint, fontWeight: 700 }}>{e.leads_count != null ? `${e.leads_count} leads` : 'Leads à saisir'}</span>}
         </div>
@@ -96,6 +121,7 @@ export default function OurDates({ events, onOpenLycee, onEdit }: {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <datalist id="our-dates-team">{users.map(u => <option key={u.id} value={u.name} />)}</datalist>
       <CrmV2KpiGrid>
         <CrmV2KpiCard label="Dates confirmées à venir" value={upcoming.length} color="#16a34a" />
         <CrmV2KpiCard label="Sans intervenant" value={noOne} color={noOne ? '#d13a41' : crmV2.text} detail="à staffer" />

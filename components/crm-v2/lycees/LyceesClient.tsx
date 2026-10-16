@@ -372,7 +372,7 @@ export default function LyceesClient({ embedded = false }: { embedded?: boolean 
               />
             )}
             {tab === 'dates' && (
-              !agenda ? <CrmV2Spinner /> : <OurDates events={events} onOpenLycee={setOpenUai} onEdit={e => setEventDraft(e)} />
+              !agenda ? <CrmV2Spinner /> : <OurDates events={events} onOpenLycee={setOpenUai} onEdit={e => setEventDraft(e)} users={users} onQuickPatch={quickPatchEvent} />
             )}
           </>
         )}

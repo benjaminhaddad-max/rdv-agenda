@@ -35,10 +35,11 @@ export type LyceeFilters = {
   quick: LyceeView
 }
 
-export type LyceeView = '' | 'a_traiter' | 'rappels' | 'jamais' | 'recaler' | 'relais' | 'prioritaires' | 'obtenus'
+export type LyceeView = '' | 'a_traiter' | 'chauds' | 'rappels' | 'jamais' | 'recaler' | 'relais' | 'prioritaires' | 'obtenus'
 
 export const LYCEE_VIEWS: { id: LyceeView; label: string; managerOnly?: boolean; hint: string }[] = [
   { id: 'a_traiter', label: 'À traiter', hint: 'Ni obtenu, ni refus, ni hors cible' },
+  { id: 'chauds', label: 'Chauds 🔥', hint: 'Le lycée a répondu favorablement : date à finaliser' },
   { id: 'rappels', label: 'À rappeler', hint: 'Rappel prévu aujourd’hui ou en retard' },
   { id: 'jamais', label: 'Jamais appelés', hint: 'Aucun appel noté' },
   { id: 'recaler', label: 'À recaler', hint: 'Forum ou inter l’an dernier, rien de calé cette année' },
@@ -52,6 +53,7 @@ export function matchLyceeView(l: LyceeListItem, v: LyceeView, today: string): b
   const open = l.status !== 'obtenu' && l.status !== 'refus' && l.status !== 'non_cible'
   switch (v) {
     case 'a_traiter': return open
+    case 'chauds': return open && l.last_outcome === 'interested'
     case 'rappels': return !!l.next_action_at && l.next_action_at <= today
     case 'jamais': return !l.calls_count && !l.last_contact_at && open
     case 'recaler': return l.had_previous_season && !l.current_season_events && open
