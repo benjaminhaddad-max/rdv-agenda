@@ -28,6 +28,7 @@ import {
   type DialerAttempt, type DialerLead, type DialerListContact, type DialerListSource, type DialerSettings,
 } from '@/lib/dialer-shared'
 import { tint } from './ui'
+import { aircallEmbedState, dialNumber, setAircallEmbedEnabled, useAircallEmbed } from '@/lib/aircall-embed'
 
 type Line = { ok: true; aircall_user_id: number; number_id: number; number_label: string | null } | { ok: false; error: string }
 type Stats = { calls: number; answered: number; talks: number; rdv: number }
@@ -164,6 +165,11 @@ export default function DialerSession({
     else taken.current.clear()
     setTakenView(new Set(taken.current))
   }, [])
+  /** Lead remis dans la file (appel pas parti) */
+  const untake = useCallback((id: string) => {
+    taken.current.delete(id)
+    setTakenView(new Set(taken.current))
+  }, [])
   const dataRef = useRef<QueueData | null>(null)
   useEffect(() => { dataRef.current = data }, [data])
   const leadId = lead?.hubspot_contact_id ?? null
@@ -185,6 +191,11 @@ export default function DialerSession({
   }
 
   const settings = data?.settings
+
+  // Téléphone Aircall intégré au CRM (ordinateur) : le dialer compose dedans
+  const embed = useAircallEmbed()
+  const embedOn = embed.enabled && !isMobile && !readOnly
+  const hangHint = embedOn ? 'raccroche avec le bouton rouge du téléphone Aircall (à gauche)' : 'raccroche-le dans Aircall (⌥E)'
 
   // ── File ──
   const listMode = !!source
@@ -257,6 +268,8 @@ export default function DialerSession({
   // ── Lancer un appel ──
   const dial = useCallback(async (target: DialerLead, redialOf?: number) => {
     const token = run.current
+    const stopped = () => phaseRef.current.kind !== 'dialing' || run.current !== token
+    const wait = () => new Promise(r => setTimeout(r, BUSY_RETRY_MS))
     setBusy(true)
     setPhase({ kind: 'dialing' })
     setLead(target)
@@ -266,37 +279,56 @@ export default function DialerSession({
     setNotice(null)
     markTaken(target.hubspot_contact_id)
     setDialNote(null)
+    // Téléphone intégré : on attend que l'appel précédent soit raccroché avant de noter le suivant
+    for (let i = 0; embedOn && aircallEmbedState().inCall && i < BUSY_RETRIES; i++) {
+      setDialNote(`Appel précédent encore ouvert : raccroche avec le bouton rouge du téléphone Aircall… (${i + 1})`)
+      await wait()
+      if (stopped()) { setDialNote(null); setBusy(false); untake(target.hubspot_contact_id); return }
+    }
     type DialResponse = { ok: boolean; attempt?: DialerAttempt; error?: string; busy?: boolean }
     let res: { ok: boolean; data: DialResponse & { error?: string } } | null = null
     // Aircall refuse (405) tant que l'appel précédent ou son temps de post-appel n'est pas fini : on réessaie
     for (let i = 0; i < BUSY_RETRIES; i++) {
       res = await api<DialResponse>('/api/telepro/dialer', {
         method: 'POST',
-        body: JSON.stringify({ action: 'dial', contact_id: target.hubspot_contact_id, reason: target.reason, redial_of: redialOf ?? null, manual: manualDial }),
+        // Téléphone intégré : le serveur note la tentative, l'appel part du téléphone de la page
+        body: JSON.stringify({ action: 'dial', contact_id: target.hubspot_contact_id, reason: target.reason, redial_of: redialOf ?? null, manual: manualDial || embedOn }),
       })
-      if (!res.data.busy || phaseRef.current.kind !== 'dialing' || run.current !== token) break
-      setDialNote(`Appel précédent encore ouvert : raccroche-le dans Aircall (⌥E)… nouvel essai (${i + 1})`)
-      await new Promise(r => setTimeout(r, BUSY_RETRY_MS))
-      if (phaseRef.current.kind !== 'dialing' || run.current !== token) break
+      if (!res.data.busy || stopped()) break
+      setDialNote(`Appel précédent encore ouvert : ${hangHint}… nouvel essai (${i + 1})`)
+      await wait()
+      if (stopped()) break
+    }
+    const { ok, data: r } = res!
+    let launched = ok && !!r.attempt && r.ok !== false
+    let error = r.error || 'Appel non lancé'
+    if (launched && embedOn) {
+      // Pause / Terminer avant de composer : rien n'est parti, le lead reste dans la file
+      if (stopped()) { setDialNote(null); setBusy(false); untake(target.hubspot_contact_id); return }
+      let d = await dialNumber(r.attempt!.phone)
+      for (let i = 0; !d.ok && d.code === 'in_call' && i < BUSY_RETRIES && !stopped(); i++) {
+        setDialNote(`Appel précédent encore ouvert : raccroche avec le bouton rouge du téléphone Aircall… (${i + 1})`)
+        await wait()
+        if (!stopped()) d = await dialNumber(r.attempt!.phone)
+      }
+      if (!d.ok) { launched = false; error = d.message }
     }
     setDialNote(null)
     setBusy(false)
-    const { ok, data: r } = res!
-    const launched = ok && !!r.attempt && r.ok !== false
     // Pause / Terminer / Suivant pendant le lancement : la session ne repart pas toute seule
-    if (phaseRef.current.kind !== 'dialing' || run.current !== token) {
+    if (stopped()) {
       if (launched && phaseRef.current.kind === 'paused' && run.current === token) setAttempt(r.attempt!)
-      else if (launched) setNotice(`L'appel vers ${target.name} est quand même parti : raccroche-le dans Aircall (⌥E).`)
+      else if (launched) setNotice(`L'appel vers ${target.name} est quand même parti : ${hangHint}.`)
       return
     }
     if (!launched) {
       setAttempt(r.attempt ?? null)
-      setPhase({ kind: 'error', message: r.error || 'Appel non lancé' })
+      setPhase({ kind: 'error', message: error })
       return
     }
     setAttempt(r.attempt!)
     setPhase({ kind: 'call' })
-  }, [markTaken, manualDial, setPhase])
+  }, [markTaken, untake, manualDial, embedOn, hangHint, setPhase])
 
   const goNext = useCallback(async () => {
     const token = run.current
@@ -467,7 +499,7 @@ export default function DialerSession({
     run.current++
     // Appel encore ouvert dans Aircall : l'API ne sait pas raccrocher à notre place
     if (attempt && !attempt.ended_at && !attempt.error && (phase.kind === 'call' || phase.kind === 'waiting_end')) {
-      setNotice('Session terminée. Pense à raccrocher l\'appel en cours dans Aircall (⌥E).')
+      setNotice(`Session terminée. Appel encore ouvert : ${hangHint}.`)
     }
     setPhase({ kind: 'off' })
     setLead(null)
@@ -521,11 +553,12 @@ export default function DialerSession({
   const remainingLabel = `${remaining.length}${list && !list.done ? '+' : ''}`
   const queueName = source ? `la vue « ${source.label} »` : '« À traiter aujourd\'hui »'
   const countdownSec = phase.kind === 'countdown' ? Math.max(0, Math.ceil((phase.until - now) / 1000)) : 0
-  const canStart = !readOnly && (data.line.ok || manualDial) && data.in_window
+  const canStart = !readOnly && (data.line.ok || manualDial || embedOn) && data.in_window
 
   const leadPanel = lead ? (
     <LeadPanel
-      manual={manualDial}
+      manual={manualDial && !embedOn}
+      embed={embedOn}
       compact={dock}
       dialNote={dialNote}
       lead={lead}
@@ -573,6 +606,11 @@ export default function DialerSession({
             <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: crmV2.textMuted, cursor: 'pointer' }} title="iPad, téléphone : Aircall ne peut pas lancer l'appel tout seul">
               <input type="checkbox" checked={manualDial} onChange={e => toggleManual(e.target.checked)} /> Bouton « Appeler »
             </label>
+            {!isMobile && !readOnly && (
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: crmV2.textMuted, cursor: 'pointer' }} title="Le téléphone Aircall s'affiche dans le CRM : tu raccroches sans changer d'appli">
+                <input type="checkbox" checked={embed.enabled} onChange={e => setAircallEmbedEnabled(e.target.checked)} /> Téléphone dans le CRM
+              </label>
+            )}
             {(phase.kind === 'paused' || phase.kind === 'error') && (
               <CrmV2Button size="sm" variant="gold" icon={<Play size={13} />} disabled={!canStart} onClick={resume}>Reprendre</CrmV2Button>
             )}
@@ -581,7 +619,7 @@ export default function DialerSession({
             {onExpand && <CrmV2Button size="sm" onClick={onExpand}>Plein écran</CrmV2Button>}
           </span>
         </div>
-        {!data.line.ok && !manualDial && <AdminNotice tone="warning">{data.line.error}</AdminNotice>}
+        {!data.line.ok && !manualDial && !embedOn && <AdminNotice tone="warning">{data.line.error}</AdminNotice>}
         {notice && <AdminNotice tone="error" onClose={() => setNotice(null)}>{notice}</AdminNotice>}
         {leadPanel ?? pauseMessage}
         {upcoming[0] && (
@@ -639,11 +677,20 @@ export default function DialerSession({
         </div>
       </div>
 
-      {!data.line.ok && !manualDial && <AdminNotice tone="warning">{data.line.error}</AdminNotice>}
+      {!data.line.ok && !manualDial && !embedOn && <AdminNotice tone="warning">{data.line.error}</AdminNotice>}
       <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, color: crmV2.textMuted, cursor: 'pointer' }}>
         <input type="checkbox" checked={manualDial} onChange={e => toggleManual(e.target.checked)} />
         Je lance chaque appel moi-même avec le bouton « Appeler » (iPad, téléphone : Aircall ne peut pas lancer l&apos;appel tout seul)
       </label>
+      {!isMobile && !readOnly && (
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, color: crmV2.textMuted, cursor: 'pointer' }}>
+          <input type="checkbox" checked={embed.enabled} onChange={e => setAircallEmbedEnabled(e.target.checked)} />
+          Téléphone Aircall dans le CRM (en bas à gauche) : tu appelles et tu raccroches sans quitter la page. Ferme alors l&apos;appli Aircall de l&apos;ordinateur.
+        </label>
+      )}
+      {embedOn && !embed.loggedIn && (
+        <AdminNotice tone="info">Connecte-toi une fois dans le téléphone Aircall en bas à gauche (même compte que l&apos;appli).</AdminNotice>
+      )}
       {data.line.ok && !data.in_window && phase.kind === 'off' && (
         <AdminNotice tone="info">Hors plage d&apos;appel : la session se lance entre {settings.day_start} et {settings.day_end}.</AdminNotice>
       )}
@@ -715,8 +762,10 @@ export default function DialerSession({
 
 function LeadPanel({
   lead, attempt, phase, countdownSec, qualified, busy, otherStatus, relanceAt, manual, compact, dialNote,
-  setOtherStatus, setRelanceAt, onQualify, onSkip, onRetry, onNow, onNext, onOpenContact,
+  setOtherStatus, setRelanceAt, onQualify, onSkip, onRetry, onNow, onNext, onOpenContact, embed,
 }: {
+  /** Téléphone Aircall intégré au CRM : on raccroche avec son bouton rouge */
+  embed: boolean
   /** « Suivant » : passe au lead suivant à tout moment */
   onNext?: () => void
   /** Ouvre la fiche à côté du dialer */
@@ -825,12 +874,12 @@ function LeadPanel({
           </span>
         )}
         {phase.kind === 'waiting_end' && (
-          <span style={{ marginLeft: 'auto', fontSize: 13, color: crmV2.textMuted }}>Raccroche dans Aircall (⌥E)…</span>
+          <span style={{ marginLeft: 'auto', fontSize: 13, color: crmV2.textMuted }}>{embed ? 'Raccroche avec le bouton rouge du téléphone…' : 'Raccroche dans Aircall (⌥E)…'}</span>
         )}
         {showNext && (
           <span style={{ marginLeft: phase.kind === 'countdown' || phase.kind === 'waiting_end' ? 0 : 'auto' }}>
             <CrmV2Button size="sm" variant="gold" icon={<SkipForward size={12} />} onClick={onNext}
-              title="Note l'appel (sans double appel) et appelle le lead suivant. Si l'appel est encore ouvert, raccroche dans Aircall : le suivant part tout seul.">
+              title="Note l'appel (sans double appel) et appelle le lead suivant. Si l'appel est encore ouvert, raccroche-le : le suivant part tout seul.">
               Suivant
             </CrmV2Button>
           </span>
@@ -839,7 +888,7 @@ function LeadPanel({
       {/* Messagerie : Aircall la voit comme un décroché, il faut raccrocher soi-même */}
       {attempt && !ended && attempt.answered_at && phase.kind === 'call' && !qualified && (
         <div style={{ fontSize: 12, color: crmV2.textMuted }}>
-          Tu tombes sur la messagerie ? Clique « Répondeur » ou « Suivant », puis raccroche dans Aircall (⌥E) : le lead suivant part tout seul.
+          Tu tombes sur la messagerie ? Clique « Répondeur » ou « Suivant », puis {embed ? 'raccroche avec le bouton rouge du téléphone Aircall (à gauche)' : 'raccroche dans Aircall (⌥E)'} : le lead suivant part tout seul.
         </div>
       )}
 

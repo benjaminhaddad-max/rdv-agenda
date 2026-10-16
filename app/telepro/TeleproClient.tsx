@@ -32,6 +32,8 @@ import MyMails from '@/components/telepro-v2/MyMails'
 import TeleproContactsMobile from '@/components/telepro-v2/TeleproContactsMobile'
 import DialerSession, { type DialerState } from '@/components/telepro-v2/DialerSession'
 import DialerContactFiche from '@/components/telepro-v2/DialerContactFiche'
+import AircallPhone, { AIRCALL_PHONE_WIDTH } from '@/components/telepro-v2/AircallPhone'
+import { useAircallEmbed } from '@/lib/aircall-embed'
 import type { DialerListSource } from '@/lib/dialer-shared'
 import LyceesClient from '@/components/crm-v2/lycees/LyceesClient'
 import {
@@ -573,6 +575,9 @@ export default function TeleproClient({
     </div>
   ) : null
   const dialerFicheShown = dialerFiche && !!dialerLeadId && (activeTab === 'session' || dialerDocked)
+  // Téléphone Aircall intégré (ordinateur) : reste monté sur tous les onglets, l'appel continue
+  const aircallEmbed = useAircallEmbed()
+  const aircallPhoneShown = !isMobile && !isAdmin && !previewMode && aircallEmbed.enabled
 
   // Session d'appels ouverte pendant qu'il est sur un autre onglet
   const dialerBanner = !isAdmin && dialerState !== 'off' && activeTab !== 'session' && !dialerDocked ? (
@@ -605,6 +610,7 @@ export default function TeleproClient({
 
   const overlays = (
     <>
+      {aircallPhoneShown && <AircallPhone />}
       {dialerFicheShown && dialerLeadId && (
         <DialerContactFiche key={dialerLeadId} contactId={dialerLeadId} onClose={() => setDialerFiche(false)} />
       )}
@@ -790,7 +796,11 @@ export default function TeleproClient({
 
       {dialerBanner}
       {/* Fiche du dialer ouverte à droite : la page se décale pour laisser le dialer cliquable */}
-      <main style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', paddingRight: dialerFicheShown ? 484 : 0 }}>
+      <main style={{
+        flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column',
+        paddingRight: dialerFicheShown ? 484 : 0,
+        paddingLeft: aircallPhoneShown && aircallEmbed.expanded ? AIRCALL_PHONE_WIDTH + 24 : 0,
+      }}>
         {dialerPane}
         {tabContent()}
       </main>
