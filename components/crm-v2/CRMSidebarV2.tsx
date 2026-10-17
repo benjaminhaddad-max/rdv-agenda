@@ -8,7 +8,7 @@ import {
   ChevronLeft, ChevronRight, ChevronDown, LogOut, Calendar, CalendarDays,
   BarChart3, CheckSquare, Workflow, Upload, GitMerge, Settings as SettingsIcon,
   Facebook, AlertTriangle, MessageSquare, Menu, X, List,
-  Palette, Repeat2, FileSignature, Phone, ExternalLink, Presentation, PhoneCall, LifeBuoy, Star, ChevronsDownUp, ChevronsUpDown, School, Sparkles,
+  Palette, Repeat2, FileSignature, Phone, ExternalLink, Presentation, PhoneCall, LifeBuoy, Star, ChevronsDownUp, ChevronsUpDown, School, Sparkles, Plane,
 } from 'lucide-react'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { crmV2 } from '@/lib/crm-v2-theme'
@@ -49,6 +49,7 @@ const NAV_SECTIONS: NavSection[] = [
       { key: 'assistant', label: 'Assistant leads', href: '/admin/crm-v2/assistant', icon: Sparkles, ready: true },
       { key: 'tasks', label: 'Mes tâches', href: '/admin/crm-v2/tasks', icon: CheckSquare, ready: true },
       { key: 'lycees', label: 'Lycées', href: '/admin/crm-v2/lycees', icon: School, ready: true },
+      { key: 'edumove', label: 'Edumove', href: '/admin/crm-v2/edumove', icon: Plane, ready: true },
       { key: 'service-technique', label: 'Service technique', href: '/admin/crm-v2/service-technique', icon: LifeBuoy, badgeKey: 'support', ready: true },
       { key: 'import', label: 'Import CSV', href: '/admin/crm-v2/import', icon: Upload, ready: true },
       { key: 'doublons', label: 'Doublons', href: '/admin/crm-v2/doublons', icon: GitMerge, ready: true },

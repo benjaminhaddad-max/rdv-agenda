@@ -23,7 +23,7 @@ import {
   EDUMOVE_UPLOADABLE_DOCS, edumoveMissingDocs, type EdumoveStage,
 } from '@/lib/edumove-stage'
 
-type Dossier = {
+export type Dossier = {
   candidature_id: string
   stage: EdumoveStage
   status: string | null
@@ -43,7 +43,7 @@ type ChatMessage = { id: number; sender_role: string; sender_name?: string | nul
 type FacMessage = { id: number; fac_key: string; sender_role: string; sender_email?: string | null; content: string; created_at: string }
 type Conversation = { messages: ChatMessage[]; fac_messages: FacMessage[] }
 
-const STAGE_STYLE: Record<EdumoveStage, { bg: string; color: string; dot: string }> = {
+export const STAGE_STYLE: Record<EdumoveStage, { bg: string; color: string; dot: string }> = {
   compte: { bg: '#f1f5f9', color: '#475569', dot: '#94a3b8' },
   candidature: { bg: '#fff7ed', color: '#c2410c', dot: '#f97316' },
   reponse: { bg: '#eff6ff', color: '#1d4ed8', dot: '#3b82f6' },
@@ -52,7 +52,7 @@ const STAGE_STYLE: Record<EdumoveStage, { bg: string; color: string; dot: string
   archive: { bg: '#f8fafc', color: '#64748b', dot: '#cbd5e1' },
 }
 
-const FILIERES: Record<string, string> = {
+export const FILIERES: Record<string, string> = {
   medecine: 'Médecine', dentaire: 'Dentaire', kinesitherapie: 'Kiné', pharmacie: 'Pharmacie', veterinaire: 'Vétérinaire', prepa_dentaire: 'Prépa dentaire',
 }
 const DESTINATIONS: Record<string, string> = { PASS_LAS: 'PASS / LAS (France)', LINK: 'LINK', UCJC: 'UCJC', UE: 'Universidad Europea' }
@@ -95,7 +95,8 @@ export function EdumoveSection({ contactId }: { contactId: string }) {
   return <>{dossiers.map(d => <EdumoveDossier key={d.candidature_id} d={d} onChanged={reload} />)}</>
 }
 
-function EdumoveDossier({ d, onChanged }: { d: Dossier; onChanged: () => void }) {
+/** Un dossier Edumove ; `bare` = sans le bloc repliable (panneau de l'onglet Edumove). */
+export function EdumoveDossier({ d, onChanged, bare }: { d: Dossier; onChanged: () => void; bare?: boolean }) {
   const isCompte = d.stage === 'compte'
   const st = STAGE_STYLE[d.stage] ?? STAGE_STYLE.candidature
   const det = d.details ?? {}
@@ -153,8 +154,7 @@ function EdumoveDossier({ d, onChanged }: { d: Dossier; onChanged: () => void })
     })
   }
 
-  return (
-    <CrmV2Section title="Candidature Edumove" icon={<Plane size={14} />} count={1} storageKey="rs-open:Candidature Edumove">
+  const content = (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, opacity: busy ? 0.6 : 1 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 10, background: st.bg, color: st.color, fontSize: 12, fontWeight: 700 }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: st.dot, flexShrink: 0 }} />
@@ -253,6 +253,11 @@ function EdumoveDossier({ d, onChanged }: { d: Dossier; onChanged: () => void })
           <span title="Copie de la plateforme, rafraîchie toutes les 10 min et après chaque action">MAJ {fmtDate(d.synced_at)}</span>
         </div>
       </div>
+  )
+  if (bare) return content
+  return (
+    <CrmV2Section title="Candidature Edumove" icon={<Plane size={14} />} count={1} storageKey="rs-open:Candidature Edumove">
+      {content}
     </CrmV2Section>
   )
 }

@@ -3,7 +3,7 @@
 import {
   useEffect, useState,
   type ButtonHTMLAttributes, type CSSProperties, type InputHTMLAttributes, type ReactNode,
-  type SelectHTMLAttributes, type TextareaHTMLAttributes,
+  type Ref, type SelectHTMLAttributes, type TextareaHTMLAttributes,
 } from 'react'
 import { ChevronDown, ChevronLeft, ChevronRight, Search, X } from 'lucide-react'
 import { crmV2 } from '@/lib/crm-v2-theme'
@@ -1064,7 +1064,7 @@ export function CrmV2Select({ style, children, ...rest }: SelectHTMLAttributes<H
   return <select {...rest} style={{ ...fieldBox, cursor: 'pointer', ...style }}>{children}</select>
 }
 
-export function CrmV2Textarea({ style, ...rest }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+export function CrmV2Textarea({ style, ...rest }: TextareaHTMLAttributes<HTMLTextAreaElement> & { ref?: Ref<HTMLTextAreaElement> }) {
   return <textarea {...rest} style={{ ...fieldBox, height: 'auto', minHeight: 80, padding: '10px 12px', lineHeight: 1.5, resize: 'vertical', ...style }} />
 }
 

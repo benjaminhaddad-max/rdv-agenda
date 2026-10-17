@@ -18,6 +18,7 @@ export { EDUMOVE_FAC_NAMES, EDUMOVE_TRACKING_BY_UNI }
 import { sendBrevoEmail } from '@/lib/brevo'
 import { sendSms } from '@/lib/smsfactor'
 import { logger } from '@/lib/logger'
+import { edumoveEmailLayout as emailLayout } from '@/lib/edumove-mail-shared'
 
 export const EDUMOVE_SITE_URL = (process.env.EDUMOVE_SITE_URL || 'https://candidature.edumove.fr').replace(/\/+$/, '')
 const SENDER = { email: 'contact@edumove.fr', name: 'Edumove Admissions' }
@@ -37,16 +38,6 @@ const esc = (s: unknown) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g,
 const firstName = (p: unknown) => {
   const v = String(p ?? '').trim()
   return v ? v.charAt(0).toUpperCase() + v.slice(1).toLowerCase() : 'Candidat'
-}
-
-function emailLayout(title: string, bodyHtml: string, cta?: { label: string; url: string }) {
-  return `<!doctype html><html><body style="margin:0;background:#f6f7fb;font-family:Arial,Helvetica,sans-serif;color:#1f2937">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:24px 12px">
-<table role="presentation" width="100%" style="max-width:560px;background:#ffffff;border-radius:12px;overflow:hidden">
-<tr><td style="background:#e65100;color:#fff;padding:18px 24px;font-size:18px;font-weight:bold">Edumove</td></tr>
-<tr><td style="padding:24px"><h1 style="font-size:18px;margin:0 0 14px">${esc(title)}</h1>${bodyHtml}
-${cta ? `<p style="margin:22px 0 0"><a href="${esc(cta.url)}" style="background:#e65100;color:#fff;text-decoration:none;padding:12px 18px;border-radius:8px;display:inline-block;font-weight:bold">${esc(cta.label)}</a></p>` : ''}
-</td></tr></table></td></tr></table></body></html>`
 }
 
 async function safeNotify(label: string, fn: () => Promise<unknown>): Promise<boolean> {
@@ -126,7 +117,7 @@ export async function notifyAdmissionsFromFac(facKey: string, studentName: strin
     subject: studentName ? `Réponse ${EDUMOVE_FAC_NAMES[facKey] ?? facKey} — ${studentName}` : `Nouveau message de ${EDUMOVE_FAC_NAMES[facKey] ?? facKey}`,
     htmlContent: emailLayout(`Message de ${EDUMOVE_FAC_NAMES[facKey] ?? facKey}`,
       `<div style="background:#f3f4f6;border-radius:8px;padding:12px 14px;line-height:1.5;white-space:pre-wrap">${esc(content)}</div>`,
-      { label: 'Ouvrir le CRM', url: 'https://hub.diploma-sante.fr/admin/crm-v2?view=v_edumove_candidatures' }),
+      { label: 'Ouvrir le CRM', url: 'https://hub.diploma-sante.fr/admin/crm-v2/edumove' }),
     tags: ['edumove:fac'],
   }))
 }
