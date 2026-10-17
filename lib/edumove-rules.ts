@@ -230,11 +230,11 @@ export const EDUMOVE_AUTOMATIONS: EdumoveAutomation[] = [
   },
   {
     when: 'Candidature envoyée sur le site',
-    what: 'Page « Votre candidature est envoyée » qui pousse vers l’appli Edumove Lab (lien unique, QR code).',
+    what: 'Retour à l’espace candidat. La page qui pousse vers l’appli Edumove Lab (lien unique, QR code) est prête et sera activée à la publication de l’appli.',
     to: 'Candidat', channel: 'Page', where: 'Plateforme', state: 'ok',
   },
   {
-    when: 'Question du candidat dans l’appli',
+    when: 'Question du candidat dans l’appli (à sa publication)',
     what: 'L’assistant répond avec le dossier du candidat sous les yeux ; s’il ne sait pas, il passe la main à l’équipe (mail à admissions, dossier marqué « Rappel demandé »).',
     to: 'Candidat / admissions', channel: 'Chat + Mail', where: 'Appli', state: 'ok',
   },

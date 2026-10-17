@@ -41,7 +41,7 @@ Vous avez créé votre compte Edumove, mais votre candidature n’est pas encore
 
 Il ne vous reste que quelques minutes : vos notes, vos langues et vos préférences. C’est gratuit et sans engagement, et vous recevez votre réponse personnalisée en général sous 2 heures ouvrées.
 
-Finalisez-la ici : {{lien_appli}}
+Finalisez-la ici : {{lien_espace}}
 
 À très vite,
 L’équipe Edumove`,
@@ -57,7 +57,7 @@ Votre réponse Edumove est disponible : elle indique les facs et filières qui v
 
 Pour que nous envoyions votre dossier, choisissez maintenant vos facs et déposez les pièces demandées depuis votre espace : {{lien_espace}}
 
-Une question ? Répondez simplement à ce mail ou écrivez-nous dans l’appli Edumove Lab : {{lien_appli}}
+Une question ? Répondez simplement à ce mail ou écrivez-nous depuis votre espace candidat.
 
 L’équipe Edumove`,
   },
@@ -71,7 +71,7 @@ L’équipe Edumove`,
 Pour envoyer votre dossier à {{facs}}, il nous manque :
 {{pieces_manquantes}}
 
-Vous pouvez les déposer en photo directement depuis l’appli Edumove Lab : {{lien_appli}}
+Vous pouvez les déposer depuis votre espace candidat : {{lien_espace}}
 
 Merci, et à très vite,
 L’équipe Edumove`,
@@ -118,14 +118,14 @@ Pour votre candidature à l’Universidad Europea, deux étapes :
 1. Le rapport technique académique (60 €, sur hostudents.com) s’il n’est pas encore fait.
 2. Les tests de sélection (langue, aptitudes, motivation et matière). Les résultats arrivent sous 48 h ; en cas d’admission, un acompte de 2 500 € est à verser sous 2 jours.
 
-Suivez chaque étape dans l’appli Edumove Lab : {{lien_appli}}
+Suivez chaque étape dans votre espace candidat : {{lien_espace}}
 
 L’équipe Edumove`,
   },
   {
     id: 'appli',
     name: 'Télécharger l’appli',
-    usage: 'Pousser vers l’appli Edumove Lab (suivi, chat, pièces, langues).',
+    usage: 'À utiliser au lancement de l’appli Edumove Lab (pas encore publiée).',
     subject: '{{prenom}}, suivez votre dossier dans l’appli Edumove Lab',
     body: `Bonjour {{prenom}},
 
