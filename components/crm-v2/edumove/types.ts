@@ -21,6 +21,14 @@ export type DossierLite = {
   documents: Record<string, boolean>
   missing: string[]
   callback: boolean
+  /** Consultations de la réponse Edumove par le candidat */
+  views: number
+  viewed_at: string | null
+  /** Élève Diploma Santé (formule), sinon null */
+  diploma: string | null
+  moyenne: string | null
+  /** Dernier changement de statut */
+  last_change: string | null
   created_at: string | null
 }
 

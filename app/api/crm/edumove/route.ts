@@ -33,6 +33,13 @@ type Row = {
   synced_at: string | null
 }
 
+/** Date du dernier changement de statut (historique copié dans details). */
+function lastChange(h: unknown): string | null {
+  if (!Array.isArray(h) || !h.length) return null
+  const at = (h[h.length - 1] as { at?: unknown })?.at
+  return typeof at === 'string' ? at : null
+}
+
 export async function GET() {
   const auth = await requireEdumoveStaff()
   if (!auth.ok) return auth.response
@@ -77,6 +84,11 @@ export async function GET() {
       documents: Object.fromEntries(Object.entries(docs).map(([k, v]) => [k, v === false ? false : !!v])),
       missing: edumoveMissingDocs(r.uni_selections ?? {}, docs),
       callback: det.callback_requested === true,
+      views: typeof det.response_view_count === 'number' ? det.response_view_count : 0,
+      viewed_at: typeof det.response_viewed_at === 'string' ? det.response_viewed_at : null,
+      diploma: det.eleves_diploma_sante ? String(det.eleves_diploma_sante) : null,
+      moyenne: det.moyenne_terminale || det.moyenne_premiere ? String(det.moyenne_terminale || det.moyenne_premiere) : null,
+      last_change: lastChange(det.status_history),
       created_at: r.candidature_created_at,
     }
   })

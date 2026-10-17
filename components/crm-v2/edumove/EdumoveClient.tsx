@@ -101,6 +101,10 @@ export default function EdumoveClient() {
             loading={loading}
             error={error}
             onReload={load}
+            onPatched={(id, patch) => {
+              setDossiers(prev => prev.map(d => (d.candidature_id === id ? { ...d, ...patch } : d)))
+              void load()
+            }}
             onMail={(targets, templateId) => setMail({ targets, templateId })}
           />
         )}
