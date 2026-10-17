@@ -10,11 +10,12 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, Inbox, Mail, PenLine, RefreshCw, Search, Send, X } from 'lucide-react'
+import { ArrowLeft, ExternalLink, Inbox, Mail, PenLine, RefreshCw, Search, Send, X } from 'lucide-react'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { CrmV2Button, CrmV2Empty } from '@/components/crm-v2/primitives'
 import { AdminNotice, AdminSpin } from '@/components/crm-v2/admin/AdminUi'
+import DialerContactFiche from '@/components/telepro-v2/DialerContactFiche'
 
 type Thread = {
   thread_id: string
@@ -77,6 +78,8 @@ export default function MyMails({ userId, readOnly = false }: { userId: string; 
   const [filter, setFilter] = useState<'all' | 'unread'>('all')
   const [selected, setSelected] = useState<string | null>(null)
   const [composeOpen, setComposeOpen] = useState(false)
+  // Fiche du contact de l'échange, ouverte à droite
+  const [ficheId, setFicheId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -194,7 +197,7 @@ export default function MyMails({ userId, readOnly = false }: { userId: string; 
   )
 
   const threadPane = current
-    ? <ThreadView key={current.thread_id} thread={current} qs={qs} readOnly={readOnly} onRead={onRead} onSent={onSent} onBack={isMobile ? () => setSelected(null) : undefined} />
+    ? <ThreadView key={current.thread_id} thread={current} qs={qs} readOnly={readOnly} onRead={onRead} onSent={onSent} onOpenContact={setFicheId} onBack={isMobile ? () => setSelected(null) : undefined} />
     : (
       <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: crmV2.textFaint, fontSize: 13 }}>
         Choisis un échange à gauche.
@@ -219,16 +222,18 @@ export default function MyMails({ userId, readOnly = false }: { userId: string; 
         </div>
       )}
       {composeOpen && <ComposeDialog qs={qs} onClose={() => setComposeOpen(false)} onSent={onSent} />}
+      {ficheId && <DialerContactFiche key={ficheId} contactId={ficheId} onClose={() => setFicheId(null)} />}
     </div>
   )
 }
 
-function ThreadView({ thread, qs, readOnly, onRead, onSent, onBack }: {
+function ThreadView({ thread, qs, readOnly, onRead, onSent, onOpenContact, onBack }: {
   thread: Thread
   qs: string
   readOnly: boolean
   onRead: (threadId: string) => void
   onSent: (threadId: string | null) => void
+  onOpenContact: (contactId: string) => void
   onBack?: () => void
 }) {
   const [messages, setMessages] = useState<Message[] | null>(null)
@@ -284,6 +289,7 @@ function ThreadView({ thread, qs, readOnly, onRead, onSent, onBack }: {
           <div style={{ fontSize: 15, fontWeight: 700, color: crmV2.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{thread.subject || '(sans objet)'}</div>
           <div style={{ fontSize: 12, color: crmV2.textMuted }}>{thread.contact.name}{thread.contact.email ? ` · ${thread.contact.email}` : ''}</div>
         </div>
+        <CrmV2Button icon={<ExternalLink size={14} />} onClick={() => onOpenContact(thread.contact.id)}>Ouvrir</CrmV2Button>
       </div>
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '16px 18px', background: crmV2.bgSoft }}>
         {!messages && !error && <div style={{ display: 'flex', justifyContent: 'center', padding: 20 }}><AdminSpin size={18} /></div>}
