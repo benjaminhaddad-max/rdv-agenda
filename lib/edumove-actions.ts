@@ -97,6 +97,26 @@ async function notifyStudentMessage(c: Row, content: string): Promise<{ email: b
   return { email, sms }
 }
 
+/**
+ * Push sur le téléphone du candidat (appli Edumove Lab), en plus du mail et du
+ * SMS. Actif seulement si EDUMOVE_NOTIFY_SECRET est posé (même valeur sur le
+ * projet Vercel du Lab) ; sinon rien n'est envoyé.
+ */
+async function pushAppliEdumove(email: unknown, texte: string): Promise<boolean> {
+  const secret = process.env.EDUMOVE_NOTIFY_SECRET
+  if (!secret || !email) return false
+  const base = (process.env.EDUMOVE_LAB_URL || 'https://edumovelab.vercel.app').replace(/\/+$/, '')
+  return safeNotify('push-appli', async () => {
+    const r = await fetch(`${base}/api/edumove/notifier`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-edumove-secret': secret },
+      body: JSON.stringify({ email: String(email), texte: texte.length > 140 ? `${texte.slice(0, 140)}…` : texte }),
+      signal: AbortSignal.timeout(8000),
+    })
+    if (!r.ok) throw new Error(`notifier ${r.status}`)
+  })
+}
+
 export async function notifyFac(facKey: string, studentName: string | null, content: string, facLink: string | null) {
   const to = (EDUMOVE_FAC_EMAILS[facKey] ?? []).map(email => ({ email }))
   if (!to.length) return false
@@ -205,7 +225,10 @@ export async function runEdumoveAction(crm: SupabaseClient, candidatureId: strin
         sender_name: 'Équipe EDUMOVE', content, channel: 'edumove',
       })
       if (error) throw new EdumoveActionError(`Envoi impossible : ${error.message}`, 502)
-      if (action.notify !== false) notified = await notifyStudentMessage(c, content)
+      if (action.notify !== false) {
+        notified = await notifyStudentMessage(c, content)
+        await pushAppliEdumove(c.email, content)
+      }
       break
     }
     case 'fac_message': {
